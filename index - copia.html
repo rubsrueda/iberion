@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+    <title>Hex General Evolved - Modular</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- ====================================================================== -->
+    <!-- ============ CONTENEDOR SÓLO PARA CENTRAR EL JUEGO =================== -->
+    <!-- ====================================================================== -->
+    <main id="game-wrapper">
+        <div class="game-container" style="display: none;"> 
+            <div id="gameBoard"></div>
+            <div id="turnBlocker" class="turn-blocker" style="display: none;">Esperando al Oponente...</div>
+            <!-- LOS PANELES DE UI YA NO ESTÁN AQUÍ DENTRO -->
+            
+        </div>
+    </main>
+
+    <!-- ====================================================================== -->
+    <!-- ===== TODOS LOS ELEMENTOS DE UI (PANELES, MODALES, BOTONES) VAN AQUÍ ==== -->
+    <!-- ==== SON HIJOS DIRECTOS DEL BODY PARA QUE "FLOTEN" CORRECTAMENTE ==== -->
+    <!-- ====================================================================== -->
+
+    <!-- PANELES FLOTANTES INFERIORES -->
+    <div id="tutorialMessagePanel" class="tutorial-panel">
+        <button id="closeTutorialPanelBtn">×</button>
+        <span id="tutorialMessageText"></span>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- ===================== PANEL INFERIOR (REDISEÑADO) ================== -->
+    <!-- ====================================================================== -->
+    <div id="contextualInfoPanel">
+        <button id="closeContextualPanelBtn">×</button>
+        <div id="contextual-line-1"></div> <!-- Línea para la info de la unidad -->
+        <div id="contextual-line-2"></div> <!-- Línea para la info del hexágono -->
+    </div>
+    
+    <button id="reopenContextualPanelBtn" style="display: none;">▲</button>
+
+    <!-- ====================================================================== -->
+    <!-- MENÚ FLOTANTE SUPERIOR IZQUIERDO -->
+    <!-- ====================================================================== -->
+    <div id="floatingMenuPanel" class="floating-panel top-left-panel" style="display: none;">
+        <h4 id="floatingMenuTitle">Fase: - <br> Turno 1 - Jugador -</h4>
+        <div id="playerResourcesGrid_float" class="playerResourcesGrid_common">
+            <div class="resource-labels">
+                <span>Oro</span><span>Fe</span><span>Pi</span><span>Ma</span><span>Com</span><span>Inv</span><span>PR</span>
+            </div>
+            <div class="resource-values">
+                <span data-resource="oro">0</span>
+                <span data-resource="hierro">0</span>
+                <span data-resource="piedra">0</span>
+                <span data-resource="madera">0</span>
+                <span data-resource="comida">0</span>
+                <span data-resource="researchPoints">0</span>
+                <span data-resource="puntosReclutamiento">0</span>
+            </div>
+        </div>
+        <button id="concedeBattleBtn_float" class="panel-button">Rendirse</button>
+        <button id="saveGameBtn_float" class="panel-button">Guardar Partida</button>
+        <label for="loadGameInput_float" class="button-like-label panel-button">Cargar Partida</label>
+        <input type="file" id="loadGameInput_float" accept=".json" style="display: none;">
+        <button id="exportProfileBtn_float" class="panel-button" style="background-color: #28a745;">Exportar Mi Perfil</button>
+        <button id="backToMainFromBattleBtn" class="panel-button" style="background-color:#6c757d;">Volver al Menú Principal</button>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- ================ BARRA DE ACCIONES V2 (CON MENÚ COLAPSABLE) ========= -->
+    <!-- ====================================================================== -->
+    <div id="tactical-ui-container" style="display: none;">
+        
+        <!-- Grupo Izquierdo: Acciones de Unidad (Contextuales) -->
+        <div class="floating-action-group left">
+            <button id="floatingUndoMoveBtn" title="Deshacer Movimiento">↩</button>
+            <button id="floatingReinforceBtn" title="Gestionar/Reforzar">💪</button>
+            <button id="floatingSplitBtn" title="Dividir Unidad">✂️</button>
+            <button id="floatingBuildBtn" title="Construir">🏗️</button>
+            <button id="floatingPillageBtn" title="Saquear">💰</button>
+            <button id="floatingAssignGeneralBtn" title="Asignar General">👤</button>
+            <button id="floatingConsolidateBtn" title="Consolidar">🔁</button>
+            <button id="floatingCreateDivisionBtn" title="Crear División">➕</button>
+            <button id="setAsCapitalBtn" title="Establecer Capital">👑</button>
+        </div>
+
+        <!-- === GRUPO DERECHO === -->
+        <div class="floating-action-group right">
+            
+            <!-- CONTENEDOR DEL MENÚ EXPANDIBLE ⚙️ -->
+            <div class="right-menu-group">
+                <button id="toggle-right-menu-btn" class="menu-toggle-btn" title="Opciones Globales">⚙️</button>
+                <div id="right-submenu" class="submenu">
+                    <button id="barracksBtn" title="Cuartel">🎖️</button>
+                    <button id="openForgeBtn" title="Forja">⚔️</button>
+                    <button id="floatingWikiBtn" title="Wiki">ℹ️</button>
+                    <button id="floatingInboxBtn" title="Buzón">✉️</button>
+                    <button id="floatingTechTreeBtn" title="Tecnologías">💡</button>
+                    <button id="floatingConsoleBtn" title="Consola">C</button>
+                    <button id="floatingMenuBtn" title="Menú Principal">☰</button>
+                </div>
+            </div>
+            
+            <!-- BOTONES FIJOS DE ACCIÓN -->
+            <button id="floatingNextUnitBtn" title="Siguiente Unidad">»</button>
+            <button id="floatingEndTurnBtn" title="Finalizar Turno">►</button>
+        </div>
+
+    </div>
+    
+    <!-- El resto de tus elementos como #combatPredictionPanel y los scripts van después -->
+    <div id="combatPredictionPanel" style="display: none;"></div>
+    <div id="debug-console" style="display: none;">
+        <div id="console-output"></div>
+        <input type="text" id="console-input" placeholder="Escribe un comando...">
+    </div>  
+
+
+    <!-- ====================================================================== -->
+    <!-- ======================== PANTALLA DE LOGIN ========================= -->
+    <!-- ====================================================================== -->
+    <div id="loginScreen" class="modal" style="display: none; text-align: center; align-items: center; justify-content: center; background-color: rgba(0,0,0,0.8); z-index: 2000;">
+        <div class="modal-content" style="width: auto; min-width: 350px; max-width: 450px; position: relative; z-index: 2001;">
+            <h2>Acceso de General</h2>
+            <p>Inicia sesión o crea un nuevo perfil de General.</p>
+            
+            <div style="margin: 20px 0;">
+                <label for="usernameInput" style="display: block; margin-bottom: 5px;">Nombre de General:</label>
+                <input type="text" id="usernameInput" placeholder="Escribe tu nombre..." style="width: 80%; padding: 10px; font-size: 1.1em;">
+            </div>
+            
+            <div style="margin: 20px 0;">
+                <label for="passwordInput" style="display: block; margin-bottom: 5px;">Contraseña:</label>
+                <input type="password" id="passwordInput" placeholder="Escribe tu contraseña..." style="width: 80%; padding: 10px; font-size: 1.1em;">
+            </div>
+            
+            <button id="loginBtn" style="padding: 12px 25px; font-size: 1.2em; margin-top: 15px;">Entrar</button>
+
+            <div style="margin-top: 20px;">
+            <label for="importProfileInput" class="button-like-label" style="background-color: #17a2b8; padding: 8px 15px; border-radius: 5px; cursor: pointer; color: white;">
+                Importar Perfil
+            </label>
+            <input type="file" id="importProfileInput" style="display: none;" accept=".json">
+            </div>
+            
+            <p id="loginErrorMessage" style="color: #dc3545; font-weight: bold; min-height: 20px; margin-top: 15px;"></p>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- ===================== MODAL DE BIENVENIDA Y AYUDA ==================== -->
+    <!-- ====================================================================== -->
+    <div id="welcomeHelpModal" class="modal" style="display: none;">
+        <div class="modal-content help-modal-content">
+            <span class="close-button" id="closeWelcomeHelpBtn" title="Cerrar">×</span>
+            <h2 id="welcomeHelpTitle" style="text-align: center; color: #333; margin-bottom: 20px;"></h2>
+            <div id="welcomeHelpSections">
+                <!-- Las secciones de ayuda se añadirán aquí por JS -->
+            </div>
+            <p id="welcomeHelpFooter" style="text-align: center; margin-top: 25px; font-style: italic; color: #555;"></p>
+            <div style="text-align: center; margin-top: 20px;">
+                <label for="doNotShowAgainCheckbox" style="font-size: 0.9em; color: #666; cursor: pointer;">
+                    <input type="checkbox" id="doNotShowAgainCheckbox" style="margin-right: 5px;">
+                    No mostrar de nuevo al iniciar
+                </label>
+                <button id="startGameFromHelpBtn" style="margin-top: 15px; padding: 10px 20px; font-size: 1.1em;">Empezar Juego</button>
+            </div>
+        </div>
+    </div>
+
+    
+    <!-- ====================================================================== -->
+    <!-- ===================== PANTALLA DE MENÚ PRINCIPAL ===================== -->
+    <!-- ====================================================================== -->
+
+    <div id="mainMenuScreen" class="modal no-close-on-click" style="display: flex;">
+    <!-- Contenedor para los "Hotspots" o botones invisibles -->
+        <div id="interactiveBoardContainer">
+        <!-- Partida Rápida: Tablero hexagonal central -->
+            <div id="hotspotMap" class="main-menu-hotspot" data-action="openGameModes"></div>
+        <!-- Cuartel: Libro arriba a la izquierda -->
+            <div id="hotspotBarracks" class="main-menu-hotspot" data-action="openBarracks"></div>
+        <!-- Forja: Soldados a la izquierda -->
+            <div id="hotspotForge" class="main-menu-hotspot" data-action="openForge"></div>
+        <!-- Altar de los Deseos: Estatua a la derecha -->
+            <div id="hotspotAltar" class="main-menu-hotspot" data-action="openAltar"></div>
+        <!-- Campaña: Edificio grande arriba -->
+            <div id="hotspotCampaign" class="main-menu-hotspot" data-action="showComingSoon"></div>
+        <!-- Tronos de Iberia: Ruinas a la derecha -->
+            <div id="hotspotThrones" class="main-menu-hotspot" data-action="showComingSoon"></div>
+        
+        <!-- Información del General y Logout -->
+            <div id="generalInfoPanel">
+                <span>General: <strong id="currentGeneralName_main">Ninguno</strong></span>
+                <button id="logoutBtn_main" title="Cerrar Sesión">⏻</button>
+            </div>
+        </div>
+
+    <!-- Modal SECUNDARIO para los modos de juego -->
+        <div id="gameModesModal" class="modal" style="display: none; background-color: rgba(0,0,0,0.7);">
+            <div class="modal-content" style="text-align: center; max-width: 400px;">
+                <span class="close-button" id="closeGameModesModalBtn">×</span>
+                <h2>Elige tu Batalla</h2>
+                <button id="startSkirmishBtn_new" style="display: block; width: 90%; margin: 20px auto; padding: 15px; font-size: 1.1em;">Partida Rápida (Escaramuza)</button>
+                <button id="startTutorialBtn_new" style="display: block; width: 90%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #28a745;">Iniciar Tutorial (5 min)</button>
+                <button id="joinNetworkGameBtn_new" style="display: block; width: 90%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #ffc107; color: black;">Unirse a Partida en Red</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ====================================================================== -->
+    <!-- ====== PANTALLA DE CONFIGURACIÓN DE PARTIDA RÁPIDA (ESCARAMUZA) ====== -->
+    <!-- ====================================================================== -->
+    <div id="setupScreen" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2>Configuración de Partida Rápida</h2>
+            <div id="skirmish-options-container"> 
+                <div>
+                    <label for="player1Type">Jugador 1:</label>
+                    <select id="player1Type">
+                        <option value="human" selected>Humano</option>
+                        <option value="ai_easy">IA (Fácil)</option>
+                        <option value="ai_normal">IA (Normal)</option>
+                        <option value="ai_hard">IA (Difícil)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="player1Civ">Civilización J1:</label>
+                    <select id="player1Civ">
+                        <option value="ninguna" selected>Ninguna</option>
+                        <option value="Roma">Roma</option>
+                        <option value="Grecia">Grecia</option>
+                        <option value="Cartago">Cartago</option>
+                        <option value="Egipto">Egipto</option>
+                        <option value="Galia">Galia</option>
+                        <option value="Germania">Germania</option>
+                        <option value="Britania">Britania</option>
+                        <option value="Iberia">Iberia</option>
+                        <option value="Persia">Persia</option>
+                        <option value="China">China</option>
+                        <option value="Vikingos">Vikingos</option>
+                        <option value="Mongol">Mongolia</option>
+                        <option value="Arábiga">Arabia</option>
+                        <option value="Mameluca">Sultanato Mameluco</option>
+                        <option value="Otomana">Imperio Otomano</option>
+                        <option value="Maya">Civilización Maya</option>
+                        <option value="Asiria">Asiria</option>
+                        <option value="Babilonia">Babilonia</option>
+                        <option value="Japón">Japón</option>
+                    </select>
+                </div>
+                <div id="player1AiLevelDiv" style="display:none;">
+                    <label for="player1AiLevel">Nivel IA Jugador 1:</label>
+                    <select id="player1AiLevel">
+                        <option value="easy">Fácil</option>
+                        <option value="normal" selected>Normal</option>
+                        <option value="hard">Difícil</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="player2Type">Jugador 2:</label>
+                    <select id="player2Type">
+                        <option value="human">Humano</option>
+                        <option value="ai_easy">IA (Fácil)</option>
+                        <option value="ai_normal" selected>IA (Normal)</option>
+                        <option value="ai_hard">IA (Difícil)</option>
+                    </select>
+                </div>
+                <div id="player2NameDiv" style="display:none;">
+                    <label for="player2NameInput">Nombre J2:</label>
+                    <input type="text" id="player2NameInput" placeholder="Nombre del General J2">
+                </div>
+                <div>
+                    <label for="player2Civ">Civilización J2:</label>
+                    <select id="player2Civ">
+                        <option value="ninguna" selected>Ninguna</option>
+                        <option value="Roma">Roma</option>
+                        <option value="Grecia">Grecia</option>
+                        <option value="Cartago">Cartago</option>
+                        <option value="Egipto">Egipto</option>
+                        <option value="Galia">Galia</option>
+                        <option value="Germania">Germania</option>
+                        <option value="Britania">Britania</option>
+                        <option value="Iberia">Iberia</option>
+                        <option value="Persia">Persia</option>
+                        <option value="China">China</option>
+                        <option value="Vikingos">Vikingos</option>
+                        <option value="Mongol">Mongolia</option>
+                        <option value="Arábiga">Arabia</option>
+                        <option value="Mameluca">Sultanato Mameluco</option>
+                        <option value="Otomana">Imperio Otomano</option>
+                        <option value="Maya">Civilización Maya</option>
+                        <option value="Asiria">Asiria</option>
+                        <option value="Babilonia">Babilonia</option>
+                        <option value="Japón">Japón</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="resourceLevel">Nivel de Recursos:</label>
+                    <select id="resourceLevel">
+                        <option value="min" selected>Mínimos</option>
+                        <option value="med">Medios</option>
+                        <option value="max">Muchos</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="boardSizeSelect">Tamaño del Tablero:</label>
+                    <select id="boardSizeSelect">
+                        <option value="small" selected>Pequeño (12x15)</option>
+                        <option value="medium">Mediano (18x25)</option>
+                        <option value="large">Grande (24x35)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="initialUnitsCount">Límite Despliegue:</label>
+                    <select id="initialUnitsCount">
+                        <option value="1">1 Unidad</option>
+                        <option value="3" selected>3 Unidades</option>
+                        <option value="5">5 Unidades</option>
+                        <option value="unlimited">Ilimitadas</option>
+                    </select>
+                </div>
+            </div>    
+            <div class="setup-actions" style="margin-top: 25px; display: flex; justify-content: space-around; gap: 10px;">
+                <button id="startLocalGameBtn" style="flex: 1; padding: 12px; font-size: 1.05em;">Empezar Partida (Local)</button>
+                <button id="createNetworkGameBtn" style="flex: 1; padding: 12px; font-size: 1.05em; background-color: #007bff;">Crear Partida en Red</button>
+            </div>
+            <button id="backToMainMenuBtn_fromSetup" style="margin-top:15px; background-color: #6c757d; width:auto; padding: 10px 15px;">Volver al Menú</button>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- ========= PANTALLA DE LOBBY DEL ANFITRIÓN (ESPERANDO JUGADOR) ======== -->
+    <!-- ====================================================================== -->
+    <div id="hostLobbyScreen" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2>Lobby de Partida en Red</h2>
+            <div class="container">
+                <h3>Tu partida está lista</h3>
+                <p>Comparte este código con el otro jugador para que pueda unirse:</p>
+                <p style="font-size: 1.8em; font-weight: bold; color: #007bff; letter-spacing: 3px; margin: 15px 0; user-select: all;" id="short-game-code">Generando...</p>
+                <p><i>El juego comenzará automáticamente cuando se una.</i></p>
+            </div>
+            <div class="container">
+                <p>Estado: <span id="host-status" class="status desconectado">Esperando jugador...</span></p>
+                <ul id="host-player-list">
+                    <!-- Los nombres de los jugadores aparecerán aquí -->
+                </ul>
+            </div>
+            <button id="backToMainMenuBtn_fromHostLobby" style="margin-top:20px; background-color: #6c757d;">Cancelar y Volver</button>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- ======================= MODAL DEL CUARTEL (HÉROES) =================== -->
+    <!-- ====================================================================== -->
+    <div id="barracksModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 800px;">
+            <span class="close-button" id="closeBarracksBtn">×</span>
+            <h2>Cuartel de Héroes</h2>
+            <p>Aquí puedes ver los héroes que has reclutado para tu causa.</p>
+            <div id="heroCollectionContainer" class="hero-collection-grid">
+                <!-- Los héroes del jugador se insertarán aquí -->
+            </div>
+        </div>
+    </div>
+    <!-- ====================================================================== -->
+    <!-- ====== MODAL DETALLES DE HÉROE (ESTRUCTURA CORREGIDA PARA EQUIPO) ====== -->
+    <!-- ====================================================================== -->
+    <div id="heroDetailModal" class="modal" style="display: none;">
+        <div class="modal-content hero-detail-content-rok">
+            <span class="close-button" id="closeHeroDetailBtn">×</span>
+        
+        <!-- CUERPO PRINCIPAL (Layout de 3 columnas) -->
+            <div class="hero-main-layout">
+
+            <!-- COLUMNA IZQUIERDA: HABILIDADES (Sin cambios) -->
+                <div class="hero-column hero-skills-column">
+                    <h3 class="column-title">Habilidades</h3>
+                    <div id="heroDetailSkillsContainer" class="skills-list">
+                        <!-- Las 4 habilidades se insertarán aquí con JS -->
+                    </div>
+                </div>
+
+            <!-- COLUMNA CENTRAL: RETRATO, STATS Y PROGRESIÓN (Sin cambios) -->
+                <div class="hero-column hero-center-column">
+                    <div id="hero-portrait-container"></div>
+                    <div id="hero-name-title" class="hero-name-title">
+                        <h2 id="heroDetailName">Nombre Héroe</h2>
+                        <p id="heroDetailTitle">Título del Héroe</p>
+                    </div>
+                    <div id="hero-progression-bars">
+                        <div class="progress-item">
+                            <span>Nivel: <strong id="heroDetailLevel">1</strong></span>
+                            <div class="xp-bar-container"><div id="heroDetailXpBar" class="xp-bar"></div></div>
+                            <span id="heroDetailXpText">0/1000</span>
+                        </div>
+                        <div class="progress-item">
+                            <span>Evolución: <strong id="heroDetailStars">⭐</strong></span>
+                            <div class="xp-bar-container"><div id="heroDetailFragmentBar" class="xp-bar fragments"></div></div>
+                            <span id="heroDetailFragmentText">0/20</span>
+                        </div>
+                    </div>
+                </div>
+
+            <!-- <<== CORRECCIÓN: COLUMNA DERECHA AHORA ES SOLO EQUIPO ==>> -->
+            <!-- ... dentro de .hero-equipment-column ... -->
+                <div class="equipment-layout">
+                    <div class="equip-row-single">
+                        <div class="equipment-slot" id="equip-head"><span>Casco</span></div>
+                    </div>
+                    <div class="equip-row-middle">
+                        <div class="equipment-slot" id="equip-gloves"><span>Guantes</span></div>
+                        <div class="equipment-slot" id="equip-chest"><span>Coraza</span></div>
+                        <div class="equipment-slot" id="equip-weapon"><span>Arma</span></div>
+                        <div class="equipment-slot" id="equip-legs"><span>Pantalón</span></div>
+                    </div>
+                    <div class="equip-row-single">
+                        <div class="equipment-slot" id="equip-boots"><span>Botas</span></div>
+                    </div>
+                </div>
+            
+        </div> <!-- Fin de .hero-main-layout -->
+
+        <!-- <<== CORRECCIÓN: PIE DE PÁGINA CON BOTONES DE ACCIÓN ==>> -->
+            <div class="hero-detail-footer">
+                <button id="openTalentTreeBtn" class="talent-button">Talentos</button>
+                <div class="upgrade-buttons">
+                    <button id="heroLevelUpBtn">Usar Libros XP</button>
+                    <button id="heroEvolveBtn">Evolucionar</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+<!-- ====================================================================== -->
+<!-- ============== MODAL DE ÁRBOL DE TALENTOS              ================ -->
+<!-- ====================================================================== -->
+    <div id="talentTreeModal" class="modal" style="display: none; background-color: rgba(10, 20, 30, 0.9);">
+        <div class="modal-content talent-tree-modal-content">
+            <span class="close-button" id="closeTalentTreeModalBtn">×</span>
+            <div class="talent-modal-header">
+                <h2 id="talentHeroName">Talentos de [Nombre Héroe]</h2>
+                <div class="talent-points-counter">Puntos: <span id="talentPointsAvailable">0</span></div>
+                <button id="resetTalentsBtn">Reiniciar</button>
+            </div>
+        
+        <!-- Contenedor ÚNICO para nexo y árbol -->
+        <div id="talentCanvasContainer" class="talent-canvas-container">
+            <!-- El nexo y el árbol se dibujarán aquí con JS -->
+        </div>
+        </div>
+    </div>
+
+<!-- ====================================================================== -->
+<!-- ============= MODAL DE SELECCIÓN DE EQUIPO             ================ -->
+<!-- ====================================================================== -->
+    <div id="equipmentSelectorModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <span class="close-button" id="closeEquipmentSelectorBtn">×</span>
+            <h2 id="equipmentSelectorTitle">Seleccionar [Slot]</h2>
+            <p>Elige una pieza de equipo de tu inventario para equipar a este héroe.</p>
+            <div id="equipmentListContainer" class="equipment-list"></div>
+            <div id="equipmentSelectorFooter" style="text-align: center; margin-top: 20px; display: none;">
+                <button id="equipItemBtn">Equipar Objeto Seleccionado</button>
+                <button id="unequipItemBtn" style="background-color: #dc3545;">Quitar Objeto Actual</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- ============= POP-UP DE DETALLES DE HABILIDAD (MODAL) ================ -->
+    <!-- ====================================================================== -->
+    <div id="skillDetailModal" class="modal" style="display: none; background-color: rgba(0,0,0,0.7);">
+        <div class="modal-content skill-detail-content">
+            <span class="close-button" id="closeSkillDetailBtn">×</span>
+            <div class="skill-detail-header">
+                <div id="skillDetailIcon" class="skill-icon"></div>
+                <div class="skill-header-info">
+                    <h3 id="skillDetailName">Nombre de la Habilidad</h3>
+                    <p id="skillDetailCurrentLevel">Nivel Actual: 1/5</p>
+                </div>
+            </div>
+            <div class="skill-detail-body">
+                <p id="skillDetailDescription">Descripción general de lo que hace la habilidad.</p>
+                <hr>
+                <h4>Vista Previa de Niveles</h4>
+                <div id="skillLevelPreview">
+                    <!-- Los niveles se insertarán aquí con JS -->
+                </div>
+            </div>
+            <div class="skill-detail-footer">
+                <span id="skillUpgradeCost">Coste: 1 Punto de Habilidad</span>
+                <button id="upgradeSkillBtn">MEJORAR</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ====================================================================== -->
+    <!-- =================== PANTALLA DEL ARBOL DE TECNOLOGÍA ================== -->
+    <!-- ====================================================================== -->
+    <div id="techTreeScreen" class="modal" style="display: none; background-color: rgba(0,0,0,0.85);">
+        <div class="modal-content tech-tree-content" style="width: 80%; max-width: 700px; height: 70vh; overflow: auto; background-color: #1e2a38; border: 2px solid #4a5568; box-shadow: 0 0 20px rgba(0,0,0,0.5); border-radius: 10px;">
+            <span class="close-button" id="closeTechTreeBtn" title="Cerrar">×</span>
+            <h2 style="text-align: center; color: #e2e8f0; margin-top:15px; margin-bottom: 15px; font-size: 1.5em;">Árbol de Tecnologías</h2>
+            <div id="techTreeContainer" style="position: relative; width: 1500px; height: 1000px; background-color: #2d3748; margin: 0 auto; border-radius: 5px;"></div>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- =================== PANTALLA DEL MAPA MUNDIAL (CAMPAÑA) =================== -->
+    <!-- ====================================================================== -->
+    <div id="worldMapScreen" style="display: none; position: relative; width: 90%; max-width: 960px; height: 640px; margin: 20px auto; border: 2px solid #333; background-color: #a7bbc7; overflow: hidden;">
+        <img id="worldMapImage" src="" alt="Mapa del Mundo" style="width: 100%; height: 100%; object-fit: contain;">
+        <div id="territoryMarkerContainer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></div>
+        <div id="campaignMessages" class="floating-messages bottom-left">Mensajes de campaña...</div>
+        <button id="backToMainMenuBtn_fromCampaign" class="floating-btn top-right" style="font-size: 16px; width: auto; padding: 5px 10px; border-radius: 5px;">Menú</button>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- ================== MODAL DE BRIEFING DEL ESCENARIO ================== -->
+    <!-- ====================================================================== -->
+    <div id="scenarioBriefingModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 700px;">
+            <span class="close-button" id="closeScenarioBriefingBtn" title="Cerrar">×</span>
+            <h2 id="scenarioTitle" style="text-align:center; margin-bottom:15px;">Título</h2>
+            <img id="scenarioImage" src="" alt="Escenario" style="max-width: 100%; max-height: 300px; margin:0 auto 20px; display:none;">
+            <p id="scenarioDescription">Descripción...</p>
+            <button id="startScenarioBattleBtn" style="font-size: 1.1em; padding: 12px 20px;">Comenzar Batalla</button>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- =================== MODAL DE DETALLES DE DIVISIÓN ==================== -->
+    <!-- ====================================================================== -->
+    <div id="unitDetailModal" class="modal" style="display: none;">
+        <div class="modal-content unit-detail-content">
+            <span class="close-button" id="closeUnitDetailModalBtn">×</span>
+            <h3 id="unitDetailTitle">Detalles de la División</h3>
+            <div class="unit-main-stats">
+                <div class="stat-row">
+                    <span class="stat-label">Salud:</span>
+                    <div class="unit-total-health-bar-container">
+                        <div id="unitDetailTotalHealthBar" class="unit-total-health-bar"></div>
+                    </div>
+                    <span id="unitDetailTotalHealthText">2000 / 2000</span>
+                </div>
+                <div class="stat-row stat-summary">
+                    <span id="unitDetailCombatStats">A/D: 400/600</span>
+                    <span id="unitDetailMovementStats">Mov: 2</span>
+                    <span id="unitDetailVisionStats">Vis: 3</span>
+                </div>
+                <div class="stat-row">
+                    <span id="unitDetailMorale">Moral: 50/125 (Normal)</span>
+                    <span id="unitDetailXP">XP: 120/150 (Regular)</span>
+                </div>
+            </div>
+            <h4 class="regiment-section-title">Regimientos</h4>
+            <ul id="unitDetailRegimentList" class="regiments-list detailed-regiments-list"></ul>
+            <div id="unitDetailFooter" style="text-align: center; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 15px;">
+                <button id="disbandUnitBtn" class="button-danger">Disolver Unidad</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ====================================================================== -->
+    <!-- ======================= MODAL DE LA WIKI DEL JUEGO ===================== -->
+    <!-- ====================================================================== -->
+    <div id="wikiModal" class="modal" style="display: none;">
+        <div class="modal-content wiki-content">
+            <span class="close-button" id="closeWikiModalBtn">×</span>
+            <h2>Wiki del Juego</h2>
+            <div class="wiki-tabs">
+                <button class="wiki-tab-btn active" data-tab="regimientos">Regimientos</button>
+                <button class="wiki-tab-btn" data-tab="estructuras">Estructuras e Ingresos</button>
+                <button class="wiki-tab-btn" data-tab="tecnologias">Investigación</button>
+                <button class="wiki-tab-btn" data-tab="conceptos">Conceptos Clave</button>
+            </div>
+            <div class="wiki-tab-content">
+                <div id="wiki-tab-regimientos" class="wiki-page active">
+                    <p>Valoraciones de 1 a 5 estrellas (⭐) para Ataque, Defensa, Salud, Movimiento y Rango.</p>
+                    <div class="table-container"><table id="wikiRegimentsTable"></table></div>
+                </div>
+                <div id="wiki-tab-estructuras" class="wiki-page">
+                    <h3>Estructuras</h3>
+                    <div class="table-container"><table id="wikiStructuresTable"></table></div>
+                    <h3>Ingresos por Territorio (Base)</h3>
+                    <div class="table-container"><table id="wikiIncomeTable"></table></div>
+                </div>
+                <div id="wiki-tab-tecnologias" class="wiki-page">
+                    <p>Las tecnologías desbloquean nuevas unidades y estructuras.</p>
+                    <div class="table-container"><table id="wikiTechTable"></table></div>
+                </div>
+                <div id="wiki-tab-conceptos" class="wiki-page">
+                    <h3>Conceptos Clave del Juego</h3>
+                    <div id="wikiConceptsContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- =================== MODALES DE JUEGO TÁCTICO ========================= -->
+    <!-- ====================================================================== -->
+
+    <div id="unitManagementModal" class="modal" style="display: none;">
+        <div class="modal-content unit-management-content">
+            <span class="close-button" id="closeUnitManagementModalBtn">×</span>
+            <h3 id="unitManagementTitle">Crear Nueva División</h3>
+            <div class="unit-management-body">
+                <div class="unit-selection-panel">
+                    <div id="unitCategoryTabs" class="category-tabs"></div>
+                    <div id="availableUnitsList" class="available-units-list"></div>
+                </div>
+                <div class="division-summary-panel">
+                    <h4>Resumen de la División</h4>
+                    <div class="division-name-editor">
+                        <label for="divisionNameInput">Nombre:</label>
+                        <input type="text" id="divisionNameInput" value="Nueva División" maxlength="25">
+                    </div>
+                    <ul id="divisionCompositionList"></ul>
+                    <div class="summary-details">
+                        <p><strong>Coste Total:</strong> <span id="divisionCostSummary">0 Oro</span></p>
+                        <p><strong>Stats Agregados:</strong> <span id="divisionStatsSummary">A:0 D:0 M:0</span></p>
+                        <p><strong>Regimientos:</strong> <span id="divisionRegimentCount">0 / 20</span></p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer-actions">
+                <button id="cancelUnitManagementBtn" class="button-secondary">Cancelar</button>
+                <button id="finalizeUnitManagementBtn">Finalizar y Colocar</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="buildStructureModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">×</span>
+            <h3>Construir Estructura en (<span id="buildHexCoordsDisplay"></span>)</h3>
+            <ul id="availableStructuresList"></ul>
+            <button id="confirmBuildBtn">Construir Seleccionado</button>
+        </div>
+    </div>
+
+    <div id="advancedSplitUnitModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 800px;">
+            <span class="close-button" id="closeAdvancedSplitModalBtn">×</span>
+            <h3>Dividir <span id="advancedSplitUnitNameDisplay"></span></h3>
+            <p style="font-size: 0.9em;">Mueve regimientos para formar una nueva unidad.</p>
+            <div class="split-regiment-container">
+                <div class="regiment-column">
+                    <h4>Unidad Original (<span id="originalUnitRegimentCount"></span>)</h4>
+                    <p>Stats: <span id="originalUnitPreviewStats"></span></p>
+                    <p>Salud: <span id="originalUnitPreviewHealth"></span></p>
+                    <ul id="originalUnitRegimentsList" class="regiments-list"></ul>
+                </div>
+                <div class="regiment-column">
+                    <h4>Nueva Unidad (<span id="newUnitRegimentCount"></span>)</h4>
+                    <input type="text" id="newSplitUnitNameInput" value="Nueva División" maxlength="20">
+                    <p>Stats: <span id="newUnitPreviewStats"></span></p>
+                    <p>Salud: <span id="newUnitPreviewHealth"></span></p>
+                    <ul id="newUnitRegimentsList" class="regiments-list"></ul>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 20px;">
+                <button id="finalizeAdvancedSplitBtn">Confirmar División</button>
+                <button id="cancelAdvancedSplitBtn" style="background-color: #6c757d;">Cancelar</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ====================================================================== -->
+    <!-- ======================= MODAL DEL ALTAR DE DESEOS (GACHA) ================ -->
+    <!-- ====================================================================== -->
+    <div id="deseosModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px; text-align: center;">
+            <span class="close-button" id="closeDeseosBtn">×</span>
+            <h2>Altar de los Deseos</h2>
+            <p>Gasta Sellos de Guerra para obtener fragmentos de héroes y fortalecer tu ejército.</p>
+            
+            <div class="currency-display" style="margin: 15px 0; font-size: 1.2em; font-weight: bold; background-color: #f8f9fa; padding: 10px; border-radius: 5px;">
+                Sellos de Guerra disponibles: <span id="sellosCount" style="color: #007bff;">0</span>
+            </div>
+            
+            <!-- Contenedor de Banners (para futuros eventos) -->
+            <div id="bannerContainer" style="margin-bottom: 20px;">
+                <div class="banner active" data-banner-id="common">
+                    <h3>Invocación Común</h3>
+                    <p style="margin: 5px 0 15px 0;">Obtén fragmentos de todos los héroes disponibles en el juego.</p>
+                </div>
+                <!-- Aquí se podrían añadir banners de eventos en el futuro -->
+            </div>
+
+            <!-- Botones de Acción -->
+            <div class="wish-actions" style="display: flex; justify-content: space-around; gap: 15px; margin-bottom: 20px;">
+                <button id="wishOnceBtn" style="flex: 1; padding: 12px; font-size: 1.1em;">Pedir 1 Deseo <br>(1 Sello)</button>
+                <button id="wishTenTimesBtn" style="flex: 1; padding: 12px; font-size: 1.1em; background-color: #28a745;">Pedir 10 Deseos <br>(10 Sellos)</button>
+            </div>
+            
+            <!-- Contenedor para mostrar los resultados de las tiradas -->
+            <div id="gachaResultContainer" style="display:none; text-align: left; max-height: 250px; overflow-y: auto; background-color: #e9ecef; padding: 15px; border-radius: 5px;">
+                <h3 style="margin-top: 0;">Resultados:</h3>
+                <ul id="gachaResultList" style="list-style: none; padding: 0;">
+                    <!-- Los resultados se insertarán aquí con JS -->
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- ======================= MODAL DE LA FORJA (EQUIPO) =================== -->
+    <!-- ====================================================================== -->
+    <div id="forgeModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 800px;">
+            <span class="close-button" id="closeForgeBtn">×</span>
+            <h2>Forja del General</h2>
+            <p>Aquí puedes usar los fragmentos que has conseguido para forjar poderosas piezas de equipo.</p>
+            
+            <div class="forge-container">
+                <!-- Columna Izquierda: Lista de Planos -->
+                <div id="blueprintList" class="blueprint-list">
+                    <!-- Los planos se insertarán aquí con JS -->
+                </div>
+
+                <!-- Columna Derecha: Detalles del Plano Seleccionado -->
+                <div id="blueprintDetail" class="blueprint-detail">
+                    <div id="blueprintDetailPlaceholder" style="text-align: center; margin-top: 50px; color: #888;">
+                        <p>Selecciona un plano de la izquierda para ver sus detalles y forjarlo.</p>
+                    </div>
+                    <div id="blueprintDetailContent" style="display: none;">
+                        <div id="blueprintItemIcon" class="item-icon-large"></div>
+                        <h3 id="blueprintItemName">Nombre del Objeto</h3>
+                        <p id="blueprintItemStats"></p>
+                        <hr>
+                        <h4>Progreso de Forja</h4>
+                        <div class="forge-progress-item">
+                            <div class="xp-bar-container">
+                                <div id="blueprintFragmentBar" class="xp-bar fragments"></div>
+                            </div>
+                            <span id="blueprintFragmentText">0 / 20</span>
+                        </div>
+                        <button id="forgeItemBtn" style="width: 100%; padding: 12px; font-size: 1.2em; margin-top: 20px;">FORJAR</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- ======================= BUZÓN DEL GENERAL (Misiones, Banners, Mensajes) -->
+    <!-- ====================================================================== -->
+    <div id="inboxModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 900px; height: 70vh; display: flex; flex-direction: column; padding: 0;">
+            <span class="close-button" id="closeInboxBtn">×</span>
+            
+            <!-- Pestañas Superiores -->
+            <div class="inbox-tabs" style="display: flex; border-bottom: 2px solid #ccc; padding: 0 10px; flex-shrink: 0;">
+                <button class="inbox-tab-btn active" data-tab="missions">Misiones</button>
+                <button class="inbox-tab-btn" data-tab="banners">Banners</button>
+                <button class="inbox-tab-btn" data-tab="messages">Mensajes</button>
+            </div>
+
+            <!-- Contenido Principal (2 Columnas) -->
+            <div class="inbox-body" style="display: flex; flex-grow: 1; overflow: hidden;">
+                
+                <!-- Columna Izquierda: Lista de Items -->
+                <div id="inboxListContainer" style="width: 35%; border-right: 1px solid #ddd; overflow-y: auto; padding: 10px;">
+                    <!-- Los items de la lista (misiones, etc.) se insertarán aquí -->
+                </div>
+
+                <!-- Columna Derecha: Detalle del Item -->
+                <div id="inboxDetailContainer" style="width: 65%; padding: 20px; display: flex; flex-direction: column; overflow-y: auto;">
+                    
+                    <!-- Placeholder mientras no hay nada seleccionado -->
+                    <div id="inboxDetailPlaceholder" style="text-align:center; color: #888; margin-top: 50px;">
+                        <p>Selecciona un elemento de la izquierda para ver sus detalles.</p>
+                    </div>
+
+                    <!-- Contenido del Detalle (oculto por defecto) -->
+                    <div id="inboxDetailContent" style="display: none;">
+                        <div id="inboxDetailHeaderImage" style="width: 100%; height: 120px; background-size: cover; background-position: center; border-radius: 5px; margin-bottom: 15px;"></div>
+                        <h3 id="inboxDetailTitle" style="margin-top: 0;"></h3>
+                        <p id="inboxDetailBody"></p>
+                        
+                        <div id="inboxRewardSection" style="margin-top: auto; padding-top: 15px; border-top: 1px solid #eee;">
+                            <!-- Las recompensas se insertarán aquí -->
+                        </div>
+
+                        <button id="inboxClaimBtn" style="padding: 12px 25px; font-size: 1.2em; margin-top: 15px; width: 100%;">RECLAMAR</button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="gameLogContainer" class="game-log-container"></div>
+
+    <!-- ====================================================================== -->
+    <!-- ===================== CARGA DE SCRIPTS ===================== -->
+    <!-- ====================================================================== -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="commanders.js"></script>
+    <script src="constants.js"></script>
+    <script src="talents.js"></script>
+    <script src="talents_sprites.js"></script>
+    <script src="equipment.js"></script>
+    <script src="state.js"></script>
+    <script src="utils.js"></script>
+    <script src="map_generation_utils.js"></script>
+    <script src="playerDataManager.js"></script>
+    <script src="gachaManager.js"></script>
+    <script src="mailboxManager.js"></script> 
+    <script src="technologyTree.js"></script> 
+    <script src="worldMapData.js"></script>
+
+    <!-- === ARCHIVOS DE JUEGO (Mapas y Escenarios Estándar) === -->
+    <script src="maps/tactical_britain_coast_map.js"></script>
+    <script src="scenarios/tutorial_scenario.js"></script>
+    <script src="scenarios/britain_defense_scenario.js"></script>
+    <script src="maps/iberia_map_data.js"></script>
+    
+    <!-- === ARCHIVOS DE PRUEBA DE IA (NUESTROS NUEVOS MAPAS) === -->
+    <script src="maps/map_test_A1_SplitExpansion.js"></script>
+    <script src="maps/map_test_B1_FavorableCombat.js"></script>
+    <script src="maps/map_test_B2_TacticalRetreat.js"></script>
+    <script src="maps/map_test_B3_SplitAndHarass.js"></script>
+    <script src="maps/map_test_C1_MergeToAttack.js"></script>
+    
+    <!-- === ARCHIVOS DE PRUEBA DE IA (NUESTROS NUEVOS ESCENARIOS) === -->
+    <script src="scenarios/test_A1_SplitExpansion_scenario.js"></script>
+    <script src="scenarios/test_B1_FavorableCombat_scenario.js"></script>
+    <script src="scenarios/test_B2_TacticalRetreat_scenario.js"></script>
+    <script src="scenarios/test_B3_SplitAndHarass_scenario.js"></script>
+    <script src="scenarios/test_C1_MergeToAttack_scenario.js"></script>
+    
+    <!-- === LÓGICA PRINCIPAL DEL JUEGO (orden existente) === -->
+    <script src="domElements.js"></script> 
+    <script src="chronicle.js"></script> 
+    <script src="cheats.js"></script> 
+    <script src="debugConsole.js"></script>
+    <script src="gameFlow.js?v=1"></script>       
+    <script src="uiUpdates.js"></script>
+    <script src="techScreenUI.js"></script>
+    <script src="tutorialScripts.js"></script>
+    <script src="tutorialManager.js"></script>
+    <script src="boardManager.js?v=1"></script>
+    <script src="unit_Actions.js?v=2"></script>
+    <script src="modalLogic.js"></script>
+    <script src="networkManager.js"></script> 
+    <script src="ai_deploymentLogic.js"></script>
+    <script src="ai_gameplayLogic.js?v=5"></script> 
+    <script src="saveLoad.js"></script>
+    <script src="campaignManager.js"></script>
+    <script src="main.js"></script>
+
+</body>
+</html>
