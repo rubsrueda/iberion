@@ -135,7 +135,7 @@ const NetworkManager = {
 
     enviarDatos: function(datos) {
         if (this.conn && this.conn.open) {
-            console.log(`%c[VIAJE-RED] Enviando datos a ${this.idRemoto}:`, 'color: #00FFFF;', datos);
+            console.log(`[NETWORK FLOW - PASO 2] Enviando petición '${datos.action.type}' al Anfitrión.`);
             this.conn.send(datos);
         } else {
             console.warn("[NetworkManager] Intento de enviar datos sin una conexión activa.");
@@ -166,8 +166,7 @@ const NetworkManager = {
 
     broadcastFullState: function() {
         if (!this.esAnfitrion || !this.conn || !this.conn.open) return;
-
-    console.log("%c[Anfitrión Broadcast] Empaquetando y enviando estado completo del juego...", "background: #FFD700; color: black;");
+        console.log("[NETWORK FLOW - PASO 5] Anfitrión retransmitiendo estado completo (fullStateUpdate) a todos los clientes.", "background: #FFD700; color: black;");
 
     // Preparamos un objeto de estado limpio para no enviar elementos del DOM
         const replacer = (key, value) => (key === 'element' ? undefined : value);

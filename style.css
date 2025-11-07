@@ -2697,7 +2697,7 @@ body {
     text-shadow: 0 0 3px rgba(57, 255, 20, 0.3);
 
     box-shadow: 0 -5px 15px rgba(0,0,0,0.4);
-    z-index: 10000;
+    z-index: 1000;
 }
 
 #console-output {
@@ -4141,3 +4141,83 @@ input[type="range"] {
     opacity: 0.3;
     filter: grayscale(100%);
 }
+
+/* ==================================================================== */
+/* === ADAPTACIÓN MÓVIL PARA EL MODAL DE DETALLE DE TECNOLOGÍA      === */
+/* ==================================================================== */
+
+
+/* Botón principal de acción en los modales */
+.button-primary {
+    background-color: #007bff; /* Azul vibrante */
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.button-primary:hover {
+    background-color: #0056b3;
+}
+.button-primary:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* ============================================================== */
+/* === MODAL DE TECNOLOGÍA (VERSIÓN ULTRA COMPACTA PARA MÓVIL) === */
+/* ============================================================== */
+
+#techDetailModal .modal-content {
+    padding: 20px; /* Reducción brutal de los espacios de borde */
+    width: 90vw;
+    max-width: 90vw;
+    font-size: 14px; /* Hacemos la fuente base un poco más pequeña */
+}
+
+#techDetailHeader {
+    align-items: flex-start; /* Alinea los items arriba, ahorra espacio vertical */
+    margin-bottom: 5px;   /* Menos espacio debajo */
+    padding-bottom: 5px;
+}
+#techDetailModal .close-button {
+    /* Hacemos la 'X' mucho más pequeña */
+    font-size: 18px;
+    padding: 0 5px;
+}
+
+#techDetailIcon {
+    font-size: 1.5em; /* Reducimos aún más el emoji */
+}
+
+#techDetailName {
+    font-size: 1em;   /* Reducimos aún más el título */
+    line-height: 1.1; /* Hacemos que la altura de línea sea más compacta */
+}
+
+
+#techDetailDescription {
+    min-height: 0; /* Sin altura mínima, ocupa lo que necesite */
+    margin-bottom: 12px;
+    font-size: 0.9em;
+    margin: 5px 0;      /* Reducimos el espacio vertical que la rodea */
+    line-height: 1.2;     /* Hacemos el texto más denso, menos espacio entre líneas */
+
+}
+
+#techDetailInfoGrid {
+    font-size: 0.8em; /* Texto de Costo/Requiere más pequeño */
+    gap: 4px 8px; /* Espacio mínimo */
+}
+
+#researchTechBtn {
+    padding: 8px 16px;  /* ¡BOTÓN MÁS PEQUEÑO! Reduce altura y anchura */
+    font-size: 0.8em;     /* ¡BOTÓN MÁS PEQUEÑO! Texto del botón más pequeño */
+}
+
+#techDetailFooter {
+    margin-top: 10px;
+    padding-top: 8px;
+}
+

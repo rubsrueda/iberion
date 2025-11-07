@@ -2465,6 +2465,7 @@ function handlePlacementModeClick(r, c) {
 
 async function RequestMoveUnit(unit, toR, toC) {
     // Generar ID único para esta acción (para deduplicación en el anfitrión)
+    console.log(`[NETWORK FLOW - PASO 1] Jugador ${unit.player} solicita mover ${unit.name} a (${toR},${toC}). Es anfitrión: ${isNetworkGame() && NetworkManager.esAnfitrion}`);
     const actionId = `move_${unit.id}_${toR}_${toC}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const action = { type: 'moveUnit', actionId: actionId, payload: { playerId: unit.player, unitId: unit.id, toR, toC }};
     if (isNetworkGame()) {

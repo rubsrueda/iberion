@@ -535,6 +535,12 @@ if (domElements.createNetworkGameBtn) {
     
     function onDatosLANRecibidos(datos) {
         
+        // [LOG DE RED - AÑADIDO AQUÍ, AL PRINCIPIO]
+        if (datos.type === 'actionRequest' && datos.action?.type === 'moveUnit') {
+            const soyAnfitrion = NetworkManager.esAnfitrion;
+            console.log(`[NETWORK FLOW - PASO 3] ${soyAnfitrion ? 'Anfitrión' : 'Cliente'} ha recibido un paquete. Tipo: '${datos.type}', Acción solicitada: '${datos.action.type}'.`);
+        }
+        
         console.log(`%c[PROCESS DATA] onDatosLANRecibidos procesando paquete tipo: ${datos.type}`, 'background: #DAA520; color: black;');
         // Lógica del Cliente (cuando NO es anfitrión)
         if (!NetworkManager.esAnfitrion) {
@@ -2076,7 +2082,7 @@ function reconstruirJuegoDesdeDatos(datos) {
         if (typeof deselectUnit === 'function') {
             deselectUnit(); // Deseleccionamos todo
         }
-    }, true); // El 'true' es importante, asegura que este listener se ejecute primero
+    }, false); // El 'true' es importante, asegura que este listener se ejecute primero
 }
 
 document.addEventListener('DOMContentLoaded', initApp);

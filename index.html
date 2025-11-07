@@ -515,6 +515,37 @@
     </div>
 
     <!-- ====================================================================== -->
+    <!-- ============= MODAL DE DETALLE DE TECNOLOGÍA (NUEVO) =============== -->
+    <!-- ====================================================================== -->
+    <div id="techDetailModal" class="modal modal-themed" style="display: none;">
+        <div class="modal-content" style="max-width: 450px;">
+            <span class="close-button" id="closeTechDetailBtn">×</span>
+            
+            <!-- Cabecera con Icono y Nombre -->
+            <div id="techDetailHeader" style="display: flex; align-items: center; gap: 15px; border-bottom: 1px solid #7f8c8d; padding-bottom: 10px; margin-bottom: 15px;">
+                <span id="techDetailIcon" style="font-size: 3em;">💡</span>
+                <h2 id="techDetailName" style="margin: 0; color: #f1c40f;">Nombre de la Tecnología</h2>
+            </div>
+            
+            <!-- Cuerpo con los detalles -->
+            <div id="techDetailBody">
+                <p id="techDetailDescription" style="font-style: italic; color: #bdc3c7; min-height: 50px;">Aquí va la descripción completa de la tecnología y lo que representa en el juego.</p>
+                
+                <div id="techDetailInfoGrid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.9em;">
+                    <div><strong>Costo:</strong> <span id="techDetailCost">--</span></div>
+                    <div><strong>Requiere:</strong> <span id="techDetailPrereqs">--</span></div>
+                    <div style="grid-column: 1 / -1;"><strong>Desbloquea:</strong> <span id="techDetailUnlocks">--</span></div>
+                </div>
+            </div>
+            
+            <!-- Pie de página con los botones -->
+            <div id="techDetailFooter" style="text-align: center; margin-top: 20px; border-top: 1px solid #7f8c8d; padding-top: 15px;">
+                <button id="researchTechBtn" class="button-primary" style="padding: 10px 30px; font-size: 1.1em; font-weight: bold;">Investigar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
     <!-- =================== PANTALLA DEL MAPA MUNDIAL (CAMPAÑA) =================== -->
     <!-- ====================================================================== -->
     <div id="worldMapScreen" style="display: none; position: relative; width: 90%; max-width: 960px; height: 640px; margin: 20px auto; border: 2px solid #333; background-color: #a7bbc7; overflow: hidden;">
@@ -866,7 +897,7 @@
     <script src="gameFlow.js?v=1"></script>  
     <script src="turnTimer.js"></script>     
     <script src="uiUpdates.js"></script>
-    <script src="techScreenUI.js"></script>
+    
     <script src="tutorialScripts.js"></script>
     <script src="tutorialManager.js"></script>
     <script src="boardManager.js?v=1"></script>
@@ -878,6 +909,7 @@
     <script src="saveLoad.js"></script>
     <script src="campaignManager.js"></script>
     <script src="main.js"></script>
-
+    <script src="techScreenUI.js"></script>
+    
 </body>
 </html>
