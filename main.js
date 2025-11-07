@@ -7,9 +7,13 @@ function onHexClick(r, c) {
     // Este bloque es el primero que se ejecuta. Si es una partida en red
     // y no es tu turno, muestra un mensaje y detiene toda la función.
     // Esto impide que el jugador inactivo pueda realizar CUALQUIER acción.
-    if (isNetworkGame() && gameState.currentPlayer !== gameState.myPlayerNumber) {
-        console.log(`[Acción Bloqueada] Clic ignorado. Turno actual: ${gameState.currentPlayer}, Yo soy: ${gameState.myPlayerNumber}`);
-        UIManager.showMessageTemporarily(`Es el turno del Jugador ${gameState.currentPlayer}`, 1500, true);
+    // La nueva lógica
+    const isMyTurn = gameState.currentPlayer === gameState.myPlayerNumber;
+
+    // Si NO es mi turno, pero ESTOY EN UNA PARTIDA DE RED, me bloqueo a MÍ MISMO.
+    if (!isMyTurn && isNetworkGame()) {
+        console.log(`[Acción Bloqueada] Soy J${gameState.myPlayerNumber} y he ignorado un clic porque es el turno de J${gameState.currentPlayer}.`);
+        UIManager.showMessageTemporarily(`Es el turno del Jugador ${gameState.currentPlayer}.`, 1500, true);
         return;
     }
     // --- FIN DEL GUARDIÁN ---
