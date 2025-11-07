@@ -134,8 +134,17 @@ const NetworkManager = {
     },
 
     enviarDatos: function(datos) {
-        if (this.conn && this.conn.open) {
+        // ESTE 'if' ES LA SOLUCIÓN.
+        // Solo intentará mostrar el log de 'action.type' si 'datos'
+        // es realmente una petición de acción.
+        if (datos.type === 'actionRequest' && datos.action) {
             console.log(`[NETWORK FLOW - PASO 2] Enviando petición '${datos.action.type}' al Anfitrión.`);
+        }
+        
+        // El resto de tu función se queda exactamente igual.
+        if (this.conn && this.conn.open) {
+            // Esta línea ya no la he copiado, pero es donde está tu `console.log` general de "[VIAJE-RED]..."
+            // y el `this.conn.send(datos);`
             this.conn.send(datos);
         } else {
             console.warn("[NetworkManager] Intento de enviar datos sin una conexión activa.");

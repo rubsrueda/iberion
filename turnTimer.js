@@ -50,16 +50,25 @@ const TurnTimerManager = {
             
             // Comprobar si se ha acabado el tiempo
             if (this.remainingSeconds <= 0) {
-                console.log("[TIMER] ¡Tiempo agotado! Forzando fin de turno.");
-                this.stop();
+            this.stop();
+            
+            // Si NO es un juego de red, o si SÍ es un juego de red Y YO soy el anfitrión...
+            if (!isNetworkGame() || NetworkManager.esAnfitrion) {
                 
-                // Llamar a la función global para terminar el turno
+                console.log("[TIMER] ¡Tiempo agotado! Forzando fin de turno (Local o Anfitrión).");
+                
+                // ...entonces tengo la autoridad para llamar a handleEndTurn().
                 if (typeof handleEndTurn === 'function') {
                     handleEndTurn();
                 } else {
-                    console.error("TurnTimerManager: La función handleEndTurn() no está disponible para forzar el fin de turno.");
+                    console.error("TurnTimerManager: handleEndTurn() no disponible para forzar el fin de turno.");
                 }
+
+            } else {
+                // Si estoy en un juego de red pero NO soy el anfitrión, simplemente informo y espero.
+                console.log("[TIMER] ¡Tiempo agotado! Soy un Cliente, esperando la orden del Anfitrión.");
             }
+        }
         }, 1000);
     },
     

@@ -687,6 +687,7 @@ function createHexDOMElementWithListener(r, c) {
         console.log(`[HEX CLICK LISTENER] Clic detectado en listener directo para (${r},${c})`); 
         // No detener propagación aquí si la unidad tiene pointer-events: none,
         // onHexClick debe decidir qué hacer.
+        event.stopPropagation();
         onHexClick(r, c);
     });
     return hexEl;

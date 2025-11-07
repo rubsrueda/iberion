@@ -33,46 +33,30 @@ function onHexClick(r, c) {
     
     // CASO ESPECIAL: Se está esperando la colocación de una unidad recién dividida.
     if (gameState.preparingAction?.type === 'split_unit') {
-        const hexEl = board[r]?.[c]?.element;
+    const hexEl = board[r]?.[c]?.element;
 
         // Verificamos si el clic fue en un hexágono válido para colocar (los que están resaltados).
         if (hexEl && hexEl.classList.contains('highlight-place')) {
             const originalUnit = units.find(u => u.id === gameState.preparingAction.unitId);
             
             if (originalUnit) {
-                // Si es un juego en red, se envía la solicitud al anfitrión.
-                if (isNetworkGame()) {
-                    const action = {
-                        type: 'splitUnit',
-                        payload: {
-                            playerId: originalUnit.player,
-                            originalUnitId: originalUnit.id,
-                            targetR: r,
-                            targetC: c,
-                            newUnitRegiments: gameState.preparingAction.newUnitRegiments,
-                            remainingOriginalRegiments: gameState.preparingAction.remainingOriginalRegiments
-                        }
-                    };
-                    if (NetworkManager.esAnfitrion) {
-                        processActionRequest({ action: action });
-                    } else {
-                        NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
-                    }
+                // ¡LA LÍNEA CLAVE! Usamos la función de Request que ya sabe cómo manejar la red
+                if (typeof RequestSplitUnit === "function") {
+                    RequestSplitUnit(originalUnit, r, c);
                 } else {
-                    // Si es un juego local, ejecutamos la división directamente.
-                    // splitUnit (de unit_Actions.js) usará los datos de gameState.preparingAction
-                    splitUnit(originalUnit, r, c);
+                    console.error("CRÍTICO: La función RequestSplitUnit no está definida.");
                 }
             }
-            
-            // Limpiamos el estado de preparación, ya que la acción se ha completado (o enviado).
-            if(typeof cancelPreparingAction === "function") cancelPreparingAction();
         } else {
-            // Si el jugador hace clic en un lugar no válido, cancelamos toda la operación.
-            logMessage("División cancelada.");
-            if(typeof cancelPreparingAction === "function") cancelPreparingAction();
+            logMessage("Colocación cancelada.");
         }
-        return; // Detenemos la función aquí; la acción de división ya ha sido manejada.
+        
+        // Pase lo que pase (clic válido o inválido), cancelamos el modo de preparación.
+        if (typeof cancelPreparingAction === "function") {
+            cancelPreparingAction();
+        }
+        
+        return; // La acción de 'split' ya ha sido manejada. Fin de onHexClick.
     }
 
     // --- VERIFICACIONES GENERALES DEL JUEGO ---
@@ -98,34 +82,77 @@ function onHexClick(r, c) {
     if (selectedUnit) {
         // Se intenta realizar una acción con la unidad seleccionada en el hexágono objetivo.
         const actionTaken = handleActionWithSelectedUnit(r, c, clickedUnit);
-        
+
         // Si no se realizó ninguna acción (por ejemplo, hiciste clic en una casilla vacía
         // a la que no te puedes mover), se deselecciona la unidad actual
         // y se procede a seleccionar lo que haya en la nueva casilla.
-        if (actionTaken) {
-            // Si se tomó una acción, refrescamos la UI de la unidad seleccionada.
-            // Esto es crucial para mostrar que ya no tiene movimiento, actualizar sus botones, etc.
-            if(selectedUnit && selectedUnit.currentHealth > 0) UIManager.showUnitContextualInfo(selectedUnit, true);
-        } else {
+        if (!actionTaken) {
+                // ... significa que fue un "clic en la nada".
+
+                // Deseleccionamos la unidad actual.
             deselectUnit();
+            UIManager.hideContextualPanel();
+
+                // Y ahora, si en la casilla donde hemos hecho clic HAY OTRA COSA
+                // (otra unidad tuya o un hexágono), la seleccionamos.
             if (clickedUnit) {
-                // Si hay una unidad en la nueva casilla, la seleccionas.
-                selectUnit(clickedUnit);
-                UIManager.showUnitContextualInfo(clickedUnit, clickedUnit.player === gameState.currentPlayer);
+                    selectUnit(clickedUnit); // Selecciona la nueva unidad clickada
             } else {
-                // Si no hay unidad, muestras la información del hexágono.
-                UIManager.showHexContextualInfo(r, c, hexDataClicked);
+                    UIManager.showHexContextualInfo(r, c, hexDataClicked); // Muestra info del hex vacío
             }
         }
-    } 
-    // CASO 2: NO tienes ninguna unidad seleccionada.
-    else { 
+            // Si SÍ se tomó una acción (actionTaken es true), no hacemos nada más. 
+            // La unidad permanece seleccionada para que veas su estado actualizado.
+            
+    } else { // Si no había nada seleccionado al principio...
+            if (clickedUnit) {
+                selectUnit(clickedUnit);
+            } else {
+                UIManager.showHexContextualInfo(r, c, hexDataClicked);
+            }
+    }
+
+    // LA NUEVA VERSIÓN DENTRO de onHexClick
+    if (selectedUnit) {
+        const actionTaken = handleActionWithSelectedUnit(r, c, clickedUnit);
+
+        // Si NO se tomó ninguna acción...
+        if (!actionTaken) {
+            // ... significa que fue un "clic en la nada".
+
+            // Deseleccionamos la unidad actual.
+            deselectUnit();
+            UIManager.hideContextualPanel();
+
+            // Y ahora, si en la casilla donde hemos hecho clic HAY OTRA COSA
+            // (otra unidad tuya o un hexágono), la seleccionamos.
+            if (clickedUnit) {
+                selectUnit(clickedUnit); // Selecciona la nueva unidad clickada
+            } else {
+                UIManager.showHexContextualInfo(r, c, hexDataClicked); // Muestra info del hex vacío
+            }
+        }
+        // Si SÍ se tomó una acción (actionTaken es true), no hacemos nada más. 
+        // La unidad permanece seleccionada para que veas su estado actualizado.
+        
+    } else { // Si no había nada seleccionado al principio...
         if (clickedUnit) {
-            // Si hay una unidad en la casilla, la seleccionas.
-            selectUnit(clickedUnit);
-            UIManager.showUnitContextualInfo(clickedUnit, clickedUnit.player === gameState.currentPlayer);
+            if (clickedUnit.player === gameState.currentPlayer) {
+                    // Si es TU unidad, la seleccionas normalmente.
+                    selectUnit(clickedUnit);
+                } else {
+                    // Si es una unidad ENEMIGA...
+                    // ...comprobamos si tienes visión sobre ella con un explorador.
+                    if (typeof isEnemyScouted === 'function' && isEnemyScouted(clickedUnit)) {
+                        // Si tienes visión, MUESTRAS SU INFO pero NO la seleccionas.
+                        UIManager.showUnitContextualInfo(clickedUnit, false);
+                    } else {
+                        // Si no tienes visión, solo muestras info básica del hexágono.
+                        UIManager.showHexContextualInfo(r, c, hexDataClicked);
+                        logMessage("No tienes suficiente visión para ver los detalles de esta unidad enemiga.");
+                    }
+                }
         } else {
-            // Si no hay unidad, simplemente muestras la información del hexágono.
             UIManager.showHexContextualInfo(r, c, hexDataClicked);
         }
     }
@@ -493,47 +520,73 @@ if (tutorialPanel && closeTutorialBtn) {
             exportProfile();
         });
     }
-// ======================================================================    
-//Juego en red   
-// ====================================================================== 
-if (domElements.createNetworkGameBtn) {
+    // ======================================================================    
+    //Juego en red   
+    // ====================================================================== 
+    // En main.js
+    if (domElements.createNetworkGameBtn) {
         domElements.createNetworkGameBtn.addEventListener('click', () => {
-             console.log("[Anfitrión] Clic en 'Crear Partida en Red'. Preparando lobby...");
-             const gameSettings = {
-                 playerTypes: { player1: 'human', player2: 'human' },
-                 playerCivilizations: { 1: domElements.player1Civ.value, 2: domElements.player2Civ.value },
-                 resourceLevel: domElements.resourceLevelSelect.value,
-                 boardSize: domElements.boardSizeSelect.value,
-                 deploymentUnitLimit: domElements.initialUnitsCountSelect.value === "unlimited" ? Infinity : parseInt(domElements.initialUnitsCountSelect.value),
-                 turnTime: document.getElementById('turnTimeSelect').value
-             };
-             showScreen(domElements.hostLobbyScreen);
-             domElements.hostLobbyScreen.dataset.gameSettings = JSON.stringify(gameSettings);
-             gameState.currentPhase = "hostLobby";
-             NetworkManager.preparar(onConexionLANEstablecida, onDatosLANRecibidos, onConexionLANCerrada);
-             NetworkManager.iniciarAnfitrion((idGenerado) => {
-                 if (domElements.shortGameCodeEl) domElements.shortGameCodeEl.textContent = idGenerado;
-                 if (domElements.hostPlayerListEl) domElements.hostPlayerListEl.innerHTML = `<li>J1: Tú (Anfitrión)</li>`;
-             });
+            console.log("[Anfitrión] Clic en 'Crear Partida en Red'. Preparando lobby...");
+
+            // Ya NO leemos ni creamos gameSettings aquí. Solo mostramos el lobby.
+            
+            showScreen(domElements.hostLobbyScreen);
+            gameState.currentPhase = "hostLobby";
+
+            NetworkManager.preparar(onConexionLANEstablecida, onDatosLANRecibidos, onConexionLANCerrada);
+            NetworkManager.iniciarAnfitrion((idGenerado) => {
+                if(domElements.shortGameCodeEl) domElements.shortGameCodeEl.textContent = idGenerado;
+                if(domElements.hostPlayerListEl) domElements.hostPlayerListEl.innerHTML = `<li>J1: Tú (Anfitrión)</li>`;
+            });
         });
-    } else {
-        console.warn("main.js: createNetworkGameBtn no encontrado.");
     }
     
+    // En main.js
     function onConexionLANEstablecida(idRemoto) {
         if (NetworkManager.esAnfitrion) {
-            if (domElements.hostStatusEl && domElements.hostPlayerListEl) {
+            if (domElements.hostStatusEl) {
                 domElements.hostStatusEl.textContent = 'Jugador Conectado. Iniciando...';
                 domElements.hostStatusEl.className = 'status conectado';
-                domElements.hostPlayerListEl.innerHTML = `<li>J1: Tú (Anfitrión)</li><li>J2: ${idRemoto}</li>`;
             }
-            console.log("[Red - Anfitrión] Cliente conectado. Iniciando la partida automáticamente para ambos...");
-            const gameSettings = JSON.parse(domElements.hostLobbyScreen.dataset.gameSettings || "{}");
+            if (domElements.hostPlayerListEl) {
+                domElements.hostPlayerListEl.innerHTML = `<li>J1: Tú (Anfitrión)</li><li>J2: Cliente Conectado</li>`;
+            }
+            
+            console.log("[Red - Anfitrión] Cliente conectado. Recopilando settings y iniciando la partida...");
+            
+            // --- LA LÓGICA DE RECOPILAR SETTINGS AHORA ESTÁ AQUÍ ---
+            const settings = gameState.setupTempSettings || {};
+            const numPlayers = 2; // Partidas en red por ahora son de 2
+            
+            const playerTypes = {};
+            const playerCivilizations = {};
+            for (let i = 1; i <= numPlayers; i++) {
+                const playerKey = `player${i}`;
+                // ASUMIMOS J1 = HUMANO, J2 = HUMANO. Esta lógica podría mejorarse
+                playerTypes[playerKey] = 'human'; 
+                
+                const civSelectEl = document.getElementById(`player${i}Civ`);
+                if (civSelectEl) {
+                    playerCivilizations[i] = civSelectEl.value;
+                } else { // Fallback por si acaso
+                    playerCivilizations[i] = 'ninguna';
+                }
+            }
+            
+            const gameSettings = {
+                ...settings,
+                playerTypes: playerTypes,
+                playerCivilizations: playerCivilizations,
+                deploymentUnitLimit: settings.unitLimit === "unlimited" ? Infinity : parseInt(settings.unitLimit)
+            };
+            
             const dataPacket = { type: 'startGame', settings: gameSettings };
-            NetworkManager.enviarDatos(dataPacket);
-            setTimeout(() => { iniciarPartidaLAN(gameSettings); }, 500);
+            
+            NetworkManager.enviarDatos(dataPacket); // Enviamos los settings al cliente
+            setTimeout(() => { iniciarPartidaLAN(gameSettings); }, 500); // Iniciamos para nosotros mismos
+
         } else {
-            console.log(`[Red - Cliente] Conexión establecida con Anfitrión ${idRemoto}. Esperando inicio de partida...`);
+            console.log(`[Red - Cliente] Conexión establecida. Esperando inicio de partida...`);
         }
     }
     
@@ -2059,7 +2112,7 @@ function reconstruirJuegoDesdeDatos(datos) {
         console.error("Error crítico al reconstruir el juego en el cliente:", error);
         logMessage("Error: No se pudo sincronizar la partida con el anfitrión.", "error");
     }
-
+    /*
     // ===================================================================
     // == LÓGICA DE CIERRE DE PANEL AL HACER CLIC FUERA ==================
     // ===================================================================
@@ -2087,6 +2140,7 @@ function reconstruirJuegoDesdeDatos(datos) {
             deselectUnit(); // Deseleccionamos todo
         }
     }, false); // El 'true' es importante, asegura que este listener se ejecute primero
+    */
 }
 
 document.addEventListener('DOMContentLoaded', initApp);
