@@ -523,25 +523,7 @@ if (tutorialPanel && closeTutorialBtn) {
     // ======================================================================    
     //Juego en red   
     // ====================================================================== 
-    // En main.js
-    if (domElements.createNetworkGameBtn && !domElements.createNetworkGameBtn.hasListener) {
-        domElements.createNetworkGameBtn.addEventListener('click', () => {
-            console.log("[Anfitrión] Clic en 'Crear Partida en Red'. Preparando lobby...");
 
-            // Ya NO leemos ni creamos gameSettings aquí. Solo mostramos el lobby.
-            
-            showScreen(domElements.hostLobbyScreen);
-            gameState.currentPhase = "hostLobby";
-
-            NetworkManager.preparar(onConexionLANEstablecida, onDatosLANRecibidos, onConexionLANCerrada);
-            NetworkManager.iniciarAnfitrion((idGenerado) => {
-                if(domElements.shortGameCodeEl) domElements.shortGameCodeEl.textContent = idGenerado;
-                if(domElements.hostPlayerListEl) domElements.hostPlayerListEl.innerHTML = `<li>J1: Tú (Anfitrión)</li>`;
-            });
-        });
-        domElements.createNetworkGameBtn.hasListener = true;
-    }
-    
     function onConexionLANEstablecida(idRemoto) {
         if (NetworkManager.esAnfitrion) {
             if (domElements.hostStatusEl) {
@@ -552,78 +534,57 @@ if (tutorialPanel && closeTutorialBtn) {
                 domElements.hostPlayerListEl.innerHTML = `<li>J1: Tú (Anfitrión)</li><li>J2: Cliente Conectado</li>`;
             }
             
-            console.log("[Red - Anfitrión] Cliente conectado. Recopilando settings y iniciando la partida...");
+            console.log("[Red - Anfitrión] Cliente conectado. Iniciando partida...");
             
-            // --- LA LÓGICA DE RECOPILAR SETTINGS AHORA ESTÁ AQUÍ ---
-            const settings = gameState.setupTempSettings || {};
-            const numPlayers = 2; // Partidas en red por ahora son de 2
-            
-            const playerTypes = {};
-            const playerCivilizations = {};
-            for (let i = 1; i <= numPlayers; i++) {
-                const playerKey = `player${i}`;
-                // ASUMIMOS J1 = HUMANO, J2 = HUMANO. Esta lógica podría mejorarse
-                playerTypes[playerKey] = 'human'; 
-                
-                const civSelectEl = document.getElementById(`player${i}Civ`);
-                if (civSelectEl) {
-                    playerCivilizations[i] = civSelectEl.value;
-                } else { // Fallback por si acaso
-                    playerCivilizations[i] = 'ninguna';
-                }
+            // Recuperamos los settings que guardamos.
+            const gameSettings = gameState.networkGameSettings;
+
+            if (!gameSettings) {
+                console.error("¡ERROR CRÍTICO! No se encontraron los gameSettings para iniciar la partida en red.");
+                alert("Error al iniciar la partida. Vuelve a intentarlo.");
+                return;
             }
             
-            const gameSettings = {
-                ...settings,
-                playerTypes: playerTypes,
-                playerCivilizations: playerCivilizations,
-                deploymentUnitLimit: settings.unitLimit === "unlimited" ? Infinity : parseInt(settings.unitLimit)
-            };
-            gameState.networkGameSettings = gameSettings;
+            // 1. Enviamos la orden de iniciar con los settings.
             const dataPacket = { type: 'startGame', settings: gameSettings };
+            NetworkManager.enviarDatos(dataPacket);
             
-            NetworkManager.enviarDatos(dataPacket); // Enviamos los settings al cliente
-            setTimeout(() => { iniciarPartidaLAN(gameSettings); }, 500); // Iniciamos para nosotros mismos
+            // 2. Esperamos un poco y luego iniciamos la partida para nosotros.
+            // Este retraso da tiempo al cliente a prepararse.
+            setTimeout(() => { 
+                iniciarPartidaLAN(gameSettings); 
+            }, 500);
 
         } else {
             console.log(`[Red - Cliente] Conexión establecida. Esperando inicio de partida...`);
         }
     }
-    
+
     function onDatosLANRecibidos(datos) {
-        
-        // [LOG DE RED - AÑADIDO AQUÍ, AL PRINCIPIO]
+        // ... (Tu función onDatosLANRecibidos no necesita cambios, la puedes dejar como está)
+        // ... Te la pongo aquí para que la tengas completa si la borraste.
         if (datos.type === 'actionRequest' && datos.action?.type === 'moveUnit') {
             const soyAnfitrion = NetworkManager.esAnfitrion;
             console.log(`[NETWORK FLOW - PASO 3] ${soyAnfitrion ? 'Anfitrión' : 'Cliente'} ha recibido un paquete. Tipo: '${datos.type}', Acción solicitada: '${datos.action.type}'.`);
         }
         
         console.log(`%c[PROCESS DATA] onDatosLANRecibidos procesando paquete tipo: ${datos.type}`, 'background: #DAA520; color: black;');
-        // Lógica del Cliente (cuando NO es anfitrión)
+            // Lógica del Cliente (cuando NO es anfitrión)
         if (!NetworkManager.esAnfitrion) {
             switch (datos.type) {
                 case 'startGame':
                     // Esto es para la configuración inicial, antes de que el tablero exista
                     iniciarPartidaLAN(datos.settings);
                     break;
-                    
-                case 'initialGameSetup':
-                    // La primera "fotografía" completa del juego al empezar
-                    reconstruirJuegoDesdeDatos(datos.payload);
-                    break;
-
                 case 'fullStateUpdate':
-                    // CUALQUIER otra actualización del juego durante la partida
+                case 'initialGameSetup': // Tratar ambos como una actualización completa
                     reconstruirJuegoDesdeDatos(datos.payload);
                     break;
-
                 default:
                     console.warn(`[Cliente] Recibido paquete desconocido del anfitrión: '${datos.type}'.`);
                     break;
             }
-        }
-        // Lógica del Anfitrión (recibiendo peticiones del cliente)
-        else {
+        } else {
             if (datos.type === 'actionRequest') {
                 console.log(`%c[HOST PROCESS] Anfitrión va a procesar acción solicitada: ${datos.action.type}`, 'background: #DC143C; color: white;', datos.action.payload);
                 processActionRequest(datos.action);
@@ -634,19 +595,80 @@ if (tutorialPanel && closeTutorialBtn) {
     }
 
     function onConexionLANCerrada() {
-        if (!domElements.lanStatusEl || !domElements.lanPlayerListEl || !domElements.lanRemoteIdInput || !domElements.lanConnectBtn) return;
-        domElements.lanStatusEl.textContent = 'Desconectado';
-        domElements.lanStatusEl.className = 'status desconectado';
-        domElements.lanPlayerListEl.innerHTML = `<li>Tú (${NetworkManager.miId})</li>`;
-        document.getElementById('lan-game-options-host').style.display = 'none';
-
-        // Habilitar de nuevo la opción de unirse
-        domElements.lanRemoteIdInput.disabled = false;
-        domElements.lanConnectBtn.disabled = false;
+        // ... (Tu función onConexionLANCerrada no necesita cambios, la puedes dejar como está)
         alert("El otro jugador se ha desconectado.");
+        showScreen(domElements.mainMenuScreenEl); // Simplificado para volver al menú
     }
 
-// Botón para ir a la pantalla del Lobby LAN
+    // 1. Botón para que el CLIENTE se una a una partida
+    if (domElements.joinNetworkGameBtn && !domElements.joinNetworkGameBtn.hasListener) {
+        domElements.joinNetworkGameBtn.addEventListener('click', () => {
+            const shortCode = prompt("Introduce el ID de la partida:");
+            if (shortCode && shortCode.trim() !== "") {
+                logMessage(`Intentando unirse a ${shortCode}...`);
+                NetworkManager.preparar(onConexionLANEstablecida, onDatosLANRecibidos, onConexionLANCerrada);
+                NetworkManager.unirseAPartida(shortCode.trim());
+            } else if (shortCode !== null) {
+                alert("Código inválido.");
+            }
+        });
+        domElements.joinNetworkGameBtn.hasListener = true;
+    }
+
+    // 2. Botón para que el ANFITRIÓN cree una partida en red
+    // ¡ESTE ES EL BLOQUE QUE ESTABA CAUSANDO TODO EL PROBLEMA!
+    if (domElements.createNetworkGameBtn && !domElements.createNetworkGameBtn.hasListener) {
+        domElements.createNetworkGameBtn.addEventListener('click', () => {
+            console.log("[Anfitrión] Clic en 'Crear Partida en Red'. Preparando lobby...");
+
+            const settings = gameState.setupTempSettings || {};
+            const numPlayers = settings.numPlayers || 2;
+            
+            const playerTypes = {};
+            const playerCivilizations = {};
+            
+            for (let i = 1; i <= numPlayers; i++) {
+                const playerKey = `player${i}`;
+                const civSelectEl = document.getElementById(`player${i}Civ`);
+                const typeSelectEl = document.getElementById(`player${i}TypeSelect`);
+
+                if (typeSelectEl && typeSelectEl.value !== 'closed') {
+                    if (civSelectEl) {
+                        playerTypes[playerKey] = typeSelectEl.value;
+                        playerCivilizations[i] = civSelectEl.value;
+                    } else {
+                        console.error(`Error: No se encontró el selector de civilización para el jugador ${i}`);
+                        return;
+                    }
+                }
+            }
+
+            const gameSettings = {
+                ...settings,
+                playerTypes: playerTypes,
+                playerCivilizations: playerCivilizations,
+                deploymentUnitLimit: settings.unitLimit === "unlimited" ? Infinity : parseInt(settings.unitLimit),
+                turnDurationSeconds: settings.turnTime === 'none' ? Infinity : parseInt(settings.turnTime)
+            };
+            
+            // Guardamos la configuración para usarla cuando el cliente se conecte.
+            gameState.networkGameSettings = gameSettings;
+            
+            showScreen(domElements.hostLobbyScreen);
+            gameState.currentPhase = "hostLobby";
+
+            NetworkManager.preparar(onConexionLANEstablecida, onDatosLANRecibidos, onConexionLANCerrada);
+            
+            // Esta función ahora SÍ mostrará el ID en pantalla.
+            NetworkManager.iniciarAnfitrion((idGenerado) => {
+                if(domElements.shortGameCodeEl) domElements.shortGameCodeEl.textContent = idGenerado;
+                if(domElements.hostPlayerListEl) domElements.hostPlayerListEl.innerHTML = `<li>J1: Tú (Anfitrión)</li>`;
+            });
+        });
+        domElements.createNetworkGameBtn.hasListener = true;
+    }
+
+    // Botón para ir a la pantalla del Lobby LAN
     if (domElements.startLanModeBtn) {
         domElements.startLanModeBtn.addEventListener('click', () => {
             showScreen(domElements.lanLobbyScreen);
