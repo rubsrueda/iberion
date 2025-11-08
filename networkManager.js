@@ -15,6 +15,8 @@ const NetworkManager = {
     miId: null,
     idRemoto: null,
     
+    _isConnecting: false, // Nuestro nuevo "cerrojo"
+    
     _onConexionAbierta: null,
     _onDatosRecibidos: null,
     _onConexionCerrada: null,
@@ -26,6 +28,12 @@ const NetworkManager = {
     },
 
     iniciarAnfitrion: function(onIdGenerado) {
+        if (this._isConnecting) {
+            console.warn("[NetworkManager] Se ha bloqueado un intento de iniciar anfitrión mientras ya se estaba conectando.");
+            return;
+        }
+        this._isConnecting = true;
+
         if (this.peer) {
             this.peer.destroy();
         }
@@ -44,9 +52,10 @@ const NetworkManager = {
                 this.peer = new Peer(peerId, PEER_SERVER_CONFIG);
                 // <<== FIN DEL CAMBIO ==>>
 
-                this.peer.on('open', (id) => {
-                    console.log(`%c¡CONEXIÓN CON SERVIDOR PEERJS EXITOSA! Mi ID es: ${id}`, "background: green; color: white;");
-                    this.miId = id;
+        this.peer.on('open', (id) => {
+            console.log(`%c¡CONEXIÓN CON SERVIDOR PEERJS EXITOSA! Mi ID es: ${id}`, "...");
+            this._isConnecting = false; // <<< Desbloqueamos al tener éxito
+             this.miId = id;
                     if (onIdGenerado) onIdGenerado(this.miId);
 
                     this.peer.on('connection', (newConnection) => {
@@ -61,11 +70,13 @@ const NetworkManager = {
                     });
                 });
 
-                this.peer.on('error', (err) => {
-                    console.error("Error en PeerJS (Anfitrión):", err);
-                    alert(`Error de conexión de red: ${err.type}. Puede que un firewall esté bloqueando la conexión o el servidor esté ocupado.`);
+        // Dentro del this.peer.on('error', ...)
+        this.peer.on('error', (err) => {
+            console.error("Error en PeerJS (Anfitrión):", err);
+            this._isConnecting = false; // <<< Desbloqueamos también en caso de error
+            alert(`Error de conexión de red: ${err.type}. Puede que un firewall esté bloqueando la conexión o el servidor esté ocupado.`);
                     this.desconectar();
-                });
+        });
 
             } catch (e) {
                 console.error("Fallo catastrófico al crear la instancia de Peer:", e);
@@ -75,6 +86,11 @@ const NetworkManager = {
 
     unirseAPartida: function(anfitrionId) {
         console.log("%c[Paso 1 Client] Se ha llamado a unirseAPartida.", "color: cyan;");
+        if (this._isConnecting) {
+            console.warn("[NetworkManager] Se ha bloqueado un intento de unirse a partida mientras ya se estaba conectando.");
+            return;
+        }
+        this._isConnecting = true;
         if (this.peer) {
             console.log("%c[Paso 2 Client] Instancia de PeerJS anterior detectada. Llamando a destroy().", "color: cyan;");
             this.peer.destroy();
@@ -90,26 +106,24 @@ const NetworkManager = {
 
                 console.log("%c[Paso 5 Client] Objeto Peer creado. Añadiendo listeners...", "color: cyan;");
 
-                this.peer.on('open', (id) => {
-                    console.log(`%c[Paso 6 Client - ÉXITO] Evento 'open' disparado. Mi ID es: ${id}`, "background: green; color: white;");
+        this.peer.on('open', (id) => {
+            console.log(`%c[Paso 6 Client - ÉXITO] Evento 'open' disparado. Mi ID es: ${id}`, "background: green; color: white;");
                     this.miId = id;
                     
                     if (!anfitrionId) {
                         console.error("Error: Se intentó unirse a una partida sin ID de anfitrion.");
                         return;
                     }
-                    
-                    console.log(`%c[Paso 7 Client] Llamando a peer.connect('${anfitrionId}')...`, "color: cyan;");
-                    this.conn = this.peer.connect(anfitrionId);
-                    this.idRemoto = anfitrionId;
-                    this._configurarEventosDeConexion();
-                });
+            console.log(`%c[Paso 7 Client] Llamando a peer.connect('${anfitrionId}')...`, "color: cyan;");
+            this.conn = this.peer.connect(anfitrionId);
+        });
 
-                this.peer.on('error', (err) => {
-                    console.error("%c[Paso E1 Client - ERROR] Evento 'error' disparado en PeerJS (Cliente):", "background: red; color: white;", err);
-                    alert(`Error de conexión: ${err.type}`);
-                    this.desconectar();
-                });
+        // Dentro del this.peer.on('error', ...)
+        this.peer.on('error', (err) => {
+            console.error("%c[Paso E1 Client - ERROR]...", "...", err);
+            this._isConnecting = false; // <<< Desbloqueamos en caso de error
+            this.desconectar();
+        });
 
             } catch(e) {
                  console.error("%c[Paso E2 Client - ERROR CATASTRÓFICO] Fallo al crear new Peer():", "background: red; color: white;", e);
@@ -155,7 +169,8 @@ const NetworkManager = {
         if (!this.conn) return;
 
         this.conn.on('open', () => {
-            console.log(`%c[Paso 8 - ÉXITO CONEXIÓN] La conexión de datos con ${this.conn.peer} está abierta.`, "background: blue; color: white;");
+            console.log(`%c[Paso 8 - ÉXITO CONEXIÓN]...`, "...");
+            this._isConnecting = false; // <<< DESBLOQUEAMOS AQUÍ, CUANDO LA CONEXIÓN ES REAL
             if (this._onConexionAbierta) this._onConexionAbierta(this.idRemoto);
         });
 

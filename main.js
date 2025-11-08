@@ -2037,6 +2037,26 @@ async function processActionRequest(action) { // <<== async
                 actionExecuted = true;
             }
             break;
+        
+        case 'razeStructure':
+            const unitToRaze = units.find(u => u.id === payload.unitId);
+            const hexToRaze = board[payload.r]?.[payload.c];
+            // Validaciones básicas en el anfitrión
+            if (unitToRaze && hexToRaze && !unitToRaze.hasAttacked && hexToRaze.structure) {
+                _executeRazeStructure(payload);
+                actionExecuted = true;
+            }
+            break;
+
+        case 'exploreRuins':
+            const unitToExplore = units.find(u => u.id === payload.unitId);
+            const hexToExplore = board[payload.r]?.[payload.c];
+            // Validaciones básicas en el anfitrión
+            if (unitToExplore && hexToExplore && !unitToExplore.hasAttacked && hexToExplore.feature === 'ruins') {
+                _executeExploreRuins(payload);
+                actionExecuted = true;
+            }
+            break;
 
         default:
             console.warn(`[Red - Anfitrión] Recibida petición de acción desconocida: ${action.type}`);
@@ -2098,6 +2118,12 @@ function reconstruirJuegoDesdeDatos(datos) {
         renderFullBoardVisualState();
         UIManager.updateAllUIDisplays();
         UIManager.updateTurnIndicatorAndBlocker();
+
+        if (typeof initializeBoardPanning === "function") {
+            initializeBoardPanning();
+        } else {
+            console.error("Error crítico: La función initializeBoardPanning no está disponible para el cliente.");
+        }
 
         // CORRECCIÓN: Deseleccionar la unidad para evitar referencias obsoletas
         // Esto soluciona el problema donde el cliente no puede mover después de atacar
