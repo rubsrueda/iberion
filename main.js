@@ -524,7 +524,7 @@ if (tutorialPanel && closeTutorialBtn) {
     //Juego en red   
     // ====================================================================== 
     // En main.js
-    if (domElements.createNetworkGameBtn) {
+    if (domElements.createNetworkGameBtn && !domElements.createNetworkGameBtn.hasListener) {
         domElements.createNetworkGameBtn.addEventListener('click', () => {
             console.log("[Anfitrión] Clic en 'Crear Partida en Red'. Preparando lobby...");
 
@@ -539,6 +539,7 @@ if (tutorialPanel && closeTutorialBtn) {
                 if(domElements.hostPlayerListEl) domElements.hostPlayerListEl.innerHTML = `<li>J1: Tú (Anfitrión)</li>`;
             });
         });
+        domElements.createNetworkGameBtn.hasListener = true;
     }
     
     // En main.js
@@ -744,7 +745,7 @@ if (tutorialPanel && closeTutorialBtn) {
     }
     
     // 1. Botón para que el CLIENTE se una a una partida
-    if (domElements.joinNetworkGameBtn) {
+    if (domElements.joinNetworkGameBtn && !domElements.joinNetworkGameBtn.hasListener) {
         domElements.joinNetworkGameBtn.addEventListener('click', () => {
             const shortCode = prompt("Introduce el ID de la partida:");
             if (shortCode && shortCode.trim() !== "") {
@@ -755,6 +756,7 @@ if (tutorialPanel && closeTutorialBtn) {
                 if (shortCode !== null) alert("Código inválido.");
             }
         });
+        domElements.joinNetworkGameBtn.hasListener = true;
     }
     
     // 2. Botón para que el ANFITRIÓN cree una partida en red
@@ -887,7 +889,7 @@ if (tutorialPanel && closeTutorialBtn) {
     }
 
     // === LÓGICA DEL BOTÓN DE EMPEZAR PARTIDA LOCAL ===
-    if (domElements.startLocalGameBtn) { 
+    if (domElements.startLocalGameBtn && !domElements.startLocalGameBtn.hasListener) { 
         domElements.startLocalGameBtn.addEventListener('click', () => { 
             console.log("main.js: Botón 'Empezar Partida (Local)' clickeado. Iniciando validación...");
             
@@ -994,6 +996,7 @@ if (tutorialPanel && closeTutorialBtn) {
 
                 // FINALLY: Ya no necesitamos los Mocks, pero el motor ya superó la barrera.
         });
+        domElements.startLocalGameBtn.hasListener = true;
         } else { 
             console.warn("main.js: startLocalGameBtn no encontrado."); 
     }
