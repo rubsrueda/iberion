@@ -542,7 +542,6 @@ if (tutorialPanel && closeTutorialBtn) {
         domElements.createNetworkGameBtn.hasListener = true;
     }
     
-    // En main.js
     function onConexionLANEstablecida(idRemoto) {
         if (NetworkManager.esAnfitrion) {
             if (domElements.hostStatusEl) {
@@ -580,7 +579,7 @@ if (tutorialPanel && closeTutorialBtn) {
                 playerCivilizations: playerCivilizations,
                 deploymentUnitLimit: settings.unitLimit === "unlimited" ? Infinity : parseInt(settings.unitLimit)
             };
-            
+            gameState.networkGameSettings = gameSettings;
             const dataPacket = { type: 'startGame', settings: gameSettings };
             
             NetworkManager.enviarDatos(dataPacket); // Enviamos los settings al cliente
@@ -760,49 +759,53 @@ if (tutorialPanel && closeTutorialBtn) {
     }
     
     // 2. Botón para que el ANFITRIÓN cree una partida en red
-    if (domElements.createNetworkGameBtn) {
+    if (domElements.createNetworkGameBtn && !domElements.createNetworkGameBtn.hasListener) {
         domElements.createNetworkGameBtn.addEventListener('click', () => {
             console.log("[Anfitrión] Clic en 'Crear Partida en Red'. Preparando lobby...");
 
-            // Reutilizamos la configuración global guardada en el paso anterior
+            // 1. Recuperamos la configuración básica guardada desde la pantalla 1.
             const settings = gameState.setupTempSettings || {};
-            // Log MUY detallado para ver qué estamos recuperando
-            console.error("DEBUGGING TIMER | PASO 2: Recuperando configuración al iniciar partida. Objeto 'settings':", JSON.stringify(settings, null, 2));
-            gameState.turnDurationSeconds = settings.turnTime === 'none' ? Infinity : parseInt(settings.turnTime);
+            console.log("DEBUGGING TIMER | PASO 2: Recuperando configuración al iniciar partida. Objeto 'settings':", JSON.stringify(settings, null, 2));
+            
             const numPlayers = settings.numPlayers || 2;
             
-            // Recolectamos dinámicamente la configuración de los jugadores
+            // 2. Leemos la configuración específica de los jugadores desde la pantalla 2.
             const playerTypes = {};
             const playerCivilizations = {};
             
             for (let i = 1; i <= numPlayers; i++) {
-                const playerNum = i;
-                const playerKey = `player${playerNum}`; // 'player1', 'player2'
-                
-                const civSelectEl = document.getElementById(`player${playerNum}Civ`);
-                const typeSelectEl = document.getElementById(`player${playerNum}TypeSelect`);
+                const playerKey = `player${i}`;
+                const civSelectEl = document.getElementById(`player${i}Civ`);
+                const typeSelectEl = document.getElementById(`player${i}TypeSelect`);
 
-                // Si un jugador está "Cerrado", no lo incluimos en la partida
                 if (typeSelectEl && typeSelectEl.value !== 'closed') {
                     if (civSelectEl) {
                         playerTypes[playerKey] = typeSelectEl.value;
-                        playerCivilizations[playerNum] = civSelectEl.value;
+                        playerCivilizations[i] = civSelectEl.value;
                     } else {
-                        console.error(`Error: No se encontró el selector de civilización para el jugador ${playerNum}`);
-                        return; // Detiene la creación si falta un elemento
+                        console.error(`Error: No se encontró el selector de civilización para el jugador ${i}`);
+                        return;
                     }
                 }
             }
 
+            // 3. Creamos el objeto final de configuración UNA SOLA VEZ.
             const gameSettings = {
-                ...settings, // Incluye boardSize, resourceLevel, etc.
+                ...settings, // Copia boardSize, resourceLevel, etc.
                 playerTypes: playerTypes,
                 playerCivilizations: playerCivilizations,
-                deploymentUnitLimit: settings.unitLimit === "unlimited" ? Infinity : parseInt(settings.unitLimit)
+                deploymentUnitLimit: settings.unitLimit === "unlimited" ? Infinity : parseInt(settings.unitLimit),
+                // Añadimos el tiempo de turno aquí para que esté en un solo lugar.
+                turnDurationSeconds: settings.turnTime === 'none' ? Infinity : parseInt(settings.turnTime)
             };
             
+            // 4. Guardamos este objeto final en un lugar seguro para usarlo después.
+            gameState.networkGameSettings = gameSettings;
+
+            // --- FIN DE LA LÓGICA ÚNICA Y CORRECTA ---
+            
+            // 5. Procedemos a mostrar el lobby y a iniciar la red.
             showScreen(domElements.hostLobbyScreen);
-            domElements.hostLobbyScreen.dataset.gameSettings = JSON.stringify(gameSettings);
             gameState.currentPhase = "hostLobby";
 
             NetworkManager.preparar(onConexionLANEstablecida, onDatosLANRecibidos, onConexionLANCerrada);
@@ -811,6 +814,8 @@ if (tutorialPanel && closeTutorialBtn) {
                 if(domElements.hostPlayerListEl) domElements.hostPlayerListEl.innerHTML = `<li>J1: Tú (Anfitrión)</li>`;
             });
         });
+        // Marcamos el botón para que no se le añada otro listener en el futuro.
+        domElements.createNetworkGameBtn.hasListener = true;
     }
 
     // 3. Botón para que el ANFITRIÓN cancele el lobby
