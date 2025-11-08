@@ -85,26 +85,6 @@ function initializeNewGameBoardDOMAndData(selectedResourceLevel = 'min', selecte
     console.log("boardManager.js: initializeNewGameBoardDOMAndData completada.");
 }
 
-function removeBoardPanningListeners() {
-    console.log("%c[PANNING CLEANUP] Eliminando listeners de paneo antiguos...", "color: orange;");
-    const gameBoard = document.getElementById('gameBoard');
-    if (!gameBoard) return; // Si no hay tablero, no hay nada que limpiar
-
-    // Clonar el nodo para eliminar todos los listeners de una vez (método más robusto)
-    const newGameBoard = gameBoard.cloneNode(true);
-    gameBoard.parentNode.replaceChild(newGameBoard, gameBoard);
-
-    // Eliminar explícitamente los listeners del documento si existen
-    if (_boundMouseMove) {
-        document.removeEventListener('mousemove', _boundMouseMove);
-        _boundMouseMove = null;
-    }
-    if (_boundMouseUp) {
-        document.removeEventListener('mouseup', _boundMouseUp);
-        _boundMouseUp = null;
-    }
-}
-
 /**
  * Orquesta la generación procedural del mapa de escaramuza.
  * @param {number} B_ROWS - Número de filas del tablero.
@@ -518,24 +498,44 @@ function generateHillsAndForests(rows, cols, hillProbability, forestProbability)
     }
 }
 
-function initializeBoardPanning() {
-    console.log("PANNING_AND_ZOOM_INIT_CALLED");
+function removeBoardPanningListeners() {
+    console.log("%c[PANNING CLEANUP] Eliminando listeners de paneo antiguos...", "color: orange;");
+    const gameBoard = document.getElementById('gameBoard');
+    if (!gameBoard) return; // Si no hay tablero, no hay nada que limpiar
 
-    if (!domElements.gameBoard || !domElements.gameBoard.parentElement) {
-        console.error("Error crítico de Panning/Zoom: gameBoard o su contenedor no existen.");
-        return;
+    // Clonar el nodo para eliminar todos los listeners de una vez (método más robusto)
+    const newGameBoard = gameBoard.cloneNode(true);
+    if (gameBoard.parentNode) {
+        gameBoard.parentNode.replaceChild(newGameBoard, gameBoard);
     }
 
+    // Eliminar explícitamente los listeners del documento si existen
+    if (_boundMouseMove) {
+        document.removeEventListener('mousemove', _boundMouseMove);
+        _boundMouseMove = null;
+    }
+    if (_boundMouseUp) {
+        document.removeEventListener('mouseup', _boundMouseUp);
+        _boundMouseUp = null;
+    }
+}
+
+function initializeBoardPanning() {
     // 1. Primero, limpiamos cualquier listener antiguo que pudiera existir.
     removeBoardPanningListeners();
+
     // Ahora obtenemos la referencia al tablero "limpio" y nuevo.
     const gameBoard = document.getElementById('gameBoard');
-    if (!gameBoard || !gameBoard.parentElement) {
-        console.error("Error crítico de Panning/Zoom: gameBoard o su contenedor no existen.");
+    if (!gameBoard) {
+        console.error("CRÍTICO (Panning): No se pudo encontrar el elemento #gameBoard en el DOM.");
+        return;
+    }
+    const viewport = gameBoard.parentElement;
+    if (!viewport) {
+        console.error("CRÍTICO (Panning): #gameBoard no tiene un elemento padre (viewport).");
         return;
     }
 
-    const viewport = domElements.gameBoard.parentElement;
     let lastTouchX_pan_bm = null;
     let lastTouchY_pan_bm = null;
 
@@ -555,20 +555,18 @@ function initializeBoardPanning() {
             // Usamos la altura del grupo de botones derecho como referencia principal
             const rightButtonGroup = domElements.tacticalUiContainer.querySelector('.floating-action-group.right');
             if (rightButtonGroup) {
-                bottomUiHeight = Math.max(bottomUiHeight, rightButtonGroup.offsetHeight + 20); // +20 de margen
+                bottomUiHeight = Math.max(bottomUiHeight, rightButtonGroup.offsetHeight + 20);
             }
         }
         if (domElements.contextualInfoPanel && domElements.contextualInfoPanel.classList.contains('visible')) {
             bottomUiHeight = Math.max(bottomUiHeight, domElements.contextualInfoPanel.offsetHeight);
         }
-        // <<== FIN DE LA MODIFICACIÓN CLAVE ==>>
-
         // Obtenemos dimensiones actuales
-        const boardWidth = domElements.gameBoard.offsetWidth * domElements.currentBoardScale;
-        const boardHeight = domElements.gameBoard.offsetHeight * domElements.currentBoardScale;
-        const viewportWidth = viewport.clientWidth;
+        const boardWidth = gameBoard.offsetWidth * domElements.currentBoardScale;
+        const boardHeight = gameBoard.offsetHeight * domElements.currentBoardScale;
         
-        // <<== USAMOS LA ALTURA CORREGIDA ==>>
+        // ¡LA LÍNEA DEL ERROR! Ahora 'viewport' es una referencia local y segura.
+        const viewportWidth = viewport.clientWidth; 
         const viewportHeight = viewport.clientHeight - bottomUiHeight;
 
         // Limitar la escala
@@ -595,47 +593,45 @@ function initializeBoardPanning() {
         // Guardar la posición corregida
         domElements.currentBoardTranslateX = targetX;
         domElements.currentBoardTranslateY = targetY;
-
+        
         // Aplicar la transformación combinada de escala y traslación
-        domElements.gameBoard.style.transform = `translate(${targetX}px, ${targetY}px) scale(${domElements.currentBoardScale})`;
+        gameBoard.style.transform = `translate(${targetX}px, ${targetY}px) scale(${domElements.currentBoardScale})`;
     }
 
-    // --- Panning con Ratón ---
-    domElements.gameBoard.addEventListener('mousedown', function(e) {
-
+    gameBoard.addEventListener('mousedown', function(e) {
+        
         // <<== ESTA ES LA ÚNICA LÍNEA DE CÓDIGO QUE NECESITAS CAMBIAR EN TODO EL PROYECTO ==>>
         // Si el elemento donde se inició el clic es un botón, ignora el evento de paneo.
         if (e.target.closest('button')) {
             return;
         }
-        // <<== FIN DE LA ÚNICA CORRECCIÓN NECESARIA ==>>
-
         if (e.button !== 0 || (typeof placementMode !== 'undefined' && placementMode.active)) return;
         
         // Esta línea es la que causaba el problema, y ahora no se ejecutará si haces clic en un botón.
-        e.preventDefault(); 
-
+        e.preventDefault();
         domElements.isPanning = true;
         domElements.panStartX = e.clientX - domElements.currentBoardTranslateX;
         domElements.panStartY = e.clientY - domElements.currentBoardTranslateY;
-        domElements.gameBoard.classList.add('grabbing');
+        gameBoard.classList.add('grabbing');
     });
 
-    document.addEventListener('mousemove', function(e) {
+    _boundMouseMove = function(e) {
         if (!domElements.isPanning) return;
         domElements.currentBoardTranslateX = e.clientX - domElements.panStartX;
         domElements.currentBoardTranslateY = e.clientY - domElements.panStartY;
         applyTransform();
-    });
-
-    document.addEventListener('mouseup', function(e) {
+    };
+    _boundMouseUp = function(e) {
         if (e.button !== 0) return;
         domElements.isPanning = false;
-        domElements.gameBoard.classList.remove('grabbing');
-    });
+        gameBoard.classList.remove('grabbing');
+    };
 
     // --- Zoom con Rueda del Ratón  ---
-    domElements.gameBoard.addEventListener('wheel', function(e) {
+    document.addEventListener('mousemove', _boundMouseMove);
+    document.addEventListener('mouseup', _boundMouseUp);
+
+    gameBoard.addEventListener('wheel', function(e) {
         e.preventDefault();
         const scaleAmount = -e.deltaY * 0.001;
         domElements.currentBoardScale += scaleAmount;
@@ -643,7 +639,7 @@ function initializeBoardPanning() {
     }, { passive: false });
 
     // --- Lógica Táctil para Paneo y Zoom ---
-    domElements.gameBoard.addEventListener('touchstart', function(e) {
+    gameBoard.addEventListener('touchstart', function(e) {
         if ((typeof placementMode !== 'undefined' && placementMode.active)) return;
         
         // Paneo con un dedo
@@ -653,16 +649,15 @@ function initializeBoardPanning() {
             const touch = e.touches[0];
             lastTouchX_pan_bm = touch.clientX;
             lastTouchY_pan_bm = touch.clientY;
-        }
-        // Zoom con dos dedos
-        else if (e.touches.length === 2) {
+        } else if (e.touches.length === 2) {
+            // Zoom con dos dedos
             domElements.isPinching = true;
             domElements.isPanning = false;
             domElements.initialPinchDistance = getPinchDistance(e.touches);
         }
     }, { passive: true });
 
-    domElements.gameBoard.addEventListener('touchmove', function(e) {
+    gameBoard.addEventListener('touchmove', function(e) {
         e.preventDefault();
         
         // Mover con un dedo
@@ -675,21 +670,19 @@ function initializeBoardPanning() {
             lastTouchX_pan_bm = touch.clientX;
             lastTouchY_pan_bm = touch.clientY;
             applyTransform();
-        } 
-        // Hacer zoom con dos dedos
-        else if (domElements.isPinching && e.touches.length === 2) {
+        } else if (domElements.isPinching && e.touches.length === 2) {
+            // Hacer zoom con dos dedos
             const newDist = getPinchDistance(e.touches);
             const scaleFactor = newDist / domElements.initialPinchDistance;
             domElements.currentBoardScale *= scaleFactor;
             
             // Actualizar la distancia inicial para un zoom más suave
             domElements.initialPinchDistance = newDist;
-            
             applyTransform();
         }
     }, { passive: false });
 
-    domElements.gameBoard.addEventListener('touchend', function(e) {
+    gameBoard.addEventListener('touchend', function(e) {
         // Resetear estados al levantar los dedos
         domElements.isPanning = false;
         domElements.isPinching = false;
@@ -697,8 +690,8 @@ function initializeBoardPanning() {
         lastTouchY_pan_bm = null;
     });
 
-    console.log("BoardManager: Panning and Zoom listeners (versión móvil) inicializados.");
-    applyTransform(); // Aplicar transformación inicial para centrar correctamente.
+    console.log("BoardManager: Panning and Zoom listeners (versión final) inicializados.");
+    applyTransform();
 }
 
 function createHexDOMElementWithListener(r, c) {
