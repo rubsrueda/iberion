@@ -1,6 +1,7 @@
 // boardManager.js (20250827)
 // Funciones para crear, gestionar y renderizar el tablero y sus hexágonos.
 
+let _boundMouseMove, _boundMouseUp;
 let panStartTimestamp = 0;
 let hasMovedEnoughForPan = false;
 const PAN_MOVE_THRESHOLD = 5; 
@@ -82,6 +83,26 @@ function initializeNewGameBoardDOMAndData(selectedResourceLevel = 'min', selecte
     updateFogOfWar(); 
     initializeBoardPanning(); 
     console.log("boardManager.js: initializeNewGameBoardDOMAndData completada.");
+}
+
+function removeBoardPanningListeners() {
+    console.log("%c[PANNING CLEANUP] Eliminando listeners de paneo antiguos...", "color: orange;");
+    const gameBoard = document.getElementById('gameBoard');
+    if (!gameBoard) return; // Si no hay tablero, no hay nada que limpiar
+
+    // Clonar el nodo para eliminar todos los listeners de una vez (método más robusto)
+    const newGameBoard = gameBoard.cloneNode(true);
+    gameBoard.parentNode.replaceChild(newGameBoard, gameBoard);
+
+    // Eliminar explícitamente los listeners del documento si existen
+    if (_boundMouseMove) {
+        document.removeEventListener('mousemove', _boundMouseMove);
+        _boundMouseMove = null;
+    }
+    if (_boundMouseUp) {
+        document.removeEventListener('mouseup', _boundMouseUp);
+        _boundMouseUp = null;
+    }
 }
 
 /**
@@ -501,6 +522,15 @@ function initializeBoardPanning() {
     console.log("PANNING_AND_ZOOM_INIT_CALLED");
 
     if (!domElements.gameBoard || !domElements.gameBoard.parentElement) {
+        console.error("Error crítico de Panning/Zoom: gameBoard o su contenedor no existen.");
+        return;
+    }
+
+    // 1. Primero, limpiamos cualquier listener antiguo que pudiera existir.
+    removeBoardPanningListeners();
+    // Ahora obtenemos la referencia al tablero "limpio" y nuevo.
+    const gameBoard = document.getElementById('gameBoard');
+    if (!gameBoard || !gameBoard.parentElement) {
         console.error("Error crítico de Panning/Zoom: gameBoard o su contenedor no existen.");
         return;
     }

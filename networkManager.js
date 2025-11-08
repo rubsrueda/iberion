@@ -108,14 +108,21 @@ const NetworkManager = {
 
         this.peer.on('open', (id) => {
             console.log(`%c[Paso 6 Client - ÉXITO] Evento 'open' disparado. Mi ID es: ${id}`, "background: green; color: white;");
-                    this.miId = id;
-                    
-                    if (!anfitrionId) {
-                        console.error("Error: Se intentó unirse a una partida sin ID de anfitrion.");
-                        return;
-                    }
+            this.miId = id;
+            
+            if (!anfitrionId) {
+                console.error("Error: Se intentó unirse a una partida sin ID de anfitrion.");
+                this._isConnecting = false; // <<< DESBLOQUEAMOS si hay error
+                return;
+            }
+            
             console.log(`%c[Paso 7 Client] Llamando a peer.connect('${anfitrionId}')...`, "color: cyan;");
             this.conn = this.peer.connect(anfitrionId);
+            this.idRemoto = anfitrionId; // Guardamos el ID remoto
+
+            // <<< ¡ESTA ES LA LÍNEA MÁGICA QUE FALTABA! >>>
+            // Le decimos que use la función que ya tienes para configurar los eventos de la conexión.
+            this._configurarEventosDeConexion(); 
         });
 
         // Dentro del this.peer.on('error', ...)
