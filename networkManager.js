@@ -166,25 +166,36 @@ const NetworkManager = {
     },
 
     _configurarEventosDeConexion: function() {
-        if (!this.conn) return;
+        if (!this.conn) {
+            console.error("Se intentó configurar eventos sin una conexión válida.");
+            return;
+        }
+
+        console.log(`[Configurando Eventos] Añadiendo listeners para la conexión con ${this.conn.peer}...`);
 
         this.conn.on('open', () => {
-            console.log(`%c[Paso 8 - ÉXITO CONEXIÓN]...`, "...");
-            this._isConnecting = false; // <<< DESBLOQUEAMOS AQUÍ, CUANDO LA CONEXIÓN ES REAL
+            console.log(`%c[Paso 8 - ÉXITO CONEXIÓN] La conexión de datos con ${this.conn.peer} está abierta.`, "background: blue; color: white;");
+            this._isConnecting = false; // Desbloqueamos el cerrojo AHORA que la conexión es real.
             if (this._onConexionAbierta) this._onConexionAbierta(this.idRemoto);
         });
 
         this.conn.on('data', (datos) => {
-   
             console.log(`%c[NETWORK RECEIVE] Datos recibidos de ${this.conn.peer}:`, 'background: #2E8B57; color: white;', JSON.parse(JSON.stringify(datos)));
-            
             if (this._onDatosRecibidos) this._onDatosRecibidos(datos);
         });
 
         this.conn.on('close', () => {
             console.warn(`[NetworkManager] La conexión con ${this.conn.peer} se ha cerrado.`);
+            this._isConnecting = false; // Asegurarse de desbloquear si se cierra.
             if (this._onConexionCerrada) this._onConexionCerrada();
-            this.conn = null; // Limpiar la conexión
+            this.conn = null;
+        });
+
+        this.conn.on('error', (err) => {
+            console.error(`%c[ERROR DE CONEXIÓN DE DATOS] Fallo al conectar con ${this.conn.peer}:`, 'background: red; color: white;', err);
+            this._isConnecting = false; // Desbloquear en caso de error.
+            alert(`No se pudo establecer la conexión de datos con el anfitrión. Error: ${err.type}. Puede ser un problema de red o firewall.`);
+            this.desconectar();
         });
     },
 
