@@ -2264,32 +2264,52 @@ function handleTalentNodeClick(heroId, talentId) {
  * @param {string} commanderId - El ID del héroe a asignar.
  */
 function assignHeroToUnit(unit, commanderId) {
-    if (!unit || !commanderId) return;
-
+    if (!unit || !commanderId) {
+        console.error("assignHeroToUnit: Faltan datos de unidad o comandante.");
+        return false;
+    }
     if (gameState.isTutorialActive) {
         TutorialManager.notifyActionCompleted('hero_assigned'); 
     }
-    
 
     const playerActiveCommanders = gameState.activeCommanders[unit.player];
     
     // Comprobar que el héroe no esté ya en uso
     if (playerActiveCommanders.includes(commanderId)) {
         logMessage(`Error: El general ${COMMANDERS[commanderId].name} ya está comandando otra división.`);
-        return;
+        return false;
     }
     
-    // Añadir al héroe a la lista de activos
+    // Si la unidad ya tenía un general, hay que "liberarlo"
+    if (unit.commander) {
+        const oldCommanderIndex = playerActiveCommanders.indexOf(unit.commander);
+        if (oldCommanderIndex > -1) {
+            playerActiveCommanders.splice(oldCommanderIndex, 1);
+        }
+    }
+
+    // Añadir al nuevo héroe a la lista de activos
     playerActiveCommanders.push(commanderId);
     unit.commander = commanderId;
     
     Chronicle.logEvent('commander_assigned', { unit, commander: COMMANDERS[commanderId] });
     logMessage(`¡El general ${COMMANDERS[commanderId].name} ha tomado el mando de la división "${unit.name}"!`);
     
-    recalculateUnitStats(unit);
-    UIManager.updateUnitStrengthDisplay(unit);
-    UIManager.showUnitContextualInfo(unit, true);
-    UIManager.renderAllUnitsFromData();
+    // Recalcular stats y actualizar UI
+    if (typeof recalculateUnitStats === 'function') recalculateUnitStats(unit);
+    if (typeof UIManager !== 'undefined') {
+        UIManager.updateUnitStrengthDisplay(unit);
+        // Si la unidad es la seleccionada, refrescamos el panel principal
+        if (selectedUnit && selectedUnit.id === unit.id) {
+            UIManager.showUnitContextualInfo(unit, true);
+        }
+    }
+
+    if (gameState.isTutorialActive) {
+        TutorialManager.notifyActionCompleted('hero_assigned'); 
+    }
+    
+    return true; // Asignación exitosa
 }
 
 /**=======================================================================

@@ -2555,15 +2555,10 @@ function RequestAssignGeneral(unit, generalId) {
 function _executeAssignGeneral(payload) {
     const { unitId, generalId } = payload;
     const unit = units.find(u => u.id === unitId);
+    
+    // Simplemente llamamos a la función principal que tiene toda la lógica.
     if (unit) {
-        unit.commander = generalId;
-        logMessage(`General asignado a ${unit.name}.`);
-        if (typeof recalculateUnitStats === 'function') {
-            recalculateUnitStats(unit);
-        }
-        if (UIManager && selectedUnit && selectedUnit.id === unit.id) {
-            UIManager.showUnitContextualInfo(unit, true);
-        }
+        assignHeroToUnit(unit, generalId);
     }
 }
 
