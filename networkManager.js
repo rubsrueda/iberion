@@ -7,13 +7,25 @@ const PEER_SERVER_CONFIG = {
     path: '/',
     secure: true,
 };
-
+/*
+// --- CONFIGURACIÓN ALTERNATIVA ---
+const PEER_SERVER_CONFIG = {
+    host: 'peerjs.replit.com',
+    port: 443,
+    path: '/peerjs',
+    secure: true,
+};
+*/
 const NetworkManager = {
+    _maxConnectionRetries: 3, // Número máximo de reintentos
+    _connectionRetryDelay: 2000, // Tiempo de espera en milisegundos (2 segundos)
+    _connectionAttempts: 0, // Contador de intentos actual
     peer: null,
     conn: null,
     esAnfitrion: false,
     miId: null,
     idRemoto: null,
+    _onConexionAbierta: null,
     
     _isConnecting: false, // Nuestro nuevo "cerrojo"
     
@@ -27,61 +39,76 @@ const NetworkManager = {
         this._onConexionCerrada = onConexionCerrada;
     },
 
+    // En networkManager.js
+
     iniciarAnfitrion: function(onIdGenerado) {
         if (this._isConnecting) {
-            console.warn("[NetworkManager] Se ha bloqueado un intento de iniciar anfitrión mientras ya se estaba conectando.");
+            console.warn("[NetworkManager] Intento de iniciar anfitrión bloqueado, ya hay una conexión en proceso.");
             return;
         }
-        this._isConnecting = true;
-
-        if (this.peer) {
-            this.peer.destroy();
-        }
-        this.peer = null;
-        this.esAnfitrion = true;
         
-        // Damos un respiro un poco más largo al navegador.
-        setTimeout(() => {
-            try {
-                // <<== CAMBIO CLAVE: Generar un ID aleatorio explícito ==>>
-                // Esto a veces ayuda a la conexión con servidores públicos.
-                // Usamos una combinación de timestamp y aleatorio para asegurar que sea único.
-                const peerId = `hge-host-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-                console.log(`Intentando conectar a PeerJS con ID: ${peerId}`);
+        this.esAnfitrion = true;
+        this._connectionAttempts = 0; // Reiniciar contador de intentos
 
-                this.peer = new Peer(peerId, PEER_SERVER_CONFIG);
-                // <<== FIN DEL CAMBIO ==>>
+        const tryConnectAsHost = () => {
+            if (this._isConnecting) return; // Salvaguarda extra
+            this._isConnecting = true;
+            this._connectionAttempts++;
 
-        this.peer.on('open', (id) => {
-            console.log(`%c¡CONEXIÓN CON SERVIDOR PEERJS EXITOSA! Mi ID es: ${id}`, "...");
-            this._isConnecting = false; // <<< Desbloqueamos al tener éxito
-             this.miId = id;
-                    if (onIdGenerado) onIdGenerado(this.miId);
+            console.log(`[Anfitrión] Intento de conexión #${this._connectionAttempts}/${this._maxConnectionRetries}...`);
 
-                    this.peer.on('connection', (newConnection) => {
-                        console.log(`Conexión entrante de: ${newConnection.peer}`);
-                        if (this.conn && this.conn.open) {
-                            newConnection.close();
-                            return;
-                        }
-                        this.conn = newConnection;
-                        this.idRemoto = newConnection.peer;
-                        this._configurarEventosDeConexion();
-                    });
-                });
-
-        // Dentro del this.peer.on('error', ...)
-        this.peer.on('error', (err) => {
-            console.error("Error en PeerJS (Anfitrión):", err);
-            this._isConnecting = false; // <<< Desbloqueamos también en caso de error
-            alert(`Error de conexión de red: ${err.type}. Puede que un firewall esté bloqueando la conexión o el servidor esté ocupado.`);
-                    this.desconectar();
-        });
-
-            } catch (e) {
-                console.error("Fallo catastrófico al crear la instancia de Peer:", e);
+            if (this.peer) {
+                this.peer.destroy();
+                this.peer = null;
             }
-        }, 500); // Aumentado a 500ms
+
+            setTimeout(() => {
+                try {
+                    const peerId = `hge-host-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+                    console.log(`Intentando conectar a PeerJS con ID: ${peerId}`);
+                    this.peer = new Peer(peerId, PEER_SERVER_CONFIG);
+
+                    this.peer.on('open', (id) => {
+                        this._isConnecting = false;
+                        this._connectionAttempts = 0; // Éxito, reiniciar contador
+                        console.log(`%c¡CONEXIÓN CON SERVIDOR PEERJS EXITOSA! Mi ID es: ${id}`, "background: green; color: white;");
+                        this.miId = id;
+                        if (onIdGenerado) onIdGenerado(this.miId);
+
+                        this.peer.on('connection', (newConnection) => {
+                            console.log(`Conexión entrante de: ${newConnection.peer}`);
+                            if (this.conn && this.conn.open) {
+                                newConnection.close();
+                                return;
+                            }
+                            this.conn = newConnection;
+                            this.idRemoto = newConnection.peer;
+                            this._configurarEventosDeConexion();
+                        });
+                    });
+
+                    this.peer.on('error', (err) => {
+                        this._isConnecting = false;
+                        console.error(`Error en PeerJS (Anfitrión) en el intento #${this._connectionAttempts}:`, err);
+
+                        if (this._connectionAttempts < this._maxConnectionRetries) {
+                            console.warn(`Reintentando conexión en ${this._connectionRetryDelay / 1000} segundos...`);
+                            setTimeout(tryConnectAsHost, this._connectionRetryDelay);
+                        } else {
+                            alert(`Error de conexión de red: ${err.type}. No se pudo conectar al servidor después de ${this._maxConnectionRetries} intentos.`);
+                            this.desconectar();
+                        }
+                    });
+
+                } catch (e) {
+                    this._isConnecting = false;
+                    console.error("Fallo catastrófico al crear la instancia de Peer:", e);
+                    alert("Error crítico al intentar iniciar la red. Revisa la consola.");
+                }
+            }, 500);
+        };
+
+        tryConnectAsHost(); // Iniciar el primer intento
     },
 
     unirseAPartida: function(anfitrionId) {
