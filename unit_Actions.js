@@ -2256,119 +2256,6 @@ function handleDisbandUnit(unitToDisband) {
     }
 }
 
-function handlePlacementModeClick(r, c) {
-    // --- Toda tu lógica de validación inicial se mantiene intacta ---
-    //console.log(`[Placement] Clic en (${r},${c}). Modo activo: ${placementMode.active}, Unidad: ${placementMode.unitData?.name || 'Ninguna'}`);
-    
-    if (!placementMode.active || !placementMode.unitData) {
-        console.error("[Placement] Error: Modo de colocación inactivo o sin datos de unidad. Se cancelará.");
-        placementMode.active = false;
-        if (UIManager) UIManager.clearHighlights();
-        return;
-    }
-
-    const unitToPlace = placementMode.unitData;
-    const hexData = board[r]?.[c];
-
-    if (!hexData) {
-        logMessage("Hexágono inválido.");
-        return; 
-    }
-
-    if (getUnitOnHex(r, c)) {
-        logMessage(`Ya hay una unidad en este hexágono.`);
-        return;
-    }
-
-    // --- Lógica de validación `canPlace`
-    let canPlace = false;
-    let reasonForNoPlacement = "";
-
-    if (gameState.currentPhase === "play") {
-        if (!placementMode.recruitHex) {
-            reasonForNoPlacement = "Error: Falta el origen del reclutamiento.";
-            canPlace = false;
-        } else {
-            const dist = hexDistance(placementMode.recruitHex.r, placementMode.recruitHex.c, r, c);
-            if (dist > 1) {
-                reasonForNoPlacement = "Las unidades reclutadas deben colocarse en la base o adyacente.";
-                canPlace = false;
-            } else {
-                canPlace = true;
-            }
-        }
-    } else if (gameState.currentPhase === "deployment") {
-        if (hexData.terrain === 'water') {
-            reasonForNoPlacement = "No se pueden desplegar unidades de tierra en el agua.";
-            canPlace = false;
-        } else {
-            canPlace = true;
-        }
-    }
-
-    // --- A partir de aquí, integramos la lógica de red---
-
-    if (canPlace) {
-        // --- GESTIÓN DE RECURSOS (SE HACE SIEMPRE, ANTES DE LA ACCIÓN) ---
-        const totalCost = unitToPlace.cost || {};
-        const playerRes = gameState.playerResources[gameState.currentPlayer];
-        
-        for (const res in totalCost) {
-            if ((playerRes[res] || 0) < totalCost[res]) {
-                logMessage(`No tienes suficientes ${res} para desplegar esta unidad.`, 'error');
-                return;
-            }
-        }
-        for (const res in totalCost) {
-            playerRes[res] -= totalCost[res];
-        }
-        if (UIManager) UIManager.updatePlayerAndPhaseInfo();
-
-        // --- LÓGICA DE RED / LOCAL ---
-        if (isNetworkGame()) {
-            const actionPayload = { 
-                playerId: gameState.currentPlayer, 
-                unitData: JSON.parse(JSON.stringify(unitToPlace, (key, value) => key === 'element' ? undefined : value)),
-                r, c 
-            };
-
-            if (NetworkManager.esAnfitrion) {
-                // ANFITRIÓN: Ejecuta la acción localmente y luego notifica a los demás.
-                placeFinalizedDivision(actionPayload.unitData, r, c);
-                NetworkManager.broadcastFullState();
-            } else {
-                // CLIENTE: Solo envía la petición al anfitrión.
-                NetworkManager.enviarDatos({ type: 'actionRequest', action: { type: 'placeUnit', payload: actionPayload } });
-            }
-        } else {
-            // JUEGO LOCAL: Simplemente ejecuta la acción.
-            placeFinalizedDivision(unitToPlace, r, c);
-        }
-
-        // --- LIMPIEZA DE UI (SE HACE SIEMPRE) ---
-        placementMode.active = false;
-        placementMode.unitData = null;
-        placementMode.recruitHex = null;
-        if (UIManager) UIManager.clearHighlights();
-        logMessage(`Unidad ${unitToPlace.name} desplegada / petición enviada.`);
-
-    } else {
-        // --- LÓGICA DE FALLO (Tu código original, con reembolso) ---
-        logMessage(`No se puede colocar: ${reasonForNoPlacement}`);
-        if (unitToPlace.cost) {
-            for (const resourceType in unitToPlace.cost) {
-                gameState.playerResources[gameState.currentPlayer][resourceType] += unitToPlace.cost[resourceType];
-            }
-            if (UIManager) UIManager.updatePlayerAndPhaseInfo();
-            logMessage("Colocación cancelada. Recursos reembolsados.");
-        }
-        placementMode.active = false;
-        placementMode.unitData = null;
-        placementMode.recruitHex = null;
-        if (UIManager) UIManager.clearHighlights();
-    }
-}
-
 //==============================================================
 //== NUEVAS FUNCIONES DE RED ==
 //==============================================================
@@ -2421,10 +2308,13 @@ function handlePlacementModeClick(r, c) {
     }
 
     if (canPlace) {
-        const action = {
+        // Generamos la acción con un ID único SIEMPRE
+        const actionId = `place_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const action = { 
             type: 'placeUnit',
+            actionId: actionId, // <-- ID añadido
             payload: { 
-                playerId: gameState.currentPlayer, // Siempre el jugador actual
+                playerId: gameState.myPlayerNumber, // Usar siempre myPlayerNumber
                 unitData: JSON.parse(JSON.stringify(unitToPlace, (key, value) => key === 'element' ? undefined : value)),
                 r, c 
             }
@@ -2432,13 +2322,15 @@ function handlePlacementModeClick(r, c) {
 
         if (isNetworkGame()) {
             if (NetworkManager.esAnfitrion) {
-                processActionRequest(action);
-                NetworkManager.broadcastFullState();
+                // ANFITRIÓN: Se procesa a sí mismo a través del sistema centralizado.
+                processActionRequest(action); 
+                // La retransmisión se hará automáticamente dentro de processActionRequest
             } else {
+                // CLIENTE: Envía la petición al anfitrión.
                 NetworkManager.enviarDatos({ type: 'actionRequest', action });
             }
         } else {
-            // Juego Local
+            // JUEGO LOCAL: Simplemente ejecuta la acción.
             placeFinalizedDivision(unitToPlace, r, c);
         }
 

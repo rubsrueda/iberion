@@ -16,8 +16,7 @@ function onHexClick(r, c) {
         UIManager.showMessageTemporarily(`Es el turno del Jugador ${gameState.currentPlayer}.`, 1500, true);
         return;
     }
-    // --- FIN DEL GUARDIÁN ---
-
+    
     // --- MANEJO DEL MODO DE COLOCACIÓN ---
     // Si el guardián anterior permitió pasar, lo siguiente más importante es
     // comprobar si estás en modo "colocar unidad". Si es así, toda la lógica
@@ -615,6 +614,7 @@ if (tutorialPanel && closeTutorialBtn) {
         domElements.joinNetworkGameBtn.hasListener = true;
     }
 
+    /*
     // 2. Botón para que el ANFITRIÓN cree una partida en red
     // ¡ESTE ES EL BLOQUE QUE ESTABA CAUSANDO TODO EL PROBLEMA!
     if (domElements.createNetworkGameBtn && !domElements.createNetworkGameBtn.hasListener) {
@@ -667,7 +667,8 @@ if (tutorialPanel && closeTutorialBtn) {
         });
         domElements.createNetworkGameBtn.hasListener = true;
     }
-
+    */
+   
     // Botón para ir a la pantalla del Lobby LAN
     if (domElements.startLanModeBtn) {
         domElements.startLanModeBtn.addEventListener('click', () => {
@@ -2097,6 +2098,7 @@ async function processActionRequest(action) { // <<== async
     if (actionExecuted) {
         // ...el Anfitrión llama a su nueva función para retransmitir el ESTADO COMPLETO Y FINAL.
         // Ya no enviamos la acción, sino el resultado.
+        console.log(`%c[HOST BROADCAST] Acción '${action.type}' ejecutada. Retransmitiendo estado completo.`, 'background: blue; color: white;');
         NetworkManager.broadcastFullState();
     } else {
         // Tu log de advertencia original, que es muy útil, se mantiene.
