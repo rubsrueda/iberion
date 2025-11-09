@@ -498,36 +498,42 @@ function generateHillsAndForests(rows, cols, hillProbability, forestProbability)
     }
 }
 
+/**
+ * Elimina SOLO los listeners de paneo y zoom para evitar duplicados.
+ * Esta versión NO clona el tablero, preservando los listeners de los hexágonos.
+ */
 function removeBoardPanningListeners() {
-    console.log("%c[PANNING CLEANUP] Eliminando listeners de paneo antiguos...", "color: orange;");
+    console.log("%c[PANNING CLEANUP] Eliminando listeners de paneo específicos...", "color: orange;");
     const gameBoard = document.getElementById('gameBoard');
-    if (!gameBoard) return; // Si no hay tablero, no hay nada que limpiar
+    if (!gameBoard) return;
 
-    // Clonar el nodo para eliminar todos los listeners de una vez (método más robusto)
-    const newGameBoard = gameBoard.cloneNode(true);
-    if (gameBoard.parentNode) {
-        gameBoard.parentNode.replaceChild(newGameBoard, gameBoard);
-    }
+    // Eliminar listeners específicos del gameBoard
+    if (_boundMouseDown) gameBoard.removeEventListener('mousedown', _boundMouseDown);
+    if (_boundMouseWheel) gameBoard.removeEventListener('wheel', _boundMouseWheel);
+    if (_boundTouchStart) gameBoard.removeEventListener('touchstart', _boundTouchStart);
+    if (_boundTouchMove) gameBoard.removeEventListener('touchmove', _boundTouchMove);
+    if (_boundTouchEnd) gameBoard.removeEventListener('touchend', _boundTouchEnd);
+    
+    // Eliminar listeners del documento
+    if (_boundMouseMove) document.removeEventListener('mousemove', _boundMouseMove);
+    if (_boundMouseUp) document.removeEventListener('mouseup', _boundMouseUp);
 
-    // Eliminar explícitamente los listeners del documento si existen
-    if (_boundMouseMove) {
-        document.removeEventListener('mousemove', _boundMouseMove);
-        _boundMouseMove = null;
-    }
-    if (_boundMouseUp) {
-        document.removeEventListener('mouseup', _boundMouseUp);
-        _boundMouseUp = null;
-    }
+    // Limpiar las referencias
+    _boundMouseDown = _boundMouseWheel = _boundTouchStart = _boundTouchMove = _boundTouchEnd = null;
+    _boundMouseMove = _boundMouseUp = null;
 }
 
+/**
+ * Inicializa el paneo y zoom, guardando referencias a los listeners para poder eliminarlos.
+ */
 function initializeBoardPanning() {
     // 1. Primero, limpiamos cualquier listener antiguo que pudiera existir.
     removeBoardPanningListeners();
     
     // Ahora obtenemos la referencia al tablero "limpio" y nuevo.
     const gameBoard = document.getElementById('gameBoard');
-    if (!gameBoard) {
-        console.error("CRÍTICO (Panning): No se pudo encontrar el elemento #gameBoard en el DOM.");
+    if (!gameBoard || !gameBoard.parentElement) {
+        console.error("CRÍTICO (Panning): No se pudo encontrar #gameBoard o su viewport.");
         return;
     }
     const viewport = gameBoard.parentElement;
@@ -557,9 +563,7 @@ function initializeBoardPanning() {
 
         if (tacticalUiContainer && tacticalUiContainer.style.display !== 'none') {
             const rightButtonGroup = tacticalUiContainer.querySelector('.floating-action-group.right');
-            if (rightButtonGroup) {
-                bottomUiHeight = Math.max(bottomUiHeight, rightButtonGroup.offsetHeight + 20);
-            }
+            if (rightButtonGroup) bottomUiHeight = Math.max(bottomUiHeight, rightButtonGroup.offsetHeight + 20);
         }
         if (contextualInfoPanel && contextualInfoPanel.classList.contains('visible')) {
             bottomUiHeight = Math.max(bottomUiHeight, contextualInfoPanel.offsetHeight);
@@ -569,7 +573,7 @@ function initializeBoardPanning() {
         const boardHeight = gameBoard.offsetHeight * domElements.currentBoardScale;
         
         // ¡LA LÍNEA DEL ERROR! Ahora 'viewport' es una referencia local y segura.
-        const viewportWidth = viewport.clientWidth; 
+        const viewportWidth = viewport.clientWidth;
         const viewportHeight = viewport.clientHeight - bottomUiHeight;
 
         // Limitar la escala
@@ -579,21 +583,11 @@ function initializeBoardPanning() {
 
         let targetX = domElements.currentBoardTranslateX;
         let targetY = domElements.currentBoardTranslateY;
-
-        // Aplicar límites de traslación
-        if (boardWidth > viewportWidth) {
-            targetX = Math.min(0, Math.max(viewportWidth - boardWidth, targetX));
-        } else {
-            targetX = (viewportWidth - boardWidth) / 2; // Centrar si es más pequeño
-        }
-        if (boardHeight > viewportHeight) {
-            // El límite superior es 0, el inferior es la altura visible menos la del tablero.
-            targetY = Math.min(0, Math.max(viewportHeight - boardHeight, targetY));
-        } else {
-            targetY = (viewportHeight - boardHeight) / 2; // Centrar si es más pequeño
-        }
-
-        // Guardar la posición corregida
+        if (boardWidth > viewportWidth) targetX = Math.min(0, Math.max(viewportWidth - boardWidth, targetX));
+        else targetX = (viewportWidth - boardWidth) / 2;
+        if (boardHeight > viewportHeight) targetY = Math.min(0, Math.max(viewportHeight - boardHeight, targetY));
+        else targetY = (viewportHeight - boardHeight) / 2;
+        // --- Zoom con Rueda del Ratón  ---
         domElements.currentBoardTranslateX = targetX;
         domElements.currentBoardTranslateY = targetY;
 
@@ -601,13 +595,10 @@ function initializeBoardPanning() {
         gameBoard.style.transform = `translate(${targetX}px, ${targetY}px) scale(${domElements.currentBoardScale})`;
     }
 
-    gameBoard.addEventListener('mousedown', function(e) {
-        
-        // <<== ESTA ES LA ÚNICA LÍNEA DE CÓDIGO QUE NECESITAS CAMBIAR EN TODO EL PROYECTO ==>>
-        // Si el elemento donde se inició el clic es un botón, ignora el evento de paneo.
-        if (e.target.closest('button')) {
-            return;
-        }
+    // --- ASIGNACIÓN DE LISTENERS CON REFERENCIAS ---
+    
+    _boundMouseDown = function(e) {
+        if (e.target.closest('button')) return;
         if (e.button !== 0 || (typeof placementMode !== 'undefined' && placementMode.active)) return;
         
         // Esta línea es la que causaba el problema, y ahora no se ejecutará si haces clic en un botón.
@@ -616,7 +607,8 @@ function initializeBoardPanning() {
         domElements.panStartX = e.clientX - domElements.currentBoardTranslateX;
         domElements.panStartY = e.clientY - domElements.currentBoardTranslateY;
         gameBoard.classList.add('grabbing');
-    });
+    };
+    gameBoard.addEventListener('mousedown', _boundMouseDown);
 
     _boundMouseMove = function(e) {
         if (!domElements.isPanning) return;
@@ -624,76 +616,80 @@ function initializeBoardPanning() {
         domElements.currentBoardTranslateY = e.clientY - domElements.panStartY;
         applyTransform();
     };
+    document.addEventListener('mousemove', _boundMouseMove);
+
     _boundMouseUp = function(e) {
         if (e.button !== 0) return;
         domElements.isPanning = false;
         gameBoard.classList.remove('grabbing');
     };
-
     // --- Zoom con Rueda del Ratón  ---
-    document.addEventListener('mousemove', _boundMouseMove);
     document.addEventListener('mouseup', _boundMouseUp);
 
-    gameBoard.addEventListener('wheel', function(e) {
+    _boundMouseWheel = function(e) {
         e.preventDefault();
         const scaleAmount = -e.deltaY * 0.001;
         domElements.currentBoardScale += scaleAmount;
         applyTransform();
-    }, { passive: false });
-
+    };
     // --- Lógica Táctil para Paneo y Zoom ---
-    gameBoard.addEventListener('touchstart', function(e) {
+    gameBoard.addEventListener('wheel', _boundMouseWheel, { passive: false });
+
+    _boundTouchStart = function(e) {
         if ((typeof placementMode !== 'undefined' && placementMode.active)) return;
         
         // Paneo con un dedo
         if (e.touches.length === 1) {
-            domElements.isPanning = true;
+            domElements.isPanning = true; 
             domElements.isPinching = false;
-            const touch = e.touches[0];
-            lastTouchX_pan_bm = touch.clientX;
+            const touch = e.touches[0]; 
+            lastTouchX_pan_bm = touch.clientX; 
             lastTouchY_pan_bm = touch.clientY;
         } else if (e.touches.length === 2) {
             // Zoom con dos dedos
-            domElements.isPinching = true;
+            domElements.isPinching = true; 
             domElements.isPanning = false;
             domElements.initialPinchDistance = getPinchDistance(e.touches);
         }
-    }, { passive: true });
+    };
+    gameBoard.addEventListener('touchstart', _boundTouchStart, { passive: true });
 
-    gameBoard.addEventListener('touchmove', function(e) {
+    _boundTouchMove = function(e) {
         e.preventDefault();
         
         // Mover con un dedo
         if (domElements.isPanning && e.touches.length === 1) {
-            const touch = e.touches[0];
-            const dx = touch.clientX - lastTouchX_pan_bm;
+            const touch = e.touches[0]; 
+            const dx = touch.clientX - lastTouchX_pan_bm; 
             const dy = touch.clientY - lastTouchY_pan_bm;
-            domElements.currentBoardTranslateX += dx;
+            domElements.currentBoardTranslateX += dx; 
             domElements.currentBoardTranslateY += dy;
-            lastTouchX_pan_bm = touch.clientX;
+            lastTouchX_pan_bm = touch.clientX; 
             lastTouchY_pan_bm = touch.clientY;
             applyTransform();
         } else if (domElements.isPinching && e.touches.length === 2) {
             // Hacer zoom con dos dedos
-            const newDist = getPinchDistance(e.touches);
+            const newDist = getPinchDistance(e.touches); 
             const scaleFactor = newDist / domElements.initialPinchDistance;
-            domElements.currentBoardScale *= scaleFactor;
+            domElements.currentBoardScale *= scaleFactor; 
             
             // Actualizar la distancia inicial para un zoom más suave
             domElements.initialPinchDistance = newDist;
             applyTransform();
         }
-    }, { passive: false });
+    };
+    gameBoard.addEventListener('touchmove', _boundTouchMove, { passive: false });
 
-    gameBoard.addEventListener('touchend', function(e) {
+    _boundTouchEnd = function(e) {
         // Resetear estados al levantar los dedos
-        domElements.isPanning = false;
+        domElements.isPanning = false; 
         domElements.isPinching = false;
-        lastTouchX_pan_bm = null;
+        lastTouchX_pan_bm = null; 
         lastTouchY_pan_bm = null;
-    });
+    };
+    gameBoard.addEventListener('touchend', _boundTouchEnd);
 
-    console.log("BoardManager: Panning and Zoom listeners (versión final) inicializados.");
+    console.log("BoardManager: Panning and Zoom listeners (versión específica) inicializados.");
     applyTransform();
 }
 
