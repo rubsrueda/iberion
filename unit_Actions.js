@@ -2346,7 +2346,6 @@ async function RequestMoveUnit(unit, toR, toC) {
         if (NetworkManager.esAnfitrion) {
             // El Anfitrión se procesa a sí mismo, sin enviar por la red
             await processActionRequest(action);
-            NetworkManager.broadcastFullState();
         } else {
             NetworkManager.enviarDatos({ type: 'actionRequest', action });
         }
@@ -2362,7 +2361,6 @@ async function RequestAttackUnit(attacker, defender) {
     if (isNetworkGame()) {
         if (NetworkManager.esAnfitrion) {
             await processActionRequest(action);
-            NetworkManager.broadcastFullState();
         } else {
             NetworkManager.enviarDatos({ type: 'actionRequest', action });
         }
@@ -2401,7 +2399,6 @@ async function RequestMergeUnits(mergingUnit, targetUnit) {
         if (isNetworkGame()) {
             if (NetworkManager.esAnfitrion) {
                 await processActionRequest(action);
-                NetworkManager.broadcastFullState();
             } else {
                 NetworkManager.enviarDatos({ type: 'actionRequest', action });
             }
@@ -2456,7 +2453,6 @@ function RequestSplitUnit(originalUnit, targetR, targetC) {
     if (isNetworkGame()) {
         if (NetworkManager.esAnfitrion) {
             processActionRequest(action);
-            NetworkManager.broadcastFullState();
         } else {
             NetworkManager.enviarDatos({ type: 'actionRequest', action });
         }
@@ -2498,7 +2494,6 @@ function RequestDisbandUnit(unitToDisband) {
     if (isNetworkGame()) {
         if (NetworkManager.esAnfitrion) {
             processActionRequest(action);
-            NetworkManager.broadcastFullState();
         } else {
             NetworkManager.enviarDatos({ type: 'actionRequest', action });
         }
@@ -2522,7 +2517,6 @@ function RequestUndoLastUnitMove(unit) {
     if (isNetworkGame()) {
         if (NetworkManager.esAnfitrion) {
             processActionRequest(action);
-            NetworkManager.broadcastFullState();
         } else {
             NetworkManager.enviarDatos({ type: 'actionRequest', action });
         }
