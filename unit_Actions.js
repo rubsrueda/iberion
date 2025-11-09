@@ -2270,7 +2270,7 @@ function handlePlacementModeClick(r, c) {
         if (UIManager) UIManager.clearHighlights();
         return;
     }
-
+    
     const unitToPlace = placementMode.unitData;
     const hexData = board[r]?.[c];
 
@@ -2306,38 +2306,20 @@ function handlePlacementModeClick(r, c) {
             canPlace = true;
         }
     }
-
+    
     if (canPlace) {
-        // Generamos la acción con un ID único SIEMPRE
-        const actionId = `place_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const action = { 
-            type: 'placeUnit',
-            actionId: actionId, // <-- ID añadido
-            payload: { 
-                playerId: gameState.myPlayerNumber, // Usar siempre myPlayerNumber
-                unitData: JSON.parse(JSON.stringify(unitToPlace, (key, value) => key === 'element' ? undefined : value)),
-                r, c 
-            }
-        };
+        // --- GESTIÓN DE RECURSOS (siempre se hace en el cliente antes de enviar) ---
+        // ... (tu código de validación y resta de recursos se queda igual) ...
+        
+        // --- LLAMADA CENTRALIZADA A LA RED ---
+        RequestPlaceUnit(unitToPlace, r, c);
 
-        if (isNetworkGame()) {
-            if (NetworkManager.esAnfitrion) {
-                // ANFITRIÓN: Se procesa a sí mismo a través del sistema centralizado.
-                processActionRequest(action); 
-                // La retransmisión se hará automáticamente dentro de processActionRequest
-            } else {
-                // CLIENTE: Envía la petición al anfitrión.
-                NetworkManager.enviarDatos({ type: 'actionRequest', action });
-            }
-        } else {
-            // JUEGO LOCAL: Simplemente ejecuta la acción.
-            placeFinalizedDivision(unitToPlace, r, c);
-        }
-
+        // --- LIMPIEZA DE UI ---
         placementMode.active = false;
         placementMode.unitData = null;
+        placementMode.recruitHex = null;
         if (UIManager) UIManager.clearHighlights();
-        logMessage(`Unidad ${unitToPlace.name} colocada / petición enviada.`);
+        logMessage(`Unidad ${unitToPlace.name} desplegada / petición enviada.`);
 
     } else {
         logMessage("No se puede colocar la unidad aquí.");
@@ -2433,6 +2415,29 @@ async function RequestMergeUnits(mergingUnit, targetUnit) {
     }
 }
 
+function RequestPlaceUnit(unitToPlace, r, c) {
+    const action = {
+        type: 'placeUnit',
+        actionId: `place_${Date.now()}_${r}_${c}`,
+        payload: {
+            playerId: gameState.myPlayerNumber,
+            unitData: JSON.parse(JSON.stringify(unitToPlace, (key, value) => key === 'element' ? undefined : value)),
+            r, c
+        }
+    };
+
+    if (isNetworkGame()) {
+        if (NetworkManager.esAnfitrion) {
+            processActionRequest(action);
+        } else {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+        }
+    } else {
+        // Para juego local, el ID se asigna dentro de placeFinalizedDivision
+        placeFinalizedDivision(unitToPlace, r, c);
+    }
+}
+
 function RequestSplitUnit(originalUnit, targetR, targetC) {
     const actionData = gameState.preparingAction;
     // Generar ID único para esta acción (para deduplicación en el anfitrión)
@@ -2466,21 +2471,23 @@ function RequestSplitUnit(originalUnit, targetR, targetC) {
  */
 function RequestPillageAction() {
     if (!selectedUnit) return;
-    // Generar ID único para esta acción (para deduplicación en el anfitrión)
-    const actionId = `pillage_${selectedUnit.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const action = { type: 'pillageHex', actionId: actionId, payload: { playerId: selectedUnit.player, unitId: selectedUnit.id }};
+    
+    const action = {
+        type: 'pillageHex',
+        actionId: `pillage_${selectedUnit.id}_${Date.now()}`, // <-- AÑADIDO
+        payload: { playerId: selectedUnit.player, unitId: selectedUnit.id }
+    };
+    
     if (isNetworkGame()) {
         if (NetworkManager.esAnfitrion) {
             processActionRequest(action);
-            NetworkManager.broadcastFullState();
         } else {
             NetworkManager.enviarDatos({ type: 'actionRequest', action });
         }
-        return;
+    } else {
+        // Para juegos locales, llama directamente a la función de ejecución.
+        _executePillageAction(selectedUnit);
     }
-    
-    // Para juegos locales, llama directamente a la función de ejecución.
-    _executePillageAction(selectedUnit);
 }
 
 function RequestDisbandUnit(unitToDisband) {
@@ -2866,6 +2873,7 @@ function requestRazeStructure() {
 
     const action = {
         type: 'razeStructure',
+        actionId: `raze_${selectedUnit.id}_${Date.now()}`, // <-- AÑADIDO
         payload: {
             playerId: selectedUnit.player,
             unitId: selectedUnit.id,
@@ -2878,14 +2886,9 @@ function requestRazeStructure() {
     // if (!confirm("¿Seguro que quieres arrasar esta estructura? Se convertirá en ruinas.")) return;
 
     if (isNetworkGame()) {
-        // Lógica de Red
-        if (NetworkManager.esAnfitrion) {
-            processActionRequest(action);
-        } else {
-            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
-        }
+        if (NetworkManager.esAnfitrion) processActionRequest(action);
+        else NetworkManager.enviarDatos({ type: 'actionRequest', action });
     } else {
-        // Juego Local
         _executeRazeStructure(action.payload);
     }
 }
@@ -2946,6 +2949,7 @@ function requestExploreRuins() {
 
     const action = {
         type: 'exploreRuins',
+        actionId: `explore_${selectedUnit.id}_${Date.now()}`, // <-- AÑADIDO
         payload: {
             playerId: selectedUnit.player,
             unitId: selectedUnit.id,
@@ -2955,17 +2959,15 @@ function requestExploreRuins() {
     };
 
     if (isNetworkGame()) {
-        // Lógica de Red
-        if (NetworkManager.esAnfitrion) {
-            processActionRequest(action);
-        } else {
-            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
-        }
+         // Lógica de Red
+        if (NetworkManager.esAnfitrion) processActionRequest(action);
+        else NetworkManager.enviarDatos({ type: 'actionRequest', action });
     } else {
         // Juego Local
         _executeExploreRuins(action.payload);
     }
 }
+
 
 /**
  * [Función de Ejecución] Procesa el evento de explorar una ruina.
