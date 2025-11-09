@@ -523,7 +523,7 @@ function removeBoardPanningListeners() {
 function initializeBoardPanning() {
     // 1. Primero, limpiamos cualquier listener antiguo que pudiera existir.
     removeBoardPanningListeners();
-
+    
     // Ahora obtenemos la referencia al tablero "limpio" y nuevo.
     const gameBoard = document.getElementById('gameBoard');
     if (!gameBoard) {
@@ -551,15 +551,18 @@ function initializeBoardPanning() {
         // <<== INICIO DE LA MODIFICACIÓN CLAVE ==>>
         // Calculamos dinámicamente la altura de la UI inferior que está visible AHORA.
         let bottomUiHeight = 0;
-        if (domElements.tacticalUiContainer && domElements.tacticalUiContainer.style.display !== 'none') {
-            // Usamos la altura del grupo de botones derecho como referencia principal
-            const rightButtonGroup = domElements.tacticalUiContainer.querySelector('.floating-action-group.right');
+        // Estas referencias a domElements están bien porque son para la UI, no para el tablero.
+        const tacticalUiContainer = document.getElementById('tactical-ui-container');
+        const contextualInfoPanel = document.getElementById('contextualInfoPanel');
+
+        if (tacticalUiContainer && tacticalUiContainer.style.display !== 'none') {
+            const rightButtonGroup = tacticalUiContainer.querySelector('.floating-action-group.right');
             if (rightButtonGroup) {
                 bottomUiHeight = Math.max(bottomUiHeight, rightButtonGroup.offsetHeight + 20);
             }
         }
-        if (domElements.contextualInfoPanel && domElements.contextualInfoPanel.classList.contains('visible')) {
-            bottomUiHeight = Math.max(bottomUiHeight, domElements.contextualInfoPanel.offsetHeight);
+        if (contextualInfoPanel && contextualInfoPanel.classList.contains('visible')) {
+            bottomUiHeight = Math.max(bottomUiHeight, contextualInfoPanel.offsetHeight);
         }
         // Obtenemos dimensiones actuales
         const boardWidth = gameBoard.offsetWidth * domElements.currentBoardScale;
@@ -593,7 +596,7 @@ function initializeBoardPanning() {
         // Guardar la posición corregida
         domElements.currentBoardTranslateX = targetX;
         domElements.currentBoardTranslateY = targetY;
-        
+
         // Aplicar la transformación combinada de escala y traslación
         gameBoard.style.transform = `translate(${targetX}px, ${targetY}px) scale(${domElements.currentBoardScale})`;
     }
