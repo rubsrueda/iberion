@@ -10,11 +10,17 @@ function onHexClick(r, c) {
     // La nueva lógica
     const isMyTurn = gameState.currentPlayer === gameState.myPlayerNumber;
 
-    // Si NO es mi turno, pero ESTOY EN UNA PARTIDA DE RED, me bloqueo a MÍ MISMO.
-    if (!isMyTurn && isNetworkGame()) {
-        console.log(`[Acción Bloqueada] Soy J${gameState.myPlayerNumber} y he ignorado un clic porque es el turno de J${gameState.currentPlayer}.`);
-        UIManager.showMessageTemporarily(`Es el turno del Jugador ${gameState.currentPlayer}.`, 1500, true);
-        return;
+    // Condición de bloqueo:
+    // Si es una partida de red Y no es mi turno Y la partida ya ha empezado...
+    if (isNetworkGame() && !isMyTurn && gameState.currentPhase === 'play') {
+        // PERMITIMOS UNA EXCEPCIÓN: si el clic es sobre una unidad propia que NO ha actuado,
+        // permitimos seleccionarla para ver su información, aunque no sea nuestro turno.
+        const clickedUnit = getUnitOnHex(r, c);
+        if (!clickedUnit || clickedUnit.player !== gameState.myPlayerNumber) {
+            console.log(`[Acción Bloqueada] Ignorando clic porque es el turno de J${gameState.currentPlayer}.`);
+            UIManager.showMessageTemporarily(`Es el turno del Jugador ${gameState.currentPlayer}.`, 1500, true);
+            return;
+        }
     }
     
     // --- MANEJO DEL MODO DE COLOCACIÓN ---
@@ -2089,10 +2095,20 @@ async function processActionRequest(action) { // <<== async
             }
             break;
 
+        case 'assignGeneral':
+            const unitToAssign = units.find(u => u.id === payload.unitId);
+            if (unitToAssign && unitToAssign.player === payload.playerId) {
+                _executeAssignGeneral(payload);
+                actionExecuted = true;
+            }
+            break;
+
         default:
             console.warn(`[Red - Anfitrión] Recibida petición de acción desconocida: ${action.type}`);
             break;
         }
+
+
 
     // Si CUALQUIER acción (incluida endTurn) se ejecutó y cambió el estado...
     if (actionExecuted) {

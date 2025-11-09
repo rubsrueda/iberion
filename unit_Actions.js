@@ -2526,6 +2526,47 @@ function RequestUndoLastUnitMove(unit) {
     }
 }
 
+function RequestAssignGeneral(unit, generalId) {
+    if (!unit) return;
+
+    const action = {
+        type: 'assignGeneral',
+        actionId: `assignG_${unit.id}_${generalId}_${Date.now()}`,
+        payload: {
+            playerId: unit.player,
+            unitId: unit.id,
+            generalId: generalId
+        }
+    };
+
+    if (isNetworkGame()) {
+        if (NetworkManager.esAnfitrion) {
+            processActionRequest(action);
+        } else {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+        }
+    } else {
+        // Lógica local
+        _executeAssignGeneral(action.payload);
+    }
+}
+
+// Función de ejecución pura (también nueva)
+function _executeAssignGeneral(payload) {
+    const { unitId, generalId } = payload;
+    const unit = units.find(u => u.id === unitId);
+    if (unit) {
+        unit.commander = generalId;
+        logMessage(`General asignado a ${unit.name}.`);
+        if (typeof recalculateUnitStats === 'function') {
+            recalculateUnitStats(unit);
+        }
+        if (UIManager && selectedUnit && selectedUnit.id === unit.id) {
+            UIManager.showUnitContextualInfo(unit, true);
+        }
+    }
+}
+
 /**
  * [Función Pura de Ejecución] Mueve la unidad en el estado del juego y la UI.
  * No contiene lógica de red. Asume que la acción ya ha sido validada y confirmada.

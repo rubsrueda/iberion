@@ -1949,7 +1949,7 @@ function openHeroDetailModal(heroInstance) {
             assignBtn.style.cssText = 'background-color: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 1em;';
             
             assignBtn.onclick = () => {
-                assignHeroToUnit(targetUnit, heroInstance.id);
+                RequestAssignGeneral(targetUnit, heroInstance.id);
                 modal.style.display = 'none';
                 barracksModal.style.display = 'none';
             };
