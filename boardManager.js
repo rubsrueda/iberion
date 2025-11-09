@@ -498,6 +498,9 @@ function generateHillsAndForests(rows, cols, hillProbability, forestProbability)
     }
 }
 
+// Las variables globales se mantienen
+let _boundMouseDown, _boundMouseWheel, _boundTouchStart, _boundTouchMove, _boundTouchEnd;
+
 /**
  * Elimina SOLO los listeners de paneo y zoom para evitar duplicados.
  * Esta versión NO clona el tablero, preservando los listeners de los hexágonos.
