@@ -575,16 +575,19 @@ if (tutorialPanel && closeTutorialBtn) {
         
         console.log(`%c[PROCESS DATA] onDatosLANRecibidos procesando paquete tipo: ${datos.type}`, 'background: #DAA520; color: black;');
             // Lógica del Cliente (cuando NO es anfitrión)
-        if (!NetworkManager.esAnfitrion) {
+        if (!NetworkManager.esAnfitrion) { // Lógica del Cliente
             switch (datos.type) {
                 case 'startGame':
                     // Esto es para la configuración inicial, antes de que el tablero exista
                     iniciarPartidaLAN(datos.settings);
                     break;
+                
                 case 'fullStateUpdate':
-                case 'initialGameSetup': // Tratar ambos como una actualización completa
+                case 'initialGameSetup':
+                    console.log("%c[CLIENTE] ¡Paquete fullStateUpdate recibido del anfitrión!", "background: lime; color: black; font-size: 1.2em;");
                     reconstruirJuegoDesdeDatos(datos.payload);
                     break;
+
                 default:
                     console.warn(`[Cliente] Recibido paquete desconocido del anfitrión: '${datos.type}'.`);
                     break;
