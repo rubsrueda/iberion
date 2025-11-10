@@ -405,7 +405,7 @@ function handleActionWithSelectedUnit(r_target, c_target, clickedUnitOnTargetHex
 }
 
 function selectUnit(unit) {
-    console.log(`[DEBUG selectUnit] INICIO - Intentando seleccionar: ${unit?.name || 'unidad nula'}`);
+        console.log(`[DEBUG selectUnit] INICIO - Intentando seleccionar: ${unit?.name || 'unidad nula'}`);
 
     if (!unit) {
         console.warn("[selectUnit] Intento de seleccionar unidad nula.");
@@ -477,6 +477,41 @@ function selectUnit(unit) {
             UIManager.clearHighlights();
         }
     }
+    
+    // --- INICIO DEL DIAGNÓSTICO DEFINITIVO (EN SU LUGAR CORRECTO) ---
+    if (isNetworkGame() && !NetworkManager.esAnfitrion) { // Solo ejecutar en el cliente
+        console.group(`===== DIAGNÓSTICO DE UI PARA '${unit.name}' =====`);
+
+        const esMiUnidad = unit.player === gameState.myPlayerNumber;
+        console.log(`¿El 'player' de la unidad (${unit.player}) es igual a mi 'myPlayerNumber' (${gameState.myPlayerNumber})? -> R: ${esMiUnidad ? "SÍ" : "NO"}`);
+
+        const tieneCuartelGeneral = unit.regiments.some(reg => REGIMENT_TYPES[reg.type]?.is_hq || REGIMENT_TYPES[reg.type]?.provides_morale_boost); // Hice la condición más robusta
+        console.log(`¿Esta unidad tiene un 'Cuartel General'? -> R: ${tieneCuartelGeneral ? "SÍ" : "NO"}`);
+        
+        let estaEnBasePropia = false;
+        if (typeof isHexSuppliedForReinforce === 'function') {
+            estaEnBasePropia = isHexSuppliedForReinforce(unit.r, unit.c, unit.player);
+        } else { console.warn("Función 'isHexSuppliedForReinforce' no encontrada."); }
+        console.log(`¿Está en una base propia (para reclutar/reforzar)? -> R: ${estaEnBasePropia ? "SÍ" : "NO"}`);
+
+        const tieneGeneral = !!unit.commander;
+        console.log(`¿Esta unidad ya tiene un 'commander'? -> R: ${tieneGeneral ? "SÍ" : "NO"}`);
+        
+        const seHaMovido = unit.hasMoved;
+        console.log(`¿Esta unidad ya se ha movido ('hasMoved')? -> R: ${seHaMovido ? "SÍ" : "NO"}`);
+        
+        const haAtacado = unit.hasAttacked;
+        console.log(`¿Esta unidad ya ha atacado ('hasAttacked')? -> R: ${haAtacado ? "SÍ" : "NO"}`);
+
+        const esMiTurno = gameState.currentPlayer === gameState.myPlayerNumber;
+        console.log(`¿Es mi turno? (currentPlayer ${gameState.currentPlayer} vs myPlayerNumber ${gameState.myPlayerNumber}) -> R: ${esMiTurno ? "SÍ" : "NO"}`);
+
+        const deberiaMostrarBotonGeneral = esMiUnidad && esMiTurno && tieneCuartelGeneral && !tieneGeneral;
+        console.log(`%c¿Debo presentar el botón de 'Asignar General'? -> R: ${deberiaMostrarBotonGeneral ? "SÍ" : "NO"}`, `font-weight: bold; color: ${deberiaMostrarBotonGeneral ? 'green' : 'red'};`);
+
+        console.groupEnd();
+    }
+    // --- FIN DEL DIAGNÓSTICO DEFINITIVO ---
 
     console.log(`[DEBUG selectUnit] FIN - selectedUnit ahora es: ${selectedUnit?.name}`);
 }
