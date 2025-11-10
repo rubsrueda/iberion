@@ -9,16 +9,11 @@ function onHexClick(r, c) {
     // Esto impide que el jugador inactivo pueda realizar CUALQUIER acción.
     // La nueva lógica
     const isMyTurn = gameState.currentPlayer === gameState.myPlayerNumber;
-
-    // Condición de bloqueo:
-    // Si es una partida de red Y no es mi turno Y la partida ya ha empezado...
-    if (isNetworkGame() && !isMyTurn && gameState.currentPhase === 'play') {
-        // PERMITIMOS UNA EXCEPCIÓN: si el clic es sobre una unidad propia que NO ha actuado,
-        // permitimos seleccionarla para ver su información, aunque no sea nuestro turno.
-        const clickedUnit = getUnitOnHex(r, c);
-        if (!clickedUnit || clickedUnit.player !== gameState.myPlayerNumber) {
-            console.log(`[Acción Bloqueada] Ignorando clic porque es el turno de J${gameState.currentPlayer}.`);
-            UIManager.showMessageTemporarily(`Es el turno del Jugador ${gameState.currentPlayer}.`, 1500, true);
+    if (isNetworkGame() && !isMyTurn && gameState.currentPhase !== 'deployment') {
+        const unitOnHex = getUnitOnHex(r, c);
+        // Permite la selección de unidades propias fuera de turno para inspección, pero bloquea otras acciones.
+        if (!unitOnHex || unitOnHex.player !== gameState.myPlayerNumber) {
+            logMessage(`Es el turno del Jugador ${gameState.currentPlayer}.`);
             return;
         }
     }
@@ -38,7 +33,7 @@ function onHexClick(r, c) {
     
     // CASO ESPECIAL: Se está esperando la colocación de una unidad recién dividida.
     if (gameState.preparingAction?.type === 'split_unit') {
-    const hexEl = board[r]?.[c]?.element;
+        const hexEl = board[r]?.[c]?.element;
 
         // Verificamos si el clic fue en un hexágono válido para colocar (los que están resaltados).
         if (hexEl && hexEl.classList.contains('highlight-place')) {
@@ -47,7 +42,7 @@ function onHexClick(r, c) {
             if (originalUnit) {
                 // ¡LA LÍNEA CLAVE! Usamos la función de Request que ya sabe cómo manejar la red
                 if (typeof RequestSplitUnit === "function") {
-                    RequestSplitUnit(originalUnit, r, c);
+                RequestSplitUnit(originalUnit, r, c);
                 } else {
                     console.error("CRÍTICO: La función RequestSplitUnit no está definida.");
                 }
@@ -85,79 +80,23 @@ function onHexClick(r, c) {
 
     // CASO 1: YA tienes una unidad seleccionada (selectedUnit existe).
     if (selectedUnit) {
-
-        // Se intenta realizar una acción con la unidad seleccionada en el hexágono objetivo.
+        // Ya hay una unidad seleccionada, intentamos realizar una acción.
         const actionTaken = handleActionWithSelectedUnit(r, c, clickedUnit);
 
-        // Si no se realizó ninguna acción (por ejemplo, hiciste clic en una casilla vacía
-        // a la que no te puedes mover), se deselecciona la unidad actual
-        // y se procede a seleccionar lo que haya en la nueva casilla.
+        // Si NO se tomó ninguna acción (ej: clic en un lugar inválido),
+        // deseleccionamos la actual y procesamos el nuevo clic.
         if (!actionTaken) {
-                // ... significa que fue un "clic en la nada".
-
-                // Deseleccionamos la unidad actual.
-            deselectUnit();
-            UIManager.hideContextualPanel();
-
-                // Y ahora, si en la casilla donde hemos hecho clic HAY OTRA COSA
-                // (otra unidad tuya o un hexágono), la seleccionamos.
+            deselectUnit(); // Esto también oculta los paneles
             if (clickedUnit) {
-                    selectUnit(clickedUnit); // Selecciona la nueva unidad clickada
-            } else {
-                    UIManager.showHexContextualInfo(r, c, hexDataClicked); // Muestra info del hex vacío
-            }
-        }
-            // Si SÍ se tomó una acción (actionTaken es true), no hacemos nada más. 
-            // La unidad permanece seleccionada para que veas su estado actualizado.
-            
-    } else { // Si no había nada seleccionado al principio...
-            if (clickedUnit) {
-                selectUnit(clickedUnit);
+                selectUnit(clickedUnit); // Selecciona la nueva unidad
             } else {
                 UIManager.showHexContextualInfo(r, c, hexDataClicked);
             }
-    }
-
-    // LA NUEVA VERSIÓN DENTRO de onHexClick
-    if (selectedUnit) {
-        const actionTaken = handleActionWithSelectedUnit(r, c, clickedUnit);
-
-        // Si NO se tomó ninguna acción...
-        if (!actionTaken) {
-            // ... significa que fue un "clic en la nada".
-
-            // Deseleccionamos la unidad actual.
-            deselectUnit();
-            UIManager.hideContextualPanel();
-
-            // Y ahora, si en la casilla donde hemos hecho clic HAY OTRA COSA
-            // (otra unidad tuya o un hexágono), la seleccionamos.
-            if (clickedUnit) {
-                selectUnit(clickedUnit); // Selecciona la nueva unidad clickada
-            } else {
-                UIManager.showHexContextualInfo(r, c, hexDataClicked); // Muestra info del hex vacío
-            }
         }
-        // Si SÍ se tomó una acción (actionTaken es true), no hacemos nada más. 
-        // La unidad permanece seleccionada para que veas su estado actualizado.
-        
-    } else { // Si no había nada seleccionado al principio...
+    } else {
+        // No había nada seleccionado, así que seleccionamos lo que haya en el hexágono.
         if (clickedUnit) {
-            if (clickedUnit.player === gameState.currentPlayer) {
-                    // Si es TU unidad, la seleccionas normalmente.
-                    selectUnit(clickedUnit);
-                } else {
-                    // Si es una unidad ENEMIGA...
-                    // ...comprobamos si tienes visión sobre ella con un explorador.
-                    if (typeof isEnemyScouted === 'function' && isEnemyScouted(clickedUnit)) {
-                        // Si tienes visión, MUESTRAS SU INFO pero NO la seleccionas.
-                        UIManager.showUnitContextualInfo(clickedUnit, false);
-                    } else {
-                        // Si no tienes visión, solo muestras info básica del hexágono.
-                        UIManager.showHexContextualInfo(r, c, hexDataClicked);
-                        logMessage("No tienes suficiente visión para ver los detalles de esta unidad enemiga.");
-                    }
-                }
+            selectUnit(clickedUnit);
         } else {
             UIManager.showHexContextualInfo(r, c, hexDataClicked);
         }
@@ -2220,5 +2159,6 @@ function reconstruirJuegoDesdeDatos(datos) {
     }, false); // El 'true' es importante, asegura que este listener se ejecute primero
     */
 }
+
 
 document.addEventListener('DOMContentLoaded', initApp);
