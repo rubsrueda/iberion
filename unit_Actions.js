@@ -485,7 +485,7 @@ function selectUnit(unit) {
         const esMiUnidad = unit.player === gameState.myPlayerNumber;
         console.log(`¿El 'player' de la unidad (${unit.player}) es igual a mi 'myPlayerNumber' (${gameState.myPlayerNumber})? -> R: ${esMiUnidad ? "SÍ" : "NO"}`);
 
-        const tieneCuartelGeneral = unit.regiments.some(reg => REGIMENT_TYPES[reg.type]?.is_hq || REGIMENT_TYPES[reg.type]?.provides_morale_boost); // Hice la condición más robusta
+        const tieneCuartelGeneral = selectedUnit.regiments.some(reg => reg.type === 'Cuartel General' || REGIMENT_TYPES[reg.type]?.provides_morale_boost);
         console.log(`¿Esta unidad tiene un 'Cuartel General'? -> R: ${tieneCuartelGeneral ? "SÍ" : "NO"}`);
         
         let estaEnBasePropia = false;
@@ -3232,4 +3232,5 @@ function processRuinEvent(event, unit, playerResources) {
 }
 
 console.log("unit_Actions.js se ha cargado.");
+
 
