@@ -85,6 +85,45 @@ function onHexClick(r, c) {
 
     // CASO 1: YA tienes una unidad seleccionada (selectedUnit existe).
     if (selectedUnit) {
+
+        // --- INICIO DEL DIAGNÓSTICO DEFINITIVO ---
+            if (!NetworkManager.esAnfitrion) { // Solo ejecutar en el cliente
+                console.group(`===== DIAGNÓSTICO DE UI PARA '${selectedUnit.name}' =====`);
+
+                // Pregunta 1: ¿Es mi unidad?
+                const esMiUnidad = selectedUnit.player === gameState.myPlayerNumber;
+                console.log(`¿El 'player' de la unidad (${selectedUnit.player}) es igual a mi 'myPlayerNumber' (${gameState.myPlayerNumber})? -> R: ${esMiUnidad ? "SÍ" : "NO"}`);
+
+                // Pregunta 2: ¿Tiene Cuartel General?
+                const tieneCuartelGeneral = selectedUnit.regiments.some(reg => REGIMENT_TYPES[reg.type]?.is_hq);
+                console.log(`¿Esta unidad tiene un regimiento 'Cuartel General'? -> R: ${tieneCuartelGeneral ? "SÍ" : "NO"}`);
+                
+                // Pregunta 3: ¿Está en una ciudad/base propia? (Para reclutar/reforzar, pero útil aquí)
+                // Usaremos la función que ya existe, si no la tienes, la crearemos.
+                let estaEnBasePropia = false;
+                if (typeof isHexSuppliedForReinforce === 'function') {
+                    estaEnBasePropia = isHexSuppliedForReinforce(selectedUnit.r, selectedUnit.c, selectedUnit.player);
+                } else {
+                    console.warn("Función 'isHexSuppliedForReinforce' no encontrada para el diagnóstico.");
+                }
+                console.log(`¿Está en una base propia (para reclutar/reforzar)? -> R: ${estaEnBasePropia ? "SÍ" : "NO"}`);
+
+                // Pregunta 4: ¿Ya tiene General?
+                const tieneGeneral = !!selectedUnit.commander; // !! convierte el valor en un booleano estricto
+                console.log(`¿Esta unidad ya tiene un 'commander'? -> R: ${tieneGeneral ? "SÍ" : "NO"}`);
+                
+                // Pregunta 5: ¿Ya se ha movido?
+                const seHaMovido = selectedUnit.hasMoved;
+                console.log(`¿Esta unidad ya se ha movido ('hasMoved')? -> R: ${seHaMovido ? "SÍ" : "NO"}`);
+
+                // Pregunta 6: La Decisión Final (simulando la lógica de la UI)
+                const deberiaMostrarBotonGeneral = esMiUnidad && tieneCuartelGeneral && !tieneGeneral;
+                console.log(`%c¿Debo presentar el botón de 'Asignar General'? -> R: ${deberiaMostrarBotonGeneral ? "SÍ" : "NO"}`, `font-weight: bold; color: ${deberiaMostrarBotonGeneral ? 'green' : 'red'};`);
+
+                console.groupEnd();
+            }
+        // --- FIN DEL DIAGNÓSTICO DEFINITIVO ---
+
         // Se intenta realizar una acción con la unidad seleccionada en el hexágono objetivo.
         const actionTaken = handleActionWithSelectedUnit(r, c, clickedUnit);
 
