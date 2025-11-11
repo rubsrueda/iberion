@@ -2614,25 +2614,26 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
 
     const fromR = unit.r;
     const fromC = unit.c;
-    const targetHexData = board[toR]?.[toC];
+    const targetHexData = board[r]?.[c];
     
     // --- Lógica de `lastMove` y coste (sin cambios) ---
-    if (unit.player === gameState.myPlayerNumber || !isNetworkGame()) {
-        unit.lastMove = {
-            fromR: fromR, fromC: fromC,
-            initialCurrentMovement: unit.currentMovement,
-            initialHasMoved: unit.hasMoved,
-            initialHasAttacked: unit.hasAttacked,
-            movedToHexOriginalOwner: targetHexData ? targetHexData.owner : null
-        };
-    }
+    unit.lastMove = {
+        fromR: fromR,
+        fromC: fromC,
+        initialCurrentMovement: unit.currentMovement,
+        initialHasMoved: unit.hasMoved,
+        initialHasAttacked: unit.hasAttacked,
+        movedToHexOriginalOwner: targetHexData ? targetHexData.owner : null
+    };
     const costOfThisMove = getMovementCost(unit, fromR, fromC, toR, toC, isMergeMove);
     if (costOfThisMove === Infinity && !isMergeMove) return;
 
     // --- Lógica de movimiento y captura (sin cambios) ---
     if (board[fromR]?.[fromC]) { board[fromR][fromC].unit = null; renderSingleHexVisuals(fromR, fromC); }
     unit.r = toR; unit.c = toC;
-    unit.currentMovement -= costOfThisMove; unit.hasMoved = true;
+    unit.currentMovement -= costOfThisMove;
+    unit.hasMoved = true;
+    
     if (targetHexData) {
         targetHexData.unit = unit;
         if (targetHexData.owner === null) {
@@ -3000,8 +3001,6 @@ function _executeRazeStructure(payload) {
     }
 }
 
-// Al final de unit_Actions.js
-
 /**
  * [Punto de Entrada] Inicia la acción de explorar unas ruinas.
  * Llamada por el botón de la UI.
@@ -3032,7 +3031,6 @@ function requestExploreRuins() {
         _executeExploreRuins(action.payload);
     }
 }
-
 
 /**
  * [Función de Ejecución] Procesa el evento de explorar una ruina.
@@ -3232,5 +3230,4 @@ function processRuinEvent(event, unit, playerResources) {
 }
 
 console.log("unit_Actions.js se ha cargado.");
-
 
