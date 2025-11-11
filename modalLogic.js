@@ -186,11 +186,12 @@ function addModalEventListeners() {
     }
 
     if (domElements.confirmBuildBtn) {
-        domElements.confirmBuildBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (typeof handleConfirmBuildStructure === 'function') handleConfirmBuildStructure();
-            else console.error("modalLogic: handleConfirmBuildStructure no definida.");
-        });
+    domElements.confirmBuildBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Usamos la función de PETICIÓN
+        if (typeof RequestConfirmBuildStructure === 'function') RequestConfirmBuildStructure();
+        else console.error("modalLogic: RequestConfirmBuildStructure no definida.");
+    });
     } else console.warn("modalLogic: confirmBuildBtn (Construir Estructura) no encontrado.");
     
     if (domElements.closeWelcomeHelpBtn) {

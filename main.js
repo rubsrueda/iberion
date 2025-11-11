@@ -1312,17 +1312,24 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
         console.error("main.js: CRÍTICO: initDebugConsole no está definida (de debugConsole.js).");
     }
 
-        if (domElements.floatingUndoMoveBtn) {
+    if (domElements.floatingUndoMoveBtn) {
         domElements.floatingUndoMoveBtn.addEventListener('click', (event) => {
-            event.stopPropagation(); 
+            event.stopPropagation();
             console.log("[DEBUG Botón Deshacer] click detectado");
+
+            // Usamos la función de PETICIÓN, no la de ejecución directa
             if (typeof RequestUndoLastUnitMove === "function" && typeof selectedUnit !== 'undefined' && selectedUnit) {
-                 RequestUndoLastUnitMove(selectedUnit);
-                 if(typeof UIManager !== 'undefined' && typeof UIManager.updateSelectedUnitInfoPanel === 'function') UIManager.updateSelectedUnitInfoPanel();
+                RequestUndoLastUnitMove(selectedUnit); // ¡CORRECCIÓN!
+                
+                // La UI se actualizará para todos cuando el anfitrión retransmita el estado.
+                // Podemos ocultar el panel localmente para una respuesta más rápida.
+                if(typeof UIManager !== 'undefined' && typeof UIManager.hideContextualPanel === 'function') {
+                    UIManager.hideContextualPanel();
+                }
             } else {
-                 console.warn("[DEBUG Botón Deshacer] No se puede deshacer el movimiento.");
-                 if(typeof UIManager !== 'undefined' && typeof UIManager.showMessageTemporarily === 'function') UIManager.showMessageTemporarily("No se puede deshacer el movimiento.", 3000, true);
-    }
+                console.warn("[DEBUG Botón Deshacer] No se puede deshacer el movimiento.");
+                if(typeof UIManager !== 'undefined' && typeof UIManager.showMessageTemporarily === 'function') UIManager.showMessageTemporarily("No se puede deshacer el movimiento.", 3000, true);
+            }
         });
     } else { console.warn("main.js: floatingUndoMoveBtn no encontrado, no se pudo añadir listener."); }
 
@@ -1630,8 +1637,14 @@ function executeConfirmedAction(action) {
             // --- FIN DE LA SOLUCIÓN ---
             break;
 
-        case 'researchTech': 
-            attemptToResearch(payload.techId); 
+        case 'researchTech':
+            if (typeof _executeResearch === 'function') {
+                // Llamamos a la función cerebro, que devuelve true si tuvo éxito.
+                const success = _executeResearch(payload.techId, payload.playerId);
+                if (success) {
+                    actionExecuted = true;
+                }
+            }
             break;
 
         case 'moveUnit': 
@@ -2112,6 +2125,14 @@ function reconstruirJuegoDesdeDatos(datos) {
 
         if (typeof initializeBoardPanning === "function") {
             initializeBoardPanning();
+            // Comprobamos si alguna pantalla importante (como el árbol tecnológico) está abierta.
+            const techTreeScreen = document.getElementById('techTreeScreen');
+            if (techTreeScreen && techTreeScreen.style.display === 'flex') {
+                console.log("[CLIENTE SYNC] El árbol tecnológico está abierto. Forzando refresco...");
+                if (typeof refreshTechTreeContent === 'function') {
+                    refreshTechTreeContent();
+                }
+            }
         } else {
             console.error("Error crítico: La función initializeBoardPanning no está disponible para el cliente.");
         }
@@ -2159,6 +2180,5 @@ function reconstruirJuegoDesdeDatos(datos) {
     }, false); // El 'true' es importante, asegura que este listener se ejecute primero
     */
 }
-
 
 document.addEventListener('DOMContentLoaded', initApp);
