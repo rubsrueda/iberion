@@ -2604,19 +2604,18 @@ function _executeAssignGeneral(payload) {
  */
 async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
     console.log(`[MOVIMIENTO] Ejecutando _executeMoveUnit para ${unit.name} a (${toR},${toC}). Es fusión: ${isMergeMove}`);
-    
-    // Validar si el hexágono de destino está ocupado y si NO es una fusión
+
     const targetUnitOnHex = getUnitOnHex(toR, toC);
     if (targetUnitOnHex && !isMergeMove) {
-        console.warn(`[MOVIMIENTO BLOQUEADO] Intento de mover ${unit.name} a una casilla ocupada por ${targetUnitOnHex.name} sin ser una fusión.`);
+        console.warn(`[MOVIMIENTO BLOQUEADO] Intento de mover ${unit.name} a una casilla ocupada sin ser una fusión.`);
         return;
     }
 
     const fromR = unit.r;
     const fromC = unit.c;
-    const targetHexData = board[r]?.[c];
-    
-    // --- Lógica de `lastMove` y coste (sin cambios) ---
+    const targetHexData = board[toR]?.[toC];
+
+    // --- Lógica de `lastMove` y coste ---
     unit.lastMove = {
         fromR: fromR,
         fromC: fromC,
@@ -2625,15 +2624,21 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
         initialHasAttacked: unit.hasAttacked,
         movedToHexOriginalOwner: targetHexData ? targetHexData.owner : null
     };
+
     const costOfThisMove = getMovementCost(unit, fromR, fromC, toR, toC, isMergeMove);
     if (costOfThisMove === Infinity && !isMergeMove) return;
 
-    // --- Lógica de movimiento y captura (sin cambios) ---
-    if (board[fromR]?.[fromC]) { board[fromR][fromC].unit = null; renderSingleHexVisuals(fromR, fromC); }
-    unit.r = toR; unit.c = toC;
+// --- Lógica de movimiento y captura ---
+    if (board[fromR]?.[fromC]) {
+        board[fromR][fromC].unit = null;
+        renderSingleHexVisuals(fromR, fromC);
+    }
+
+    unit.r = toR;
+    unit.c = toC;
     unit.currentMovement -= costOfThisMove;
     unit.hasMoved = true;
-    
+
     if (targetHexData) {
         targetHexData.unit = unit;
         if (targetHexData.owner === null) {
@@ -2648,7 +2653,10 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
         }
     } else {
         console.error(`[_executeMoveUnit] Error crítico: Hex destino (${toR},${toC}) no encontrado.`);
-        unit.r = fromR; unit.c = fromC; unit.currentMovement += costOfThisMove; unit.hasMoved = false;
+        unit.r = fromR;
+        unit.c = fromC;
+        unit.currentMovement += costOfThisMove;
+        unit.hasMoved = false;
         if (board[fromR]?.[fromC]) board[fromR][fromC].unit = unit;
         renderSingleHexVisuals(fromR, fromC);
         return;
@@ -2674,7 +2682,7 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
         checkAndApplyLevelUp(unit);
         if(selectedUnit?.id === unit.id) { UIManager.showUnitContextualInfo(unit, true); }
     }
-    
+
     // --- Lógica de actualización de UI (sin cambios) ---
     logMessage(`${unit.name} movida. Mov. restante: ${unit.currentMovement}.`);
     positionUnitElement(unit);
