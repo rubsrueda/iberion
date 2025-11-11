@@ -1898,7 +1898,30 @@ async function processActionRequest(action) { // <<== async
         case 'moveUnit':
             const unitToMove = units.find(u => u.id === payload.unitId);
             if (unitToMove && isValidMove(unitToMove, payload.toR, payload.toC)) {
-                await _executeMoveUnit(unitToMove, payload.toR, payload.toC); // await aquí también es una buena práctica
+                // 1. Guardamos la posición original ANTES de mover.
+                const fromR = unitToMove.r;
+                const fromC = unitToMove.c;
+
+                // 2. Ejecutamos el movimiento. La unidad ahora está en la nueva posición y hasMoved = true.
+                await _executeMoveUnit(unitToMove, payload.toR, payload.toC);
+
+                // 3. ¡EL PASO DECISIVO! Volvemos a encontrar la unidad en nuestro array `units`
+                //    y nos aseguramos de que la propiedad `lastMove` esté perfectamente construida
+                //    antes de la retransmisión.
+                const movedUnit = units.find(u => u.id === payload.unitId);
+                if (movedUnit) {
+                    movedUnit.lastMove = {
+                        fromR: fromR,
+                        fromC: fromC,
+                        // El resto de datos ya se establecieron, pero los reconfirmamos por seguridad
+                        initialCurrentMovement: movedUnit.lastMove.initialCurrentMovement,
+                        initialHasMoved: false, // El estado antes de mover era 'false'
+                        initialHasAttacked: movedUnit.hasAttacked,
+                        movedToHexOriginalOwner: movedUnit.lastMove.movedToHexOriginalOwner
+                    };
+                    console.log(`[BLINDAJE] Objeto lastMove para ${movedUnit.name} ha sido forzosamente creado/confirmado en el Host.`, movedUnit.lastMove);
+                }
+
                 actionExecuted = true;
             }
             break;
