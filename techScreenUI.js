@@ -166,131 +166,39 @@ document.addEventListener('DOMContentLoaded', () => {
 // ===== FUNCIÓN MODIFICADA PARA USAR UIManager.showMessageTemporarily =====
 // En techScreenUI.js
 
-    function attemptToResearch(techId) {
-        console.log(`[AttemptResearch DEBUG] =======================================`);
-        console.log("--- LOG ESTADO --- techScreenUI.js -> attemptToResearch INICIO: researchedTechnologies =", JSON.parse(JSON.stringify(gameState?.playerResources?.[1]?.researchedTechnologies || [])));
-        console.log(`[AttemptResearch DEBUG] Iniciando intento para: ${techId}`);
-        
+    // En techScreenUI.js
+    function _executeResearch(techId, playerId) {
         const techToResearch = TECHNOLOGY_TREE_DATA[techId];
-        
-        if (!techToResearch || !gameState || !gameState.playerResources || !gameState.playerResources[gameState.currentPlayer]) {
-            console.error("attemptToResearch: Faltan datos críticos para la investigación.");
-            if (typeof UIManager !== 'undefined' && UIManager.showMessageTemporarily) {
-                UIManager.showMessageTemporarily("Error interno al investigar.", 4000, true);
-            }
-            return;
+        // Usamos el playerId que nos pasan, no el global.
+        const playerResources = gameState.playerResources[playerId];
+
+        if (!techToResearch || !playerResources) {
+            console.error("Faltan datos para ejecutar la investigación.");
+            return false; // Fallo
         }
 
-        if (!techToResearch) {
-            console.error(`[AttemptResearch DEBUG] ERROR: Datos de tecnología no encontrados para ID: ${techId}`);
-            if (typeof UIManager !== 'undefined' && UIManager.showMessageTemporarily) {
-                UIManager.showMessageTemporarily(`Error: Tecnología ${techId} no encontrada.`, 4000, true);
-            }
-            return;
+        if (!Array.isArray(playerResources.researchedTechnologies)) {
+            playerResources.researchedTechnologies = [];
         }
-        console.log(`[AttemptResearch DEBUG] Datos de techToResearch (${techId}):`, JSON.parse(JSON.stringify(techToResearch)));
+        const playerTechs = playerResources.researchedTechnologies;
 
-        if (!gameState || !gameState.playerResources || !gameState.playerResources[gameState.currentPlayer]) {
-            console.error(`[AttemptResearch DEBUG] ERROR: gameState o playerResources o recursos del jugador actual no definidos. gameState:`, gameState);
-            if (typeof UIManager !== 'undefined' && UIManager.showMessageTemporarily) {
-                UIManager.showMessageTemporarily("Error interno: No se pueden verificar los recursos del jugador.", 4000, true);
-            }
-            return;
-        }
-        const playerResources = gameState.playerResources[gameState.currentPlayer];
-        const playerTechs = playerResources.researchedTechnologies || [];
-        console.log(`[AttemptResearch DEBUG] Jugador ${gameState.currentPlayer}. Tecnologías actuales:`, JSON.parse(JSON.stringify(playerTechs)));
-        console.log(`[AttemptResearch DEBUG] Recursos actuales del jugador:`, JSON.parse(JSON.stringify(playerResources)));
-
-        if (playerTechs.includes(techId)) {
-            console.log(`[AttemptResearch DEBUG] Tecnología ${techId} ya investigada.`);
-            if (typeof UIManager !== 'undefined' && UIManager.showMessageTemporarily) {
-                UIManager.showMessageTemporarily("Ya has investigado esta tecnología.", 3000, false);
-            }
-            return;
-        }
-
-        const prerequisitesMet = typeof hasPrerequisites === "function" ? hasPrerequisites(playerTechs, techId) : false;
-        console.log(`[AttemptResearch DEBUG] Prerrequisitos para ${techId} cumplidos: ${prerequisitesMet}`);
-        if (!prerequisitesMet) {
-            console.log(`[AttemptResearch DEBUG] Falló prerrequisitos para ${techId}.`);
-            if (typeof UIManager !== 'undefined' && UIManager.showMessageTemporarily) {
-                UIManager.showMessageTemporarily("No cumples los prerrequisitos para esta tecnología.", 3000, true);
-            }
-            return;
-        }
-
-        // Verificar costo
-        let canAfford = true;
-        let missingResourcesMsg = "No tienes suficientes recursos:";
-        let detailedMissing = "";
-
-        if (!techToResearch.cost || Object.keys(techToResearch.cost).length === 0) { // Comprobar si .cost existe y tiene claves
-            console.warn(`[AttemptResearch DEBUG] La tecnología ${techId} no tiene definido un costo o el costo está vacío. Se investigará gratis.`);
-            // No se cambia canAfford, se asume que es gratis si no hay costo
-        } else {
-            console.log(`[AttemptResearch DEBUG] Verificando costo para ${techId}. Costo definido:`, JSON.parse(JSON.stringify(techToResearch.cost)));
-            for (const resourceKey in techToResearch.cost) {
-                const costAmount = techToResearch.cost[resourceKey];
-                const playerAmount = playerResources[resourceKey] || 0;
-                console.log(`[AttemptResearch DEBUG] Recurso: ${resourceKey}, Necesita: ${costAmount}, Tiene: ${playerAmount}`);
-                if (playerAmount < costAmount) {
-                    canAfford = false;
-                    detailedMissing += ` Necesitas ${costAmount} de ${resourceKey} (tienes ${playerAmount}).`;
-                }
-            }
-            if (!canAfford) {
-                missingResourcesMsg += detailedMissing;
-                console.log(`[AttemptResearch DEBUG] No puede pagar. Mensaje: ${missingResourcesMsg}`);
-            }
-        }
-        
-        console.log(`[AttemptResearch DEBUG] ¿Puede pagar ${techId}?: ${canAfford}`);
-        if (!canAfford) {
-            if (typeof UIManager !== 'undefined' && UIManager.showMessageTemporarily) {
-                console.log(`[AttemptResearch DEBUG] Mostrando mensaje de UI: ${missingResourcesMsg}`);
-                UIManager.showMessageTemporarily(missingResourcesMsg, 4000, true);
-            } else { 
-                console.log(`[AttemptResearch DEBUG] (UIManager no disponible) ${missingResourcesMsg}`);
-            }
-            return;
-        }
-
-        // Si todo OK: Deducir costos y añadir tecnología
-        console.log(`[AttemptResearch DEBUG] Procediendo a deducir costos para ${techId}.`);
-        if (techToResearch.cost) {
-            for (const resourceKey in techToResearch.cost) {
-                playerResources[resourceKey] -= techToResearch.cost[resourceKey];
-                console.log(`[AttemptResearch DEBUG] Deducido ${techToResearch.cost[resourceKey]} de ${resourceKey}. Nuevo total: ${playerResources[resourceKey]}`);
+        // --- Validaciones (sin tocar la UI) ---
+        if (playerTechs.includes(techId)) return false;
+        if (typeof hasPrerequisites === "function" && !hasPrerequisites(playerTechs, techId)) return false;
+        for (const resourceKey in techToResearch.cost) {
+            if ((playerResources[resourceKey] || 0) < techToResearch.cost[resourceKey]) {
+                return false;
             }
         }
 
+        // --- Ejecución (solo modifica datos) ---
+        for (const resourceKey in techToResearch.cost) {
+            playerResources[resourceKey] -= techToResearch.cost[resourceKey];
+        }
         playerTechs.push(techId);
-        if (gameState.isTutorialActive) gameState.tutorial.techResearched = true;
-        logMessage(`¡Has investigado ${techToResearch.name}!`);
-        const successMessage = `¡Has investigado ${techToResearch.name}!`;
 
-        console.log(`[AttemptResearch DEBUG] ¡INVESTIGADO! ${techToResearch.name}. Nuevas tecnologías:`,  JSON.parse(JSON.stringify(playerTechs)));
-        
-        if (typeof UIManager !== 'undefined' && UIManager.showMessageTemporarily) {
-            UIManager.showMessageTemporarily(successMessage, 3000, false);
-        } else { console.log(successMessage); }
-        
-        console.log(`[AttemptResearch DEBUG] Refrescando árbol y UI general.`);
-
-        refreshTechTreeContent();
-
-        if (typeof populateAvailableRegimentsForModal === "function") {
-            populateAvailableRegimentsForModal();
-        }
-
-        if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
-            UIManager.updateAllUIDisplays();
-        }
-        console.log("--- LOG ESTADO --- techScreenUI.js -> attemptToResearch DESPUÉS DE PUSH: researchedTechnologies =", JSON.parse(JSON.stringify(gameState?.playerResources?.[1]?.researchedTechnologies || [])));
-        console.log(`[AttemptResearch DEBUG] FIN de intento para: ${techId}`);
-        console.log(`[AttemptResearch DEBUG] =======================================`);
-
+        // Si llegamos hasta aquí, la investigación fue un éxito.
+        return true; 
     }
 
     function refreshTechTreeContent() {
@@ -445,7 +353,36 @@ function RequestAttemptToResearch(techId) {
     }
 
     // Si es juego local, ejecuta la lógica
-    attemptToResearch(techId);
+    _executeResearch(techId);
+}
+
+function RequestResearchTech(techId) {
+    if (isNetworkGame()) {
+        const action = {
+            type: 'researchTech',
+            actionId: `research_${gameState.myPlayerNumber}_${techId}_${Date.now()}`,
+            payload: {
+                playerId: gameState.myPlayerNumber,
+                techId: techId
+            }
+        };
+        if (NetworkManager.esAnfitrion) {
+            processActionRequest(action);
+            refreshTechTreeContent(); // Actualizamos la UI en red
+        } else {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+        }
+        logMessage("Petición de investigación enviada...");
+    } else {
+        // Juego Local:
+        const success = _executeResearch(techId, gameState.currentPlayer);
+        if (success) {
+            const techToResearch = TECHNOLOGY_TREE_DATA[techId];
+            logMessage(`¡Has investigado ${techToResearch.name}!`);
+            refreshTechTreeContent(); // Actualizamos la UI localmente
+            if (UIManager) UIManager.updateAllUIDisplays();
+        }
+    }
 }
     
     /**
@@ -454,64 +391,59 @@ function RequestAttemptToResearch(techId) {
      */
     function openTechDetailModal(techId) {
         const techData = TECHNOLOGY_TREE_DATA[techId];
-    const modal = document.getElementById('techDetailModal');
+        const modal = document.getElementById('techDetailModal');
 
-    // --- LÍNEA AÑADIDA PARA DEPURAR ---
-    console.log("Referencia al elemento del modal:", modal);
+        // --- LÍNEA AÑADIDA PARA DEPURAR ---
+        console.log("Referencia al elemento del modal:", modal);
 
-        if (!techData || !modal) {
-            console.error("Error en openTechDetailModal:", {techData, modal});
-            return;
-        }
+            if (!techData || !modal) {
+                console.error("Error en openTechDetailModal:", {techData, modal});
+                return;
+            }
 
-        // --- Rellenar el contenido del modal ---
-        document.getElementById('techDetailIcon').textContent = techData.sprite || '💡';
-        document.getElementById('techDetailName').textContent = techData.name;
-        document.getElementById('techDetailDescription').textContent = techData.description;
+            // --- Rellenar el contenido del modal ---
+            document.getElementById('techDetailIcon').textContent = techData.sprite || '💡';
+            document.getElementById('techDetailName').textContent = techData.name;
+            document.getElementById('techDetailDescription').textContent = techData.description;
 
-    // Rellenar Costo
-        const cost = techData.cost.researchPoints || 0;
-        document.getElementById('techDetailCost').textContent = `${cost} Puntos de Inv.`;
+        // Rellenar Costo
+            const cost = techData.cost.researchPoints || 0;
+            document.getElementById('techDetailCost').textContent = `${cost} Puntos de Inv.`;
 
-    // Rellenar Prerrequisitos
-    const prereqs = techData.prerequisites
-        .map(id => TECHNOLOGY_TREE_DATA[id]?.name)
-        .join(', ') || 'Ninguno';
-    document.getElementById('techDetailPrereqs').textContent = prereqs;
+        // Rellenar Prerrequisitos
+        const prereqs = techData.prerequisites
+            .map(id => TECHNOLOGY_TREE_DATA[id]?.name)
+            .join(', ') || 'Ninguno';
+        document.getElementById('techDetailPrereqs').textContent = prereqs;
 
-    // Rellenar Desbloqueos
-    const unlocks = [
-        ...(techData.unlocksUnits || []),
-        ...(techData.unlocksStructures || [])
-    ].join(', ') || 'Ninguno';
-    document.getElementById('techDetailUnlocks').textContent = unlocks;
-    
-    // --- 2. Configurar el botón de "Investigar" ---
-    const researchBtn = document.getElementById('researchTechBtn');
-    const playerResources = gameState.playerResources[gameState.currentPlayer];
-    const canAfford = playerResources.researchPoints >= cost;
-
-    // Habilitar o deshabilitar el botón según si se puede pagar
-    researchBtn.disabled = !canAfford;
-
-    // Asignar la acción al botón. Usamos .onclick para reemplazar cualquier listener anterior.
-    researchBtn.onclick = () => {
-        // Llamar a la función que ya tenías y que funciona perfectamente
-        attemptToResearch(techId);
+        // Rellenar Desbloqueos
+        const unlocks = [
+            ...(techData.unlocksUnits || []),
+            ...(techData.unlocksStructures || [])
+        ].join(', ') || 'Ninguno';
+        document.getElementById('techDetailUnlocks').textContent = unlocks;
         
-        // Cerrar este modal de detalle
-        modal.style.display = 'none';
+        // --- 2. Configurar el botón de "Investigar" ---
+        const researchBtn = document.getElementById('researchTechBtn');
+        const playerResources = gameState.playerResources[gameState.currentPlayer];
+        const canAfford = playerResources.researchPoints >= cost;
 
-        // NO cerramos el árbol principal, así el jugador ve el cambio.
-    };
+        // Habilitar o deshabilitar el botón según si se puede pagar
+        researchBtn.disabled = !canAfford;
 
-    // Configurar el botón de cierre (la 'x')
-    document.getElementById('closeTechDetailBtn').onclick = () => {
-        modal.style.display = 'none';
-    };
+        // Asignar la acción al botón. Usamos .onclick para reemplazar cualquier listener anterior.
+        researchBtn.onclick = () => {
+            RequestResearchTech(techId);
+            modal.style.display = 'none';
+        };
 
-    // --- 3. Mostrar el modal ---
-    console.log("Intentando mostrar el modal de detalle. Elemento:", modal);
+        // Configurar el botón de cierre (la 'x')
+        document.getElementById('closeTechDetailBtn').onclick = () => {
+            modal.style.display = 'none';
+        };
+
+        // --- 3. Mostrar el modal ---
+        console.log("Intentando mostrar el modal de detalle. Elemento:", modal);
         modal.style.display = 'flex';
         console.log("Estilo 'display' cambiado a 'flex'. El modal debería estar visible.");
     }
@@ -519,7 +451,7 @@ function RequestAttemptToResearch(techId) {
     // HACEMOS LAS FUNCIONES GLOBALES para que otros scripts puedan llamarlas si es necesario
     window.openTechTreeScreen = openTechTreeScreen;
     window.closeTechTreeScreen = closeTechTreeScreen;
-    window.attemptToResearch = attemptToResearch;
+    window._executeResearch = _executeResearch;
     window.refreshTechTreeContent = refreshTechTreeContent;
 
 }); // Fin del DOMContentLoaded

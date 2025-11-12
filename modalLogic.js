@@ -1,33 +1,51 @@
 // modalLogic.js
 
 function RequestConfirmBuildStructure() {
-    if (!selectedStructureToBuild || !hexToBuildOn) return;
-    
+    // 1. Validaciones iniciales
+    if (!selectedStructureToBuild || !hexToBuildOn) {
+        console.warn("[Build Request] Acción cancelada: faltan datos de estructura o hexágono.");
+        return;
+    }
+
     const { r, c } = hexToBuildOn;
-    const unitOnHex = getUnitOnHex(r,c);
+    const unitOnHex = getUnitOnHex(r, c);
+
+    // 2. Crear el paquete de acción
     const action = {
         type: 'buildStructure',
+        actionId: `build_${gameState.currentPlayer}_${r}_${c}_${Date.now()}`,
         payload: {
             playerId: gameState.currentPlayer,
-            r, c,
+            r: r,
+            c: c,
             structureType: selectedStructureToBuild,
             builderUnitId: unitOnHex && STRUCTURE_TYPES[selectedStructureToBuild].cost.Colono ? unitOnHex.id : null
         }
     };
 
+    // 3. Decidir el flujo: Red (Host/Cliente) o Local
     if (isNetworkGame()) {
         if (NetworkManager.esAnfitrion) {
+            // -- FLUJO DEL ANFITRIÓN --
+            console.log(`[Host] Recibida acción local de construcción. Procesando...`);
             processActionRequest(action);
-            NetworkManager.broadcastFullState();
         } else {
-            NetworkManager.enviarDatos({ type: 'actionRequest', action });
+            // -- FLUJO DEL CLIENTE --
+            console.log(`[Client] Enviando petición de construcción al Host...`);
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
         }
-        domElements.buildStructureModal.style.display = 'none';
-        UIManager.hideContextualPanel();
-        cancelPreparingAction();
-        return;
+    } else {
+        // -- FLUJO DE PARTIDA LOCAL --
+        console.log(`[Local] Ejecutando acción de construcción...`);
+        handleConfirmBuildStructure();
     }
-    handleConfirmBuildStructure();
+
+    // 4. Limpieza de la UI (se ejecuta en todos los casos)
+    domElements.buildStructureModal.style.display = 'none';
+    if (UIManager) UIManager.hideContextualPanel();
+    if (typeof cancelPreparingAction === "function") {
+        cancelPreparingAction();
+    }
 }
 
 function RequestReinforceRegiment(division, regiment) {
@@ -1561,37 +1579,7 @@ function populateWikiConceptsTab() {
 //== FUNCIONES DE RED EN modalLogic.js              ==
 //=======================================================================
 
-function RequestConfirmBuildStructure() {
-    if (!selectedStructureToBuild || !hexToBuildOn) return;
 
-    if (isNetworkGame()) {
-        const { r, c } = hexToBuildOn;
-        const unitOnHex = getUnitOnHex(r,c);
-        console.log(`[Red - Petición] Solicitando construir ${selectedStructureToBuild} en (${r},${c}).`);
-        
-        NetworkManager.enviarDatos({
-            type: 'actionRequest',
-            action: {
-                type: 'buildStructure',
-                payload: {
-                    playerId: gameState.currentPlayer,
-                    r: r, c: c,
-                    structureType: selectedStructureToBuild,
-                    builderUnitId: unitOnHex && STRUCTURE_TYPES[selectedStructureToBuild].cost.Colono ? unitOnHex.id : null
-                }
-            }
-        });
-
-        // Feedback inmediato para el jugador
-        domElements.buildStructureModal.style.display = 'none';
-        UIManager.hideContextualPanel();
-        cancelPreparingAction();
-        return;
-    }
-    
-    // Si es un juego local, llama a la función original.
-    handleConfirmBuildStructure();
-}
 
 function RequestReinforceRegiment(division, regiment) {
     // La validación y el `confirm` se quedan aquí, porque son parte de la "intención" del jugador.

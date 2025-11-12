@@ -1891,7 +1891,7 @@ async function processActionRequest(action) { // <<== async
             const tech = TECHNOLOGY_TREE_DATA[payload.techId];
             const playerRes = gameState.playerResources[payload.playerId];
             if (tech && playerRes && (playerRes.researchPoints || 0) >= (tech.cost.researchPoints || 0) && hasPrerequisites(playerRes.researchedTechnologies, payload.techId)) {
-                attemptToResearch(payload.techId);
+                _executeResearch(payload.techId, payload.playerId)
                 actionExecuted = true;
             }
             break;

@@ -34,51 +34,6 @@ const GAME_DATA_REGISTRY = {
     maps: {} 
 };
 
-console.log("state.js CARGADO (con Proxy de depuración)");
-
-console.log("state.js CARGADO (con Proxy de depuración v2 - CORREGIDO)");
-
-// El objeto de estado real de forma interna
-const _internalGameState = {};
-
-// El "espía" (Proxy) - VERSIÓN ROBUSTA Y CORREGIDA
-const gameStateProxyHandler = {
-    set: function(target, property, value) {
-        // --- INICIO DE LA CORRECCIÓN ---
-        let oldValueString, newValueString;
-        try {
-            oldValueString = JSON.stringify(target[property]);
-        } catch (e) {
-            oldValueString = "[Valor no serializable]";
-        }
-        try {
-            newValueString = JSON.stringify(value);
-        } catch (e) {
-            newValueString = "[Valor no serializable]";
-        }
-        // --- FIN DE LA CORRECCIÓN ---
-
-        console.groupCollapsed(`%c[PROXY DETECT - ESCRITURA] gameState.${String(property)}`, "color: #ff4757; font-weight: bold;");
-        console.log("Valor Anterior:", oldValueString);
-        console.log("Nuevo Valor:", newValueString);
-        console.trace("Pila de llamadas (quién está haciendo el cambio):");
-        console.groupEnd();
-        
-        target[property] = value;
-        return true;
-    },
-    get: function(target, property) {
-        const noisyProps = ['justPanned', 'selectedHexR', 'selectedHexC', 'preparingAction', 'isTutorialActive'];
-        if (!noisyProps.includes(String(property))) {
-            // No hacemos log en la lectura para mantener la consola más limpia por ahora.
-            // console.log(`%c[PROXY READ - LECTURA] Accediendo a gameState.${String(property)}`, "color: #2e86de;");
-        }
-        return target[property];
-    }
-};
-
-// La variable global 'gameState' que usa todo tu código
-var gameState = new Proxy(_internalGameState, gameStateProxyHandler);
 
 function resetGameStateForIberiaMagna() {
     console.log("state.js: Ejecutando resetGameStateForIberiaMagna() para 8 jugadores...");
