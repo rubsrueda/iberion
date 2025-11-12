@@ -36,40 +36,48 @@ const GAME_DATA_REGISTRY = {
 
 console.log("state.js CARGADO (con Proxy de depuración)");
 
-// Creamos el objeto de estado real de forma interna
+console.log("state.js CARGADO (con Proxy de depuración v2 - CORREGIDO)");
+
+// El objeto de estado real de forma interna
 const _internalGameState = {};
 
-// Creamos el "espía" (Proxy)
+// El "espía" (Proxy) - VERSIÓN ROBUSTA Y CORREGIDA
 const gameStateProxyHandler = {
     set: function(target, property, value) {
-        // Esta función se ejecuta CADA VEZ que algo intenta cambiar una propiedad de gameState
-        // Por ejemplo: gameState.currentPlayer = 2;
+        // --- INICIO DE LA CORRECCIÓN ---
+        let oldValueString, newValueString;
+        try {
+            oldValueString = JSON.stringify(target[property]);
+        } catch (e) {
+            oldValueString = "[Valor no serializable]";
+        }
+        try {
+            newValueString = JSON.stringify(value);
+        } catch (e) {
+            newValueString = "[Valor no serializable]";
+        }
+        // --- FIN DE LA CORRECCIÓN ---
+
         console.groupCollapsed(`%c[PROXY DETECT - ESCRITURA] gameState.${String(property)}`, "color: #ff4757; font-weight: bold;");
-        console.log("Valor Anterior:", JSON.parse(JSON.stringify(target[property])));
-        console.log("Nuevo Valor:", JSON.parse(JSON.stringify(value)));
+        console.log("Valor Anterior:", oldValueString);
+        console.log("Nuevo Valor:", newValueString);
         console.trace("Pila de llamadas (quién está haciendo el cambio):");
         console.groupEnd();
         
-        // Se realiza la modificación real en el objeto interno
         target[property] = value;
-        return true; // Se indica que la operación fue exitosa
+        return true;
     },
     get: function(target, property) {
-        // Esta función se ejecuta CADA VEZ que algo intenta leer una propiedad de gameState
-        // Por ejemplo: if (gameState.currentPlayer === 1) { ... }
-        
-        // Evitamos inundar la consola con logs de propiedades que se leen constantemente
         const noisyProps = ['justPanned', 'selectedHexR', 'selectedHexC', 'preparingAction', 'isTutorialActive'];
         if (!noisyProps.includes(String(property))) {
-            console.log(`%c[PROXY READ - LECTURA] Accediendo a gameState.${String(property)}`, "color: #2e86de;");
+            // No hacemos log en la lectura para mantener la consola más limpia por ahora.
+            // console.log(`%c[PROXY READ - LECTURA] Accediendo a gameState.${String(property)}`, "color: #2e86de;");
         }
-        
         return target[property];
     }
 };
 
-// Finalmente, la variable global 'gameState' que usa todo tu código
-// ahora será nuestro espía, que opera sobre el objeto de estado real.
+// La variable global 'gameState' que usa todo tu código
 var gameState = new Proxy(_internalGameState, gameStateProxyHandler);
 
 function resetGameStateForIberiaMagna() {
