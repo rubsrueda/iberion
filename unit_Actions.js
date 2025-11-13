@@ -2976,33 +2976,38 @@ function _executeRazeStructure(payload) {
     const unit = units.find(u => u.id === unitId);
     const hex = board[r]?.[c];
 
+    console.log(`[RAZE - Ejecutando]  Jugador: ${playerId}, Unidad: ${unit?.name}, Coordenadas: (${r},${c})`); // Log #1
+
     // --- Validaciones de Lógica ---
-    if (!unit || !hex) return;
-    if (unit.player !== playerId) return; // La unidad debe pertenecer al jugador que pide la acción
-    if (unit.hasAttacked || unit.hasMoved) {
-        logMessage("Esta unidad ya ha actuado este turno.", "error");
-        return;
-    }
-    if (!hex.structure) {
-        logMessage("No hay ninguna estructura aquí para arrasar.", "warning");
-        return;
-    }
+    if (!unit || !hex) { console.warn("[RAZE - Validando] Falla: Unidad o Hex inválidos."); return; } // Log #2
+    if (unit.player !== playerId) { console.warn("[RAZE - Validando] Falla: No es el turno del jugador."); return; } // Log #3
+    if (unit.hasAttacked || unit.hasMoved) { console.warn("[RAZE - Validando] Falla: Unidad ya actuó."); return; } // Log #4
+    if (!hex.structure) { console.warn("[RAZE - Validando] Falla: No hay estructura."); return; } // Log #5
 
     // --- Ejecución de la Acción ---
-    const structureName = STRUCTURE_TYPES[hex.structure]?.name || "la estructura";
-    logMessage(`¡${unit.name} arrasa ${structureName} en (${r},${c})!`);
+    console.log(`[RAZE - Ejecutando]  Arrasando estructura: ${hex.structure} en (${r},${c})`); // Log #6
+    const structureBefore = hex.structure;
+    const featureBefore = hex.feature;
 
     // Convertimos la estructura en ruinas
     hex.structure = null;
     hex.feature = 'ruins';
 
     // La unidad consume su turno
+    const structureAfter = hex.structure;
+    const featureAfter = hex.feature;
+    console.log(`[RAZE - Ejecutando] Estado de los datos despues de modificar estructura:  Structure: ${structureBefore} -> ${structureAfter} , Feature: ${featureBefore} -> ${featureAfter} `); // Log #7
+
     unit.hasMoved = true;
     unit.hasAttacked = true;
 
     // Actualizar la UI
     if (typeof renderSingleHexVisuals === 'function') {
+        console.log(`[RAZE - Ejecutando]  Intentando renderizar la casilla (${r}, ${c}).`); // Log #8
         renderSingleHexVisuals(r, c);
+        console.log(`[RAZE - Ejecutando]  renderSingleHexVisuals terminó.`); // Log #9
+    } else {
+        console.warn("[RAZE - Ejecutando]  renderSingleHexVisuals NO está definida."); // Log #10
     }
     if (UIManager) {
         UIManager.hideContextualPanel();
@@ -3238,4 +3243,5 @@ function processRuinEvent(event, unit, playerResources) {
 }
 
 console.log("unit_Actions.js se ha cargado.");
+
 
