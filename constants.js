@@ -86,7 +86,8 @@ const REGIMENT_TYPES = {
         cost: { oro: 150, upkeep: 10 }, // Barato y de bajo mantenimiento
         attack: 5, defense: 10, health: 150, // Muy débil en combate
         movement: 3, // Rápido
-        sprite: '👁️', // Un ojo, para representar la visión/exploración
+        sprite: 'images/sprites/explorador.png',
+        //sprite: '👁️', // Un ojo, para representar la visión/exploración
         visionRange: 2, // Su visión base
         attackRange: 0,
         initiative: 12, // Alta iniciativa para actuar rápido

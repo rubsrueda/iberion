@@ -1066,12 +1066,20 @@ function renderSingleHexVisuals(r, c) {
 
     // Lógica para el sprite de la estructura (sin cambios)
     let structureSpriteEl = hexEl.querySelector('.structure-sprite');
+
+    // CASO 1: El hexágono DEBERÍA tener una estructura según los datos.
     if (hexData.structure && STRUCTURE_TYPES[hexData.structure]) {
+        // Log de diagnóstico
+        // console.log(`[Render] Hex (${r},${c}) debe tener la estructura: ${hexData.structure}`);
+        
+        // Si no existe el elemento <span> para el sprite, lo creamos.
         if (!structureSpriteEl) {
             structureSpriteEl = document.createElement('span');
-            structureSpriteEl.classList.add('structure-sprite');
+            structureSpriteEl.className = 'structure-sprite'; // Usamos className para asegurarnos de que solo tenga esta clase.
             hexEl.appendChild(structureSpriteEl);
         }
+        
+        // Aplicamos el sprite correcto (lógica sin cambios)
         const spriteValue = STRUCTURE_TYPES[hexData.structure].sprite;
         if (spriteValue.includes('.') || spriteValue.includes('/')) {
             structureSpriteEl.style.backgroundImage = `url('${spriteValue}')`;
@@ -1080,8 +1088,20 @@ function renderSingleHexVisuals(r, c) {
             structureSpriteEl.style.backgroundImage = 'none';
             structureSpriteEl.textContent = spriteValue;
         }
-    } else if (structureSpriteEl) {
-        structureSpriteEl.remove();
+    } 
+    // CASO 2: El hexágono NO DEBERÍA tener una estructura (hexData.structure es null).
+    else {
+        // Log de diagnóstico
+        // console.log(`[Render] Hex (${r},${c}) NO debe tener estructura. Buscando sprite para eliminar...`);
+        
+        // Si encontramos un elemento de sprite de una renderización anterior, lo eliminamos.
+        // Esta es la parte crucial que debería limpiar el camino.
+        if (structureSpriteEl) {
+            // console.log(`   -> Sprite encontrado. Eliminando...`);
+            structureSpriteEl.remove();
+        } else {
+            // console.log(`   -> No se encontró ningún sprite para eliminar. El hex está limpio.`);
+        }
     }
 }
 
