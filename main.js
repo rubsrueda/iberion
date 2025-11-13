@@ -2091,9 +2091,20 @@ async function processActionRequest(action) { // <<== async
 
     // Si CUALQUIER acción (incluida endTurn) se ejecutó y cambió el estado...
     if (actionExecuted) {
-        // ...el Anfitrión llama a su nueva función para retransmitir el ESTADO COMPLETO Y FINAL.
-        // Ya no enviamos la acción, sino el resultado.
-        console.log(`%c[HOST BROADCAST] Acción '${action.type}' ejecutada. Retransmitiendo estado completo.`, 'background: blue; color: white;');
+        console.log(`%c[HOST BROADCAST] Acción '${action.type}' ejecutada. Actualizando UI del Host y retransmitiendo.`, 'background: blue; color: white;');
+        
+        // --- INICIO DE LA SOLUCIÓN PARA EL HOST ---
+        // 1. Forzamos la actualización visual COMPLETA del anfitrión.
+        //    Esto asegura que cualquier cambio (como el de 'razeStructure') se dibuje.
+        if (typeof renderFullBoardVisualState === 'function') {
+            renderFullBoardVisualState();
+        }
+        if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
+            UIManager.updateAllUIDisplays();
+        }
+        // --- FIN DE LA SOLUCIÓN ---
+
+        // 2. Retransmitimos el estado, que ahora sabemos que es correcto.
         NetworkManager.broadcastFullState();
     } else {
         // Tu log de advertencia original, que es muy útil, se mantiene.
