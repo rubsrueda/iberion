@@ -1153,7 +1153,6 @@ function populateUnitDetailList(unit) {
     // <<== Comprobamos si la unidad es del jugador actual para el "modo consulta" ==>>
     const isOwnUnit = unit.player === gameState.currentPlayer;
 
-    // --- INICIO DE LA SOLUCIÓN ---
     unit.regiments.forEach(reg => {
         const regData = REGIMENT_TYPES[reg.type];
         if (!regData) return;

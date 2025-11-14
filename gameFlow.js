@@ -1610,9 +1610,20 @@ async function handleEndTurn(isHostProcessing = false) {
                     playerRes.comida -= unitConsumption;
                     foodActuallyConsumed += unitConsumption;
                 } else {
+                    // --- INICIO DE LA MODIFICACIÓN DE DEBUG ---
+                    const healthBefore = unit.currentHealth;
+                    const regHealthBefore = unit.regiments.map(r => r.health); // Capturamos la salud de todos los regimientos
+
                     unit.currentHealth -= (ATTRITION_DAMAGE_PER_TURN || 1);
                     unitsSufferingAttrition++;
                     logMessage(`¡${unit.name} sufre atrición!`);
+
+                    console.log(`%c[DEBUG ATRICIÓN] Unidad: ${unit.name}`, 'background: red; color: white;');
+                    console.log(`  - Salud Total: ${healthBefore} -> ${unit.currentHealth}`);
+                    console.log(`  - Salud Regimientos (Antes): [${regHealthBefore.join(', ')}]`);
+                    console.log(`  - Salud Regimientos (Después): [${unit.regiments.map(r => r.health).join(', ')}]`);
+                    // --- FIN DE LA MODIFICACIÓN DE DEBUG ---
+
                     if (unit.currentHealth <= 0) unitsDestroyedByAttrition.push(unit.id);
                     else if (UIManager) UIManager.updateUnitStrengthDisplay(unit);
                 }
