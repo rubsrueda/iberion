@@ -1678,9 +1678,8 @@ function executeConfirmedAction(action) {
         case 'disbandUnit': 
             const unitToDisband = units.find(u => u.id === payload.unitId); 
             if (unitToDisband) {
-                // Llama a la nueva función de ejecución pura, que no tiene confirm()
-                // Usamos await porque la función es async
-                actionExecuted = await _executeDisbandUnit(unitToDisband);
+                // Ahora llamamos a la función síncrona
+                actionExecuted = _executeDisbandUnit(unitToDisband); // <<== Se quita 'await'
             }
             break;
         case 'buildStructure': 
