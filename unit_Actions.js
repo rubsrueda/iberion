@@ -2521,29 +2521,6 @@ function RequestPillageAction() {
     }
 }
 
-function RequestDisbandUnit(unitToDisband) {
-    if (!unitToDisband) return;
-    // Generar ID único para esta acción (para deduplicación en el anfitrión)
-    const actionId = `disband_${unitToDisband.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const action = { type: 'disbandUnit', actionId: actionId, payload: { playerId: unitToDisband.player, unitId: unitToDisband.id }};
-    if (isNetworkGame()) {
-        if (NetworkManager.esAnfitrion) {
-            processActionRequest(action);
-        } else {
-            NetworkManager.enviarDatos({ type: 'actionRequest', action });
-        }
-    } else {
-        const goldToRefund = Math.floor((unitToDisband.cost?.oro || 0) * 0.5);
-        if (gameState.playerResources[unitToDisband.player]) {
-            gameState.playerResources[unitToDisband.player].oro += goldToRefund;
-        }
-        handleUnitDestroyed(unitToDisband, null);
-    }
-    // La limpieza de la UI se hace en ambos casos, después de la acción de red o local
-    if (domElements.unitDetailModal) domElements.unitDetailModal.style.display = 'none';
-    if (UIManager) UIManager.hideContextualPanel();
-}
-
 function RequestUndoLastUnitMove(unit) {
     if (!unit) return;
     // Generar ID único para esta acción (para deduplicación en el anfitrión)
@@ -3241,6 +3218,54 @@ function processRuinEvent(event, unit, playerResources) {
     // Actualizamos toda la UI para reflejar los cambios de recursos, salud, etc.
     if(UIManager) UIManager.updateAllUIDisplays();
 }
+
+/**
+ * [Función de Ejecución] Lógica pura para disolver una unidad.
+ * @param {object} unitToDisband - La unidad a disolver.
+ */
+async function _executeDisbandUnit(unitToDisband) {
+    if (!unitToDisband) return false;
+
+    // 1. Calcular y devolver recursos
+    const goldToRefund = Math.floor((unitToDisband.cost?.oro || 0) * 0.5);
+    if (gameState.playerResources[unitToDisband.player]) {
+        gameState.playerResources[unitToDisband.player].oro += goldToRefund;
+        logMessage(`Jugador ${unitToDisband.player} recupera ${goldToRefund} de oro por disolver "${unitToDisband.name}".`);
+    }
+
+    // 2. Destruir la unidad (usamos await para asegurar que se completa)
+    await handleUnitDestroyed(unitToDisband, null);
+
+    // 3. Limpieza de UI (se ejecutará en el Host, pero no hace daño)
+    if (domElements.unitDetailModal) domElements.unitDetailModal.style.display = 'none';
+    if (UIManager) UIManager.hideContextualPanel();
+    
+    return true; // Indicar que la acción fue exitosa
+}
+
+function RequestDisbandUnit(unitToDisband) {
+    if (!unitToDisband) return;
+
+    const actionId = `disband_${unitToDisband.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const action = { 
+        type: 'disbandUnit', 
+        actionId: actionId, 
+        payload: { playerId: unitToDisband.player, unitId: unitToDisband.id }
+    };
+
+    if (isNetworkGame()) {
+        if (NetworkManager.esAnfitrion) {
+            processActionRequest(action);
+        } else {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action });
+        }
+    } else {
+        // Para juego local, llama directamente a la nueva función de ejecución.
+        _executeDisbandUnit(unitToDisband);
+    }
+    // La limpieza de UI ahora se hace dentro de _executeDisbandUnit
+}
+
 
 console.log("unit_Actions.js se ha cargado.");
 
