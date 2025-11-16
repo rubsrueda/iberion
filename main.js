@@ -1677,10 +1677,10 @@ function executeConfirmedAction(action) {
             break;
         case 'disbandUnit': 
             const unitToDisband = units.find(u => u.id === payload.unitId); 
-            if (unitToDisband) {
+            //if (unitToDisband) {
                 // Ahora llamamos a la función síncrona
-                actionExecuted = _executeDisbandUnit(unitToDisband); // <<== Se quita 'await'
-            }
+                //actionExecuted = _executeDisbandUnit(unitToDisband); // <<== Se quita 'await'
+            //}
             break;
         case 'buildStructure': 
             handleConfirmBuildStructure(payload); 
@@ -1995,6 +1995,7 @@ async function processActionRequest(action) { // <<== async
             }
             gameState.preparingAction = null; 
             break;
+
         case 'pillageHex': 
             const pillager = units.find(u => u.id === payload.unitId); 
             if(pillager) {
@@ -2004,11 +2005,14 @@ async function processActionRequest(action) { // <<== async
                 actionExecuted = true;
             }
             break;
+            
         case 'disbandUnit': 
             const unitToDisband = units.find(u => u.id === payload.unitId); 
             if(unitToDisband){
-                handleDisbandUnit(unitToDisband);
-                actionExecuted = true;
+                //_executeDisbandUnit(unitToDisband); 
+                //actionExecuted = true;
+                actionExecuted = await _executeDisbandUnit(unitToDisband);
+                
              }
              break;
 
