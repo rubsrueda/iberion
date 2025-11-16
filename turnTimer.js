@@ -53,21 +53,30 @@ const TurnTimerManager = {
             this.stop();
             
             // Si NO es un juego de red, o si SÍ es un juego de red Y YO soy el anfitrión...
-            if (!isNetworkGame() || NetworkManager.esAnfitrion) {
-                
-                console.log("[TIMER] ¡Tiempo agotado! Forzando fin de turno (Local o Anfitrión).");
-                
-                // ...entonces tengo la autoridad para llamar a handleEndTurn().
-                if (typeof handleEndTurn === 'function') {
-                    handleEndTurn();
-                } else {
-                    console.error("TurnTimerManager: handleEndTurn() no disponible para forzar el fin de turno.");
-                }
+                if (!isNetworkGame() || NetworkManager.esAnfitrion) {
+                    
+                    console.log("[TIMER] ¡Tiempo agotado! Forzando fin de turno (Local o Anfitrión).");
+                    
+                    // El Anfitrión y el juego local tienen autoridad para llamar a handleEndTurn directamente.
+                    if (typeof handleEndTurn === 'function') {
+                        handleEndTurn();
+                    } else {
+                        console.error("TurnTimerManager: handleEndTurn() no disponible para forzar el fin de turno.");
+                    }
 
-            } else {
-                // Si estoy en un juego de red pero NO soy el anfitrión, simplemente informo y espero.
-                console.log("[TIMER] ¡Tiempo agotado! Soy un Cliente, esperando la orden del Anfitrión.");
-            }
+                } else {
+                    // Si soy un CLIENTE en un juego de red...
+                    console.log("[TIMER] ¡Tiempo agotado! Soy un Cliente, enviando petición de fin de turno al Anfitrión.");
+                    
+                    // 1. Crear la acción de fin de turno.
+                    const endTurnAction = { 
+                        type: 'endTurn', 
+                        payload: { playerId: gameState.myPlayerNumber } 
+                    };
+                    
+                    // 2. Enviar la petición al Anfitrión.
+                    NetworkManager.enviarDatos({ type: 'actionRequest', action: endTurnAction });
+                }
         }
         }, 1000);
     },
