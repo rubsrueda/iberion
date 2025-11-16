@@ -1780,6 +1780,7 @@ setInterval(() => {
 async function processActionRequest(action) { // <<== async
     // DIAGNÓSTICO: Log explícito de la acción recibida
     console.log(`%c[processActionRequest] Acción recibida: ${action.type}`, 'background: #4169E1; color: white; font-weight: bold;');
+    console.log(`%c[DIAGNÓSTICO DE TURNO] Al recibir la acción '${action.type}', el estado actual del juego en el anfitrión es: gameState.currentPlayer = ${gameState.currentPlayer}`, 'background: orange; color: black; font-size: 1.1em;');
     console.log(`  - actionId presente: ${!!action.actionId}`);
     if (action.actionId) {
         console.log(`  - actionId valor: ${action.actionId}`);
