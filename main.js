@@ -2005,8 +2005,9 @@ async function processActionRequest(action) { // <<== async
                 actionExecuted = true;
             }
             break;
-            
+
         case 'disbandUnit': 
+            console.log("[TRACE] Entrando en 'case disbandUnit'. A punto de llamar a _executeDisbandUnit.");
             const unitToDisband = units.find(u => u.id === payload.unitId); 
             if(unitToDisband){
                 //_executeDisbandUnit(unitToDisband); 
@@ -2164,6 +2165,22 @@ function reconstruirJuegoDesdeDatos(datos) {
         UIManager.updateAllUIDisplays();
         UIManager.updateTurnIndicatorAndBlocker();
 
+        // Después de sincronizar todo, iniciamos el temporizador si es necesario.
+        
+        // 1. Detenemos cualquier temporizador anterior para evitar duplicados.
+        if (typeof TurnTimerManager !== 'undefined' && TurnTimerManager.stop) {
+            TurnTimerManager.stop();
+        }
+
+        // 2. Comprobamos si el jugador actual en el NUEVO estado del juego es humano.
+        const isCurrentPlayerHuman = gameState.playerTypes[`player${gameState.currentPlayer}`] === 'human';
+
+        // 3. Si es humano y el temporizador está disponible, lo iniciamos.
+        if (isCurrentPlayerHuman && typeof TurnTimerManager !== 'undefined' && TurnTimerManager.start) {
+            console.log(`[CLIENTE SYNC] Turno de jugador humano (Jugador ${gameState.currentPlayer}). Iniciando temporizador.`);
+            TurnTimerManager.start(gameState.turnDurationSeconds);
+        }
+        
         if (typeof initializeBoardPanning === "function") {
             initializeBoardPanning();
             // Comprobamos si alguna pantalla importante (como el árbol tecnológico) está abierta.
