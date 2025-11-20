@@ -926,6 +926,11 @@ function isValidAttack(attacker, defender) {
  * @param {object} defenderDivision - La división que es atacada.
 **/
 async function attackUnit(attackerDivision, defenderDivision) {
+
+    //audio
+    if (typeof AudioManager !== 'undefined') {
+        AudioManager.playSound('attack_swords');
+    }
     console.log(`%c[VIAJE-DESTINO FINAL] La función de combate 'attackUnit' ha sido ejecutada. Atacante: ${attackerDivision.name}, Defensor: ${defenderDivision.name}`, 'background: #222; color: #bada55; font-size: 1.2em; font-weight: bold;');
     // <<== LLAMADA AL CRONISTA ==>>
     if (gameState.isTutorialActive && typeof TutorialManager !== 'undefined') {
@@ -960,11 +965,29 @@ async function attackUnit(attackerDivision, defenderDivision) {
         if (!attackerDivision || !defenderDivision) return;
         logMessage(`¡COMBATE! ${attackerDivision.name} (J${attackerDivision.player}) vs ${defenderDivision.name} (J${defenderDivision.player})`);
         
-        // <<== INICIO DE LA CORRECCIÓN DE FLANQUEO ==>>
+        // <<== FLANQUEO ==>>
         // 1. Llamar a la función de detección de flanqueo ANTES de cualquier cálculo de daño.
         // Le pasamos el defensor y el atacante principal.
         applyFlankingPenalty(defenderDivision, attackerDivision);
-        // <<== FIN DE LA CORRECCIÓN DE FLANQUEO ==>>
+
+        // --- MODIFICACIÓN DE INTEGRIDAD ---
+        const defenderHex = board[defenderDivision.r]?.[defenderDivision.c];
+
+        console.log(`[DEBUG INTEGRIDAD] Verificando hexágono del defensor (${defenderDivision.r}, ${defenderDivision.c}). Contenido:`, JSON.parse(JSON.stringify(defenderHex)));
+        let battleIntegrity = 0;
+        
+        if (defenderHex && defenderHex.structure) {
+            const structureData = STRUCTURE_TYPES[defenderHex.structure];
+            // Comprueba si la ESTRUCTURA en sí misma tiene un valor de integridad.
+            if (structureData && structureData.integrity > 0) {
+                // Usa la integridad actual del hex si existe, si no, usa el valor máximo por defecto.
+                battleIntegrity = defenderHex.currentIntegrity ?? structureData.integrity;
+                
+                if (battleIntegrity > 0) {
+                    logMessage(`¡La estructura defensiva (${defenderHex.structure}) aporta +${battleIntegrity} de defensa!`);
+                }
+            }
+        }
 
         console.group(`--- ANÁLISIS DE COMBATE ---`);
 
@@ -1083,12 +1106,12 @@ async function attackUnit(attackerDivision, defenderDivision) {
         const liveDefendersInitial = defenderDivision.regiments.filter(r => r.health > 0);
         
         liveAttackersInitial.forEach((attackerReg, index) => {
-            const target = liveDefendersInitial[index % liveDefendersInitial.length];
-            targetAssignments.set(attackerReg.logId, target);
+                const target = liveDefendersInitial[index % liveDefendersInitial.length];
+                targetAssignments.set(attackerReg.logId, target);
         });
         liveDefendersInitial.forEach((defenderReg, index) => {
-            const target = liveAttackersInitial[index % liveAttackersInitial.length];
-            targetAssignments.set(defenderReg.logId, target);
+                const target = liveAttackersInitial[index % liveAttackersInitial.length];
+                targetAssignments.set(defenderReg.logId, target);
         });
 
         for (const action of actionQueue) {
@@ -1103,24 +1126,30 @@ async function attackUnit(attackerDivision, defenderDivision) {
             if (!targetRegiment || targetRegiment.health <= 0) {
                 const newTarget = selectTargetRegiment(opposingDivision);
                 if (newTarget) {
-                    applyDamage(regiment, newTarget, division, opposingDivision);
+                    // La llamada a applyDamage DEBE estar aquí dentro
+                    console.log(`[DEBUG] Llamando a applyDamage (newTarget). battleIntegrity = ${battleIntegrity}`);
+                    applyDamage(regiment, newTarget, division, opposingDivision, battleIntegrity, defenderHex);
                     recalculateUnitHealth(opposingDivision);
                     if (UIManager) UIManager.updateUnitStrengthDisplay(opposingDivision);
                 }
             } else {
                 // Si el objetivo fijo sigue vivo, lo ataca
+                console.log(`[DEBUG] Llamando a applyDamage (newTarget). battleIntegrity = ${battleIntegrity}`);
                 await new Promise(resolve => setTimeout(resolve, 100));
-                applyDamage(regiment, targetRegiment, division, opposingDivision);
-            // La actualización de salud ahora se hace dentro de applyDamage, pero
-            // recalcular la salud total de la división aquí sigue siendo una buena práctica.
-            recalculateUnitHealth(opposingDivision);
-            if (UIManager) UIManager.updateUnitStrengthDisplay(opposingDivision);
-        }
-        }
+                applyDamage(regiment, targetRegiment, division, opposingDivision, battleIntegrity, defenderHex);
+                
+                if (defenderHex && defenderHex.currentIntegrity <= 0) {
+                    battleIntegrity = 0;
+                }
+                 // La actualización de salud ahora se hace dentro de applyDamage, pero
+                // recalcular la salud total de la división aquí sigue siendo una buena práctica.
+                recalculateUnitHealth(opposingDivision);
+                    if (UIManager) UIManager.updateUnitStrengthDisplay(opposingDivision);
+                }
+            }
         console.groupEnd();
 
-        // === FASE DE RESOLUCIÓN FINAL (RESTAURADA Y MEJORADA) =====
-        
+        // === FASE DE RESOLUCIÓN FINAL =====
         console.group("--- RESULTADOS DEL COMBATE ---");
 
         recalculateUnitHealth(attackerDivision);
@@ -1167,7 +1196,7 @@ async function attackUnit(attackerDivision, defenderDivision) {
             if(defenderDestroyed){
                 const moraleGain = 15;
                 attackerDivision.morale = Math.min(attackerDivision.maxMorale, (attackerDivision.morale || 50) + moraleGain);
-        }
+            }
         }
         
         if (!defenderDestroyed) {
@@ -1330,7 +1359,7 @@ function calculateRegimentStats(unit) {
  * considerando todos los modificadores (terreno, moral, experiencia, desgaste, etc.)
  * y generando logs detallados para cada paso.
  */
-function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetDivision) {
+function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetDivision, battleIntegrity, defenderHex) {
     // 1. OBTENCIÓN DE DATOS BASE
     const attackerData = REGIMENT_TYPES[attackerRegiment.type];
     const targetData = REGIMENT_TYPES[targetRegiment.type];
@@ -1511,12 +1540,22 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
     // Modificador de Ataque (salud)
     totalAttack *= (attackerRegiment.health / attackerData.health);
     console.log(`Ataque Final (mod. salud): ${totalAttack.toFixed(1)}`);
-    let finalDefense = totalDefense; // Renombramos para claridad
-    console.log(`Defensa Final (mod. situacionales): ${finalDefense.toFixed(1)}`);
-
+    
+    
     // ====================================================================
     // --- RESOLUCIÓN FINAL  ---
     // ====================================================================
+
+    // Añadimos el bono de integridad a la defensa total del regimiento.
+    if (battleIntegrity > 0) {
+        totalDefense += battleIntegrity;
+        console.log(`Defensa con Bonus de Integridad: +${battleIntegrity} -> ${totalDefense.toFixed(1)}`);
+    }
+
+    finalDefense = totalDefense; // Renombramos para claridad
+    console.log(`Defensa Final (mod. situacionales): ${finalDefense.toFixed(1)}`);
+    
+    // --- SECCIÓN DE RESOLUCIÓN FINAL (CON EL CAMBIO) ---
     console.log(`%c--- RESOLUCIÓN FINAL ---`, 'color: lightgreen;');
     let rawDamage = totalAttack - finalDefense;
     let damageDealt;
@@ -1528,9 +1567,35 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
     }
 
     console.log(`Daño Bruto: ${rawDamage.toFixed(1)} -> Daño Aplicado: ${damageDealt}`);
-    
+
+    // --- LÓGICA DE DAÑO A ESTRUCTURA (SOLO UNIDADES DE ASEDIO) ---
+    const isSiegeUnit = (attackerData.abilities || []).includes("Asedio");
+    if (isSiegeUnit && defenderHex && defenderHex.currentIntegrity > 0) {
+        const damageToStructure = damageDealt;
+        defenderHex.currentIntegrity = Math.max(0, defenderHex.currentIntegrity - damageToStructure);
+        console.log(`%c¡Unidad de Asedio! Daño a estructura: ${damageToStructure}. Integridad permanente: ${defenderHex.currentIntegrity}`, 'color: orange;');
+        
+        showFloatingDamage({element: defenderHex.element}, damageToStructure);
+
+        if (defenderHex.currentIntegrity <= 0) {
+            logMessage(`¡La ${defenderHex.structure} ha sido destruida!`, 'success');
+            defenderHex.structure = null;
+            defenderHex.feature = 'ruins';
+            if (typeof renderSingleHexVisuals === 'function') {
+                renderSingleHexVisuals(defenderHex.r, defenderHex.c);
+            }
+        }
+    }
+
+    // --- APLICACIÓN DE DAÑO AL REGIMIENTO ---
     const actualDamage = Math.min(targetRegiment.health, damageDealt);
     targetRegiment.health -= actualDamage;
+
+    console.log(`%c>> DAÑO AL REGIMIENTO: ${actualDamage}. Salud restante: ${targetRegiment.health}`, 'background: #333; color: #ff9999;');
+    if (!isSiegeUnit) { // Solo mostrar el daño a la unidad si no es de asedio (para no duplicar números)
+        showFloatingDamage(targetDivision, actualDamage);
+    }
+    
     targetRegiment.hitsTakenThisRound = (targetRegiment.hitsTakenThisRound || 0) + 1;
 
     console.log(`%c>> DAÑO REAL: ${actualDamage}. Salud restante: ${targetRegiment.health}`, 'background: #333; color: #ff9999;');
@@ -1846,6 +1911,12 @@ function applyFlankingPenalty(targetUnit, mainAttacker) {
 }
 
 async function handleUnitDestroyed(destroyedUnit, victorUnit) {
+
+    // audio
+    if (typeof AudioManager !== 'undefined') {
+        AudioManager.playSound('unit_destroyed');
+    }
+
     if (!destroyedUnit) {
         console.warn("[handleUnitDestroyed] Intento de destruir una unidad nula.");
         return;
@@ -1923,10 +1994,18 @@ async function handleUnitDestroyed(destroyedUnit, victorUnit) {
         checkAndApplyLevelUp(victorUnit);
 
         // 2. Recompensa de Oro por la victoria (Intacto)
-        const goldGained = REGIMENT_TYPES[destroyedUnit.regiments[0]?.type]?.goldValueOnDestroy || 10;
+        let goldGained = REGIMENT_TYPES[destroyedUnit.regiments[0]?.type]?.goldValueOnDestroy || 10;
+ 
+        // Si la unidad destruida era una caravana, roba el oro que transportaba.
+        if (destroyedUnit.tradeRoute && destroyedUnit.tradeRoute.goldCarried > 0) {
+            const stolenGold = destroyedUnit.tradeRoute.goldCarried;
+            goldGained += stolenGold;
+            logMessage(`¡Además, ${victorUnit.name} saquea ${stolenGold} de oro de la caravana!`, "success");
+        }
+
         if (goldGained > 0 && gameState.playerResources[victorUnit.player]) {
             gameState.playerResources[victorUnit.player].oro += goldGained;
-            logMessage(`${victorUnit.name} obtiene ${goldGained} de oro por saquear los restos.`);
+            logMessage(`${victorUnit.name} obtiene un total de ${goldGained} de oro por la victoria.`);
         }
         
         // 3. Recompensas de Perfil (Libros y Fragmentos con Probabilidad Aumentada)
@@ -2283,6 +2362,7 @@ function _executePillageAction(pillagerUnit) {
 }
 
 function handleDisbandUnit(unitToDisband) {
+    console.log("%c[TRACE] La función 'handleDisbandUnit' (la que tiene el 'confirm') ha sido llamada.", "color: red; font-weight: bold;");
     if (!unitToDisband) return;
 
     const confirmationMessage = `¿Estás seguro de que quieres disolver "${unitToDisband.name}"? Se recuperará el 50% de su coste en oro.`;
@@ -2580,6 +2660,14 @@ function _executeAssignGeneral(payload) {
  * @private
  */
 async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
+    
+    // Prohibir a cualquier unidad entrar en la ciudad de La Banca.
+    const targetHexIsBank = board[toR]?.[toC]?.owner === BankManager.PLAYER_ID;
+    if (targetHexIsBank) {
+        logMessage("La ciudad de La Banca es territorio neutral y no se puede entrar.", "warning");
+        return; // Detiene el movimiento
+    }
+    
     console.log(`[MOVIMIENTO] Ejecutando _executeMoveUnit para ${unit.name} a (${toR},${toC}). Es fusión: ${isMergeMove}`);
 
     const targetUnitOnHex = getUnitOnHex(toR, toC);
@@ -2673,6 +2761,7 @@ function handleConfirmBuildStructure(actionData) {
     // usa las variables globales como antes.
     console.log(`%c[handleConfirmBuildStructure] INICIO.`, "background: #222; color: #bada55");
     
+
     // Este booleano es crucial para distinguir entre una acción del jugador (a través del modal) y una acción de la IA.
     const isPlayerAction = !actionData;
     
@@ -2696,10 +2785,25 @@ function handleConfirmBuildStructure(actionData) {
     // Validación de costes
     console.log("   -> Fase: Validando costes...");
     for (const res in data.cost) {
-        if ((playerRes[res] || 0) < data.cost[res]) {
-            console.error(`      -> DIAGNÓSTICO: FALLO. No hay suficientes ${res}. Necesita ${data.cost[res]}, tiene ${playerRes[res] || 0}.`);
-            if (isPlayerAction) logMessage(`Error: No tienes suficientes ${res}.`);
-            return; // Detiene si no se puede pagar
+        if (res === 'Colono') {
+            // --- INICIO DE LA SOLUCIÓN ---
+            // Lógica especial para validar la presencia de una unidad Colono.
+            const unitOnHex = getUnitOnHex(r, c);
+            const tieneRegimientoColono = unitOnHex?.regiments.some(reg => reg.type === 'Colono');
+
+            if (!unitOnHex || !tieneRegimientoColono || unitOnHex.player !== playerId) {
+                console.error(`      -> DIAGNÓSTICO: FALLO. Requisito de Colono en (${r},${c}) no cumplido.`);
+                if (isPlayerAction) logMessage(`Error: Se requiere una unidad Colono en la casilla.`);
+                return; // Detiene si no hay un Colono válido
+            }
+            // --- FIN DE LA SOLUCIÓN ---
+        } else {
+            // Lógica normal para los demás recursos.
+            if ((playerRes[res] || 0) < data.cost[res]) {
+                console.error(`      -> DIAGNÓSTICO: FALLO. No hay suficientes ${res}. Necesita ${data.cost[res]}, tiene ${playerRes[res] || 0}.`);
+                if (isPlayerAction) logMessage(`Error: No tienes suficientes ${res}.`);
+                return; // Detiene si no se puede pagar
+            }
         }
     }
 
@@ -2716,8 +2820,40 @@ function handleConfirmBuildStructure(actionData) {
         }
     }
 
+    
+    // AUDIO
+    if (typeof AudioManager !== 'undefined') {
+        AudioManager.playSound('structure_built');
+    }
+
     // Construir la estructura lógicamente
     board[r][c].structure = structureType;
+
+    if (data.isCity) {
+        board[r][c].isCity = true;
+    }
+
+    if (board[r][c].isCity) {
+        const cityExists = gameState.cities.some(city => city.r === r && city.c === c);
+        if (!cityExists) {
+            gameState.cities.push({
+                r: r,
+                c: c,
+                owner: playerId,
+                name: data.name, // Usamos el nombre de la definición de la estructura
+                isCapital: false // Las estructuras construidas no son capitales por defecto
+            });
+        }
+    }
+
+    // Si la estructura tiene integridad, la inicializamos en el hexágono.
+    if (data.integrity) {
+        board[r][c].currentIntegrity = data.integrity;
+    } else {
+        // Si no, nos aseguramos de que no haya un valor antiguo.
+        delete board[r][c].currentIntegrity;
+    }
+    
     logMessage(`${data.name} construido en (${r},${c}) para el Jugador ${playerId}.`);
 
     // El redibujado
@@ -2844,17 +2980,58 @@ function consolidateRegiments(unit) {
 
 /**
  * Encuentra la ruta óptima desde un punto de inicio a un destino usando el algoritmo A*.
- * Esta función es "inteligente": puede rodear obstáculos y considera el coste del terreno.
- * @param {object} unit - La unidad que se mueve (real o "fantasma").
+ * Puede operar en modo normal (terreno) o en modo infraestructura (solo caminos/ciudades).
+ * @param {object} unit - La unidad que se mueve (puede ser "fantasma").
  * @param {object} startCoords - Las coordenadas de inicio {r, c}.
  * @param {object} targetCoords - Las coordenadas de destino {r, c}.
+ * @param {object} [pathOptions={}] - Opciones para el pathfinding.
+ * @param {boolean} [pathOptions.infrastructureOnly=false] - Si es true, solo busca por hexágonos con estructuras.
  * @returns {Array|null} - Un array de coordenadas de la ruta, o null si no se encontró.
+ */
+/**
+ * (NUEVA FUNCIÓN) Encuentra una ruta usando solo hexágonos con infraestructura.
+ */
+function findInfrastructurePath(startCoords, targetCoords) {
+    let queue = [ { ...startCoords, path: [startCoords] } ];
+    let visited = new Set([`${startCoords.r},${startCoords.c}`]);
+
+    while (queue.length > 0) {
+        let current = queue.shift();
+
+        if (current.r === targetCoords.r && current.c === targetCoords.c) {
+            return current.path; // RUTA ENCONTRADA
+        }
+
+        for (const neighbor of getHexNeighbors(current.r, current.c)) {
+            const key = `${neighbor.r},${neighbor.c}`;
+            if (visited.has(key)) continue;
+
+            const hex = board[neighbor.r]?.[neighbor.c];
+            
+            // --- INICIO DE LA CORRECCIÓN ---
+            // La condición ahora solo comprueba si el hexágono tiene infraestructura.
+            // IGNORA si hay una unidad en él.
+            if (hex && (hex.structure || hex.isCity)) {
+            // --- FIN DE LA CORRECCIÓN ---
+                visited.add(key);
+                const newPath = [...current.path, neighbor];
+                queue.push({ ...neighbor, path: newPath });
+            }
+        }
+    }
+    
+    return null; // RUTA NO ENCONTRADA
+}
+
+/**
+ * (TU FUNCIÓN ORIGINAL, AHORA SIN LA LÓGICA DE INFRAESTRUCTURA)
+ * Encuentra la ruta óptima para unidades militares.
  */
 function findPath_A_Star(unit, startCoords, targetCoords) {
     if (!unit || !startCoords || !targetCoords) return null;
 
     const hasJumpAbility = unit.regiments.some(reg => 
-        REGIMENT_TYPES[reg.type]?.abilities?.includes("Jump")
+        (REGIMENT_TYPES[reg.type]?.abilities || []).includes("Jump")
     );
 
     let openSet = [ { ...startCoords, g: 0, h: hexDistance(startCoords.r, startCoords.c, targetCoords.r, targetCoords.c), f: 0, path: [startCoords] } ];
@@ -2863,12 +3040,11 @@ function findPath_A_Star(unit, startCoords, targetCoords) {
     let visited = new Set([`${startCoords.r},${startCoords.c}`]);
 
     while (openSet.length > 0) {
-        // Encontrar el nodo en openSet con el menor fScore
         openSet.sort((a, b) => a.f - b.f);
         let current = openSet.shift();
 
         if (current.r === targetCoords.r && current.c === targetCoords.c) {
-            return current.path; // RUTA ENCONTRADA
+            return current.path;
         }
 
         for (const neighbor of getHexNeighbors(current.r, current.c)) {
@@ -2880,11 +3056,13 @@ function findPath_A_Star(unit, startCoords, targetCoords) {
             
             const unitOnNeighbor = hex.unit;
             let canPassThrough = false;
+
+            if (!unitOnNeighbor) {
+                canPassThrough = true;
+            } else if (unitOnNeighbor.player === unit.player && hasJumpAbility) {
+                canPassThrough = true;
+            }
             
-            if (!unitOnNeighbor) { canPassThrough = true; } 
-            else if (unitOnNeighbor.player === unit.player && hasJumpAbility) { canPassThrough = true; }
-            
-            // Un movimiento NUNCA puede terminar en una casilla ocupada
             if (neighbor.r === targetCoords.r && neighbor.c === targetCoords.c && unitOnNeighbor) {
                 canPassThrough = false;
             }
@@ -2901,7 +3079,7 @@ function findPath_A_Star(unit, startCoords, targetCoords) {
         }
     }
     
-    return null; // RUTA NO ENCONTRADA
+    return null;
 }
 
 function cancelPreparingAction() {
@@ -3224,6 +3402,7 @@ function processRuinEvent(event, unit, playerResources) {
  * @param {object} unitToDisband - La unidad a disolver.
  */
 async function _executeDisbandUnit(unitToDisband) {
+    console.log("%c[TRACE] La función '_executeDisbandUnit' (la de ejecución pura) ha sido llamada.", "color: green; font-weight: bold;");
     if (!unitToDisband) return false;
 
     // 1. Calcular y devolver recursos
@@ -3266,6 +3445,101 @@ function RequestDisbandUnit(unitToDisband) {
     // La limpieza de UI ahora se hace dentro de _executeDisbandUnit
 }
 
+/** comercio **/
+
+/**
+ * [Punto de Entrada UI] Inicia el proceso para establecer una ruta comercial.
+ */
+function requestEstablishTradeRoute() {
+    if (!selectedUnit) return;
+
+    // 1. Validaciones básicas
+    if (!selectedUnit.regiments.some(reg => (REGIMENT_TYPES[reg.type].abilities || []).includes("provide_supply"))) {
+        logMessage("Esta división no tiene capacidad de suministro para comerciar.", "warning");
+        return;
+    }
+    const currentHex = board[selectedUnit.r]?.[selectedUnit.c];
+    if (!currentHex || (!currentHex.structure && !currentHex.isCity)) {
+        logMessage("La ruta comercial debe iniciarse desde una ciudad o infraestructura.", "warning");
+        return;
+    }
+
+    // 2. Encontrar las ciudades conectadas
+    const connectedCities = findConnectedCities(selectedUnit.r, selectedUnit.c);
+    if (connectedCities.length < 2) {
+        logMessage("No se ha encontrado una ruta válida entre dos ciudades desde esta posición.", "warning");
+        return;
+    }
+
+    const cityA = connectedCities[0];
+    const cityB = connectedCities[1];
+
+    // 3. Confirmación del jugador
+    if (confirm(`¿Establecer una ruta comercial para "${selectedUnit.name}" entre ${cityA.name} y ${cityB.name}? La unidad se moverá automáticamente.`)) {
+        
+        const path = findPath_A_Star(selectedUnit, cityA, cityB);
+        if (!path) {
+            logMessage("No se pudo calcular la ruta.", "error");
+            return;
+        }
+
+        const actionPayload = {
+            unitId: selectedUnit.id,
+            origin: { r: cityA.r, c: cityA.c, name: cityA.name },
+            destination: { r: cityB.r, c: cityB.c, name: cityB.name },
+            path: path
+        };
+
+        // 4. Lógica de Red / Local
+        const action = { 
+            type: 'establishTradeRoute', 
+            actionId: `trade_${selectedUnit.id}_${Date.now()}`,
+            payload: { playerId: selectedUnit.player, ...actionPayload }
+        };
+
+        if (isNetworkGame()) {
+            if (NetworkManager.esAnfitrion) {
+                processActionRequest(action);
+            } else {
+                NetworkManager.enviarDatos({ type: 'actionRequest', action });
+            }
+        } else {
+            _executeEstablishTradeRoute(actionPayload);
+        }
+    }
+}
+
+/**
+ * [Función de Ejecución Pura] Aplica el estado de ruta comercial a una unidad.
+ */
+function _executeEstablishTradeRoute(payload) {
+    const { unitId, origin, destination, path } = payload;
+    const unit = units.find(u => u.id === unitId);
+    if (!unit) return false;
+
+    const cargoCapacity = unit.regiments.reduce((sum, reg) => {
+        return sum + (REGIMENT_TYPES[reg.type].cargoCapacity || 0);
+    }, 0);
+
+    unit.tradeRoute = {
+        origin: origin,
+        destination: destination,
+        path: path,
+        position: 0,
+        goldCarried: 0,
+        cargoCapacity: cargoCapacity,
+        forward: true // true = viajando de origen a destino
+    };
+
+    // La unidad ya no puede ser controlada manualmente
+    unit.hasMoved = true;
+    unit.hasAttacked = true;
+
+    logMessage(`¡"${unit.name}" ha comenzado una ruta comercial entre ${origin.name} y ${destination.name}!`);
+    if (UIManager) UIManager.hideContextualPanel();
+
+    return true;
+}
 
 console.log("unit_Actions.js se ha cargado.");
 

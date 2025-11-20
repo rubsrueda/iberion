@@ -44,6 +44,8 @@ domElements.startGameBtn = null;
 domElements.expandPanelBtn = null;
 domElements.floatingRazeBtn = null;
 domElements.floatingExploreRuinBtn = null;
+domElements.floatingTradeBtn = null;
+domElements.floatingStopTradeBtn = null;
 
 // NUEVO: Botones de la pantalla de configuración y lobby
 domElements.startLocalGameBtn = null;
@@ -160,6 +162,16 @@ domElements.startGameFromHelpBtn = null;
 domElements.setAsCapitalBtn = null;
 domElements.player1Civ = null;
 domElements.player2Civ = null;
+
+// --- Banca ---
+domElements.bankModal = null;
+domElements.closeBankModalBtn = null;
+domElements.bankOfferResourceSelect = null;
+domElements.bankOfferAmountInput = null;
+domElements.bankPlayerResourceAmount = null;
+domElements.bankRequestResourceSelect = null;
+domElements.bankRequestAmountInput = null;
+domElements.bankConfirmTradeBtn = null;
 
 domElements.floatingInboxBtn = null;
 domElements.inboxModal = null;
@@ -319,6 +331,8 @@ function initializeDomElements() {
     domElements.buildHexCoordsDisplay = document.getElementById('buildHexCoordsDisplay');
     domElements.availableStructuresListModalEl = document.getElementById('availableStructuresList');
     domElements.confirmBuildBtn = document.getElementById('confirmBuildBtn'); 
+    domElements.floatingTradeBtn = document.getElementById('floatingTradeBtn');
+    domElements.floatingStopTradeBtn = document.getElementById('floatingStopTradeBtn');
 
     // Inicialización de elementos del Modal de Confirmación de División SIMPLE (antiguo)
     domElements.splitUnitConfirmationModal = document.getElementById('splitUnitConfirmationModal');
@@ -359,6 +373,16 @@ function initializeDomElements() {
     domElements.unitDetailMorale = document.getElementById('unitDetailMorale');
     domElements.unitDetailXP = document.getElementById('unitDetailXP');
     domElements.disbandUnitBtn = document.getElementById('disbandUnitBtn');
+
+    // --- Banca ---
+    domElements.bankModal = document.getElementById('bankModal');
+    domElements.closeBankModalBtn = document.getElementById('closeBankModalBtn');
+    domElements.bankOfferResourceSelect = document.getElementById('bankOfferResourceSelect');
+    domElements.bankOfferAmountInput = document.getElementById('bankOfferAmountInput');
+    domElements.bankPlayerResourceAmount = document.getElementById('bankPlayerResourceAmount');
+    domElements.bankRequestResourceSelect = document.getElementById('bankRequestResourceSelect');
+    domElements.bankRequestAmountInput = document.getElementById('bankRequestAmountInput');
+    domElements.bankConfirmTradeBtn = document.getElementById('bankConfirmTradeBtn');
 
     //botones de acción flotantes
     domElements.floatingAssignGeneralBtn = document.getElementById('floatingAssignGeneralBtn'); // <<== Botón Asignar General    

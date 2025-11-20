@@ -1400,6 +1400,11 @@ let handleEndTurnCallCount = 0; // Se pondría fuera de la función
 
 async function handleEndTurn(isHostProcessing = false) {
 
+    //audio
+    if (typeof AudioManager !== 'undefined') {
+        AudioManager.playSound('turn_start');
+    }
+
     handleEndTurnCallCount++;
     console.error(`handleEndTurn ha sido llamada ${handleEndTurnCallCount} veces.`);
     
@@ -1529,14 +1534,15 @@ async function handleEndTurn(isHostProcessing = false) {
     } // --- SECCIÓN 2: LÓGICA DE FASE DE JUEGO ---
     else if (gameState.currentPhase === "play") {
         
-        // <<== CORRECCIÓN 1 de 2: Se ELIMINA la redeclaración de la variable aquí ==>>
-        // const playerEndingTurn = gameState.currentPlayer; // <<== ESTA LÍNEA SE HA ELIMINADO
 
-        // A. Tareas de MANTENIMIENTO del jugador que TERMINA el turno (igual que antes)
+        // A. Tareas de MANTENIMIENTO del jugador que TERMINA el turno
         updateTerritoryMetrics(playerEndingTurn);
         collectPlayerResources(playerEndingTurn); 
         handleUnitUpkeep(playerEndingTurn);
         handleHealingPhase(playerEndingTurn);
+
+        updateTradeRoutes(playerEndingTurn); // Mueve las caravanas del jugador
+        
         const tradeGold = calculateTradeIncome(playerEndingTurn);
         if (tradeGold > 0) gameState.playerResources[playerEndingTurn].oro += tradeGold;
 
@@ -1555,6 +1561,11 @@ async function handleEndTurn(isHostProcessing = false) {
             if (nextPlayer === 1 && attempts === 0) { 
                 gameState.turnNumber++;
                 if (typeof Chronicle !== 'undefined') Chronicle.logEvent('turn_start');
+
+                // Justo aquí, cuando una ronda completa ha terminado, ejecutamos el turno de La Banca.
+                if (typeof BankManager !== 'undefined' && BankManager.executeTurn) {
+                    BankManager.executeTurn();
+                }
             }
             
             attempts++;
@@ -1713,3 +1724,104 @@ async function handleEndTurn(isHostProcessing = false) {
     }
 }
 
+/**
+ * Actualiza la posición y estado de todas las unidades en modo ruta comercial.
+ * @param {number} playerNum - El número del jugador cuyo turno está terminando.
+ */
+function updateTradeRoutes(playerNum) {
+    const tradeUnits = units.filter(u => u.player === playerNum && u.tradeRoute);
+    if (tradeUnits.length === 0) return;
+
+    if (playerNum === BankManager.PLAYER_ID) {
+        console.log(`[Banca] Moviendo ${tradeUnits.length} caravana(s)...`);
+    }
+
+    tradeUnits.forEach(unit => {
+        const route = unit.tradeRoute;
+        if (!route || !route.path || route.path.length === 0) {
+            console.warn(`Ruta comercial inválida para "${unit.name}". Se detiene la ruta.`);
+            delete unit.tradeRoute;
+            return;
+        }
+
+        let movesLeft = unit.movement;
+        while (movesLeft > 0) {
+            // Condición de parada 1: Ya ha llegado al final de su camino.
+            if (route.position >= route.path.length - 1) {
+                const destinationCity = route.destination;
+                const cityOwner = board[destinationCity.r]?.[destinationCity.c]?.owner;
+
+                if (cityOwner !== null && cityOwner !== BankManager.PLAYER_ID && route.goldCarried > 0) {
+                    gameState.playerResources[cityOwner].oro += route.goldCarried;
+                    logMessage(`La caravana "${unit.name}" entregó ${route.goldCarried} oro en ${destinationCity.name}.`);
+                }
+
+                // Curación y Recomposición al llegar
+                unit.currentHealth = unit.maxHealth;
+                unit.regiments.forEach(reg => reg.health = REGIMENT_TYPES[reg.type].health);
+
+                if (unit.player === BankManager.PLAYER_ID) {
+                    BankManager.recomposeCaravan(unit);
+                    logMessage(`La caravana de La Banca se ha reabastecido y recompuesto en ${destinationCity.name}.`);
+                } else {
+                    logMessage(`La caravana "${unit.name}" ha sido reabastecida en ${destinationCity.name}.`);
+                }
+
+                // Invertir ruta para el viaje de regreso
+                route.goldCarried = 0;
+                route.position = 0;
+                [route.origin, route.destination] = [route.destination, route.origin];
+                route.path = findInfrastructurePath(route.origin, route.destination);
+                
+                if (!route.path) {
+                    logMessage(`Ruta de regreso no encontrada para "${unit.name}". Se detiene el comercio.`);
+                    delete unit.tradeRoute;
+                    break; 
+                }
+                logMessage(`"${unit.name}" inicia viaje de regreso a ${route.destination.name}.`);
+            }
+
+            // Condición de parada 2: El siguiente paso está bloqueado.
+            const nextStepCoords = route.path[route.position + 1];
+            if (!nextStepCoords) { // Seguridad por si el path es corto
+                break;
+            }
+            const unitOnNextStep = getUnitOnHex(nextStepCoords.r, nextStepCoords.c);
+            // Si hay una unidad, no es la propia caravana, y NO es la casilla final del path
+            if (unitOnNextStep && unitOnNextStep.id !== unit.id && (route.position + 1 < route.path.length - 1)) {
+                 logMessage(`Caravana "${unit.name}" espera porque la ruta está bloqueada.`);
+                 break; // Detener el movimiento de esta caravana en este turno
+            }
+
+            // Si pasa las condiciones, avanza un paso
+            route.position++;
+            
+            const incomePerHex = GOLD_INCOME.PER_ROAD || 20;
+            if (route.goldCarried < route.cargoCapacity) {
+                route.goldCarried = Math.min(route.cargoCapacity, route.goldCarried + incomePerHex);
+            }
+            movesLeft--;
+        }
+        
+        // Actualizar la posición lógica de la unidad en el tablero
+        if (route.path && route.path[route.position]) {
+             const newCoords = route.path[route.position];
+             if (board[unit.r]?.[unit.c]?.unit?.id === unit.id) {
+                 board[unit.r][unit.c].unit = null;
+             }
+             unit.r = newCoords.r;
+             unit.c = newCoords.c;
+             if (board[unit.r]?.[unit.c]) {
+                 board[unit.r][unit.c].unit = unit;
+             }
+        }
+        
+        // Las unidades en ruta comercial siempre están listas para su siguiente movimiento automático
+        unit.hasMoved = false;
+        unit.hasAttacked = false;
+    });
+
+    if (UIManager && UIManager.renderAllUnitsFromData) {
+        UIManager.renderAllUnitsFromData();
+    }
+}

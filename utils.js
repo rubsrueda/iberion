@@ -434,4 +434,51 @@ function showToast(message, type = 'info', duration = 3000) {
     }, duration);
 }
 
+/**
+ * A partir de una posición en una ruta, busca en ambas direcciones para encontrar las dos ciudades conectadas.
+ * @param {number} startR - Fila inicial de la unidad.
+ * @param {number} startC - Columna inicial de la unidad.
+ * @returns {Array<object>} Un array con los dos objetos de ciudad encontrados, o un array vacío si no se encuentra una ruta válida.
+ */
+function findConnectedCities(startR, startC) {
+    const foundCities = new Map();
+
+    // Función de búsqueda BFS que se expande por toda la red conectada
+    const exploreNetwork = (r, c) => {
+        const queue = [{ r, c }];
+        const visited = new Set([`${r},${c}`]);
+
+        while (queue.length > 0) {
+            const current = queue.shift();
+            const currentHex = board[current.r]?.[current.c];
+
+            // Si el hexágono actual es una ciudad, la registramos.
+            if (currentHex && currentHex.isCity) {
+                const cityData = gameState.cities.find(city => city.r === current.r && city.c === current.c);
+                if (cityData && !foundCities.has(cityData.name)) {
+                    foundCities.set(cityData.name, cityData);
+                }
+            }
+
+            // Explorar vecinos
+            for (const neighbor of getHexNeighbors(current.r, current.c)) {
+                const key = `${neighbor.r},${neighbor.c}`;
+                const neighborHex = board[neighbor.r]?.[neighbor.c];
+                
+                // Condición para seguir la ruta: debe tener infraestructura y no haber sido visitado.
+                if (neighborHex && (neighborHex.structure || neighborHex.isCity) && !visited.has(key)) {
+                    visited.add(key);
+                    queue.push(neighbor);
+                }
+            }
+        }
+    };
+
+    // Iniciar la exploración de toda la red desde la posición inicial de la caravana.
+    exploreNetwork(startR, startC);
+
+    // Devolver las ciudades encontradas como un array.
+    return Array.from(foundCities.values());
+}
+
 console.log("utils.js se ha cargado.");

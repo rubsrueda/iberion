@@ -121,6 +121,29 @@ function generateProceduralMap(B_ROWS, B_COLS, resourceLevel) {
     if (capitalP1 && capitalP2) {
         ensurePathBetweenPoints({r: capitalP1.r, c: capitalP1.c}, {r: capitalP2.r, c: capitalP2.c}, 1);
     }
+
+    // --- INICIO COLOCAR LA BANCA ---
+    // 1. Encontrar una casilla céntrica y segura
+    const bankCityR = Math.floor(B_ROWS / 2);
+    let bankCityC = Math.floor(B_COLS / 2);
+    // Asegurarse de que no caiga en agua
+    while(board[bankCityR]?.[bankCityC]?.terrain === 'water') {
+        bankCityC++; // Desplazar hacia la derecha si es agua
+        if (bankCityC >= B_COLS) { bankCityC = Math.floor(B_COLS / 2) - 1; } // Volver si nos salimos
+    }
+
+    // 2. Definir la ciudad de La Banca
+    const bankCityName = "La Banca";
+    addCityToBoardData(bankCityR, bankCityC, BankManager.PLAYER_ID, bankCityName, true); // La marcamos como "capital" de la banca
+    const bankHex = board[bankCityR]?.[bankCityC];
+    if (bankHex) {
+        bankHex.terrain = 'plains'; // Forzar a que sea llanura
+        bankHex.structure = 'Metrópoli'; // Darle la apariencia de una gran ciudad
+        // Hacerla inconquistable (esto es una regla lógica, no una propiedad)
+        // Podríamos añadir una propiedad si queremos: bankHex.isUnconquerable = true;
+    }
+    logMessage(`¡La ciudad neutral de ${bankCityName} ha sido fundada en (${bankCityR}, ${bankCityC})!`);
+    // --- FIN DE LA Banca ---
     
     // --- 2. Colocar Recursos ---
     placeResourcesOnGeneratedMap(B_ROWS, B_COLS, resourceLevel);

@@ -2,6 +2,20 @@
 // Punto de entrada para la lógica de batalla táctica y listeners de UI táctica.
 
 function onHexClick(r, c) {
+
+    // Obtenemos los datos del hexágono en el que se hizo clic.
+    const hexDataClicked = board[r]?.[c];
+
+    // Si se hace clic en la ciudad de La Banca, abrir el modal de comercio y detener todo lo demás.
+    if (hexDataClicked && hexDataClicked.owner === BankManager.PLAYER_ID) {
+        if (typeof openBankModal === 'function') {
+            logMessage("Accediendo al Mercado de La Banca...");
+            openBankModal();
+        } else {
+            console.error("La función openBankModal no está definida.");
+        }
+        return; // Detiene la ejecución para no seleccionar la "unidad" o el hexágono.
+    }
    
     // --- GUARDIÁN DE TURNO LÓGICO ---
     // Este bloque es el primero que se ejecuta. Si es una partida en red
@@ -67,8 +81,7 @@ function onHexClick(r, c) {
         return;
     }
     
-    // Obtenemos los datos del hexágono en el que se hizo clic.
-    const hexDataClicked = board[r]?.[c];
+    
     if (!hexDataClicked) return;
     
     // Obtenemos la unidad que pueda estar en ese hexágono.
@@ -127,6 +140,13 @@ function showScreen(screenElement) {
 
 
 function initApp() {
+
+
+    // Precargar todos los sonidos al iniciar la aplicación
+    if (typeof AudioManager !== 'undefined' && AudioManager.preload) {
+        AudioManager.preload();
+    }
+
     console.log("main.js: DOMContentLoaded -> initApp INICIADO (Versión CORREGIDA con Cuentas).");
     // ======================================================================
     // 0. CORTAFUEGOS DE ESTADO DEL TUTORIAL
@@ -236,6 +256,11 @@ if (tutorialPanel && closeTutorialBtn) {
         const newGeneralNameDisplay = document.getElementById('currentGeneralName_main');
         if (newGeneralNameDisplay) newGeneralNameDisplay.textContent = PlayerDataManager.currentPlayer.username;
         if (domElements.currentGeneralName) domElements.currentGeneralName.textContent = PlayerDataManager.currentPlayer.username;
+    }
+
+    //audio
+    if (typeof AudioManager !== 'undefined') {
+        AudioManager.playMusic('menu_theme');
     }
 
     // Forzamos que se muestre directamente el nuevo menú principal
@@ -867,6 +892,12 @@ if (tutorialPanel && closeTutorialBtn) {
 
     // === LÓGICA DEL BOTÓN DE EMPEZAR PARTIDA LOCAL ===
     if (domElements.startLocalGameBtn && !domElements.startLocalGameBtn.hasListener) { 
+
+        // audio
+        if (typeof AudioManager !== 'undefined') {
+            AudioManager.playMusic('battle_theme');
+        }
+        
         domElements.startLocalGameBtn.addEventListener('click', () => { 
             console.log("main.js: Botón 'Empezar Partida (Local)' clickeado. Iniciando validación...");
             
@@ -2089,6 +2120,16 @@ async function processActionRequest(action) { // <<== async
                 _executeAssignGeneral(payload);
                 actionExecuted = true;
             }
+            break;
+
+        // --- comercio ---
+        case 'establishTradeRoute':
+            actionExecuted = _executeEstablishTradeRoute(payload);
+            break;
+
+        // --- Banca ---
+        case 'tradeWithBank':
+            actionExecuted = _executeTradeWithBank(payload);
             break;
 
         default:

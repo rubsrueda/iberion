@@ -262,7 +262,8 @@ const UIManager = {
             'floatingUndoMoveBtn', 'floatingReinforceBtn', 'floatingSplitBtn', 
             'floatingBuildBtn', 'floatingPillageBtn', 'setAsCapitalBtn', 
             'floatingConsolidateBtn', 'floatingAssignGeneralBtn', 'floatingCreateDivisionBtn',
-            'floatingRazeBtn', 'floatingExploreRuinBtn'
+            'floatingRazeBtn', 'floatingExploreRuinBtn',
+            'floatingTradeBtn', 'floatingStopTradeBtn' 
         ];
         contextualButtons.forEach(id => {
             if (this._domElements[id]) {
@@ -541,12 +542,22 @@ const UIManager = {
             contentParts.push("Territorio Neutral");
         }
 
-        // Parte 2: Estructura
+        // Parte 2: Estructura (con integridad)
         if (hexData.structure) {
-            contentParts.push(`Estructura: ${STRUCTURE_TYPES[hexData.structure]?.name || hexData.structure}`);
-        } else if (hexData.isCity) {
-            contentParts.push(hexData.isCapital ? 'Capital' : 'Ciudad');
+            const structureData = STRUCTURE_TYPES[hexData.structure];
+            let structureString = structureData?.name || hexData.structure;
+
+            // --- INICIO DE LA MODIFICACIÓN ---
+        if (structureData && structureData.integrity) {
+                const currentIntegrity = hexData.currentIntegrity ?? structureData.integrity;
+                structureString += ` | Integridad: ${currentIntegrity}/${structureData.integrity}`;
         }
+            // --- FIN DE LA MODIFICACIÓN ---
+
+            contentParts.push(`Estructura: ${structureString}`);
+    } else if (hexData.isCity) {
+            contentParts.push(hexData.isCapital ? 'Capital' : 'Ciudad');
+    }
         
         return `<p>${contentParts.join(' | ')}</p>`;
     },
@@ -728,7 +739,7 @@ const UIManager = {
         
         // --- Lógica para mostrar los botones de acción ---
         //this.hideAllActionButtons();
-        const isPlayerUnit = unit.player === gameState.currentPlayer;
+        const isPlayerUnit = unit.player === gameState.myPlayerNumber;
         const isScoutedEnemy = !isPlayerUnit && isEnemyScouted(unit);
         
         if (isPlayerUnit || isScoutedEnemy) {
@@ -787,6 +798,38 @@ const UIManager = {
                     this._domElements.setAsCapitalBtn.style.display = 'flex';
                 }
             }
+
+            // --- COMERCIO ---
+            const hasSupplyAbility = unit.regiments.some(reg => (REGIMENT_TYPES[reg.type].abilities || []).includes("provide_supply"));
+            
+            // Si es una unidad de suministro y puede actuar, muestra el botón de iniciar ruta
+            if (hasSupplyAbility && canAct && !unit.tradeRoute) {
+                if (this._domElements.floatingTradeBtn) { // Asumiremos que el botón tiene el ID 'floatingTradeBtn'
+                    this._domElements.floatingTradeBtn.style.display = 'flex';
+                    this._domElements.floatingTradeBtn.onclick = () => {
+                        if (typeof requestEstablishTradeRoute === 'function') {
+                            requestEstablishTradeRoute();
+                        }
+                    };
+                }
+            }
+            
+            // Si ya está en una ruta comercial, muestra un botón para detenerla
+            if (hasSupplyAbility && unit.tradeRoute) {
+                if (this._domElements.floatingStopTradeBtn) { // Asumiremos un botón con ID 'floatingStopTradeBtn'
+                    this._domElements.floatingStopTradeBtn.style.display = 'flex';
+                    this._domElements.floatingStopTradeBtn.onclick = () => {
+                        if (confirm('¿Detener la ruta comercial? La unidad volverá a control manual.')) {
+                            delete unit.tradeRoute;
+                            unit.hasMoved = true; // Consumir su turno al cancelar
+                            unit.hasAttacked = true;
+                            logMessage(`La ruta comercial de "${unit.name}" ha sido cancelada.`);
+                            this.hideContextualPanel();
+                        }
+                    };
+                }
+            }
+            // --- FIN DE comercio ---
         }
 
         if (isOwnUnit && gameState.currentPhase === 'play' && !unit.hasAttacked) {
@@ -906,7 +949,15 @@ const UIManager = {
         const xpStr = (levelData.nextLevelXp === 'Max') ? 'Max' : `${unit.experience || 0}/${levelData.nextLevelXp}`;
         const food = (unit.regiments || []).reduce((sum, reg) => sum + (REGIMENT_TYPES[reg.type]?.foodConsumption || 0), 0);
         const upkeep = (unit.regiments || []).reduce((sum, reg) => sum + (REGIMENT_TYPES[reg.type]?.cost.upkeep || 0), 0);
-        return `<strong>Unidad:</strong> ${unit.name} (J${unit.player}) &nbsp;•&nbsp; <strong>S:</strong> ${unit.currentHealth}/${unit.maxHealth} &nbsp;•&nbsp; <strong>M:</strong> ${unit.morale || 50}/${unit.maxMorale || 125} &nbsp;•&nbsp; <strong>Exp:</strong> ${xpStr} &nbsp;•&nbsp; <strong>Mov:</strong> ${unit.currentMovement || unit.movement} &nbsp;•&nbsp; <strong>Mt:</strong> ${upkeep} Oro, ${food} Comida`;
+
+        // --- comercio ---
+        let tradeInfo = '';
+        if (unit.tradeRoute) {
+            tradeInfo = `&nbsp;•&nbsp; <strong>Carga:</strong> ${unit.tradeRoute.goldCarried}/${unit.tradeRoute.cargoCapacity} Oro`;
+        }
+        // --- FIN DE comercio ---
+
+        return `<strong>Unidad:</strong> ${unit.name} (J${unit.player}) &nbsp;•&nbsp; <strong>S:</strong> ${unit.currentHealth}/${unit.maxHealth} &nbsp;•&nbsp; <strong>M:</strong> ${unit.morale || 50}/${unit.maxMorale || 125} &nbsp;•&nbsp; <strong>Exp:</strong> ${xpStr} &nbsp;•&nbsp; <strong>Mov:</strong> ${unit.currentMovement || unit.movement} &nbsp;•&nbsp; <strong>Mt:</strong> ${upkeep} Oro, ${food} Comida${tradeInfo}`;
     },
 
     _buildHexLine: function(r, c) {

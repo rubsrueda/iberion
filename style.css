@@ -4221,3 +4221,224 @@ input[type="range"] {
     padding-top: 8px;
 }
 
+/* ========================================================== */
+/* == ESTILOS PARA PANTALLA DE FACCIONES (MOBILE-FIRST V2) == */
+/* ========================================================== */
+
+/* Contenedor principal del grid */
+.player-grid-container {
+    display: grid;
+    /* En móvil, una sola columna que ocupa todo el ancho */
+    grid-template-columns: 1fr; 
+    gap: 15px; /* Reducimos el espacio entre tarjetas */
+    padding: 10px; /* Reducimos el padding general */
+    max-height: 75vh; /* Un poco más de altura para el scroll */
+    overflow-y: auto;
+}
+
+/* Tarjeta de jugador individual */
+.player-card {
+    position: relative;
+    border: 1px solid #777; /* Borde más sutil */
+    border-radius: 8px;
+    overflow: hidden;
+    height: 250px; /* ALTURA REDUCIDA DRÁSTICAMENTE */
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    color: white;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Imagen de fondo de la facción */
+.faction-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    transition: opacity 0.3s ease-in-out;
+    z-index: 1;
+}
+
+/* Capa semitransparente para el contenido */
+.faction-overlay {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    padding: 10px; /* Padding reducido */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    /* Gradiente más pronunciado para asegurar legibilidad del texto inferior */
+    background: linear-gradient(to top, rgba(0,0,0,0.95) 30%, rgba(0,0,0,0.5) 60%, transparent 100%);
+}
+
+/* Cabecera con icono P1 y selector de tipo */
+.player-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.player-icon {
+    font-size: 1.2em; /* Tamaño de fuente reducido */
+    font-weight: bold;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+}
+
+/* Estilo para TODOS los <select> dentro de la tarjeta */
+.player-card select {
+    /* --- CORRECCIÓN DE TRANSLUCIDEZ --- */
+    background-color: rgba(0, 0, 0, 0.6); /* Fondo negro semitransparente */
+    backdrop-filter: blur(2px); /* Efecto "cristal esmerilado" (opcional, muy moderno) */
+    color: #f0f0f0;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 5px;
+    padding: 4px 6px; /* Padding reducido */
+    font-size: 0.8em; /* Tamaño de fuente reducido */
+}
+
+/* Estilos para el <select> de la civilización (más grande) */
+.faction-details select {
+    width: 100%;
+    font-size: 1.1em; /* Un poco más grande para que destaque */
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+/* Descripción de la facción */
+.faction-description {
+    font-size: 0.85em; /* Tamaño de fuente reducido */
+    min-height: 40px; /* Espacio reducido para 2-3 líneas */
+    color: #ddd;
+    text-shadow: 2px 2px 3px black; /* Sombra más fuerte para legibilidad */
+    margin: 0;
+}
+
+/* Media Query para pantallas más grandes (tablets, escritorio) */
+@media (min-width: 600px) {
+    .player-grid-container {
+        /* A partir de 600px, muestra 2 columnas */
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 900px) {
+    .player-grid-container {
+        /* A partir de 900px, muestra 3 columnas */
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (min-width: 1200px) {
+    .player-grid-container {
+        /* En pantallas muy grandes, muestra hasta 4 columnas */
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+
+/* ========================================================== */
+/* === ESTILOS MODAL BANCA (V3 - ULTRA COMPACTO Y CORREGIDO) === */
+/* ========================================================== */
+
+/* Estilo base para modales compactos */
+.modal-content.compact-modal {
+    padding: 4px;
+    max-height: 80vh;
+}
+
+.compact-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+.compact-header h2 {
+    margin: 0;
+    font-size: 1.2em; /* Título más pequeño */
+}
+.compact-header .close-button {
+    position: static; /* Quita el posicionamiento absoluto */
+    font-size: 1.2em;
+}
+
+/* Pestañas */
+.inbox-tabs { margin-bottom: 5px; }
+.bank-tab-btn { /* Nueva clase específica */
+    padding: 4px 6px;
+    font-size: 1.0em;
+    cursor: pointer;
+    border: none;
+    background-color: transparent;
+    color: #888;
+    border-bottom: 2px solid transparent;
+}
+.bank-tab-btn.active {
+    color: #f1c40f;
+    border-bottom: 2px solid #f1c40f;
+}
+
+.bank-trade-interface {
+    display: flex;
+    flex-direction: column; /* Apilado vertical siempre */
+    gap: 5px;
+    padding: 5px;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    margin-top: 4px;
+}
+
+.trade-column {
+    display: flex;
+    flex-direction: row; /* Elementos en fila */
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+.trade-column h4 {
+    margin: 0;
+    font-size: 1em; /* Títulos de sección más pequeños */
+    color: #f1c40f;
+    flex-basis: 25%; /* Ancho fijo para el título */
+}
+.trade-column select,
+.trade-column input {
+    flex-grow: 1; /* Ocupa el espacio restante */
+    padding: 5px;
+    font-size: 0.9em;
+    background-color: #333;
+    color: #eee;
+    border: 1px solid #777;
+    border-radius: 4px;
+    text-align: center;
+    margin: 0 5px;
+}
+.trade-column p {
+    margin: 0;
+    font-size: 0.8em;
+    color: #ccc;
+    flex-basis: 30%;
+    text-align: right;
+}
+.trade-column .ratio-text {
+    text-align: center;
+}
+
+.trade-arrow {
+    font-size: 1.0em;
+    color: #f1c40f;
+    transform: rotate(90deg);
+    margin: 0;
+    padding: 0;
+}
+
+#bankConfirmTradeBtn {
+    width: 100%;
+    padding: 5px;
+    margin-top: 5px;
+    font-size: 1em;
+}

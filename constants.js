@@ -35,7 +35,7 @@ const REGIMENT_TYPES = {
     "Arqueros a Caballo": { category: "light_cavalry", cost: { oro: 720, upkeep: 60 }, attack: 60, defense: 60, health: 200, movement: 4, sprite: 'images/sprites/arquero_caballo128.png', visionRange: 3, attackRange: 2, initiative: 16, goldValueOnDestroy: 480, foodConsumption: 1, puntosReclutamiento: 200, abilities: ["Jump"] },
     "Arqueros": { category: "light_infantry", cost: { oro: 360, upkeep: 20 }, attack: 70, defense: 20, health: 200, movement: 2, sprite: 'images/sprites/archer_128.png', visionRange: 2, attackRange: 2, initiative: 11, goldValueOnDestroy: 240, foodConsumption: 1, puntosReclutamiento: 200, abilities: [] },    
     "Arcabuceros": { category: "light_infantry", cost: { oro: 480, upkeep: 40 }, attack: 100, defense: 40, health: 200, movement: 1, sprite: 'images/sprites/arcabucero128.png', visionRange: 2, attackRange: 2, initiative: 11, goldValueOnDestroy: 360, foodConsumption: 1, puntosReclutamiento: 200, abilities: [] },
-    "Artillería": { category: "artillery", cost: { oro: 1000, upkeep: 80 }, attack: 200, defense: 20, health: 200, movement: 1, sprite: 'images/sprites/cannon128.png', visionRange: 1, attackRange: 3, initiative: 20, goldValueOnDestroy: 800, foodConsumption: 2, puntosReclutamiento: 200, abilities: [] },
+    "Artillería": { category: "artillery", cost: { oro: 1000, upkeep: 80 }, attack: 200, defense: 20, health: 200, movement: 1, sprite: 'images/sprites/cannon128.png', visionRange: 1, attackRange: 3, initiative: 20, goldValueOnDestroy: 800, foodConsumption: 2, puntosReclutamiento: 200, abilities: ["Asedio"] },
 
     // Unidades de Apoyo - Stats ajustados para equilibrio. Ataques bajos se escalan menos.
     "Cuartel General": { category: "support", cost: { oro: 800, upkeep: 100 },
@@ -59,27 +59,30 @@ const REGIMENT_TYPES = {
         abilities: ["heal_turn_end"], is_healer: true,
         heal_power: 60 // Heal Power x20 (3 * 20) para ser relevante
     },
+    // Unidad de transporte
     "Columna de Suministro": {
         category: "support", cost: { oro: 300, upkeep: 20 },
         attack: 0, defense: 20, health: 200, movement: 3,
         sprite:  'images/sprites/onlycaraban128.png', visionRange: 2, attackRange: 0, initiative: 3,
-        goldValueOnDestroy: 200, foodConsumption: -5,
-        abilities: ["provide_supply"]
+        goldValueOnDestroy: 400, foodConsumption: -5,
+        abilities: ["provide_supply"], cargoCapacity: 400
     },
-    // Unidades Navales y Especiales
+    // Unidad Naval de transporte
     "Barco de Guerra": {category: "naval", is_naval: true,
         cost: { oro: 2000, upkeep: 100, madera: 25 },
         attack: 200, defense: 100, health: 200, movement: 5,
         sprite: 'images/sprites/barco256.png', visionRange: 4, attackRange: 3, initiative: 10,
-        goldValueOnDestroy: 1600, foodConsumption: 1, puntosReclutamiento: 50,
-        abilities: ["transport", "coastal_bombardment"],
-        canOnlyBeAttackedByRanged: true, transportCapacity: 2
+        goldValueOnDestroy: 2200, foodConsumption: 1, puntosReclutamiento: 50,
+        abilities: ["provide_supply","transport", "coastal_bombardment"],
+        canOnlyBeAttackedByRanged: true, transportCapacity: 2, cargoCapacity: 2200
     }, 
+
+    //Unidades Especiales
     "Colono": {category: "support",
         cost: { oro: 4000, comida: 50, puntosReclutamiento: 200 },
         attack: 0, defense: 20, health: 200, movement: 2, sprite: 'images/sprites/colono128.png',
         visionRange: 1, attackRange: 0, initiative: 5, foodConsumption: 1,
-        isSettler: true
+        isSettler: true, abilities: ["build_road"]
     },
     "Explorador": {
         category: "support", // Lo clasificamos como apoyo
@@ -142,6 +145,7 @@ const CIVILIZATIONS = {
     "Roma": {
         name: "Roma",
         description: "Su infantería y movimiento táctico son superiores.",
+        factionImage: "images/nacion/Roma.png",
         bonuses: {
             unitTypeBonus: {
                 "Infantería Pesada": { defenseBonus: 20, movementBonus: 1 } // +20 Defensa (antes +1), movimiento sin cambios
@@ -151,6 +155,7 @@ const CIVILIZATIONS = {
     "Grecia": {
         name: "Grecia",
         description: "La infantería ligera griega es más resistente y ágil.",
+        factionImage: "images/nacion/Grecia.png",
         bonuses: {
             unitTypeBonus: {
                 "Infantería Ligera": { defenseBonus: 20, movementBonus: 1 } // +20 Defensa (antes +1)
@@ -160,6 +165,7 @@ const CIVILIZATIONS = {
     "Cartago": {
         name: "Cartago",
         description: "Potencia naval por excelencia.",
+        factionImage: "images/nacion/Cartago.png",
         bonuses: {
             unitTypeBonus: {
                 "Artillería": { attackBonus: 20 }, // +20 Ataque (antes +1)
@@ -170,6 +176,7 @@ const CIVILIZATIONS = {
     "Egipto": {
         name: "Egipto",
         description: "Sus arqueros son célebres por su letalidad y alcance.",
+        factionImage: "images/nacion/Egipto.png",
         bonuses: {
             unitTypeBonus: {
                 "Arqueros": { attackBonus: 20, attackRange: 1 } // +20 Ataque (antes +1)
@@ -179,6 +186,7 @@ const CIVILIZATIONS = {
     "Galia": {
         name: "Galia",
         description: "Famosos por su caballería e infantería de choque.",
+        factionImage: "images/nacion/Galia.png",
         bonuses: {
             unitTypeBonus: {
                 "Infantería Ligera": { attackBonus: 20 }, // +20 Ataque
@@ -189,6 +197,7 @@ const CIVILIZATIONS = {
     "Germania": {
         name: "Germania",
         description: "Una infantería ligera muy resistente.",
+        factionImage: "images/nacion/Germania.png",
         bonuses: {
             unitTypeBonus: {
                 "Infantería Ligera": { defenseBonus: 20 } // +20 Defensa
@@ -198,6 +207,7 @@ const CIVILIZATIONS = {
     "Britania": {
         name: "Britania",
         description: "Sus arqueros son más resistentes y sus barcos ganan experiencia más rápido.",
+        factionImage: "images/nacion/Britania.png",
         bonuses: {
             unitTypeBonus: {
                 "Arqueros": { defenseBonus: 20 }, // +20 Defensa
@@ -208,6 +218,7 @@ const CIVILIZATIONS = {
     "Iberia": {
         name: "Iberia",
         description: "Guerreros versátiles, letales en varios frentes.",
+        factionImage: "images/nacion/Iberia.png",
         bonuses: {
             unitTypeBonus: {
                 "Infantería Ligera": { attackBonus: 40 }, // +40 Ataque (antes +2)
@@ -219,6 +230,7 @@ const CIVILIZATIONS = {
     "Persia": {
         name: "Persia",
         description: "Un imperio con unidades de élite y habilidades de regeneración únicas.",
+        factionImage: "images/nacion/Persia.png",
         bonuses: {
             unitTypeBonus: {
                 "Arcabuceros": { attackBonus: 20 }, // +20 Ataque
@@ -230,6 +242,7 @@ const CIVILIZATIONS = {
     "China": {
         name: "China",
         description: "Maestros de las armas de pólvora y la organización militar.",
+        factionImage: "images/nacion/China.png",
         bonuses: {
             unitTypeBonus: {
                 "Arqueros": { attackBonus: 20 },
@@ -241,6 +254,7 @@ const CIVILIZATIONS = {
     "Vikingos": {
         name: "Vikingos",
         description: "Guerreros ágiles y rápidos en sus incursiones.",
+        factionImage: "images/nacion/Vikingos.png",
         bonuses: {
             unitTypeBonus: {
                 "Infantería Ligera": { attackBonus: 20, movementBonus: 1 }
@@ -250,6 +264,7 @@ const CIVILIZATIONS = {
     "Mongol": {
         name: "Mongolia",
         description: "La horda imparable, maestros de la caballería y el movimiento.",
+        factionImage: "images/nacion/Mongol.png",
         bonuses: {
             unitTypeBonus: {
                 "Caballería Ligera": { movementBonus: 1 },
@@ -260,6 +275,7 @@ const CIVILIZATIONS = {
     "Arábiga": {
         name: "Arabia",
         description: "Jinetes del desierto rápidos y mortales.",
+        factionImage: "images/nacion/Arabiga.png",
         bonuses: {
             unitTypeBonus: {
                 "Caballería Ligera": { attackBonus: 20 }
@@ -269,6 +285,7 @@ const CIVILIZATIONS = {
     "Mameluca": {
         name: "Sultanato Mameluco",
         description: "Tropas de élite que no cuestan mantenimiento de oro ni comida.",
+        factionImage: "images/nacion/Mameluca.png",
         bonuses: {
             globalBonus: { noGoldUpkeep: true, noFoodUpkeep: true }
         }
@@ -276,6 +293,7 @@ const CIVILIZATIONS = {
     "Otomana": {
         name: "Imperio Otomano",
         description: "Una potencia de asedio con una artillería y unidades de pólvora temibles.",
+        factionImage: "images/nacion/Otomana.png",
         bonuses: {
             unitTypeBonus: {
                 "Arcabuceros": { attackBonus: 20 },
@@ -286,6 +304,7 @@ const CIVILIZATIONS = {
     "Maya": {
         name: "Civilización Maya",
         description: "Grandes arqueros que ganan experiencia rápidamente.",
+        factionImage: "images/nacion/Maya.png",
         bonuses: {
             unitTypeBonus: {
                 "Arqueros": { attackBonus: 20 },
@@ -296,11 +315,13 @@ const CIVILIZATIONS = {
     "ninguna": {
         name: "Ninguna",
         description: "Estándar, sin bonus especiales.",
+        factionImage: "", // Puedes poner una imagen por defecto o dejarla vacía
         bonuses: {}
     },
     "Asiria": {
         name: "Asiria",
         description: "Pioneros del asedio y el terror. Su maquinaria de guerra y su infantería pesada son formidables.",
+        factionImage: "images/nacion/Asiria.png",
         bonuses: {
             unitTypeBonus: {
                 "Artillería": { attackBonus: 40, buildCostModifier: -0.1 }, // +40 Ataque (antes +2)
@@ -311,6 +332,7 @@ const CIVILIZATIONS = {
     "Babilonia": {
         name: "Babilonia",
         description: "Cuna de la ley y la ciencia. Progresan tecnológicamente más rápido que nadie.",
+        factionImage: "images/nacion/Babilonia.png",
         bonuses: {
             economyBonus: { researchPointBonus: 0.25 },
             unitTypeBonus: { "Arqueros": { defenseBonus: 20 } }
@@ -319,6 +341,7 @@ const CIVILIZATIONS = {
     "Japón": {
         name: "Japón",
         description: "Guerreros samurái cuyo código de honor los hace luchar hasta el final sin perder la moral.",
+        factionImage: "images/nacion/Japon.png",
         bonuses: {
             unitTypeBonus: {
                 "Infantería Pesada": { initiativeBonus: 5 }, // Iniciativa es táctica, no se escala
@@ -350,7 +373,7 @@ const SKIRMISH_VICTORY_GOLD_BONUS = 200;
 const STRUCTURE_TYPES = {
     // Nota: Costos de recursos y upkeep escalados x20. Bonus y otras propiedades sin cambios, salvo tradeValue.
     "Camino": { 
-        name: "Camino", cost: { piedra: 100, madera: 100 }, sprite: '🟰', defenseBonus: 0, movementBonus: 1, 
+        name: "Camino", cost: { piedra: 100, madera: 100 }, sprite: '🟰', defenseBonus: 0, movementBonus: 1, integrity: 50,
         movementCost: 0.5, // <<== AÑADIDO: Moverse por un camino es muy rápido
         buildableOn: ['plains', 'hills'], upkeep: {}, requiredTech: "ENGINEERING",
         canBeUpgraded: true, 
@@ -371,7 +394,7 @@ const STRUCTURE_TYPES = {
      "Fortaleza con Muralla": {
         name: "Fortaleza con Muralla", cost: { piedra: 2000, oro: 1000 }, sprite: '🧱', defenseBonus: 5,
         movementCost: 1.0, // <<== AÑADIDO: Anula penalizaciones de terreno, coste estándar
-        allowsRecruitment: true, upkeep: { oro: 40 }, buildableOn: [],
+        allowsRecruitment: true, integrity: 150, defenseBonus: 1, upkeep: { oro: 40 }, buildableOn: [],
         requiredTech: "SIEGE_CRAFT", isFortification: true, unlocksArtillery: true,
         canBeUpgraded: true, 
         nextUpgrade: "Aldea",
@@ -380,7 +403,7 @@ const STRUCTURE_TYPES = {
     "Aldea": {
         name: "Aldea", 
         cost: { 'Colono': 1, oro: 2000 },
-        sprite: '🏡', defenseBonus: 1,
+        sprite: '🏡', defenseBonus: 1, integrity: 200,
         movementCost: 1.0, // <<== AÑADIDO: Anula penalizaciones de terreno, coste estándar
         allowsRecruitment: true, 
         upkeep: { oro: 60 }, 
@@ -388,13 +411,14 @@ const STRUCTURE_TYPES = {
         requiredTech: "COLONY", 
         tradeValue: 5,
         canBeUpgraded: true, 
+        isCity: true, 
         nextUpgrade: "Ciudad",
         buildOrder: 4
     },
     "Ciudad": {
         name: "Ciudad", 
         cost: { 'Colono': 1, oro: 5000 },
-        sprite: '🏘️', defenseBonus: 2,
+        sprite: '🏘️', defenseBonus: 2, integrity: 250,
         movementCost: 1.0, // <<== AÑADIDO: Anula penalizaciones de terreno, coste estándar
         allowsRecruitment: true, 
         upkeep: { oro: 100 }, 
@@ -402,13 +426,14 @@ const STRUCTURE_TYPES = {
         requiredTech: "COLONY", 
         tradeValue: 10,
         canBeUpgraded: true, 
+        isCity: true, 
         nextUpgrade: "Metrópoli",
         buildOrder: 5
     },
     "Metrópoli": {
         name: "Metrópoli", 
         cost: { 'Colono': 1, oro: 10000 },
-        sprite: '🏙️', defenseBonus: 3,
+        sprite: '🏙️', defenseBonus: 3, integrity: 300,
         movementCost: 1.0, // <<== AÑADIDO: Anula penalizaciones de terreno, coste estándar
         allowsRecruitment: true, 
         upkeep: { oro: 200 }, 
@@ -416,6 +441,7 @@ const STRUCTURE_TYPES = {
         requiredTech: "COLONY", 
         tradeValue: 20,
         canBeUpgraded: false,
+        isCity: true, 
         nextUpgrade: null,
         buildOrder: 6
     }

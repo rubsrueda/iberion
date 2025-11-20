@@ -129,8 +129,6 @@ function addModalEventListeners() {
         console.warn("modalLogic: closeTechTreeBtn no encontrado en domElements."); 
     }
 
-    
-
     if (domElements.closeAdvancedSplitModalBtn) {
         domElements.closeAdvancedSplitModalBtn.addEventListener('click', (event) => { 
             event.stopPropagation(); 
@@ -239,6 +237,30 @@ function addModalEventListeners() {
         console.warn("modalLogic: closeHeroDetailBtn no encontrado.");
     }
 
+    // --- INICIO DE LA Banca ---
+    if (domElements.closeBankModalBtn) {
+        domElements.closeBankModalBtn.addEventListener('click', () => {
+            domElements.bankModal.style.display = 'none';
+        });
+    }
+
+    if (domElements.bankOfferResourceSelect) {
+        domElements.bankOfferResourceSelect.addEventListener('change', updateBankTradeUI);
+    }
+
+    if (domElements.bankOfferAmountInput) {
+        domElements.bankOfferAmountInput.addEventListener('input', updateBankTradeUI);
+    }
+    
+    if (domElements.bankRequestResourceSelect) {
+        // En el futuro, podría haber lógica aquí si el ratio de cambio varía.
+        // Por ahora, no necesita un listener.
+    }
+
+    if (domElements.bankConfirmTradeBtn) {
+        domElements.bankConfirmTradeBtn.addEventListener('click', handleBankTrade);
+    }
+
     console.log("modalLogic: addModalEventListeners FINALIZADO.");
 }
 
@@ -311,15 +333,25 @@ function openBuildStructureModal() {
                     const amountNeeded = structureInfo.cost[resKey];
                     if (resKey === 'Colono') {
                         console.log(`        - Comprobando requisito: Colono`);
-                        // La validación correcta: mira si la unidad seleccionada es un colono en ESA casilla.
+                        
+                        // --- INICIO DE LA CORRECCIÓN ---
+                        // Un colono es válido si CUALQUIERA de estas dos condiciones es cierta:
+                        // 1. La unidad actualmente seleccionada a nivel global ('selectedUnit') es un colono en esta casilla.
+                        // 2. Simplemente hay una unidad en esta casilla que es un colono (independientemente de la selección global).
+                        
                         const unitOnHex = getUnitOnHex(r, c);
-                        if (unitOnHex && unitOnHex.player === gameState.currentPlayer && unitOnHex.isSettler) {
+                        const tieneRegimientoColono = unitOnHex?.regiments.some(reg => reg.type === 'Colono');
+
+                        if (unitOnHex && unitOnHex.player === gameState.currentPlayer && tieneRegimientoColono) {
                             console.log(`          -> SÍ. Colono válido presente en (${r},${c}).`);
                         } else {
-                            console.log(`          -> NO. No hay un Colono propio en (${r},${c}) para realizar la mejora.`);
+                            console.log(`          -> NO. No hay un Colono propio en (${r},${c}) para realizar la acción.`);
+                            // Log de depuración para ver por qué falla
+                            console.log({unitOnHex, selectedUnit, r, c});
                             canBuild = false;
                         }
-                        
+                        // --- FIN DE LA CORRECCIÓN ---
+
                     } else { // Recursos normales
                         const playerAmount = playerResources[resKey] || 0;
                         console.log(`        - Comprobando requisito: ${amountNeeded} de ${resKey}. Tiene: ${playerAmount}`);
@@ -1004,6 +1036,12 @@ function handleFinalizeDivision() {
         cost: finalCost,
         isSettler: currentDivisionBuilder.some(reg => REGIMENT_TYPES[reg.type]?.isSettler === true)
     };
+
+    console.log('[DEBUG COLONO] Objeto de división creado:', { 
+        name: newDivisionDataObject.name, 
+        isSettler: newDivisionDataObject.isSettler,
+        regiments: JSON.parse(JSON.stringify(currentDivisionBuilder)) 
+    });
 
     // 4. Pasar el objeto completo para que se rellene con stats
     calculateRegimentStats(newDivisionDataObject);
@@ -2808,6 +2846,38 @@ document.addEventListener('DOMContentLoaded', () => {
  * Renderiza la interfaz de selección de jugadores/facciones en setupScreen2.
  * @param {number} numPlayers - Número de jugadores a renderizar (obtenido de setupScreen).
  */
+/**
+ * (NUEVA FUNCIÓN) Actualiza la tarjeta de un jugador para mostrar la información de la facción seleccionada.
+ * @param {number} playerIndex - El índice del jugador (1-8) cuya tarjeta se va a actualizar.
+ */
+function updateFactionDisplay(playerIndex) {
+    const playerCard = document.getElementById(`player-card-${playerIndex}`);
+    const civSelect = document.getElementById(`player${playerIndex}Civ`);
+    if (!playerCard || !civSelect) return;
+
+    const selectedCivKey = civSelect.value;
+    const civData = CIVILIZATIONS[selectedCivKey];
+    
+    const factionImageEl = playerCard.querySelector('.faction-image');
+    const factionDescriptionEl = playerCard.querySelector('.faction-description');
+
+    if (civData && factionImageEl && factionDescriptionEl) {
+        // Actualizar la imagen de fondo con una transición de fundido
+        factionImageEl.style.opacity = 0;
+        setTimeout(() => {
+            factionImageEl.style.backgroundImage = `url('${civData.factionImage}')`;
+            factionImageEl.style.opacity = 1;
+        }, 200); // 200ms para la animación
+
+        // Actualizar la descripción
+        factionDescriptionEl.textContent = civData.description;
+    }
+}
+
+/**
+ * Renderiza la interfaz de selección de jugadores/facciones en setupScreen2.
+ * @param {number} numPlayers - Número de jugadores a renderizar (obtenido de setupScreen).
+ */
 function renderPlayerSelectionSetup(numPlayers) {
     const playerGrid = document.getElementById('player-setup-grid');
     if (!playerGrid) return;
@@ -2819,13 +2889,18 @@ function renderPlayerSelectionSetup(numPlayers) {
         'closed': 'Cerrado'
     };
 
+    // Pre-generar el HTML de las opciones de civilización
     const civOptions = Object.keys(CIVILIZATIONS).map(key => 
         `<option value="${key}">${CIVILIZATIONS[key].name}</option>`
     ).join('');
 
+    // Array con un orden de civilizaciones por defecto para cada jugador
+    const defaultCivs = ["Roma", "Iberia", "Grecia", "Egipto", "Cartago", "Galia", "Japón", "Vikingos"];
+
     for (let i = 1; i <= 8; i++) { // Siempre crear 8 slots
         const playerCard = document.createElement('div');
         playerCard.className = 'player-card';
+        playerCard.id = `player-card-${i}`; // ID único para cada tarjeta
 
         // LÓGICA DE VISIBILIDAD Y VALORES PREDEFINIDOS MEJORADA
         let defaultType;
@@ -2851,26 +2926,175 @@ function renderPlayerSelectionSetup(numPlayers) {
 
         const isInitiallyDisabled = defaultType === 'closed' ? 'disabled' : '';
 
+        // --- ESTRUCTURA HTML PARA LA TARJETA ---
         playerCard.innerHTML = `
-            <span class="player-icon player-color-${i}">P${i}</span>
-            <div class="form-group">
-                ${typeSelectHTML}
-            </div>
-            <div class="form-group">
-                <select id="player${i}Civ" ${isInitiallyDisabled}>
-                    ${civOptions}
-                </select>
+            <div class="faction-image"></div>
+            <div class="faction-overlay">
+                <div class="player-header">
+                    <span class="player-icon player-color-${i}">P${i}</span>
+                    ${typeSelectHTML}
+                </div>
+                <div class="faction-details">
+                    <select id="player${i}Civ" ${isInitiallyDisabled}></select>
+                    <p class="faction-description"></p>
+                </div>
             </div>
         `;
         playerGrid.appendChild(playerCard);
 
         const typeSelect = document.getElementById(`player${i}TypeSelect`);
         const civSelect = document.getElementById(`player${i}Civ`);
+        
         if (typeSelect && civSelect) {
+            // Rellenar opciones y seleccionar por defecto
+            civSelect.innerHTML = civOptions;
+            civSelect.value = defaultCivs[i - 1] || 'ninguna';
+
+            // Listener para el tipo de jugador (Humano/IA/Cerrado)
             typeSelect.addEventListener('change', (event) => {
                 civSelect.disabled = event.target.value === 'closed';
             });
+
+            // Listener para el cambio de civilización
+            civSelect.addEventListener('change', () => {
+                updateFactionDisplay(i); // Llamar a la función de actualización
+            });
+
+            // Actualización inicial al crear la tarjeta
+            updateFactionDisplay(i);
         }
+    }
+}
+
+
+// Funciones de la Banca //
+
+// EN modalLogic.js (puedes añadirlas al final del archivo)
+
+/**
+ * Abre el modal de La Banca y configura sus listeners y estado inicial.
+ */
+function openBankModal() {
+    if (!domElements.bankModal) return;
+
+    // Configurar listeners de las pestañas (similar a la Wiki)
+    const tabs = domElements.bankModal.querySelectorAll('.bank-tab-btn')
+    const pages = domElements.bankModal.querySelectorAll('.wiki-page');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            pages.forEach(p => p.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById(`bank-tab-${tab.dataset.tab}`).classList.add('active');
+        });
+    });
+
+    // Forzar clic en la primera pestaña por defecto
+    domElements.bankModal.querySelector('.bank-tab-btn[data-tab="resources"]').click();
+    
+    updateBankTradeUI(); // Actualizar la UI con los datos del jugador
+    domElements.bankModal.style.display = 'flex';
+}
+
+/**
+ * Actualiza la interfaz del mercado de recursos con los datos actuales del jugador.
+ */
+function updateBankTradeUI() {
+    const playerRes = gameState.playerResources[gameState.currentPlayer];
+    if (!playerRes || !domElements.bankOfferResourceSelect) return;
+
+    const offerResource = domElements.bankOfferResourceSelect.value;
+    const offerAmount = parseInt(domElements.bankOfferAmountInput.value, 10);
+    
+    // Muestra cuánto tiene el jugador del recurso que está ofreciendo
+    domElements.bankPlayerResourceAmount.textContent = playerRes[offerResource] || 0;
+
+    // Calcula y muestra cuánto recibirá
+    const requestAmount = Math.floor(offerAmount / 4);
+    domElements.bankRequestAmountInput.value = requestAmount;
+
+    // Valida si el jugador puede permitirse el intercambio
+    domElements.bankConfirmTradeBtn.disabled = (playerRes[offerResource] || 0) < offerAmount || offerAmount < 4 || requestAmount < 1;
+}
+
+/**
+ * Maneja la lógica de la UI cuando el jugador confirma un intercambio con La Banca.
+ */
+function handleBankTrade() {
+    const offerResource = domElements.bankOfferResourceSelect.value;
+    const offerAmount = parseInt(domElements.bankOfferAmountInput.value, 10);
+    const requestResource = domElements.bankRequestResourceSelect.value;
+    const requestAmount = parseInt(domElements.bankRequestAmountInput.value, 10);
+
+    const playerRes = gameState.playerResources[gameState.currentPlayer];
+
+    // Doble validación
+    if (!playerRes || (playerRes[offerResource] || 0) < offerAmount || requestAmount < 1) {
+        logMessage("Intercambio inválido o fondos insuficientes.", "error");
+        return;
+    }
+
+    const payload = {
+        playerId: gameState.currentPlayer,
+        offerResource,
+        offerAmount,
+        requestResource,
+        requestAmount
+    };
+    
+    requestTradeWithBank(payload); // Llama a la función de red/local
+
+    // Opcional: Cerrar el modal después del intercambio
+    // domElements.bankModal.style.display = 'none'; 
+}
+
+/**
+ * [Función Pura de Ejecución] Modifica el estado del juego para un intercambio de recursos.
+ */
+function _executeTradeWithBank(payload) {
+    const { playerId, offerResource, offerAmount, requestResource, requestAmount } = payload;
+    const playerRes = gameState.playerResources[playerId];
+
+    if (!playerRes || (playerRes[offerResource] || 0) < offerAmount) {
+        return false; // Falló la validación final en el Host
+    }
+
+    // Ejecutar el intercambio
+    playerRes[offerResource] -= offerAmount;
+    playerRes[requestResource] = (playerRes[requestResource] || 0) + requestAmount;
+
+    logMessage(`Intercambio completado: ${offerAmount} de ${offerResource} por ${requestAmount} de ${requestResource}.`);
+    
+    // Actualizar la UI si la acción se ejecuta en la máquina local
+    if (UIManager) {
+        UIManager.updateAllUIDisplays();
+        // Si el modal de la banca sigue abierto, refrescar sus datos
+        if (domElements.bankModal.style.display === 'flex') {
+            updateBankTradeUI();
+        }
+    }
+    
+    return true;
+}
+
+/**
+ * [Punto de Entrada de Red] Crea la acción para el intercambio con La Banca.
+ */
+function requestTradeWithBank(payload) {
+    const action = { 
+        type: 'tradeWithBank', 
+        actionId: `banktrade_${payload.playerId}_${Date.now()}`,
+        payload: payload
+    };
+
+    if (isNetworkGame()) {
+        if (NetworkManager.esAnfitrion) {
+            processActionRequest(action);
+        } else {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action });
+        }
+    } else {
+        _executeTradeWithBank(payload);
     }
 }
 

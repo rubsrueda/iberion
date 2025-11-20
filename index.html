@@ -100,6 +100,8 @@
             <button id="floatingConsolidateBtn" title="Consolidar">🔁</button>
             <button id="floatingCreateDivisionBtn" title="Crear División">➕</button>
             <button id="setAsCapitalBtn" title="Establecer Capital">👑</button>
+            <button id="floatingTradeBtn" title="Iniciar Ruta Comercial">🚚</button>
+            <button id="floatingStopTradeBtn" title="Detener Ruta Comercial">🛑</button>
         </div>
 
         <!-- === GRUPO DERECHO === -->
@@ -802,6 +804,76 @@
     </div>
 
     <!-- ====================================================================== -->
+    <!-- ======================= MODAL DE LA BANCA (MERCADO) ================== -->
+    <!-- ====================================================================== -->
+    <!-- EN index.html -->
+<!-- REEMPLAZA EL DIV #bankModal COMPLETO POR ESTE -->
+    <div id="bankModal" class="modal modal-themed" style="display: none;">
+        <div class="modal-content compact-modal"> <!-- Nueva clase 'compact-modal' -->
+            
+            <div class="compact-header">
+                <h2>Mercado de La Banca</h2>
+                <span class="close-button" id="closeBankModalBtn">×</span>
+            </div>
+            
+            <!-- Pestañas -->
+            <div class="inbox-tabs">
+                <!-- Usamos una nueva clase única 'bank-tab-btn' -->
+                <button class="bank-tab-btn active" data-tab="resources">Recursos 4:1</button>
+                <button class="bank-tab-btn" data-tab="offers">Tablón de Ofertas</button>
+            </div>
+
+            <!-- Contenido de las Pestañas -->
+            <div class="inbox-tab-content">
+                <div id="bank-tab-resources" class="wiki-page active">
+                    <p>Intercambia recursos con La Banca a un tipo de 4:1.</p>
+                    <div class="bank-trade-interface">
+                        <!-- Columna: Ofrecer -->
+                        <div class="trade-column">
+                            <h4>Ofrecer</h4>
+                            <select id="bankOfferResourceSelect">
+                                <option value="oro">Oro</option>
+                                <option value="hierro">Hierro</option>
+                                <option value="piedra">Piedra</option>
+                                <option value="madera">Madera</option>
+                                <option value="comida">Comida</option>
+                            </select>
+                            <input type="number" id="bankOfferAmountInput" value="100" min="4" step="4">
+                            <p>Tienes: <span id="bankPlayerResourceAmount">0</span></p>
+                        </div>
+
+                        <!-- Flecha de intercambio -->
+                        <div class="trade-arrow">
+                            <span>→</span>
+                        </div>
+
+                        <!-- Columna: Recibir -->
+                        <div class="trade-column">
+                            <h4>Recibir</h4>
+                            <select id="bankRequestResourceSelect">
+                                <option value="oro">Oro</option>
+                                <option value="hierro">Hierro</option>
+                                <option value="piedra">Piedra</option>
+                                <option value="madera">Madera</option>
+                                <option value="comida">Comida</option>
+                            </select>
+                            <input type="number" id="bankRequestAmountInput" value="25" readonly>
+                            <p class="ratio-text">Ratio 4:1</p> <!-- Texto más simple -->
+                        </div>
+                    </div>
+                    <button id="bankConfirmTradeBtn" class="button-primary">Confirmar Intercambio</button>
+                </div>
+
+                <!-- Pestaña 2: Tablón de Ofertas (solo la estructura, sin funcionalidad) -->
+                <div id="bank-tab-offers" class="wiki-page">
+                    <p>Crea y acepta ofertas de intercambio de sellos con otros jugadores.</p>
+                    <p style="text-align: center; color: #888; margin-top: 50px;">(Funcionalidad próximamente)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
     <!-- ======================= BUZÓN DEL GENERAL (Misiones, Banners, Mensajes) -->
     <!-- ====================================================================== -->
     <div id="inboxModal" class="modal modal-themed" style="display: none;">
@@ -866,6 +938,7 @@
     <script src="playerDataManager.js"></script>
     <script src="gachaManager.js"></script>
     <script src="mailboxManager.js"></script> 
+    <script src="audioManager.js"></script>
     <script src="technologyTree.js"></script> 
     <script src="worldMapData.js"></script>
 
@@ -907,6 +980,7 @@
     <script src="networkManager.js"></script> 
     <script src="ai_deploymentLogic.js"></script>
     <script src="ai_gameplayLogic.js?v=5"></script> 
+    <script src="bank_logic.js"></script>
     <script src="saveLoad.js"></script>
     <script src="campaignManager.js"></script>
     <script src="main.js"></script>
