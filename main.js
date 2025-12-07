@@ -2095,14 +2095,31 @@ async function processActionRequest(action) { // <<== async
             break;
         
         case 'razeStructure':
+            console.groupCollapsed("%c[DIAGNÓSTICO HOST - RAZE]", "background: #e67e22; color: white;");
             const unitToRaze = units.find(u => u.id === payload.unitId);
             const hexToRaze = board[payload.r]?.[payload.c];
-            // Validaciones básicas en el anfitrión
+
+            // Logueamos cada parte de la condición para ver cuál falla.
+            console.log(`- ¿Se encontró la unidad? (${payload.unitId}):`, !!unitToRaze, unitToRaze);
+            console.log(`- ¿Se encontró el hexágono? (${payload.r}, ${payload.c}):`, !!hexToRaze, hexToRaze);
+            if (unitToRaze) {
+                console.log(`- ¿La unidad NO ha atacado? (!unitToRaze.hasAttacked):`, !unitToRaze.hasAttacked);
+            }
+            if (hexToRaze) {
+                console.log(`- ¿El hexágono tiene una estructura? (hexToRaze.structure):`, hexToRaze.structure);
+            }
+            
+            // La condición original, sin cambios.
             if (unitToRaze && hexToRaze && !unitToRaze.hasAttacked && hexToRaze.structure) {
+                console.log("%c -> CONDICIÓN CUMPLIDA. Ejecutando _executeRazeStructure...", "color: green;");
                 _executeRazeStructure(payload);
                 actionExecuted = true;
+            } else {
+                console.error("%c -> CONDICIÓN FALLIDA. La acción de arrasar NO se ejecutará.", "color: red;");
             }
+            console.groupEnd();
             break;
+
 
         case 'exploreRuins':
             const unitToExplore = units.find(u => u.id === payload.unitId);
@@ -2176,11 +2193,19 @@ function reconstruirJuegoDesdeDatos(datos) {
         Object.assign(gameState, datos.gameState);
         unitIdCounter = datos.unitIdCounter;
         
+        // ¡Restauramos nuestra verdadera identidad!
         if (miIdentidadLocal) {
             gameState.myPlayerNumber = miIdentidadLocal;
         }
-        // ¡Restauramos nuestra verdadera identidad!
-        gameState.myPlayerNumber = miIdentidadLocal;
+
+        // Si estamos en fase de despliegue, forzamos nuestro contador personal a 0.
+        // Esto evita que datos residuales del anfitrión nos quiten un hueco.
+        if (gameState.currentPhase === 'deployment') {
+            if (!gameState.unitsPlacedByPlayer) gameState.unitsPlacedByPlayer = {};
+            gameState.unitsPlacedByPlayer[gameState.myPlayerNumber] = 0;
+            console.log(`[CLIENTE SYNC] Contador de despliegue forzado a 0 para J${gameState.myPlayerNumber}.`);
+        }
+        // --------------------------------------
         
         // Reconstruir el tablero desde los datos del anfitrión
         const boardData = datos.board;
@@ -2219,7 +2244,6 @@ function reconstruirJuegoDesdeDatos(datos) {
 
         // 3. Si es humano y el temporizador está disponible, lo iniciamos.
         if (isCurrentPlayerHuman && typeof TurnTimerManager !== 'undefined' && TurnTimerManager.start) {
-            console.log(`[CLIENTE SYNC] Turno de jugador humano (Jugador ${gameState.currentPlayer}). Iniciando temporizador.`);
             TurnTimerManager.start(gameState.turnDurationSeconds);
         }
         
@@ -2228,57 +2252,23 @@ function reconstruirJuegoDesdeDatos(datos) {
             // Comprobamos si alguna pantalla importante (como el árbol tecnológico) está abierta.
             const techTreeScreen = document.getElementById('techTreeScreen');
             if (techTreeScreen && techTreeScreen.style.display === 'flex') {
-                console.log("[CLIENTE SYNC] El árbol tecnológico está abierto. Forzando refresco...");
                 if (typeof refreshTechTreeContent === 'function') {
                     refreshTechTreeContent();
                 }
             }
-        } else {
-            console.error("Error crítico: La función initializeBoardPanning no está disponible para el cliente.");
         }
 
-        // CORRECCIÓN: Deseleccionar la unidad para evitar referencias obsoletas
-        // Esto soluciona el problema donde el cliente no puede mover después de atacar
-        // y el botón de "siguiente unidad" no aparece
+        // Deseleccionar la unidad para evitar referencias obsoletas
         if (typeof deselectUnit === 'function') {
             deselectUnit();
         }
 
-        logMessage("¡Sincronización con el anfitrión completada! La partida está lista.");
+        logMessage("¡Sincronización con el anfitrión completada!");
 
     } catch (error) {
         console.error("Error crítico al reconstruir el juego en el cliente:", error);
         logMessage("Error: No se pudo sincronizar la partida con el anfitrión.", "error");
     }
-    /*
-    // ===================================================================
-    // == LÓGICA DE CIERRE DE PANEL AL HACER CLIC FUERA ==================
-    // ===================================================================
-    document.body.addEventListener('click', (event) => {
-        // Obtenemos los elementos en el momento del clic
-        const infoPanel = document.getElementById('contextualInfoPanel');
-        const tacticalUI = document.getElementById('tactical-ui-container');
-
-        // Si el panel de información no está visible, no hacemos nada.
-        if (!infoPanel || !infoPanel.classList.contains('visible')) {
-            return;
-        }
-
-        // CONDICIONES PARA NO CERRAR EL PANEL:
-        // 1. Si el clic fue DENTRO del propio panel.
-        // 2. Si el clic fue en uno de los botones de acción flotantes.
-        if (infoPanel.contains(event.target) || (tacticalUI && tacticalUI.contains(event.target))) {
-            return; // No hacer nada, fue un clic en la UI.
-        }
-
-        // Si el clic fue en cualquier otra parte (un hexágono, un espacio vacío)...
-        console.log("Clic fuera de la UI. Cerrando panel contextual.");
-        infoPanel.classList.remove('visible');
-        if (typeof deselectUnit === 'function') {
-            deselectUnit(); // Deseleccionamos todo
-        }
-    }, false); // El 'true' es importante, asegura que este listener se ejecute primero
-    */
 }
 
 document.addEventListener('DOMContentLoaded', initApp);

@@ -261,6 +261,34 @@ function addModalEventListeners() {
         domElements.bankConfirmTradeBtn.addEventListener('click', handleBankTrade);
     }
 
+    // Buscamos específicamente el botón dentro del contenedor de setupScreen
+    const setupCloseBtn = document.querySelector('#setupScreen .modal-close-btn');
+    
+    if (setupCloseBtn) {
+        // Clonar para limpiar listeners antiguos
+        const newBtn = setupCloseBtn.cloneNode(true);
+        setupCloseBtn.parentNode.replaceChild(newBtn, setupCloseBtn);
+        
+        // Listener corregido que respeta las clases CSS
+        newBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            
+            if (domElements.setupScreen) {
+                // 1. Quitamos la clase que la hace visible
+                domElements.setupScreen.classList.remove('active');
+                // 2. IMPORTANTE: Borramos cualquier estilo 'display' pegado manualmente
+                domElements.setupScreen.style.removeProperty('display');
+            }
+            
+            // Volver al menú principal
+            if (typeof showScreen === 'function') {
+                showScreen(domElements.mainMenuScreenEl);
+            } else if (domElements.mainMenuScreenEl) {
+                domElements.mainMenuScreenEl.style.display = 'flex';
+            }
+        });
+    }
+
     console.log("modalLogic: addModalEventListeners FINALIZADO.");
 }
 
@@ -886,7 +914,8 @@ function addRegimentToBuilder(type) {
         // En lugar de una copia superficial, creamos un clon profundo y completo.
         // Cada regimiento será ahora un objeto totalmente independiente.
         const newRegiment = JSON.parse(JSON.stringify(REGIMENT_TYPES[type]));
-        newRegiment.type = type; // Añadimos la propiedad 'type' que se pierde en la clonación del objeto anidado
+        newRegiment.type = type;
+        newRegiment.id = `r_${unitIdCounter}_${currentDivisionBuilder.length}_${Date.now()}`; // Añadir ID único
         currentDivisionBuilder.push(newRegiment);
         
         updateDivisionSummary();
@@ -932,10 +961,6 @@ function updateDivisionSummary() {
 
     domElements.divisionRegimentCount.textContent = `${currentDivisionBuilder.length} / ${MAX_REGIMENTS_PER_DIVISION}`;
     
-    // =======================================================================
-    // === INICIO DE LA SOLUCIÓN CORRECTA: Punto 4 ===========================
-    // =======================================================================
-
     const regimentCounts = {};
     currentDivisionBuilder.forEach(reg => {
         regimentCounts[reg.type] = (regimentCounts[reg.type] || 0) + 1;
@@ -977,10 +1002,6 @@ function updateDivisionSummary() {
         
         domElements.divisionCompositionList.appendChild(li);
     }
-
-    // =======================================================================
-    // === FIN DE LA SOLUCIÓN ===============================================
-    // =======================================================================
 
     if (domElements.finalizeUnitManagementBtn) {
         domElements.finalizeUnitManagementBtn.disabled = currentDivisionBuilder.length === 0;
@@ -1237,7 +1258,7 @@ function populateUnitDetailList(unit) {
         li.appendChild(healthBarContainer);
         li.appendChild(healthTextSpan);
         
-        // 5. Añadir el botón de reforzar o el placeholder (sin cambios)
+        // 5. Añadir el botón de reforzar o el placeholder 
         if (isOwnUnit && currentHealth < maxHealth && isHexSuppliedForReinforce(unit.r, unit.c, unit.player)) {
             const reinforceBtn = document.createElement('button');
             reinforceBtn.className = 'reinforce-regiment-btn';
