@@ -1,5 +1,5 @@
 // networkManager.js
-console.log("networkManager.js CARGADO - Lógica de red lista.");
+console.log("networkManager.js CARGADO - Sistema de Códigos Cortos (v2.0) listo.");
 
 const PEER_SERVER_CONFIG = {
     host: '0.peerjs.com',
@@ -7,27 +7,19 @@ const PEER_SERVER_CONFIG = {
     path: '/',
     secure: true,
 };
-/*
-// --- CONFIGURACIÓN ALTERNATIVA ---
-const PEER_SERVER_CONFIG = {
-    host: 'peerjs.replit.com',
-    port: 443,
-    path: '/peerjs',
-    secure: true,
-};
-*/
+
 const NetworkManager = {
-    _maxConnectionRetries: 3, // Número máximo de reintentos
-    _connectionRetryDelay: 2000, // Tiempo de espera en milisegundos (2 segundos)
-    _connectionAttempts: 0, // Contador de intentos actual
+    _maxConnectionRetries: 3,
+    _connectionRetryDelay: 2000,
+    _connectionAttempts: 0,
     peer: null,
     conn: null,
     esAnfitrion: false,
     miId: null,
     idRemoto: null,
-    _onConexionAbierta: null,
+    _prefix: 'hge-', // Prefijo invisible para garantizar unicidad global
     
-    _isConnecting: false, // Nuestro nuevo "cerrojo"
+    _isConnecting: false, // Nuestro "cerrojo"
     
     _onConexionAbierta: null,
     _onDatosRecibidos: null,
@@ -39,7 +31,18 @@ const NetworkManager = {
         this._onConexionCerrada = onConexionCerrada;
     },
 
-    // En networkManager.js
+    /**
+     * Genera una cadena aleatoria corta de 6 caracteres (letras mayúsculas y números).
+     * Evita caracteres confusos como O/0 o I/1.
+     */
+    _generarCodigoCorto: function() {
+        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Sin I, 1, O, 0
+        let result = "";
+        for (let i = 0; i < 6; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+    },
 
     iniciarAnfitrion: function(onIdGenerado) {
         if (this._isConnecting) {
@@ -48,14 +51,12 @@ const NetworkManager = {
         }
         
         this.esAnfitrion = true;
-        this._connectionAttempts = 0; // Reiniciar contador de intentos
+        this._connectionAttempts = 0;
 
         const tryConnectAsHost = () => {
-            if (this._isConnecting) return; // Salvaguarda extra
+            if (this._isConnecting) return;
             this._isConnecting = true;
             this._connectionAttempts++;
-
-            console.log(`[Anfitrión] Intento de conexión #${this._connectionAttempts}/${this._maxConnectionRetries}...`);
 
             if (this.peer) {
                 this.peer.destroy();
@@ -64,16 +65,22 @@ const NetworkManager = {
 
             setTimeout(() => {
                 try {
-                    const peerId = `hge-host-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-                    console.log(`Intentando conectar a PeerJS con ID: ${peerId}`);
-                    this.peer = new Peer(peerId, PEER_SERVER_CONFIG);
+                    // Generamos el código corto para el usuario
+                    const shortCode = this._generarCodigoCorto();
+                    // El ID real incluye el prefijo invisible
+                    const realPeerId = this._prefix + shortCode;
+                    
+                    console.log(`Intentando conectar a PeerJS con ID: ${realPeerId} (Usuario verá: ${shortCode})`);
+                    this.peer = new Peer(realPeerId, PEER_SERVER_CONFIG);
 
                     this.peer.on('open', (id) => {
                         this._isConnecting = false;
-                        this._connectionAttempts = 0; // Éxito, reiniciar contador
-                        console.log(`%c¡CONEXIÓN CON SERVIDOR PEERJS EXITOSA! Mi ID es: ${id}`, "background: green; color: white;");
+                        this._connectionAttempts = 0;
+                        console.log(`%c¡CONEXIÓN DE RED ESTABLECIDA!`, "background: green; color: white;");
                         this.miId = id;
-                        if (onIdGenerado) onIdGenerado(this.miId);
+                        
+                        // DEVOLVEMOS SOLO EL CÓDIGO CORTO AL CALLBACK DE LA UI
+                        if (onIdGenerado) onIdGenerado(shortCode);
 
                         this.peer.on('connection', (newConnection) => {
                             console.log(`Conexión entrante de: ${newConnection.peer}`);
@@ -89,84 +96,88 @@ const NetworkManager = {
 
                     this.peer.on('error', (err) => {
                         this._isConnecting = false;
-                        console.error(`Error en PeerJS (Anfitrión) en el intento #${this._connectionAttempts}:`, err);
+                        console.error(`Error en PeerJS:`, err);
 
-                        if (this._connectionAttempts < this._maxConnectionRetries) {
+                        if (err.type === 'unavailable-id') {
+                            // Si el ID ya existe (muy mala suerte), probamos con otro código corto inmediatamente
+                            console.warn("Código colisionado, reintentando con uno nuevo...");
+                            setTimeout(tryConnectAsHost, 100); 
+                        } else if (this._connectionAttempts < this._maxConnectionRetries) {
                             console.warn(`Reintentando conexión en ${this._connectionRetryDelay / 1000} segundos...`);
                             setTimeout(tryConnectAsHost, this._connectionRetryDelay);
                         } else {
-                            alert(`Error de conexión de red: ${err.type}. No se pudo conectar al servidor después de ${this._maxConnectionRetries} intentos.`);
+                            alert(`Error de red: ${err.type}. Comprueba tu conexión.`);
                             this.desconectar();
                         }
                     });
 
                 } catch (e) {
                     this._isConnecting = false;
-                    console.error("Fallo catastrófico al crear la instancia de Peer:", e);
-                    alert("Error crítico al intentar iniciar la red. Revisa la consola.");
+                    console.error("Fallo catastrófico al crear Peer:", e);
+                    alert("Error crítico de red.");
                 }
             }, 500);
         };
 
-        tryConnectAsHost(); // Iniciar el primer intento
+        tryConnectAsHost();
     },
 
-    unirseAPartida: function(anfitrionId) {
-        console.log("%c[Paso 1 Client] Se ha llamado a unirseAPartida.", "color: cyan;");
-        if (this._isConnecting) {
-            console.warn("[NetworkManager] Se ha bloqueado un intento de unirse a partida mientras ya se estaba conectando.");
-            return;
-        }
+    unirseAPartida: function(codigoUsuario) {
+        console.log("%c[Cliente] Iniciando conexión...", "color: cyan;");
+        if (this._isConnecting) return;
+        
+        // 1. LIMPIEZA DEL CÓDIGO DE USUARIO
+        // Convertimos a mayúsculas, quitamos espacios y eliminamos el prefijo si el usuario lo puso por error.
+        let cleanCode = codigoUsuario.trim().toUpperCase().replace(this._prefix.toUpperCase(), '');
+        
+        // 2. RECONSTRUCCIÓN DEL ID REAL
+        const anfitrionId = this._prefix + cleanCode;
+        
+        console.log(`[Cliente] Conectando a ID real: ${anfitrionId}`);
+
         this._isConnecting = true;
         if (this.peer) {
-            console.log("%c[Paso 2 Client] Instancia de PeerJS anterior detectada. Llamando a destroy().", "color: cyan;");
             this.peer.destroy();
         }
         this.peer = null;
         this.esAnfitrion = false;
 
-        console.log("%c[Paso 3 Client] Entrando en setTimeout para crear nueva instancia de Peer.", "color: cyan;");
         setTimeout(() => {
             try {
-                console.log("%c[Paso 4 Client] Dentro de setTimeout. Creando new Peer()...", "color: cyan;");
                 this.peer = new Peer(undefined, PEER_SERVER_CONFIG);
 
-                console.log("%c[Paso 5 Client] Objeto Peer creado. Añadiendo listeners...", "color: cyan;");
-
-        this.peer.on('open', (id) => {
-            console.log(`%c[Paso 6 Client - ÉXITO] Evento 'open' disparado. Mi ID es: ${id}`, "background: green; color: white;");
-            this.miId = id;
-            
-            if (!anfitrionId) {
-                console.error("Error: Se intentó unirse a una partida sin ID de anfitrion.");
-                this._isConnecting = false; // <<< DESBLOQUEAMOS si hay error
-                return;
-            }
-            
-            console.log(`%c[Paso 7 Client] Llamando a peer.connect('${anfitrionId}')...`, "color: cyan;");
-            this.conn = this.peer.connect(anfitrionId);
+                this.peer.on('open', (id) => {
+                    console.log(`[Cliente] Mi ID temporal: ${id}`);
+                    this.miId = id;
+                    
+                    this.conn = this.peer.connect(anfitrionId);
             this.idRemoto = anfitrionId; // Guardamos el ID remoto
 
             // <<< ¡ESTA ES LA LÍNEA MÁGICA QUE FALTABA! >>>
             // Le decimos que use la función que ya tienes para configurar los eventos de la conexión.
-            this._configurarEventosDeConexion(); 
-        });
+                    this._configurarEventosDeConexion(); 
+                });
 
-        // Dentro del this.peer.on('error', ...)
-        this.peer.on('error', (err) => {
-            console.error("%c[Paso E1 Client - ERROR]...", "...", err);
-            this._isConnecting = false; // <<< Desbloqueamos en caso de error
-            this.desconectar();
-        });
+                this.peer.on('error', (err) => {
+                    console.error("[Cliente] Error de conexión:", err);
+                    this._isConnecting = false;
+                    if (err.type === 'peer-unavailable') {
+                        alert(`No se encontró la partida "${cleanCode}". Verifica el código.`);
+                    } else {
+                        alert(`Error de conexión: ${err.type}`);
+                    }
+                    this.desconectar();
+                });
 
             } catch(e) {
-                 console.error("%c[Paso E2 Client - ERROR CATASTRÓFICO] Fallo al crear new Peer():", "background: red; color: white;", e);
+                 console.error("[Cliente] Error catastrófico:", e);
+                 this._isConnecting = false;
             }
         }, 200);
     },
 
     desconectar: function() {
-        console.log("[NetworkManager] Iniciando desconexión completa...");
+        console.log("[Red] Desconectando...");
         if (this.conn) {
             this.conn.close();
         }
@@ -178,7 +189,7 @@ const NetworkManager = {
         this.miId = null;
         this.idRemoto = null;
         this.esAnfitrion = false;
-        console.log("[NetworkManager] Desconexión y limpieza completadas.");
+        this._isConnecting = false;
     },
 
     enviarDatos: function(datos) {
@@ -186,7 +197,7 @@ const NetworkManager = {
         // Solo intentará mostrar el log de 'action.type' si 'datos'
         // es realmente una petición de acción.
         if (datos.type === 'actionRequest' && datos.action) {
-            console.log(`[NETWORK FLOW - PASO 2] Enviando petición '${datos.action.type}' al Anfitrión.`);
+            console.log(`[Red] Enviando acción: '${datos.action.type}'`);
         }
         
         // El resto de tu función se queda exactamente igual.
@@ -195,26 +206,21 @@ const NetworkManager = {
             // y el `this.conn.send(datos);`
             this.conn.send(datos);
         } else {
-            console.warn("[NetworkManager] Intento de enviar datos sin una conexión activa.");
+            console.warn("[Red] No se puede enviar: conexión inactiva.");
         }
     },
 
     _configurarEventosDeConexion: function() {
-        if (!this.conn) {
-            console.error("Se intentó configurar eventos sin una conexión válida.");
-            return;
-        }
-
-        console.log(`[Configurando Eventos] Añadiendo listeners para la conexión con ${this.conn.peer}...`);
+        if (!this.conn) return;
 
         this.conn.on('open', () => {
-            console.log(`%c[Paso 8 - ÉXITO CONEXIÓN] La conexión de datos con ${this.conn.peer} está abierta.`, "background: blue; color: white;");
-            this._isConnecting = false; // Desbloqueamos el cerrojo AHORA que la conexión es real.
+            console.log(`%c[Red] ¡Conexión establecida con ${this.conn.peer}!`, "background: blue; color: white;");
+            this._isConnecting = false;
             if (this._onConexionAbierta) this._onConexionAbierta(this.idRemoto);
         });
 
         this.conn.on('data', (datos) => {
-            console.log(`%c[NETWORK RECEIVE] Datos recibidos de ${this.conn.peer}:`, 'background: #2E8B57; color: white;', JSON.parse(JSON.stringify(datos)));
+            //console.log(`[Red] Datos recibidos:`, datos.type);
             if (this._onDatosRecibidos) this._onDatosRecibidos(datos);
         });
 
@@ -236,7 +242,7 @@ const NetworkManager = {
     broadcastFullState: function() {
         if (!this.esAnfitrion || !this.conn || !this.conn.open) return;
         console.log("[NETWORK FLOW - PASO 5] Anfitrión retransmitiendo estado completo (fullStateUpdate) a todos los clientes.", "background: #FFD700; color: black;");
-
+        
     // Preparamos un objeto de estado limpio para no enviar elementos del DOM
         const replacer = (key, value) => (key === 'element' ? undefined : value);
     
@@ -254,6 +260,27 @@ const NetworkManager = {
                 unitIdCounter: unitIdCounter
             }
         };
+
+        // --- INICIO DEL CÓDIGO DE DIAGNÓSTICO ---
+
+            // Este log es solo para el anfitrión, justo antes de enviar los datos.
+            console.log("%c[DIAGNÓSTICO DE RETRANSMISIÓN DEL ANFITRIÓN]", "background: #fd7e14; color: white; font-weight: bold;");
+
+            // Verificamos el estado de las tecnologías del Jugador 2 que se van a enviar.
+            const tecnologiasJ2 = fullStatePacket.payload.gameState.playerResources['2']?.researchedTechnologies || 'No definido';
+            console.log("  -> Tecnologías del J2 a punto de ser enviadas:", JSON.stringify(tecnologiasJ2));
+
+            // Verificamos el estado de 'hasMoved' de la primera unidad del Jugador 2 (si existe).
+            const primeraUnidadJ2 = fullStatePacket.payload.units.find(u => u.player === 2);
+            if (primeraUnidadJ2) {
+                console.log(`  -> Estado de '${primeraUnidadJ2.name}' (J2) a punto de ser enviado: hasMoved=${primeraUnidadJ2.hasMoved}, hasAttacked=${primeraUnidadJ2.hasAttacked}, lastMove existe=${!!primeraUnidadJ2.lastMove}`);
+            } else {
+                console.log("  -> No hay unidades del J2 en el paquete a enviar.");
+            }
+
+            
+            // --- FIN DEL CÓDIGO DE DIAGNÓSTICO ---
+        
         
         this.enviarDatos(fullStatePacket);
     }
