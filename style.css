@@ -4442,3 +4442,72 @@ input[type="range"] {
     margin-top: 5px;
     font-size: 1em;
 }
+
+/* ========================================================== */
+/* == ESTILOS TRACKER DE PV (VERSIÓN COMPACTA ESQUINA SUP-IZQ) == */
+/* ========================================================== */
+
+#victory-points-tracker {
+    position: fixed; /* Fijo en la pantalla */
+    top: 5px;        /* Pequeño margen superior */
+    left: 5px;       /* Pequeño margen izquierdo */
+    z-index: 2000;   /* Por encima de casi todo */
+    
+    display: flex;
+    align-items: center;
+    height: 15px;      /* ALTURA MÁXIMA */
+    padding: 2px 6px;
+    
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(3px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    
+    font-size: 10px;   /* Tamaño de fuente muy pequeño */
+    font-weight: bold;
+    color: #f1c40f;
+    cursor: default;
+}
+
+#victory-points-tracker .vp-icon {
+    font-size: 11px; /* Icono un poco más grande que el texto */
+    margin-right: 4px;
+}
+
+/* El tooltip sigue igual, pero lo ajustamos para que no sea enorme */
+#victory-points-tooltip {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 250px; /* Ancho ajustado */
+    background-color: #2c3e50;
+    border: 1px solid #7f8c8d;
+    border-radius: 5px;
+    padding: 8px;
+    z-index: 100;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+    color: #ecf0f1;
+    font-size: 11px; /* Fuente pequeña también para el tooltip */
+}
+
+#victory-points-tracker:hover > #victory-points-tooltip {
+    display: block;
+}
+
+#victory-points-tooltip h4 {
+    margin: 0 0 5px 0;
+    padding-bottom: 4px;
+    font-size: 12px;
+    /* ... (resto de estilos de h4 sin cambios) */
+}
+
+#victory-points-tooltip ul {
+    list-style: none; padding: 0; margin: 0;
+}
+#victory-points-tooltip li {
+    display: flex; justify-content: space-between; padding: 3px 0;
+}
+#victory-points-tooltip li span:first-child {
+    color: #bdc3c7;
+}

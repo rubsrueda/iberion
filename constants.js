@@ -706,7 +706,6 @@ const RUIN_GENERATION_CHANCE = {
     ON_UNIT_DESTROYED: 50, // Probabilidad (en %) de que una unidad deje ruinas al morir
     INITIAL_MAP_RUINS: 8   // Número de ruinas que se generan al inicio de una partida normal
 };
-
 const RUIN_EVENTS = [
     // === EVENTOS BUENOS ===
     {
@@ -782,6 +781,16 @@ const RUIN_EVENTS = [
         effect: { type: 'add_regiment', regimentType: 'Infantería Ligera' },
         toastMessage: "¡Refuerzos inesperados!",
         toastIcon: '🤝'
+    },
+
+    {
+        id: 'victory_point',
+        description: "En el corazón de la ruina, encuentras un antiguo artefacto de poder que consolida tu legado. ¡Obtienes un Punto de Victoria!",
+        weight: 1, // Muy raro
+        type: 'special',
+        effect: { type: 'grant_victory_point' },
+        toastMessage: "¡Punto de Victoria!",
+        toastIcon: '👑'
     },
 
     // === EVENTOS MALOS ===

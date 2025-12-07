@@ -481,4 +481,42 @@ function findConnectedCities(startR, startC) {
     return Array.from(foundCities.values());
 }
 
+
+/**
+ * Asegura que el objeto gameState tenga todas las propiedades necesarias,
+ * añadiendo las que falten con valores por defecto.
+ * Esto previene errores al cargar partidas antiguas o estados de red incompletos.
+ */
+function ensureFullGameState() {
+    if (!gameState) return;
+
+    // Verificar y añadir playerStats si falta
+    if (!gameState.playerStats) {
+        console.warn("[GameState Check] gameState.playerStats no existía. Inicializando ahora.");
+        gameState.playerStats = { unitsDestroyed: {}, sealTrades: {} };
+        for (let i = 1; i <= gameState.numPlayers; i++) {
+            gameState.playerStats.unitsDestroyed[`player${i}`] = 0;
+            gameState.playerStats.sealTrades[`player${i}`] = 0;
+        }
+    }
+
+    // Verificar y añadir victoryPoints si falta
+    if (!gameState.victoryPoints) {
+        console.warn("[GameState Check] gameState.victoryPoints no existía. Inicializando ahora.");
+        gameState.victoryPoints = {
+            holders: {
+                mostCities: null, largestArmy: null, longestRoute: null, mostKills: null,
+                mostTechs: null, mostHeroes: null, mostResources: null, mostTrades: [],
+            },
+            ruins: {}
+        };
+        for (let i = 1; i <= gameState.numPlayers; i++) {
+            gameState.victoryPoints[`player${i}`] = 0;
+            gameState.victoryPoints.ruins[`player${i}`] = 0;
+        }
+    }
+    
+    // Puedes añadir aquí futuras comprobaciones para otras propiedades
+}
+
 console.log("utils.js se ha cargado.");

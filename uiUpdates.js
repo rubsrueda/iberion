@@ -1110,5 +1110,76 @@ const UIManager = {
             this._autoCloseTimeout = null;
         }, duration);
     },
+
+    updateVictoryPointsDisplay: function() {
+        console.log("%c[UI] Se ha llamado a updateVictoryPointsDisplay.", "color: lime; font-weight: bold;"); // <-- AÑADE ESTO
+
+        const tracker = document.getElementById('victory-points-tracker');
+        if (!tracker) {
+            console.error("[UI] ¡ERROR! No se encuentra el elemento #victory-points-tracker en el DOM.");
+            return;
+        }
+
+        if (gameState.turnNumber < 2) {
+            tracker.style.display = 'none';
+            return;
+        }
+
+        console.log("[UI] Mostrando tracker. Asignando 'display: flex'."); // <-- AÑADE ESTO
+        tracker.style.display = 'flex';
+
+        const summaryEl = document.getElementById('victory-points-summary');
+        const tooltipEl = document.getElementById('victory-points-tooltip');
+        const vpData = gameState.victoryPoints;
+
+        // 1. Actualizar el resumen simple (formato compacto)
+        const playerScores = [];
+        for (let i = 1; i <= gameState.numPlayers; i++) {
+            if (!gameState.eliminatedPlayers.includes(i)) {
+                playerScores.push(`J${i}:${vpData['player' + i] || 0}`);
+            }
+        }
+        summaryEl.textContent = playerScores.join(' | ');
+
+        // 2. Construir el contenido del tooltip detallado (sin cambios en la lógica)
+        let tooltipHTML = '<h4>Títulos de Victoria</h4><ul>';
+        const titles = {
+            mostCities: "Más Ciudades", largestArmy: "Ejército Grande", longestRoute: "Ruta Larga",
+            mostKills: "Más Victorias", mostTechs: "Más Avances", mostHeroes: "Más Héroes",
+            mostResources: "Más Riqueza", mostTrades: "Más Comercios"
+        };
+        for (const key in vpData.holders) {
+            const title = titles[key];
+            let holderText = '(Nadie)';
+            const holderValue = vpData.holders[key];
+
+            // --- INICIO DE LA CORRECCIÓN ---
+            // Caso 1: El valor es un array (para 'mostTrades')
+            if (Array.isArray(holderValue)) {
+                if (holderValue.length > 0) {
+                    holderText = holderValue.join(', ').replace(/player/g, 'J');
+                }
+            // Caso 2: El valor es un string (para todos los demás títulos)
+            } else if (typeof holderValue === 'string') {
+                holderText = holderValue.replace('player', 'J');
+            }
+            tooltipHTML += `<li><span>${title}:</span> <strong>${holderText}</strong></li>`;
+        }
+        tooltipHTML += '</ul>';
+        
+        let ruinsHTML = '<h4>PV de Ruinas</h4><ul>';
+        let hasRuinPoints = false;
+        for (let i = 1; i <= gameState.numPlayers; i++) {
+            const ruinPoints = vpData.ruins['player' + i] || 0;
+            if (ruinPoints > 0) {
+                hasRuinPoints = true;
+                ruinsHTML += `<li><span>Jugador ${i}:</span> <strong>${ruinPoints}</strong></li>`;
+            }
+        }
+        ruinsHTML += '</ul>';
+        if (hasRuinPoints) { tooltipHTML += ruinsHTML; }
+        
+        tooltipEl.innerHTML = tooltipHTML;
+    },
     
 };

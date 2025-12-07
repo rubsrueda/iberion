@@ -1566,6 +1566,9 @@ async function handleEndTurn(isHostProcessing = false) {
                 if (typeof BankManager !== 'undefined' && BankManager.executeTurn) {
                     BankManager.executeTurn();
                 }
+
+                // --- calculamos los puntos de victoria ---
+                calculateVictoryPoints();
             }
             
             attempts++;
@@ -1584,6 +1587,14 @@ async function handleEndTurn(isHostProcessing = false) {
         } else {
             console.warn("[Fin de Turno] No se encontró ningún jugador activo. Terminando juego.");
             gameState.currentPhase = "gameOver"; // Condición de fin de partida.
+        }
+
+        // En partidas locales, actualizamos quién es el "jugador humano activo".
+        if (!isNetworkGame()) {
+            const nextPlayerType = gameState.playerTypes[`player${gameState.currentPlayer}`];
+            if (nextPlayerType === 'human') {
+                gameState.myPlayerNumber = gameState.currentPlayer;
+            }
         }
     }
     
@@ -1748,13 +1759,26 @@ function updateTradeRoutes(playerNum) {
         while (movesLeft > 0) {
             // Condición de parada 1: Ya ha llegado al final de su camino.
             if (route.position >= route.path.length - 1) {
+                
+                // --- INICIO DE LA SECCIÓN DE DEBUG ---
+                console.group(`[Debug Entrega] Caravana "${unit.name}" ha llegado.`);
                 const destinationCity = route.destination;
                 const cityOwner = board[destinationCity.r]?.[destinationCity.c]?.owner;
+                
+                console.log(`  - Destino: ${destinationCity.name} (Dueño: J${cityOwner})`);
+                console.log(`  - Oro transportado: ${route.goldCarried}`);
+                console.log(`  - Verificando condiciones: cityOwner !== null (${cityOwner !== null}), cityOwner !== BankManager.PLAYER_ID (${cityOwner !== BankManager.PLAYER_ID}), goldCarried > 0 (${route.goldCarried > 0})`);
 
                 if (cityOwner !== null && cityOwner !== BankManager.PLAYER_ID && route.goldCarried > 0) {
+                    console.log(`%c  -> CONDICIONES CUMPLIDAS. Entregando oro...`, "color: green");
                     gameState.playerResources[cityOwner].oro += route.goldCarried;
                     logMessage(`La caravana "${unit.name}" entregó ${route.goldCarried} oro en ${destinationCity.name}.`);
+                } else {
+                    console.log(`%c  -> CONDICIONES NO CUMPLIDAS. No se entrega oro.`, "color: orange");
                 }
+                
+                console.log("  - Estado ANTES de invertir: ", { origin: route.origin.name, destination: route.destination.name });
+                // --- FIN DE LA SECCIÓN DE DEBUG ---
 
                 // Curación y Recomposición al llegar
                 unit.currentHealth = unit.maxHealth;
@@ -1771,17 +1795,24 @@ function updateTradeRoutes(playerNum) {
                 route.goldCarried = 0;
                 route.position = 0;
                 [route.origin, route.destination] = [route.destination, route.origin];
+                
+                console.log("  - Estado DESPUÉS de invertir: ", { origin: route.origin.name, destination: route.destination.name }); // DEBUG
+                
                 route.path = findInfrastructurePath(route.origin, route.destination);
                 
                 if (!route.path) {
                     logMessage(`Ruta de regreso no encontrada para "${unit.name}". Se detiene el comercio.`);
                     delete unit.tradeRoute;
+                    console.groupEnd();
                     break; 
                 }
                 logMessage(`"${unit.name}" inicia viaje de regreso a ${route.destination.name}.`);
+                console.groupEnd();
             }
 
-            // Condición de parada 2: El siguiente paso está bloqueado.
+            // Si no ha llegado, avanza.
+            if (route.position >= route.path.length - 1) break; // Seguridad extra
+            
             const nextStepCoords = route.path[route.position + 1];
             if (!nextStepCoords) { // Seguridad por si el path es corto
                 break;
@@ -1792,7 +1823,7 @@ function updateTradeRoutes(playerNum) {
                  logMessage(`Caravana "${unit.name}" espera porque la ruta está bloqueada.`);
                  break; // Detener el movimiento de esta caravana en este turno
             }
-
+            
             // Si pasa las condiciones, avanza un paso
             route.position++;
             
@@ -1802,9 +1833,9 @@ function updateTradeRoutes(playerNum) {
             }
             movesLeft--;
         }
-        
+
         // Actualizar la posición lógica de la unidad en el tablero
-        if (route.path && route.path[route.position]) {
+        if (route && route.path && route.path[route.position]) {
              const newCoords = route.path[route.position];
              if (board[unit.r]?.[unit.c]?.unit?.id === unit.id) {
                  board[unit.r][unit.c].unit = null;
@@ -1815,13 +1846,125 @@ function updateTradeRoutes(playerNum) {
                  board[unit.r][unit.c].unit = unit;
              }
         }
-        
-        // Las unidades en ruta comercial siempre están listas para su siguiente movimiento automático
-        unit.hasMoved = false;
-        unit.hasAttacked = false;
+         // Las unidades en ruta comercial siempre están listas para su siguiente movimiento automático
+        if (unit.player !== BankManager.PLAYER_ID) {
+            unit.hasMoved = false;
+            unit.hasAttacked = false;
+        }
     });
 
     if (UIManager && UIManager.renderAllUnitsFromData) {
         UIManager.renderAllUnitsFromData();
     }
+}
+
+/**
+ * Calcula y asigna los Puntos de Victoria al final de una ronda.
+ */
+function calculateVictoryPoints() {
+
+    if (gameState.turnNumber < 11) return;
+
+    // Bloque de seguridad: Si playerStats no existe, lo inicializamos.
+    ensureFullGameState();
+
+    console.log("%c[Victoria por Puntos] Calculando PV para el final de la ronda " + (gameState.turnNumber -1), "background: gold; color: black;");
+
+    const players = Array.from({ length: gameState.numPlayers }, (_, i) => i + 1);
+    const metrics = {};
+
+    // 1. Recopilar métricas de todos los jugadores
+    players.forEach(p => {
+        const playerKey = `player${p}`;
+        const playerUnits = units.filter(u => u.player === p);
+        metrics[p] = {
+            cities: gameState.cities.filter(c => c.owner === p).length,
+            armySize: playerUnits.reduce((sum, u) => sum + u.maxHealth, 0),
+            longestRoute: playerUnits.filter(u => u.tradeRoute).reduce((max, u) => Math.max(max, u.tradeRoute.path.length), 0),
+            kills: gameState.playerStats.unitsDestroyed[playerKey] || 0,
+            techs: gameState.playerResources[p].researchedTechnologies.length,
+            heroes: playerUnits.filter(u => u.commander).length,
+            resources: Object.values(gameState.playerResources[p]).reduce((sum, val) => typeof val === 'number' ? sum + val : sum, 0),
+            trades: gameState.playerStats.sealTrades[playerKey] || 0
+        };
+    });
+    
+    const vp = gameState.victoryPoints;
+    const oldHolders = { ...vp.holders };
+
+    // 2. Determinar quién ostenta cada título
+    const findWinner = (metric) => {
+        let maxVal = -1;
+        let winner = null;
+        players.forEach(p => {
+            if (metrics[p][metric] > maxVal) {
+                maxVal = metrics[p][metric];
+                winner = `player${p}`;
+            } else if (metrics[p][metric] === maxVal) {
+                winner = null; // Empate anula el punto
+            }
+        });
+        // Aplicar condiciones mínimas
+        if (metric === 'longestRoute' && maxVal < 5) return null;
+        if (metric === 'resources' && maxVal < 25000) return null; // 5000 * 5 recursos
+        return winner;
+    };
+
+    vp.holders.mostCities = findWinner('cities');
+    vp.holders.largestArmy = findWinner('armySize');
+    vp.holders.longestRoute = findWinner('longestRoute');
+    vp.holders.mostKills = findWinner('kills');
+    vp.holders.mostTechs = findWinner('techs');
+    vp.holders.mostHeroes = findWinner('heroes');
+    vp.holders.mostResources = findWinner('resources');
+
+    // Lógica especial para empates en comercio
+    let maxTrades = -1;
+    players.forEach(p => { maxTrades = Math.max(maxTrades, metrics[p].trades); });
+    vp.holders.mostTrades = [];
+    if (maxTrades > 0) {
+        players.forEach(p => {
+            if (metrics[p].trades === maxTrades) {
+                vp.holders.mostTrades.push(`player${p}`);
+            }
+        });
+    }
+
+    // 3. Recalcular totales y anunciar cambios
+    players.forEach(p => {
+        const playerKey = `player${p}`;
+        let totalPoints = vp.ruins[playerKey] || 0;
+        for (const holder in vp.holders) {
+            if (Array.isArray(vp.holders[holder])) {
+                if (vp.holders[holder].includes(playerKey)) totalPoints++;
+            } else {
+                if (vp.holders[holder] === playerKey) totalPoints++;
+            }
+        }
+        vp[playerKey] = totalPoints;
+    });
+
+    // Anunciar cambios de titularidad
+    for (const holder in vp.holders) {
+        if (vp.holders[holder] !== oldHolders[holder]) {
+            if (vp.holders[holder]) {
+                 logMessage(`¡${vp.holders[holder]} ahora ostenta el título de "${holder}"!`, "event");
+            }
+        }
+    }
+    
+    // 4. Comprobar victoria
+    players.forEach(p => {
+        if (vp[`player${p}`] >= 9) {
+            logMessage(`¡El Jugador ${p} ha alcanzado 9 Puntos de Victoria y gana la partida!`, "victory");
+            endTacticalBattle(p);
+        }
+    });
+
+    // Llamar a la UI para que actualice el display
+    if (typeof UIManager !== 'undefined' && UIManager.updateVictoryPointsDisplay) {
+        UIManager.updateVictoryPointsDisplay();
+    }
+
+    console.log("[Victoria por Puntos] Estado actualizado:", JSON.parse(JSON.stringify(vp)));
 }

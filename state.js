@@ -120,12 +120,6 @@ function resetGameStateVariables(playerCount = 2, turnDuration = Infinity) {
         initialGameStateObject.capitalCityId[i] = null;
         initialGameStateObject.unitsPlacedByPlayer[i] = 0;
     }
-    
-    // Asignaciones específicas para escaramuza (se pueden mover a la llamada si es necesario)
-    //initialGameStateObject.playerTypes['player1'] = domElements.player1TypeSelect.value;
-    //initialGameStateObject.playerTypes['player2'] = domElements.player2TypeSelect.value;
-    //initialGameStateObject.playerCivilizations[1] = p1civ;
-    //initialGameStateObject.playerCivilizations[2] = p2civ;
 
     gameState = initialGameStateObject;
 
@@ -190,6 +184,23 @@ async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaign
         selectedHexC: -1,
         preparingAction: null,
         selectedUnit: null,
+
+        // --- Puntos de Victoria---
+        victoryPoints: {
+            player1: 0, player2: 0, player3: 0, player4: 0, player5: 0, player6: 0, player7: 0, player8: 0,
+            holders: {
+                mostCities: null, largestArmy: null, longestRoute: null, mostKills: null,
+                mostTechs: null, mostHeroes: null, mostResources: null, mostTrades: [],
+            },
+            ruins: {
+                player1: 0, player2: 0, player3: 0, player4: 0, player5: 0, player6: 0, player7: 0, player8: 0,
+            }
+        },
+        playerStats: {
+            unitsDestroyed: { player1: 0, player2: 0, player3: 0, player4: 0, player5: 0, player6: 0, player7: 0, player8: 0 },
+            sealTrades: { player1: 0, player2: 0, player3: 0, player4: 0, player5: 0, player6: 0, player7: 0, player8: 0 }
+        },
+
         // Y añadimos la propiedad de Civilizaciones que también faltaba aquí
         playerCivilizations: { 1: 'ninguna', 2: 'ninguna' },
         turnDurationSeconds: turnDuration

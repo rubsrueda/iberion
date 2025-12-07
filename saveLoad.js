@@ -61,6 +61,9 @@ function handleLoadGame(event) {
             units = [];
             
             Object.assign(gameState, loadedData.gameState);
+
+            ensureFullGameState();
+            
             unitIdCounter = loadedData.unitIdCounter || 0;
 
             const boardSize = loadedData.board.length > 0 ? { rows: loadedData.board.length, cols: loadedData.board[0].length } : BOARD_SIZES.small;

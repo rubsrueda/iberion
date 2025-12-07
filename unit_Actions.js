@@ -714,16 +714,14 @@ async function moveUnit(unit, toR, toC) {
     const targetHexData = board[toR]?.[toC];
 
     // Guardar estado para la función "deshacer"
-    if (unit.player === gameState.currentPlayer) {
-        unit.lastMove = {
-            fromR: fromR,
-            fromC: fromC,
-            initialCurrentMovement: unit.currentMovement, 
-            initialHasMoved: unit.hasMoved,              
-            initialHasAttacked: unit.hasAttacked,         
-            movedToHexOriginalOwner: targetHexData ? targetHexData.owner : null 
-        };
-    }
+    unit.lastMove = {
+        fromR: fromR,
+        fromC: fromC,
+        initialCurrentMovement: unit.currentMovement, 
+        initialHasMoved: unit.hasMoved,              
+        initialHasAttacked: unit.hasAttacked,         
+        movedToHexOriginalOwner: targetHexData ? targetHexData.owner : null 
+    };
     
     let costOfThisMove = getMovementCost(unit, fromR, fromC, toR, toC);
     if (costOfThisMove === Infinity) return;
@@ -1928,6 +1926,13 @@ async function handleUnitDestroyed(destroyedUnit, victorUnit) {
     console.log(`[handleUnitDestroyed] Destruyendo ${destroyedUnit.name}. ¿Por combate? ${isCombatDestruction}`);
     
     if (isCombatDestruction) {
+
+        // --- puntos de victoria ---
+        const victorPlayerKey = `player${victorUnit.player}`;
+        if (gameState.playerStats.unitsDestroyed[victorPlayerKey] !== undefined) {
+            gameState.playerStats.unitsDestroyed[victorPlayerKey]++;
+        }
+
         logMessage(`¡${destroyedUnit.name} ha sido destruida por ${victorUnit.name}!`);
 
         if (gameState.isTutorialActive && destroyedUnit.player === 2) {
@@ -3378,6 +3383,23 @@ function processRuinEvent(event, unit, playerResources) {
                 toastType = 'info';
             }
             break;
+
+        // --- puntos de victoria ---
+        case 'grant_victory_point':
+            const vpRuinTracker = gameState.victoryPoints.ruins;
+            const playerKey = `player${unit.player}`;
+            if (vpRuinTracker[playerKey] < 3) {
+                vpRuinTracker[playerKey]++;
+                toastText = "¡Has encontrado un Punto de Victoria!";
+                toastType = 'special'; // Podrías definir un estilo especial para esto
+            } else {
+                // Si ya tiene 3, dar oro como compensación
+                playerResources.oro += 500;
+                toastText = "Has encontrado un artefacto antiguo (+500 Oro)";
+                toastType = 'success';
+            }
+            break;
+        //
 
         case 'nothing':
             // No hacemos nada, el toastText ya es "No has encontrado nada"
