@@ -131,9 +131,10 @@ const NetworkManager = {
         let cleanCode = codigoUsuario.trim().toUpperCase().replace(this._prefix.toUpperCase(), '');
         
         // 2. RECONSTRUCCIÓN DEL ID REAL
+        // Esta es la variable crucial que debemos usar para conectar
         const anfitrionId = this._prefix + cleanCode;
         
-        console.log(`[Cliente] Conectando a ID real: ${anfitrionId}`);
+        console.log(`[Cliente] Código Usuario: ${cleanCode} -> Conectando a ID real: ${anfitrionId}`);
 
         this._isConnecting = true;
         if (this.peer) {
@@ -150,11 +151,10 @@ const NetworkManager = {
                     console.log(`[Cliente] Mi ID temporal: ${id}`);
                     this.miId = id;
                     
+                    // ¡CORRECCIÓN AQUÍ! Usamos 'anfitrionId' (con el prefijo), no el código del usuario.
                     this.conn = this.peer.connect(anfitrionId);
-            this.idRemoto = anfitrionId; // Guardamos el ID remoto
+                    this.idRemoto = anfitrionId;
 
-            // <<< ¡ESTA ES LA LÍNEA MÁGICA QUE FALTABA! >>>
-            // Le decimos que use la función que ya tienes para configurar los eventos de la conexión.
                     this._configurarEventosDeConexion(); 
                 });
 
@@ -162,6 +162,7 @@ const NetworkManager = {
                     console.error("[Cliente] Error de conexión:", err);
                     this._isConnecting = false;
                     if (err.type === 'peer-unavailable') {
+                        // Mensaje amigable para el usuario mostrando el código que él escribió
                         alert(`No se encontró la partida "${cleanCode}". Verifica el código.`);
                     } else {
                         alert(`Error de conexión: ${err.type}`);
