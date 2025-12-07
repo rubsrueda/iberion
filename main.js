@@ -1808,116 +1808,49 @@ setInterval(() => {
     }
 }, _ACTION_CACHE_DURATION);
 
-async function processActionRequest(action) { // <<== async
+async function processActionRequest(action) { 
     // DIAGNÓSTICO: Log explícito de la acción recibida
     console.log(`%c[processActionRequest] Acción recibida: ${action.type}`, 'background: #4169E1; color: white; font-weight: bold;');
-    console.log(`%c[DIAGNÓSTICO DE TURNO] Al recibir la acción '${action.type}', el estado actual del juego en el anfitrión es: gameState.currentPlayer = ${gameState.currentPlayer}`, 'background: orange; color: black; font-size: 1.1em;');
-    console.log(`  - actionId presente: ${!!action.actionId}`);
-    if (action.actionId) {
-        console.log(`  - actionId valor: ${action.actionId}`);
-    } else {
-        console.warn(`  - ⚠️ ADVERTENCIA: Esta acción NO tiene actionId, NO se puede deduplicar`);
-    }
     
     // DEDUPLICACIÓN: Verificar si esta acción ya fue procesada
     if (action.actionId) {
         if (_processedActions.has(action.actionId)) {
             console.warn(`%c[DEDUPLICACIÓN] Acción duplicada detectada (${action.type}, ID: ${action.actionId}), IGNORANDO.`, 'background: #FF4500; color: white;');
-            return; // Ignorar esta acción duplicada
+            return; 
         }
-        // Registrar esta acción como procesada
         _processedActions.set(action.actionId, Date.now());
-        console.log(`%c[DEDUPLICACIÓN] Acción registrada (${action.type}, ID: ${action.actionId})`, 'color: #32CD32;');
     }
     
     console.log(`%c[Anfitrión] Procesando petición de acción: ${action.type}`, 'color: #FF69B4; font-weight: bold;', action.payload);
     
     // Si la acción no es del anfitrión, la ignora para evitar que procese sus propias retransmisiones
     if (action.payload.playerId !== NetworkManager.miId && NetworkManager.esAnfitrion && action.payload.playerId !== gameState.currentPlayer) {
-        // Excepción: permitimos que las acciones se procesen si son del jugador actual, independientemente de quién sea.
+        // Excepción: permitimos que las acciones se procesen si son del jugador actual.
     }
     
     let payload = action.payload;
     let actionExecuted = false;
 
-    // Tu switch completo con toda su lógica se mantiene intacto.
-    // Solo hemos modificado ligeramente el final del case 'endTurn'.
     switch (action.type) {
         case 'endTurn':
             if (payload.playerId !== gameState.currentPlayer) {
                 console.warn(`[Red - Anfitrión] RECHAZADO: Fin de turno de J${payload.playerId} pero el turno era de J${gameState.currentPlayer}.`);
-                // Ya no retornamos de la función `processActionRequest`, solo salimos del switch.
                 break;
             }
 
             console.log(`[Red - Anfitrión] Procesando fin de turno para J${payload.playerId}...`);
             
-            // ¡Llamamos a la función centralizada de gameFlow.js pasándole el flag!
+            // --- CORRECCIÓN CRÍTICA: Usar la función centralizada ---
             handleEndTurn(true);
             
             actionExecuted = true;
             break;    
 
-            // Se ejecuta toda tu lógica de fin de turno que cambia el estado del juego.
-            const playerEndingTurn = gameState.currentPlayer;
-            
-            // --- INICIO DE LA LÓGICA DE JUEGO DEL FIN DE TURNO (DE TU FUNCIÓN handleEndTurn) ---
-            if (gameState.currentPhase === "deployment") {
-                if (gameState.currentPlayer === 1) gameState.currentPlayer = 2;
-                else { gameState.currentPhase = "play"; gameState.currentPlayer = 1; gameState.turnNumber = 1; }
-            } else if (gameState.currentPhase === "play") {
-                updateTerritoryMetrics(playerEndingTurn);
-                collectPlayerResources(playerEndingTurn); 
-                handleUnitUpkeep(playerEndingTurn);
-                handleHealingPhase(playerEndingTurn);
-                const tradeGold = calculateTradeIncome(playerEndingTurn);
-                if (tradeGold > 0) gameState.playerResources[playerEndingTurn].oro += tradeGold;
-                gameState.currentPlayer = playerEndingTurn === 1 ? 2 : 1;
-                if (gameState.currentPlayer === 1) gameState.turnNumber++;
-                handleBrokenUnits(gameState.currentPlayer);
-                resetUnitsForNewTurn(gameState.currentPlayer);
-                if (gameState.playerResources[gameState.currentPlayer]) {
-                    const baseResearchIncome = BASE_INCOME.RESEARCH_POINTS_PER_TURN || 5; 
-                    gameState.playerResources[gameState.currentPlayer].researchPoints += baseResearchIncome;
-                }
-                const player = gameState.currentPlayer;
-                const playerRes = gameState.playerResources[player];
-                if(playerRes) {
-                    let foodProducedThisTurn = 0, foodActuallyConsumed = 0, unitsSufferingAttrition = 0, unitsDestroyedByAttrition = [];
-                     units.filter(u => u.player === player && u.currentHealth > 0).forEach(unit => {
-                        let unitConsumption = 0;
-                        (unit.regiments || []).forEach(reg => { unitConsumption += REGIMENT_TYPES[reg.type]?.foodConsumption || 0; });
-                        if (isHexSupplied(unit.r, unit.c, player) && playerRes.comida >= unitConsumption) {
-                            playerRes.comida -= unitConsumption;
-                            foodActuallyConsumed += unitConsumption;
-                        } else {
-                            unit.currentHealth -= (ATTRITION_DAMAGE_PER_TURN || 1);
-                            unitsSufferingAttrition++;
-                            if (unit.currentHealth <= 0) unitsDestroyedByAttrition.push(unit.id);
-                        }
-                    });
-                    unitsDestroyedByAttrition.forEach(unitId => { const unit = units.find(u => u.id === unitId); if (unit && handleUnitDestroyed) handleUnitDestroyed(unit, null); });
-                }
-            }
-            // --- FIN DE LA LÓGICA DE JUEGO ---
-            
-            console.log(`[Red - Anfitrión] Retransmitiendo nuevo estado: Turno de J${gameState.currentPlayer}`);
-            const replacer = (key, value) => (key === 'element' ? undefined : value);
-            const gameStateForBroadcast = JSON.parse(JSON.stringify(gameState, replacer));
-            
-            NetworkManager.enviarDatos({
-                type: 'actionBroadcast',
-                action: { type: 'syncGameState', payload: { newGameState: gameStateForBroadcast } }
-            });
-            
-            actionExecuted = true;
-            break;
-            
-        case 'attackUnit': // <<== MODIFICACIÓN IMPORTANTE AQUÍ
+        case 'attackUnit': 
             const attacker = units.find(u => u.id === payload.attackerId);
             const defender = units.find(u => u.id === payload.defenderId);
             if (attacker && defender && isValidAttack(attacker, defender)) {
-                await attackUnit(attacker, defender); // <<== AWAIT
+                await attackUnit(attacker, defender); 
                 actionExecuted = true;
             }
             break;
@@ -1930,91 +1863,46 @@ async function processActionRequest(action) { // <<== async
                 actionExecuted = true;
             }
             break;
+
         case 'moveUnit':
             const unitToMove = units.find(u => u.id === payload.unitId);
             if (unitToMove && isValidMove(unitToMove, payload.toR, payload.toC)) {
-                // 1. Guardamos la posición original ANTES de mover.
                 const fromR = unitToMove.r;
                 const fromC = unitToMove.c;
 
-                // 2. Ejecutamos el movimiento. La unidad ahora está en la nueva posición y hasMoved = true.
                 await _executeMoveUnit(unitToMove, payload.toR, payload.toC);
 
-                // 3. ¡EL PASO DECISIVO! Volvemos a encontrar la unidad en nuestro array `units`
-                //    y nos aseguramos de que la propiedad `lastMove` esté perfectamente construida
-                //    antes de la retransmisión.
+                // Blindaje de datos para retransmisión
                 const movedUnit = units.find(u => u.id === payload.unitId);
                 if (movedUnit) {
                     movedUnit.lastMove = {
                         fromR: fromR,
                         fromC: fromC,
-                        // El resto de datos ya se establecieron, pero los reconfirmamos por seguridad
                         initialCurrentMovement: movedUnit.lastMove.initialCurrentMovement,
-                        initialHasMoved: false, // El estado antes de mover era 'false'
+                        initialHasMoved: false,
                         initialHasAttacked: movedUnit.hasAttacked,
                         movedToHexOriginalOwner: movedUnit.lastMove.movedToHexOriginalOwner
                     };
-                    console.log(`[BLINDAJE] Objeto lastMove para ${movedUnit.name} ha sido forzosamente creado/confirmado en el Host.`, movedUnit.lastMove);
                 }
-
                 actionExecuted = true;
             }
             break;
 
         case 'mergeUnits': 
-            console.log(`[DEBUG] Recibida solicitud mergeUnits:`, payload);
-            
             const mergingUnit = units.find(u => u.id === payload.mergingUnitId); 
             const targetUnitMerge = units.find(u => u.id === payload.targetUnitId); 
             
-            console.log(`[DEBUG] Unidades encontradas - Fusionar: ${!!mergingUnit}, Objetivo: ${!!targetUnitMerge}`);
-            
             if (mergingUnit && targetUnitMerge) {
-                console.log(`[DEBUG] Posiciones - Fusionar: (${mergingUnit.r}, ${mergingUnit.c}), Objetivo: (${targetUnitMerge.r}, ${targetUnitMerge.c})`);
-                
-                // Solo verificamos que pertenezcan al mismo jugador
                 const esElMismoJugador = mergingUnit.player === payload.playerId && targetUnitMerge.player === payload.playerId;
-                
-                console.log(`[DEBUG] Validación - Mismo jugador: ${esElMismoJugador}`);
                 
                 if (esElMismoJugador) {
                     try {
-                        console.log(`[DEBUG] Ejecutando mergeUnits...`);
-                        
-                        // Guardamos el estado de salud antes de la fusión para validar el éxito
-                        const healthBefore = {
-                            merging: mergingUnit.currentHealth,
-                            target: targetUnitMerge.currentHealth
-                        };
-                        
-                        // CORRECCIÓN CRÍTICA: Usar await para esperar a que mergeUnits complete
-                        // la eliminación de la unidad antes de hacer el broadcast
                         await mergeUnits(mergingUnit, targetUnitMerge);
-                        
-                        // Si llegamos aquí sin errores, consideramos la fusión exitosa
-                        // Ya no validamos por conteo de unidades, sino por ejecución sin errores
                         actionExecuted = true;
-                        console.log(`[Red - Anfitrión] ✅ Fusión ejecutada exitosamente`);
-                        
-                        // Log adicional para debugging
-                        const healthAfter = {
-                            target: targetUnitMerge.currentHealth
-                        };
-                        console.log(`[DEBUG] Salud antes:`, healthBefore, `después:`, healthAfter);
-                        
                     } catch (error) {
                         console.error(`[Red - Anfitrión] ❌ Error en mergeUnits:`, error);
-                        // Solo si hay error real no marcamos como exitosa
                     }
-                } else {
-                    console.log(`[Red - Anfitrión] ❌ Fusión rechazada: unidades no pertenecen al jugador ${payload.playerId}`);
-                    console.log(`  - mergingUnit.player: ${mergingUnit.player}`);
-                    console.log(`  - targetUnitMerge.player: ${targetUnitMerge.player}`);
                 }
-            } else {
-                console.log(`[Red - Anfitrión] ❌ Una o ambas unidades no encontradas`);
-                console.log(`IDs buscados: ${payload.mergingUnitId}, ${payload.targetUnitId}`);
-                console.log(`IDs disponibles:`, units.map(u => u.id));
             }
             break;
             
@@ -2028,31 +1916,29 @@ async function processActionRequest(action) { // <<== async
             gameState.preparingAction = null; 
             break;
 
+        // --- CORRECCIÓN CRÍTICA ERROR 2 (SAQUEO) ---
         case 'pillageHex': 
             const pillager = units.find(u => u.id === payload.unitId); 
-            if(pillager) {
-                selectedUnit = pillager; 
-                handlePillageAction();
-                selectedUnit = null;
+            if(pillager && pillager.player === payload.playerId) {
+                // Usamos la función pura _executePillageAction
+                _executePillageAction(pillager);
                 actionExecuted = true;
+            } else {
+                console.warn("[Host] Pillage rechazado: Unidad no encontrada o jugador incorrecto.");
             }
             break;
+        // -------------------------------------------
 
         case 'disbandUnit': 
-            console.log("[TRACE] Entrando en 'case disbandUnit'. A punto de llamar a _executeDisbandUnit.");
             const unitToDisband = units.find(u => u.id === payload.unitId); 
             if(unitToDisband){
-                //_executeDisbandUnit(unitToDisband); 
-                //actionExecuted = true;
                 actionExecuted = await _executeDisbandUnit(unitToDisband);
-                
              }
              break;
 
         case 'placeUnit':
             const hexToPlace = board[payload.r]?.[payload.c];
             if (hexToPlace && !hexToPlace.unit) {
-                // EL ANFITRIÓN ES EL ÚNICO QUE ASIGNA EL ID
                 if (payload.unitData.id === null) { 
                     payload.unitData.id = `u${unitIdCounter++}`;
                 }
@@ -2072,8 +1958,8 @@ async function processActionRequest(action) { // <<== async
                 }
             }
             if(canAfford){
-            handleConfirmBuildStructure(payload); 
-            actionExecuted = true; 
+                handleConfirmBuildStructure(payload); 
+                actionExecuted = true; 
             }
             break;
 
@@ -2095,21 +1981,14 @@ async function processActionRequest(action) { // <<== async
             break;
         
         case 'razeStructure':
+            // Restaurado el log de diagnóstico original
             console.groupCollapsed("%c[DIAGNÓSTICO HOST - RAZE]", "background: #e67e22; color: white;");
             const unitToRaze = units.find(u => u.id === payload.unitId);
             const hexToRaze = board[payload.r]?.[payload.c];
 
-            // Logueamos cada parte de la condición para ver cuál falla.
             console.log(`- ¿Se encontró la unidad? (${payload.unitId}):`, !!unitToRaze, unitToRaze);
             console.log(`- ¿Se encontró el hexágono? (${payload.r}, ${payload.c}):`, !!hexToRaze, hexToRaze);
-            if (unitToRaze) {
-                console.log(`- ¿La unidad NO ha atacado? (!unitToRaze.hasAttacked):`, !unitToRaze.hasAttacked);
-            }
-            if (hexToRaze) {
-                console.log(`- ¿El hexágono tiene una estructura? (hexToRaze.structure):`, hexToRaze.structure);
-            }
             
-            // La condición original, sin cambios.
             if (unitToRaze && hexToRaze && !unitToRaze.hasAttacked && hexToRaze.structure) {
                 console.log("%c -> CONDICIÓN CUMPLIDA. Ejecutando _executeRazeStructure...", "color: green;");
                 _executeRazeStructure(payload);
@@ -2124,7 +2003,6 @@ async function processActionRequest(action) { // <<== async
         case 'exploreRuins':
             const unitToExplore = units.find(u => u.id === payload.unitId);
             const hexToExplore = board[payload.r]?.[payload.c];
-            // Validaciones básicas en el anfitrión
             if (unitToExplore && hexToExplore && !unitToExplore.hasAttacked && hexToExplore.feature === 'ruins') {
                 _executeExploreRuins(payload);
                 actionExecuted = true;
@@ -2139,43 +2017,39 @@ async function processActionRequest(action) { // <<== async
             }
             break;
 
-        // --- comercio ---
         case 'establishTradeRoute':
             actionExecuted = _executeEstablishTradeRoute(payload);
             break;
 
-        // --- Banca ---
         case 'tradeWithBank':
             actionExecuted = _executeTradeWithBank(payload);
             break;
+            
+        case 'changeCapital':
+             actionExecuted = handleChangeCapital(payload.cityR, payload.cityC);
+             break;
 
         default:
             console.warn(`[Red - Anfitrión] Recibida petición de acción desconocida: ${action.type}`);
             break;
         }
 
-
-
     // Si CUALQUIER acción (incluida endTurn) se ejecutó y cambió el estado...
     if (actionExecuted) {
         console.log(`%c[HOST BROADCAST] Acción '${action.type}' ejecutada. Actualizando UI del Host y retransmitiendo.`, 'background: blue; color: white;');
         
-        // --- INICIO DE LA SOLUCIÓN PARA EL HOST ---
-        // 1. Forzamos la actualización visual COMPLETA del anfitrión.
-        //    Esto asegura que cualquier cambio (como el de 'razeStructure') se dibuje.
+        // Forzamos la actualización visual COMPLETA del anfitrión.
         if (typeof renderFullBoardVisualState === 'function') {
             renderFullBoardVisualState();
         }
         if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
             UIManager.updateAllUIDisplays();
         }
-        // --- FIN DE LA SOLUCIÓN ---
 
-        // 2. Retransmitimos el estado, que ahora sabemos que es correcto.
+        // Retransmitimos el estado
         NetworkManager.broadcastFullState();
     } else {
-        // Tu log de advertencia original, que es muy útil, se mantiene.
-        console.warn(`[Red - Anfitrión] La acción ${action.type} fue recibida pero no se ejecutó (probablemente por una condición inválida).`);
+        console.warn(`[Red - Anfitrión] La acción ${action.type} fue recibida pero no se ejecutó.`);
     }
 }
 
