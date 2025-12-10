@@ -251,18 +251,40 @@ const Cheats = { // ¡Reemplaza el objeto Cheats completo con esto!
         const value = parseInt(amount);
         const playerNum = parseInt(playerNumStr);
         if (isNaN(value) || isNaN(playerNum)) {
-            throw new Error("Uso: add_resource <tipo_recurso> <cantidad> [numero_jugador]. Cantidad y número de jugador deben ser números.");
+            throw new Error("Uso: add_resource <tipo_recurso> <cantidad> [numero_jugador].");
         }
 
         if (!gameState || !gameState.playerResources[playerNum]) {
-            if (typeof logToConsole === "function") logToConsole(`No se puede dar recurso: la partida no ha comenzado o el jugador ${playerNum} no existe.`, 'error');
-            if (typeof logMessage === "function") logMessage(`Error: Jugador ${playerNum} no encontrado.`);
+            if (typeof logToConsole === "function") logToConsole(`Error: Jugador ${playerNum} no encontrado.`, 'error');
             return;
         }
-        if (typeof gameState.playerResources[playerNum][resourceType] === 'undefined') {
-            if (typeof logToConsole === "function") logToConsole(`Advertencia: El recurso "${resourceType}" no parece existir. Se creará, pero revisa el nombre.`, 'warning');
+
+        // --- LÓGICA DE RED PARA TRUCOS ---
+        if (isNetworkGame()) {
+            const action = {
+                type: 'cheatResource', // Nuevo tipo de acción para trucos
+                payload: {
+                    playerId: playerNum,
+                    resource: resourceType,
+                    amount: value
+                }
+            };
+
+            if (NetworkManager.esAnfitrion) {
+                // Si soy el anfitrión, aplico el truco y retransmito el estado
+                gameState.playerResources[playerNum][resourceType] = (gameState.playerResources[playerNum][resourceType] || 0) + value;
+                if (typeof UIManager !== 'undefined') UIManager.updateAllUIDisplays();
+                NetworkManager.broadcastFullState(); // ¡Sincronización forzada!
+                if (typeof logToConsole === "function") logToConsole(`[Host] Truco aplicado y retransmitido: +${value} ${resourceType}`, 'success');
+            } else {
+                // Si soy cliente, envío la petición al anfitrión
+                NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+                if (typeof logToConsole === "function") logToConsole(`[Cliente] Petición de truco enviada al anfitrión...`, 'info');
+            }
+            return;
         }
 
+        // --- LÓGICA LOCAL (Original) ---
         gameState.playerResources[playerNum][resourceType] = (gameState.playerResources[playerNum][resourceType] || 0) + value;
         
         if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {

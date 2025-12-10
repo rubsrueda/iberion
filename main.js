@@ -2036,6 +2036,15 @@ async function processActionRequest(action) {
              actionExecuted = handleChangeCapital(payload.cityR, payload.cityC);
              break;
 
+        case 'cheatResource':
+            const targetPlayerRes = gameState.playerResources[payload.playerId];
+            if (targetPlayerRes) {
+                targetPlayerRes[payload.resource] = (targetPlayerRes[payload.resource] || 0) + payload.amount;
+                console.log(`[Host] Truco recibido: J${payload.playerId} recibe ${payload.amount} de ${payload.resource}`);
+                actionExecuted = true; // Esto disparará el broadcastFullState automáticamente
+            }
+            break;
+
         default:
             console.warn(`[Red - Anfitrión] Recibida petición de acción desconocida: ${action.type}`);
             break;
