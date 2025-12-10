@@ -2303,69 +2303,6 @@ function recalculateUnitStats(unit) {
     console.log(`Stats recalculados para ${unit.name} (Nivel ${unit.level}): Atk=${unit.attack}, Def=${unit.defense}`);
 }
 
-function handlePillageAction() {
-    RequestPillageAction();
-}
-
-/**
- * [Función de Ejecución] Contiene la lógica real del saqueo.
- * Es llamada por RequestPillageAction (local) o por el receptor de red.
- * @param {object} pillagerUnit - La unidad que realiza el saqueo.
- */
-function _executePillageAction(pillagerUnit) {
-    if (!pillagerUnit) return;
-
-    const hex = board[pillagerUnit.r]?.[pillagerUnit.c];
-
-    // --- Validaciones de Lógica ---
-    if (!hex || hex.owner === null || hex.owner === pillagerUnit.player) {
-        logMessage("No se puede saquear un territorio propio o neutral.", "error");
-        return;
-    }
-    if (pillagerUnit.hasAttacked || pillagerUnit.hasMoved) {
-        logMessage("Esta unidad ya ha actuado este turno.", "error");
-        return;
-    }
-
-    let goldGained = 15; // Ganancia base por saquear
-    
-    // Si hay una estructura, se daña y se obtiene más oro.
-    if (hex.structure) {
-        logMessage(`${pillagerUnit.name} está saqueando la estructura ${hex.structure}!`);
-        // Lógica futura: podrías dañar la estructura en lugar de destruirla.
-        // Por ahora, la destruimos.
-        hex.structure = null;
-        goldGained += 50;
-    } else {
-        logMessage(`${pillagerUnit.name} está saqueando el territorio en (${hex.r}, ${hex.c})!`);
-    }
-
-    // El hexágono pierde estabilidad
-    hex.estabilidad = Math.max(0, hex.estabilidad - 2);
-
-    // Añadir el oro al jugador
-    if (gameState.playerResources[pillagerUnit.player]) {
-        gameState.playerResources[pillagerUnit.player].oro += goldGained;
-    }
-
-    // Consumir la acción de la unidad
-    pillagerUnit.hasAttacked = true;
-    pillagerUnit.hasMoved = true; 
-
-    if (gameState.isTutorialActive) {
-        TutorialManager.notifyActionCompleted('pillage_completed');
-    }
-
-    logMessage(`¡Saqueo exitoso! Obtienes ${goldGained} de oro. El territorio pierde estabilidad.`);
-
-    // Actualizar la UI
-    renderSingleHexVisuals(pillagerUnit.r, pillagerUnit.c);
-    if (UIManager) {
-        UIManager.updateAllUIDisplays();
-        UIManager.hideContextualPanel();
-    }
-}
-
 function handleDisbandUnit(unitToDisband) {
     console.log("%c[TRACE] La función 'handleDisbandUnit' (la que tiene el 'confirm') ha sido llamada.", "color: red; font-weight: bold;");
     if (!unitToDisband) return;
@@ -2581,6 +2518,43 @@ function RequestSplitUnit(originalUnit, targetR, targetC) {
     }
     splitUnit(originalUnit, targetR, targetC);
 }
+
+/**
+ * [Punto de Entrada] Inicia la acción de Arrasar una estructura.
+ * Es llamada desde el botón de la UI.
+ */
+function requestRazeStructure() {
+    if (!selectedUnit) {
+        logMessage("No hay una unidad seleccionada para arrasar la estructura.", "error");
+        return;
+    }
+
+    const action = {
+        type: 'razeStructure',
+        actionId: `raze_${selectedUnit.id}_${Date.now()}`, // <-- AÑADIDO
+        payload: {
+            playerId: selectedUnit.player,
+            unitId: selectedUnit.id,
+            r: selectedUnit.r,
+            c: selectedUnit.c
+        }
+    };
+
+    // En un futuro, podrías añadir una confirmación:
+    // if (!confirm("¿Seguro que quieres arrasar esta estructura? Se convertirá en ruinas.")) return;
+
+    if (isNetworkGame()) {
+        if (NetworkManager.esAnfitrion) processActionRequest(action);
+        else NetworkManager.enviarDatos({ type: 'actionRequest', action });
+    } else {
+        _executeRazeStructure(action.payload);
+    }
+}
+
+function handlePillageAction() {
+    RequestPillageAction();
+}
+
 /**
  * [Punto de Entrada] Inicia la acción de Saqueo.
  * Decide si ejecutar localmente o enviar una petición a la red.
@@ -2648,6 +2622,119 @@ function RequestAssignGeneral(unit, generalId) {
     }
 }
 
+/**
+ * [Función de Ejecución] Contiene la lógica real de arrasar la estructura.
+ * @param {object} payload - El objeto de datos de la acción.
+ */
+function _executeRazeStructure(payload) {
+    const { playerId, unitId, r, c } = payload;
+    const unit = units.find(u => u.id === unitId);
+    const hex = board[r]?.[c];
+
+    console.log(`[RAZE - Ejecutando]  Jugador: ${playerId}, Unidad: ${unit?.name}, Coordenadas: (${r},${c})`); // Log #1
+
+    // --- Validaciones de Lógica ---
+    if (!unit || !hex) return;
+    if (unit.player !== playerId) return;
+    
+    // CORRECCIÓN: Eliminado "|| unit.hasMoved". Solo bloquea si ya atacó.
+    if (unit.hasAttacked) { 
+        logMessage("La unidad ya ha realizado una acción de combate.", "warning");
+        return; 
+    }
+    
+    if (!hex.structure) return;
+
+    logMessage(`${unit.name} ha arrasado la estructura ${hex.structure} en (${r},${c}).`, "important");
+
+    const structureBefore = hex.structure;
+    const featureBefore = hex.feature;
+
+    // Convertimos la estructura en ruinas
+    hex.structure = null;
+    hex.feature = 'ruins'; 
+
+    // La unidad consume su turno
+    const structureAfter = hex.structure;
+    const featureAfter = hex.feature;
+    console.log(`[RAZE - Ejecutando] Estado de los datos despues de modificar estructura:  Structure: ${structureBefore} -> ${structureAfter} , Feature: ${featureBefore} -> ${featureAfter} `); // Log #7
+    
+    unit.hasMoved = true;
+    unit.hasAttacked = true;
+
+    // Actualizar la UI
+    if (typeof renderSingleHexVisuals === 'function') {
+        renderSingleHexVisuals(r, c);
+    }
+    
+    if (UIManager) {
+        UIManager.hideContextualPanel();
+        UIManager.updateAllUIDisplays();
+    }
+}
+
+/**
+ * [Función de Ejecución] Lógica del Saqueo.
+ * Permite saquear tras mover.
+ */
+function _executePillageAction(pillagerUnit) {
+    if (!pillagerUnit) return;
+
+    const hex = board[pillagerUnit.r]?.[pillagerUnit.c];
+
+    // --- Validaciones de Lógica ---
+    if (!hex || hex.owner === null || hex.owner === pillagerUnit.player) {
+        logMessage("No se puede saquear un territorio propio o neutral.", "error");
+        return;
+    }
+    
+    // CORRECCIÓN: Eliminado "|| pillagerUnit.hasMoved".
+    if (pillagerUnit.hasAttacked) {
+        logMessage("Esta unidad ya ha realizado una acción de combate.", "error");
+        return;
+    }
+
+    let goldGained = 15; // Ganancia base por saquear
+    
+    // Si hay una estructura, se daña y se obtiene más oro.
+    if (hex.structure) {
+        logMessage(`${pillagerUnit.name} está saqueando la estructura ${hex.structure}!`);
+        hex.structure = null;
+        goldGained += 50;
+    } else {
+        logMessage(`${pillagerUnit.name} está saqueando el territorio en (${hex.r}, ${hex.c})!`);
+    }
+
+    // El hexágono pierde estabilidad
+    hex.estabilidad = Math.max(0, hex.estabilidad - 2);
+
+    // Añadir el oro al jugador
+    if (gameState.playerResources[pillagerUnit.player]) {
+        gameState.playerResources[pillagerUnit.player].oro += goldGained;
+    }
+
+    // Consumir la acción de la unidad
+    pillagerUnit.hasAttacked = true;
+    pillagerUnit.hasMoved = true; 
+
+    if (gameState.isTutorialActive) {
+        TutorialManager.notifyActionCompleted('pillage_completed');
+    }
+
+    logMessage(`¡Saqueo exitoso! Obtienes ${goldGained} de oro.`);
+
+    // Actualizar la UI
+    if (typeof renderSingleHexVisuals === 'function') {
+        renderSingleHexVisuals(pillagerUnit.r, pillagerUnit.c);
+    }
+    
+    if (UIManager) {
+        UIManager.updateAllUIDisplays();
+        // Ocultamos el panel para refrescar los botones (el botón de saqueo desaparecerá porque hasAttacked es true)
+        UIManager.hideContextualPanel();
+    }
+}
+
 // Función de ejecución pura (también nueva)
 function _executeAssignGeneral(payload) {
     const { unitId, generalId } = payload;
@@ -2665,19 +2752,9 @@ function _executeAssignGeneral(payload) {
  * @private
  */
 async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
-    
-    // Prohibir a cualquier unidad entrar en la ciudad de La Banca.
-    const targetHexIsBank = board[toR]?.[toC]?.owner === BankManager.PLAYER_ID;
-    if (targetHexIsBank) {
-        logMessage("La ciudad de La Banca es territorio neutral y no se puede entrar.", "warning");
-        return; // Detiene el movimiento
-    }
-    
-    console.log(`[MOVIMIENTO] Ejecutando _executeMoveUnit para ${unit.name} a (${toR},${toC}). Es fusión: ${isMergeMove}`);
-
-    const targetUnitOnHex = getUnitOnHex(toR, toC);
-    if (targetUnitOnHex && !isMergeMove) {
-        console.warn(`[MOVIMIENTO BLOQUEADO] Intento de mover ${unit.name} a una casilla ocupada sin ser una fusión.`);
+    // Prohibir entrar en La Banca
+    if (board[toR]?.[toC]?.owner === BankManager.PLAYER_ID) {
+        logMessage("La ciudad de La Banca es territorio neutral.", "warning");
         return;
     }
 
@@ -2685,7 +2762,7 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
     const fromC = unit.c;
     const targetHexData = board[toR]?.[toC];
 
-    // --- Lógica de `lastMove` y coste ---
+    // Calcular coste
     unit.lastMove = {
         fromR: fromR,
         fromC: fromC,
@@ -2694,71 +2771,83 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
         initialHasAttacked: unit.hasAttacked,
         movedToHexOriginalOwner: targetHexData ? targetHexData.owner : null
     };
-
     const costOfThisMove = getMovementCost(unit, fromR, fromC, toR, toC, isMergeMove);
     if (costOfThisMove === Infinity && !isMergeMove) return;
 
-// --- Lógica de movimiento y captura ---
+    // --- 1. Limpiar origen ---
     if (board[fromR]?.[fromC]) {
         board[fromR][fromC].unit = null;
         renderSingleHexVisuals(fromR, fromC);
     }
 
+    // --- 2. Actualizar datos unidad ---
     unit.r = toR;
     unit.c = toC;
-    unit.currentMovement -= costOfThisMove;
-    unit.hasMoved = true;
+    unit.currentMovement = Math.max(0, unit.currentMovement - costOfThisMove);
+    unit.hasMoved = true; 
 
+    // --- 3. Actualizar destino ---
     if (targetHexData) {
         targetHexData.unit = unit;
+        
+        // Captura de territorio neutral
         if (targetHexData.owner === null) {
-            const movingPlayer = unit.player;
-            targetHexData.owner = movingPlayer;
+            targetHexData.owner = unit.player;
             targetHexData.estabilidad = 1;
             targetHexData.nacionalidad = { 1: 0, 2: 0 };
-            targetHexData.nacionalidad[movingPlayer] = 1;
+            targetHexData.nacionalidad[unit.player] = 1;
             const city = gameState.cities.find(ci => ci.r === toR && ci.c === toC);
-            if (city?.owner === null) { city.owner = movingPlayer; }
+            if (city?.owner === null) { city.owner = unit.player; }
             renderSingleHexVisuals(toR, toC);
         }
     } else {
+        // Fallback de seguridad (restaurado del original)
         console.error(`[_executeMoveUnit] Error crítico: Hex destino (${toR},${toC}) no encontrado.`);
-        unit.r = fromR;
-        unit.c = fromC;
-        unit.currentMovement += costOfThisMove;
-        unit.hasMoved = false;
+        unit.r = fromR; unit.c = fromC; unit.currentMovement += costOfThisMove; unit.hasMoved = false;
         if (board[fromR]?.[fromC]) board[fromR][fromC].unit = unit;
         renderSingleHexVisuals(fromR, fromC);
         return;
     }
 
-    // <<==LLAMADA AL CRONISTA ==>>
+    // --- 4. Finalización ---
+    // <<== CRONISTA ==>>
     if (typeof Chronicle !== 'undefined') {
         Chronicle.logEvent('move', { unit: unit, toR: toR, toC: toC });
     }
 
+    // <<== TUTORIAL ==>>
     if (gameState.isTutorialActive) {
         TutorialManager.notifyActionCompleted('unit_moved');
     }
 
-    // --- Lógica de consumir bonificación (sin cambios) ---
+    // Consumir bonus si existe
     if (targetHexData.destroyedUnitBonus && targetHexData.destroyedUnitBonus.claimedBy === null) {
         const bonus = targetHexData.destroyedUnitBonus;
-        unit.experience = (unit.experience || 0) + bonus.experience;
+        unit.experience += bonus.experience;
         unit.morale = Math.min(unit.maxMorale || 125, (unit.morale || 50) + bonus.morale);
-        logMessage(`¡${unit.name} reclama los restos, ganando ${bonus.experience} XP y ${bonus.morale} de moral!`);
+        logMessage(`¡Restos reclamados! +${bonus.experience} XP, +${bonus.morale} Moral.`);
         delete targetHexData.destroyedUnitBonus;
         renderSingleHexVisuals(toR, toC);
+        
+        // <<== LEVEL UP Y UI BONUS ==>>
         checkAndApplyLevelUp(unit);
         if(selectedUnit?.id === unit.id) { UIManager.showUnitContextualInfo(unit, true); }
     }
 
-    // --- Lógica de actualización de UI (sin cambios) ---
+    // <<== LOG ==>>
     logMessage(`${unit.name} movida. Mov. restante: ${unit.currentMovement}.`);
+
     positionUnitElement(unit);
-    if (UIManager) { UIManager.updateSelectedUnitInfoPanel(); UIManager.updatePlayerAndPhaseInfo(); }
-    if (gameState.currentPhase === 'play' && typeof checkVictory === "function") { if (checkVictory()) return; }
-    if (selectedUnit?.id === unit.id) { UIManager.highlightPossibleActions(unit); }
+    
+    if (UIManager) { 
+        UIManager.updateSelectedUnitInfoPanel(); 
+        UIManager.updatePlayerAndPhaseInfo(); 
+        // <<== CHECK VICTORY ==>>
+        if (gameState.currentPhase === 'play' && typeof checkVictory === "function") {
+            if (checkVictory()) return;
+        }
+        if (selectedUnit?.id === unit.id) UIManager.highlightPossibleActions(unit);
+    }
 }
 
 function handleConfirmBuildStructure(actionData) {
@@ -3092,85 +3181,6 @@ function cancelPreparingAction() {
     _unitBeingSplit = null; // Resetea la unidad que se estaba dividiendo
     if (UIManager) {
         UIManager.clearHighlights();
-    }
-}
-
-/**
- * [Punto de Entrada] Inicia la acción de Arrasar una estructura.
- * Es llamada desde el botón de la UI.
- */
-function requestRazeStructure() {
-    if (!selectedUnit) {
-        logMessage("No hay una unidad seleccionada para arrasar la estructura.", "error");
-        return;
-    }
-
-    const action = {
-        type: 'razeStructure',
-        actionId: `raze_${selectedUnit.id}_${Date.now()}`, // <-- AÑADIDO
-        payload: {
-            playerId: selectedUnit.player,
-            unitId: selectedUnit.id,
-            r: selectedUnit.r,
-            c: selectedUnit.c
-        }
-    };
-
-    // En un futuro, podrías añadir una confirmación:
-    // if (!confirm("¿Seguro que quieres arrasar esta estructura? Se convertirá en ruinas.")) return;
-
-    if (isNetworkGame()) {
-        if (NetworkManager.esAnfitrion) processActionRequest(action);
-        else NetworkManager.enviarDatos({ type: 'actionRequest', action });
-    } else {
-        _executeRazeStructure(action.payload);
-    }
-}
-
-/**
- * [Función de Ejecución] Contiene la lógica real de arrasar la estructura.
- * @param {object} payload - El objeto de datos de la acción.
- */
-function _executeRazeStructure(payload) {
-    const { playerId, unitId, r, c } = payload;
-    const unit = units.find(u => u.id === unitId);
-    const hex = board[r]?.[c];
-
-    console.log(`[RAZE - Ejecutando]  Jugador: ${playerId}, Unidad: ${unit?.name}, Coordenadas: (${r},${c})`); // Log #1
-
-    // --- Validaciones de Lógica ---
-    if (!unit || !hex) { console.warn("[RAZE - Validando] Falla: Unidad o Hex inválidos."); return; } // Log #2
-    if (unit.player !== playerId) { console.warn("[RAZE - Validando] Falla: No es el turno del jugador."); return; } // Log #3
-    if (unit.hasAttacked || unit.hasMoved) { console.warn("[RAZE - Validando] Falla: Unidad ya actuó."); return; } // Log #4
-    if (!hex.structure) { console.warn("[RAZE - Validando] Falla: No hay estructura."); return; } // Log #5
-
-    // --- Ejecución de la Acción ---
-    console.log(`[RAZE - Ejecutando]  Arrasando estructura: ${hex.structure} en (${r},${c})`); // Log #6
-    const structureBefore = hex.structure;
-    const featureBefore = hex.feature;
-
-    // Convertimos la estructura en ruinas
-    hex.structure = null;
-    hex.feature = 'ruins';
-
-    // La unidad consume su turno
-    const structureAfter = hex.structure;
-    const featureAfter = hex.feature;
-    console.log(`[RAZE - Ejecutando] Estado de los datos despues de modificar estructura:  Structure: ${structureBefore} -> ${structureAfter} , Feature: ${featureBefore} -> ${featureAfter} `); // Log #7
-
-    unit.hasMoved = true;
-    unit.hasAttacked = true;
-
-    // Actualizar la UI
-    if (typeof renderSingleHexVisuals === 'function') {
-        console.log(`[RAZE - Ejecutando]  Intentando renderizar la casilla (${r}, ${c}).`); // Log #8
-        renderSingleHexVisuals(r, c);
-        console.log(`[RAZE - Ejecutando]  renderSingleHexVisuals terminó.`); // Log #9
-    } else {
-        console.warn("[RAZE - Ejecutando]  renderSingleHexVisuals NO está definida."); // Log #10
-    }
-    if (UIManager) {
-        UIManager.hideContextualPanel();
     }
 }
 

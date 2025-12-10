@@ -751,7 +751,8 @@ const UIManager = {
         }
         
         if (isPlayerUnit && gameState.currentPhase === 'play') {
-            const canAct = !unit.hasMoved && !unit.hasAttacked;
+            //const canAct = !unit.hasMoved && !unit.hasAttacked;
+            const canAct = !unit.hasAttacked;
             if (unit.lastMove && !unit.hasAttacked) {
                 if (this._domElements.floatingUndoMoveBtn) this._domElements.floatingUndoMoveBtn.style.display = 'flex';
             }

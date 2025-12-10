@@ -1119,58 +1119,61 @@ units.forEach(unit => {
 }
 
 function renderSingleHexVisuals(r, c) {
-const hexData = board[r]?.[c];
-if (!hexData || !hexData.element) { return; }
-const hexEl = hexData.element;
+    const hexData = board[r]?.[c];
+    if (!hexData || !hexData.element) { return; }
+    const hexEl = hexData.element;
 
-// --- LÓGICA DE PRESERVACIÓN DE CLASES ---
-// Guardamos las clases importantes que no deben borrarse
-const isTutorialHighlighted = hexEl.classList.contains('tutorial-highlight-hex');
-const actionClasses = [];
-if (hexEl.classList.contains('highlight-move')) actionClasses.push('highlight-move');
-if (hexEl.classList.contains('highlight-attack')) actionClasses.push('highlight-attack');
-if (hexEl.classList.contains('highlight-build')) actionClasses.push('highlight-build');
-if (hexEl.classList.contains('highlight-place')) actionClasses.push('highlight-place');
+    // --- LÓGICA DE PRESERVACIÓN DE CLASES ---
+    const isTutorialHighlighted = hexEl.classList.contains('tutorial-highlight-hex');
+    const actionClasses = [];
+    if (hexEl.classList.contains('highlight-move')) actionClasses.push('highlight-move');
+    if (hexEl.classList.contains('highlight-attack')) actionClasses.push('highlight-attack');
+    if (hexEl.classList.contains('highlight-build')) actionClasses.push('highlight-build');
+    if (hexEl.classList.contains('highlight-place')) actionClasses.push('highlight-place');
 
-// Reseteamos SOLO las clases visuales que pueden cambiar, no todo
-hexEl.className = 'hex'; // Empezamos con la clase base
+    // Reseteamos SOLO las clases visuales que pueden cambiar
+    hexEl.className = 'hex'; 
 
-// Primero, nos aseguramos de que cualquier sprite de ESTRUCTURA o CARACTERÍSTICA anterior se elimine.
-let structureSpriteEl = hexEl.querySelector('.structure-sprite');
-if (structureSpriteEl) {
-    structureSpriteEl.remove();
-}
-hexEl.classList.remove('feature-ruins', 'feature-ruins-looted');
+    // Restaurar clases especiales
+    if (isTutorialHighlighted) hexEl.classList.add('tutorial-highlight-hex');
+    actionClasses.forEach(cls => hexEl.classList.add(cls));
 
-// Ahora, añadimos las clases de estado actuales.
-if (hexData.terrain) hexEl.classList.add(hexData.terrain);
-if (hexData.owner) hexEl.classList.add(`player${hexData.owner}-owner`);
-if (hexData.isCity) hexEl.classList.add('city');
-if (hexData.isCapital) hexEl.classList.add('capital-city');
-if (hexData.resourceNode) hexEl.classList.add(`resource-${hexData.resourceNode.replace('_mina', '')}`);
-
-// Si hay una ESTRUCTURA, creamos su sprite
-if (hexData.structure && STRUCTURE_TYPES[hexData.structure]) {
-    structureSpriteEl = document.createElement('span');
-    structureSpriteEl.classList.add('structure-sprite');
-    hexEl.appendChild(structureSpriteEl);
-    
-    const spriteValue = STRUCTURE_TYPES[hexData.structure].sprite;
-    if (spriteValue.includes('.') || spriteValue.includes('/')) {
-        structureSpriteEl.style.backgroundImage = `url('${spriteValue}')`;
-        structureSpriteEl.textContent = '';
-    } else {
-        structureSpriteEl.style.backgroundImage = 'none';
-        structureSpriteEl.textContent = spriteValue;
+    // Limpiar sprites anteriores
+    let structureSpriteEl = hexEl.querySelector('.structure-sprite');
+    if (structureSpriteEl) {
+        structureSpriteEl.remove();
     }
-} 
-// Si hay una CARACTERÍSTICA (como ruinas), añadimos su clase CSS
-else if (hexData.feature === 'ruins') {
-    hexEl.classList.add('feature-ruins');
-    if (hexData.looted === true) {
-        hexEl.classList.add('feature-ruins-looted');
+    hexEl.classList.remove('feature-ruins', 'feature-ruins-looted');
+
+    // Añadir clases de estado actuales
+    if (hexData.terrain) hexEl.classList.add(hexData.terrain);
+    if (hexData.owner) hexEl.classList.add(`player${hexData.owner}-owner`);
+    if (hexData.isCity) hexEl.classList.add('city');
+    if (hexData.isCapital) hexEl.classList.add('capital-city');
+    if (hexData.resourceNode) hexEl.classList.add(`resource-${hexData.resourceNode.replace('_mina', '')}`);
+
+    // Si hay una ESTRUCTURA, creamos su sprite
+    if (hexData.structure && STRUCTURE_TYPES[hexData.structure]) {
+        structureSpriteEl = document.createElement('span');
+        structureSpriteEl.classList.add('structure-sprite');
+        hexEl.appendChild(structureSpriteEl);
+        
+        const spriteValue = STRUCTURE_TYPES[hexData.structure].sprite;
+        if (spriteValue.includes('.') || spriteValue.includes('/')) {
+            structureSpriteEl.style.backgroundImage = `url('${spriteValue}')`;
+            structureSpriteEl.textContent = '';
+        } else {
+            structureSpriteEl.style.backgroundImage = 'none';
+            structureSpriteEl.textContent = spriteValue;
+        }
+    } 
+    // Si hay una CARACTERÍSTICA (como ruinas), añadimos su clase CSS
+    else if (hexData.feature === 'ruins') {
+        hexEl.classList.add('feature-ruins');
+        if (hexData.looted === true) {
+            hexEl.classList.add('feature-ruins-looted');
+        }
     }
-}
 }
 
 // Lógica para el sprite de la estructura (sin cambios)

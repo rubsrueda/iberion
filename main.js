@@ -1052,21 +1052,27 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
     if (nextToPlayerSetupBtn) {
         nextToPlayerSetupBtn.addEventListener('click', () => {
             
-            // Lee todos los valores directamente del DOM en variables constantes.
-            const numPlayers = parseInt(document.getElementById('new-num-players').value) || 2;
+            // 1. Lectura robusta de los valores del DOM
+            const boardSizeVal = document.getElementById('boardSizeSelect')?.value || 'small';
+            const resourceLevelVal = document.getElementById('resourceLevel')?.value || 'med';
+            const unitLimitVal = document.getElementById('initialUnitsCount')?.value || '5';
+            const turnTimeVal = document.getElementById('turnTimeSelect')?.value || '180'; // Valor por defecto seguro
+            const numPlayersVal = parseInt(document.getElementById('num-players-slider')?.value) || 2;
 
-            // Guarda toda la configuración en el objeto temporal.
+            console.log(`[SETUP] Guardando configuración temporal: Tiempo=${turnTimeVal}, Jugadores=${numPlayersVal}`);
+
+            // 2. Guardado en el estado temporal
             gameState.setupTempSettings = {
-                boardSize: document.getElementById('boardSizeSelect').value,
-                resourceLevel: document.getElementById('resourceLevel').value,
-                unitLimit: document.getElementById('initialUnitsCount').value,
-                turnTime: document.getElementById('turnTimeSelect').value,
-                numPlayers: numPlayers
+                boardSize: boardSizeVal,
+                resourceLevel: resourceLevelVal,
+                unitLimit: unitLimitVal,
+                turnTime: turnTimeVal,
+                numPlayers: numPlayersVal
             };
             
-            // Muestra la siguiente pantalla (selección de jugadores).
+            // 3. Renderizado de la siguiente pantalla
             if (typeof renderPlayerSelectionSetup === 'function') {
-                renderPlayerSelectionSetup(numPlayers); 
+                renderPlayerSelectionSetup(numPlayersVal); 
             }
             showScreen(domElements.setupScreen2);
         });
@@ -1989,6 +1995,7 @@ async function processActionRequest(action) {
             console.log(`- ¿Se encontró la unidad? (${payload.unitId}):`, !!unitToRaze, unitToRaze);
             console.log(`- ¿Se encontró el hexágono? (${payload.r}, ${payload.c}):`, !!hexToRaze, hexToRaze);
             
+            // CORRECCIÓN: Solo verificamos !hasAttacked. Permitimos si hasMoved es true.
             if (unitToRaze && hexToRaze && !unitToRaze.hasAttacked && hexToRaze.structure) {
                 console.log("%c -> CONDICIÓN CUMPLIDA. Ejecutando _executeRazeStructure...", "color: green;");
                 _executeRazeStructure(payload);
