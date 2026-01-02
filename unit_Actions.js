@@ -513,6 +513,8 @@ function selectUnit(unit) {
     }
     // --- FIN DEL DIAGNÓSTICO DEFINITIVO ---
 
+    if (gameState.isTutorialActive) TutorialManager.notifyActionCompleted('unit_selected_by_objective');
+
     console.log(`[DEBUG selectUnit] FIN - selectedUnit ahora es: ${selectedUnit?.name}`);
 }
 
@@ -940,7 +942,7 @@ async function attackUnit(attackerDivision, defenderDivision) {
         // Si el paso actual del tutorial está esperando la condición "flank_attack_completed",
         // entonces CUALQUIER ataque cumplirá la condición.
         const currentTutorialStep = TutorialManager.currentSteps[TutorialManager.currentIndex];
-        if (currentTutorialStep && currentTutorialStep.actionCondition.toString().includes('flank_attack_completed')) {
+        if (currentTutorialStep && currentTutorialStep.actionCondition && currentTutorialStep.actionCondition.toString().includes('flank_attack_completed')) {
             // <<== LÓGICA DE FLANQUEO PARA EL TUTORIAL MEJORADA ==>>
             // Comprobamos si realmente hay un aliado adyacente para considerarlo flanqueo
             const neighbors = getHexNeighbors(defenderDivision.r, defenderDivision.c);
@@ -1256,15 +1258,15 @@ function calculateRegimentStats(unit) {
 
 // 3. OBTENCIÓN DE DATOS DESDE LA UNIDAD: Ahora sacamos la info del propio objeto 'unit'.    
     const playerNum = unit.player;
-    const playerCivName = gameState?.playerCivilizations?.[playerNum] || 'ninguna';
+    //const playerCivName = gameState?.playerCivilizations?.[playerNum] || 'ninguna';
+    const playerCivName = (playerNum && gameState?.playerCivilizations?.[playerNum]) ? gameState.playerCivilizations[playerNum] : 'ninguna';
     const civBonuses = CIVILIZATIONS[playerCivName]?.bonuses || {};
     
     // --- LÓGICA DE HÉROE (dentro de la función principal) ---
     let commanderData = null, heroInstance = null;
     if (unit.commander) {
         commanderData = COMMANDERS[unit.commander];
-        const playerProfile = PlayerDataManager.getCurrentPlayer(); // Simplificación para IA
-        if (playerProfile) heroInstance = playerProfile.heroes.find(h => h.id === unit.commander);
+        heroInstance = PlayerDataManager.currentPlayer?.heroes?.find(h => h.id === unit.commander) || null;
     }
     unit.base_regiment_stats = {}; // Inicializar
     console.log(`[calculateRegimentStats] Procesando unidad: ${unit.name} (ID: ${unit.id}). Creando base_regiment_stats.`);
@@ -1908,6 +1910,7 @@ function applyFlankingPenalty(targetUnit, mainAttacker) {
     }
 }
 
+/*
 async function handleUnitDestroyed(destroyedUnit, victorUnit) {
 
     // audio
@@ -2143,6 +2146,154 @@ async function handleUnitDestroyed(destroyedUnit, victorUnit) {
     }
     if (isCombatDestruction && !gameState.isTutorialActive) { // <<== Añadida comprobación de tutorial aquí también
         if (typeof checkVictory === 'function') checkVictory();
+    }
+}
+*/
+
+async function handleUnitDestroyed(destroyedUnit, victorUnit) {
+    if (!destroyedUnit) return;
+
+    // Guardamos las coordenadas antes de cualquier proceso
+    const savedCoords = { r: destroyedUnit.r, c: destroyedUnit.c };
+
+    // Intentamos aplicar recompensas, pero rodeado de un try/catch para que un error aquí
+    // no impida que la unidad desaparezca del mapa.
+    try {
+        _applyDestructionRewards(destroyedUnit, victorUnit);
+    } catch (e) {
+        console.error("Error al procesar recompensas de destrucción:", e);
+    }
+
+    // Lógica del Tutorial
+    if (window.TUTORIAL_MODE_ACTIVE === true && destroyedUnit.player === 2) {
+        if (destroyedUnit.element) destroyedUnit.element.style.display = 'none';
+        if (typeof TutorialManager !== 'undefined') TutorialManager.notifyActionCompleted('enemy_defeated');
+    }
+
+    // Ejecución de limpieza lógica de DATOS inmediata (Fundamental para evitar el "0")
+    _executeUnitCleanup(destroyedUnit);
+
+    // Animación y borrado del elemento DOM
+    await _playDestructionVisuals(destroyedUnit);
+
+    // Generación de Ruinas
+    if (victorUnit) {
+        _generateRuinAt(savedCoords.r, savedCoords.c);
+    }
+
+    // Actualización visual final
+    if (UIManager) UIManager.updateAllUIDisplays();
+    if (typeof checkVictory === 'function' && !gameState.isTutorialActive) checkVictory();
+}
+
+function _applyDestructionRewards(destroyedUnit, victorUnit) {
+    // 1. Validaciones de seguridad iniciales
+    if (!victorUnit || !gameState || !destroyedUnit) return;
+    const isCombatDestruction = victorUnit.player !== destroyedUnit.player;
+    if (!isCombatDestruction) return;
+
+    const victorPlayerKey = `player${victorUnit.player}`;
+
+    // 2. Registro de bajas (con protección contra objetos no definidos)
+    if (gameState.playerStats && gameState.playerStats.unitsDestroyed) {
+        if (gameState.playerStats.unitsDestroyed[victorPlayerKey] !== undefined) {
+            gameState.playerStats.unitsDestroyed[victorPlayerKey]++;
+        }
+    }
+
+    logMessage(`¡${destroyedUnit.name} ha sido destruida por ${victorUnit.name}!`);
+
+    // 3. Habilidades de fin de batalla
+    let xpGainBonusPercent = 0, bookDropBonusChance = 0, fragmentDropBonusChance = 0;
+    if (victorUnit.commander && COMMANDERS[victorUnit.commander]) {
+        const playerProfile = PlayerDataManager.getCurrentPlayer();
+        const heroInstance = playerProfile?.heroes.find(h => h.id === victorUnit.commander);
+        
+        if (heroInstance && Array.isArray(heroInstance.skill_levels)) {
+            COMMANDERS[victorUnit.commander].skills.forEach((skill, index) => {
+                const skillDef = SKILL_DEFINITIONS[skill.skill_id];
+                const starsRequired = index + 1;
+                if (heroInstance.stars >= starsRequired && skillDef?.scope === 'fin') {
+                    const skillLevel = heroInstance.skill_levels[index];
+                    if (skillLevel > 0) {
+                        const bonus = skill.scaling_override[skillLevel - 1] || 0;
+                        if (skillDef.effect.stat === 'xp_gain') xpGainBonusPercent += bonus;
+                        else if (skillDef.effect.stat === 'book_drop') bookDropBonusChance += bonus;
+                        else if (skillDef.effect.stat === 'fragment_drop') fragmentDropBonusChance += bonus;
+                    }
+                }
+            });
+        }
+    }
+
+    // 4. Recompensa de XP y Oro
+    let xpGained = Math.round((10 + Math.floor((destroyedUnit.maxHealth || 0) / 10)) * (1 + xpGainBonusPercent / 100));
+    victorUnit.experience = (victorUnit.experience || 0) + xpGained;
+    if (typeof checkAndApplyLevelUp === 'function') checkAndApplyLevelUp(victorUnit);
+
+    const baseGold = REGIMENT_TYPES[destroyedUnit.regiments[0]?.type]?.goldValueOnDestroy || 10;
+    const tradeGold = (destroyedUnit.tradeRoute && destroyedUnit.tradeRoute.goldCarried) ? destroyedUnit.tradeRoute.goldCarried : 0;
+    const totalGold = baseGold + tradeGold;
+
+    if (gameState.playerResources && gameState.playerResources[victorUnit.player]) {
+        gameState.playerResources[victorUnit.player].oro += totalGold;
+    }
+
+    // 5. Inventario de Perfil
+    if (PlayerDataManager.currentPlayer && PlayerDataManager.currentPlayer.inventory) {
+        if (Math.random() * 100 < (35 + bookDropBonusChance)) {
+            PlayerDataManager.currentPlayer.inventory.xp_books = (PlayerDataManager.currentPlayer.inventory.xp_books || 0) + 1;
+        }
+        PlayerDataManager.saveCurrentPlayer();
+    }
+}
+
+async function _playDestructionVisuals(unit) {
+    if (!unit.element) return;
+    
+    const explosionEl = document.createElement('div');
+    explosionEl.classList.add('explosion-animation');
+    const boardRect = document.getElementById('gameBoard').getBoundingClientRect();
+    const unitRect = unit.element.getBoundingClientRect();
+    
+    explosionEl.style.left = `${(unitRect.left - boardRect.left) + unitRect.width / 2}px`;
+    explosionEl.style.top = `${(unitRect.top - boardRect.top) + unitRect.height / 2}px`;
+    document.getElementById('gameBoard').appendChild(explosionEl);
+    
+    setTimeout(() => explosionEl.remove(), 1200);
+    unit.element.style.transition = "opacity 0.5s";
+    unit.element.style.opacity = "0";
+    
+    await new Promise(resolve => setTimeout(resolve, 500));
+    unit.element.remove();
+}
+
+function _executeUnitCleanup(unit) {
+    // Limpieza lógica del tablero
+    const hex = board[unit.r]?.[unit.c];
+    if (hex && hex.unit?.id === unit.id) {
+        hex.unit = null;
+    }
+
+    // Eliminación del array global
+    const index = units.findIndex(u => u.id === unit.id);
+    if (index > -1) units.splice(index, 1);
+
+    // Deselección si era la unidad activa
+    if (selectedUnit?.id === unit.id) {
+        selectedUnit = null;
+        if (UIManager) UIManager.hideContextualPanel();
+    }
+}
+
+function _generateRuinAt(r, c) {
+    const hex = board[r]?.[c];
+    if (!hex || hex.structure || hex.feature) return;
+
+    if (Math.random() * 100 < (RUIN_GENERATION_CHANCE.ON_UNIT_DESTROYED || 50)) {
+        hex.feature = 'ruins';
+        renderSingleHexVisuals(r, c);
+        logMessage(`Restos de batalla en (${r},${c}) se convierten en ruinas.`);
     }
 }
 

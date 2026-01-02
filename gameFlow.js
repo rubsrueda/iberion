@@ -151,6 +151,7 @@ function resetUnitsForNewTurn(playerNumber) {
         // >> INICIO DE LA CORRECCIÓN LÓGICA <<
         // Si la unidad pertenece al jugador cuyo turno está COMENZANDO...
         if (unit.player === playerNumber) {
+            unit.hasMoved = false; unit.hasAttacked = false; unit.currentMovement = unit.movement || 2;
             // Se resetean sus acciones y su movimiento
             calculateRegimentStats(unit); // Le pasamos la unidad completa. La función actualiza sus stats directamente.
             unit.currentMovement = unit.movement;
@@ -555,7 +556,7 @@ function updateFogOfWar() {
                 // ==========================================================
 
                 // El resto de la lógica de Niebla de Guerra normal
-                if (gameState.currentPhase === "deployment" || gameState.currentPhase === "setup") {
+                if (gameState.currentPhase === "deployment" || gameState.currentPhase === "setup" || gameState.currentPhase === "tutorial_setup") {
                     hexData.visibility.player1 = 'visible';
                     hexData.visibility.player2 = 'visible';
                 } else if (gameState.currentPhase === "play") {
@@ -863,14 +864,15 @@ function simpleAiTurn() {
     }
 
     // Ahora busca AiGameplayManager en lugar de AiManager.
-    if (typeof AiGameplayManager === 'undefined' || typeof AiGameplayManager.executeTurn !== 'function') {
+   /* if (typeof AiGameplayManager === 'undefined' || typeof AiGameplayManager.executeTurn !== 'function') {
         console.error("[simpleAiTurn] AiGameplayManager no está definido. Revisa que ai_gameplayLogic.js esté cargado. Forzando fin de turno.");
         logMessage("Error crítico: Módulo de IA de juego no disponible. Pasando turno.");
         // Como fallback de emergencia, aquí sí llamamos a handleEndTurn
         setTimeout(() => handleEndTurn(), 500);
         return;
     }
-
+    */
+   
     logMessage(`IA (Jugador ${aiActualPlayerNumber}, Nivel: ${aiLevel}) inicia su turno... (Usando AiGameplayManager)`);
     // Y aquí se llama al método del objeto correcto.
     AiGameplayManager.executeTurn(aiActualPlayerNumber, aiLevel);
@@ -1398,6 +1400,7 @@ if (setCapitalBtn) {
 */
 let handleEndTurnCallCount = 0; // Se pondría fuera de la función
 
+/*
 async function handleEndTurn(isHostProcessing = false) {
 
     //audio
@@ -1463,6 +1466,21 @@ async function handleEndTurn(isHostProcessing = false) {
     if (gameState.isTutorialActive) {
         console.log("[handleEndTurn] MODO TUTORIAL DETECTADO. Flujo de turno especial activado.");
 
+        // 3. Preparar al jugador para su nuevo turno
+        resetUnitsForNewTurn(gameState.currentPlayer);
+
+        // Avisa al tutorial de que el turno terminó
+        TutorialManager.notifyActionCompleted('turnEnded');
+
+        units.forEach(u => {
+            if (u.player === 1) {
+                u.hasMoved = false;
+                u.hasAttacked = false;
+                // Si por algún error la unidad no tiene puntos de movimiento, le damos 2 por defecto
+                u.currentMovement = (u.movement > 0) ? u.movement : 2; 
+            }
+        });
+
         // 1. Ejecutar las tareas de mantenimiento del jugador
         updateTerritoryMetrics(playerEndingTurn);
         collectPlayerResources(playerEndingTurn);
@@ -1478,8 +1496,9 @@ async function handleEndTurn(isHostProcessing = false) {
 
         logMessage(`Comienza el turno del Jugador ${gameState.currentPlayer} (Turno ${gameState.turnNumber}).`);
         
-        // 3. Preparar al jugador para su nuevo turno
-        resetUnitsForNewTurn(gameState.currentPlayer);
+        units.forEach(u => { u.hasMoved = false; u.hasAttacked = false; u.currentMovement = u.movement || 2; });
+        // Avisa al tutorial de que el turno terminó
+        TutorialManager.notifyActionCompleted('turnEnded');
 
         // Actualizamos TODA la UI INMEDIATAMENTE después de cambiar de jugador
         if (UIManager) UIManager.updateAllUIDisplays(); 
@@ -1725,6 +1744,277 @@ async function handleEndTurn(isHostProcessing = false) {
                 await simpleAiTurn(playerNumberForAI); 
             }
             // ...
+        }, 700);
+    } else {
+        // ...¡Iniciamos el temporizador con la duración que guardamos en gameState!
+        console.log(`[handleEndTurn] Turno de jugador humano (Jugador ${gameState.currentPlayer}). Iniciando temporizador.`);
+        TurnTimerManager.start(gameState.turnDurationSeconds); 
+        // Si es un jugador humano, simplemente comprobamos si ha ganado.
+        if (checkVictory) checkVictory();
+    }
+}
+*/
+
+async function handleEndTurn(isHostProcessing = false) {
+
+    //audio
+    if (typeof AudioManager !== 'undefined') {
+        AudioManager.playSound('turn_start');
+    }
+
+    handleEndTurnCallCount++;
+    console.error(`handleEndTurn ha sido llamada ${handleEndTurnCallCount} veces.`);
+    
+    console.log(`[handleEndTurn V4 - COMPLETA Y CORREGIDA] INICIO. Fase: ${gameState.currentPhase}, Jugador: ${gameState.currentPlayer}, Host?: ${isHostProcessing}`);
+
+
+    // --- LÓGICA DE EJECUCIÓN DEL CAMBIO DE TURNO ---
+    if (typeof deselectUnit === "function") deselectUnit();
+    if (gameState.currentPhase === "gameOver") {
+        logMessage("La partida ya ha terminado.");
+        return;
+    }
+    // Al inicio del proceso de cambio de turno, detenemos cualquier temporizador activo.
+    TurnTimerManager.stop();
+
+    const playerEndingTurn = gameState.currentPlayer;
+
+    // <<== LÓGICA SEGURA PARA EL TUTORIAL (RESTAURADA Y CORREGIDA) ==>>
+    if (gameState.isTutorialActive) {
+        console.log("[handleEndTurn] MODO TUTORIAL DETECTADO. Flujo de turno especial activado.");
+
+        // 1. Ejecutar las tareas de mantenimiento del jugador
+        updateTerritoryMetrics(playerEndingTurn);
+        collectPlayerResources(playerEndingTurn);
+        handleUnitUpkeep(playerEndingTurn);
+        handleHealingPhase(playerEndingTurn);
+        const tradeGold = calculateTradeIncome(playerEndingTurn);
+        if (tradeGold > 0) gameState.playerResources[playerEndingTurn].oro += tradeGold;
+        
+        // 2. SALTAR EL TURNO DE LA IA COMPLETAMENTE
+        gameState.currentPlayer = 1;
+        gameState.turnNumber++;
+
+        logMessage(`Comienza el turno del Jugador ${gameState.currentPlayer} (Turno ${gameState.turnNumber}).`);
+        
+        // 3. Preparar al jugador para su nuevo turno (¡CLAVE! Reseteo antes de avisar)
+        resetUnitsForNewTurn(gameState.currentPlayer);
+        
+        // Avisa al tutorial de que el turno terminó
+        TutorialManager.notifyActionCompleted('turnEnded');
+
+        // Actualizamos TODA la UI INMEDIATAMENTE después de cambiar de jugador
+        if (UIManager) UIManager.updateAllUIDisplays(); 
+
+        // El siguiente jugador es una IA?
+        if (gameState.playerTypes[`player${gameState.currentPlayer}`].includes('ai')) {
+            
+            // Mostramos un bloqueador TEMPORAL para que el jugador sepa que la IA está jugando
+            const turnBlocker1 = document.getElementById('turnBlocker');
+            if (turnBlocker1) {
+                turnBlocker1.textContent = `Turno de la IA (Jugador ${gameState.currentPlayer})...`;
+                turnBlocker1.style.display = 'flex';
+            }
+            setTimeout(() => {
+                executeAiTurn();
+                const turnBlocker2 = document.getElementById('turnBlocker');
+                if (turnBlocker2) turnBlocker2.style.display = 'none';
+            }, 500);
+        }
+        
+        // El resto de la lógica de preparación (moral, experiencia, comida)
+        if (gameState.currentPlayer === 1) {
+             units.forEach(unit => { if (unit.player === 1) unit.experience++; });
+             gameState.playerResources[1].researchPoints += BASE_INCOME.RESEARCH_POINTS_PER_TURN;
+        }
+        if (UIManager) UIManager.updateAllUIDisplays();
+        return; // Detenemos aquí para el tutorial
+    }
+
+    // --- LÓGICA NORMAL PARA N JUGADORES (TU CÓDIGO ORIGINAL INTACTO) ---
+    
+    // Capa de Red
+    if (!isHostProcessing && isNetworkGame()) {
+        if (gameState.currentPlayer !== gameState.myPlayerNumber) {
+            logMessage("No es tu turno.");
+            return;
+        }
+        const endTurnAction = { type: 'endTurn', payload: { playerId: gameState.myPlayerNumber } };
+        if (!NetworkManager.esAnfitrion) {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: endTurnAction });
+        } else {
+            await processActionRequest(endTurnAction);
+        }
+        return; 
+    }
+
+    if (gameState.currentPhase === "deployment") {
+        // Si el jugador actual NO es el último jugador, simplemente pasa al siguiente
+        if (playerEndingTurn < gameState.numPlayers) {
+            gameState.currentPlayer++;
+            // Resetear el contador de unidades desplegadas para el nuevo jugador
+            if (!gameState.unitsPlacedByPlayer) gameState.unitsPlacedByPlayer = {};
+            gameState.unitsPlacedByPlayer[gameState.currentPlayer] = 0;
+            logMessage(`Despliegue: Turno del Jugador ${gameState.currentPlayer}.`);
+        } else {
+            // Si es el último jugador, termina la fase de despliegue y empieza el juego
+            gameState.currentPhase = "play";
+            gameState.currentPlayer = 1; 
+            gameState.turnNumber = 1;
+            resetUnitsForNewTurn(1); 
+            logMessage("¡Comienza la Batalla! Turno del Jugador 1.");
+        }
+    } 
+    else if (gameState.currentPhase === "play") {
+        
+
+        // A. Tareas de MANTENIMIENTO del jugador que TERMINA el turno
+        updateTerritoryMetrics(playerEndingTurn);
+        collectPlayerResources(playerEndingTurn); 
+        handleUnitUpkeep(playerEndingTurn);
+        handleHealingPhase(playerEndingTurn);
+
+        updateTradeRoutes(playerEndingTurn); // Mueve las caravanas del jugador
+        
+        const tradeGold = calculateTradeIncome(playerEndingTurn);
+        if (tradeGold > 0) gameState.playerResources[playerEndingTurn].oro += tradeGold;
+
+        // <<== CORRECCIÓN 2 de 2: Se REEMPLAZA el bloque 'B' por uno que funciona ==>>
+        // B. LÓGICA DE CAMBIO DE JUGADOR (VERSIÓN FINAL Y CORRECTA PARA N JUGADORES)
+        let nextPlayer = playerEndingTurn; // Empezamos desde el jugador que acaba de terminar.
+        let foundValidPlayer = false;
+        let attempts = 0;
+
+        // Bucle para encontrar el siguiente jugador VÁLIDO.
+        do {
+            // 1. Avanza al siguiente jugador en el ciclo.
+            nextPlayer = (nextPlayer % gameState.numPlayers) + 1;
+
+            // 2. Si volvemos al jugador 1, es una nueva ronda. (Se comprueba solo al principio del ciclo)
+            if (nextPlayer === 1 && attempts === 0) { 
+                gameState.turnNumber++;
+                if (typeof Chronicle !== 'undefined') Chronicle.logEvent('turn_start');
+
+                // Justo aquí, cuando una ronda completa ha terminado, ejecutamos el turno de La Banca.
+                if (typeof BankManager !== 'undefined' && BankManager.executeTurn) {
+                    BankManager.executeTurn();
+                }
+
+                // --- calculamos los puntos de victoria ---
+                calculateVictoryPoints();
+            }
+            attempts++;
+
+            // 3. Comprobamos si el jugador candidato NO está eliminado.
+            if (!gameState.eliminatedPlayers.includes(nextPlayer)) {
+                foundValidPlayer = true;
+            }
+
+        // 4. Repetimos si no hemos encontrado un jugador válido y no hemos dado ya la vuelta.
+        } while (!foundValidPlayer && attempts < gameState.numPlayers * 2);
+
+        // 5. Asignamos el jugador encontrado.
+        if (foundValidPlayer) {
+            gameState.currentPlayer = nextPlayer;
+        } else {
+            gameState.currentPhase = "gameOver"; 
+        }
+
+        // En partidas locales, actualizamos quién es el "jugador humano activo".
+        if (!isNetworkGame()) {
+            const nextPlayerType = gameState.playerTypes[`player${gameState.currentPlayer}`];
+            if (nextPlayerType === 'human') {
+                gameState.myPlayerNumber = gameState.currentPlayer;
+            }
+        }
+    }
+    
+    // Tras determinar el nuevo jugador (sea cual sea la fase), log y preparación
+    logMessage(`Comienza el turno del Jugador ${gameState.currentPlayer}.`);
+
+        // C. Tareas de PREPARACIÓN para el jugador que EMPIEZA el turno.
+        resetUnitsForNewTurn(gameState.currentPlayer);
+        handleBrokenUnits(gameState.currentPlayer);
+
+        // D. Lógica de ingresos pasivos (XP, investigación, comida) para el jugador que EMPIEZA.
+        units.forEach(unit => {
+            if (unit.player === gameState.currentPlayer && unit.currentHealth > 0) {
+                unit.experience = Math.min(unit.maxExperience || 500, (unit.experience || 0) + 1);
+                if (typeof checkAndApplyLevelUp === "function") checkAndApplyLevelUp(unit);
+            }
+        });
+
+        if (gameState.playerResources[gameState.currentPlayer]) {
+            const baseResearchIncome = BASE_INCOME.RESEARCH_POINTS_PER_TURN || 5;
+            gameState.playerResources[gameState.currentPlayer].researchPoints = (gameState.playerResources[gameState.currentPlayer].researchPoints || 0) + baseResearchIncome;
+            logMessage(`Jugador ${gameState.currentPlayer} obtiene ${baseResearchIncome} Puntos de Investigación.`);
+        }
+
+    const playerRes = gameState.playerResources[gameState.currentPlayer];
+    if (playerRes) {
+            // Lógica de consumo de comida
+        let foodActuallyConsumed = 0;
+        let unitsSufferingAttrition = 0;
+        let unitsDestroyedByAttrition = [];
+        units.filter(u => u.player === gameState.currentPlayer && u.currentHealth > 0).forEach(unit => {
+            let unitConsumption = (unit.regiments || []).reduce((sum, reg) => sum + (REGIMENT_TYPES[reg.type]?.foodConsumption || 0), 0);
+            if (isHexSupplied(unit.r, unit.c, unit.player) && playerRes.comida >= unitConsumption) {
+                playerRes.comida -= unitConsumption;
+                foodActuallyConsumed += unitConsumption;
+            } else {
+                const damage = ATTRITION_DAMAGE_PER_TURN || 1;
+
+                    // --- INICIO DE LA SOLUCIÓN ---
+                    // 1. Buscamos el primer regimiento que todavía tenga salud para dañarlo.
+                const regimentToDamage = unit.regiments.find(reg => reg.health > 0);
+
+                // 2. Si encontramos un regimiento, le aplicamos el daño.
+                if (regimentToDamage) regimentToDamage.health = Math.max(0, regimentToDamage.health - damage);
+                // 3. Recalculamos la salud total de la división a partir de la suma de sus regimientos.
+                    
+                recalculateUnitHealth(unit); 
+                unitsSufferingAttrition++;
+                logMessage(`¡${unit.name} sufre atrición!`);
+
+                    if (unit.currentHealth <= 0) {
+                        unitsDestroyedByAttrition.push(unit.id);
+                    } else if (UIManager) {
+                        UIManager.updateUnitStrengthDisplay(unit);
+                    }
+            }
+        });
+        unitsDestroyedByAttrition.forEach(unitId => { 
+            const unit = units.find(u => u.id === unitId); 
+            if (unit) handleUnitDestroyed(unit, null); 
+        });
+            if (foodActuallyConsumed > 0 || unitsSufferingAttrition > 0) logMessage(`Comida consumida: ${foodActuallyConsumed}.`);
+            if (playerRes.comida < 0) playerRes.comida = 0;
+    }
+
+    // --- SINCRONIZACIÓN FINAL (SOLO PARA ANFITRIÓN) ---
+    // Este es el bloque que te causaba confusión. Se ejecuta DESPUÉS de toda la lógica de cambio de turno.
+    if (isNetworkGame() && NetworkManager.esAnfitrion) {
+        NetworkManager.broadcastFullState();
+    }
+    
+    // PASO 1: Actualizar toda la interfaz para reflejar el estado del nuevo turno.
+    if (UIManager) UIManager.updateAllUIDisplays();
+    
+    // PASO 2: Comprobar si el NUEVO jugador actual es una IA.
+    const isNextPlayerAI = gameState.playerTypes[`player${gameState.currentPlayer}`]?.startsWith('ai_');
+    if (isNextPlayerAI && gameState.currentPhase !== "gameOver") {
+        if (checkVictory && checkVictory()) return;
+        const turnBlocker3 = document.getElementById('turnBlocker');
+        if (turnBlocker3) {
+            turnBlocker3.textContent = `Turno de la IA (Jugador ${gameState.currentPlayer})...`;
+            turnBlocker3.style.display = 'flex';
+        }
+        // Damos un respiro a la UI para que se renderice
+        setTimeout(async () => {
+            // Esta es la nueva línea. Guarda el número del jugador actual de forma segura.
+            const playerNumberForAI = gameState.currentPlayer;
+            if (gameState.currentPhase === 'deployment') await simpleAiDeploymentTurn(playerNumberForAI);
+            else await simpleAiTurn(playerNumberForAI); 
         }, 700);
     } else {
         // ...¡Iniciamos el temporizador con la duración que guardamos en gameState!

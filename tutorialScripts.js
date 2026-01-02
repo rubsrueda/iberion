@@ -128,12 +128,30 @@ const TUTORIAL_SCRIPTS = {
         {
             id: 'TUT_12_MERGE_UNITS',
             message: "Reagrupa tus fuerzas. <strong>Mueve una de tus unidades sobre la otra para fusionarlas</strong>.",
+            /*
             onStepStart: () => {
+                // Limpieza correcta: antes de filtrar, quitamos las unidades del tablero
+                units.forEach(u => {
+                    if (u.player !== 1 && board[u.r]?.[u.c]) {
+                        board[u.r][u.c].unit = null;
+                    }
+                });
                 units = units.filter(u => u.player === 1);
                 renderFullBoardVisualState();
                 resetUnitsForNewTurn(1);
                 gameState.tutorial.unitHasMerge = false;
             },
+            */
+            onStepStart: () => {
+                // Ya no filtramos manualmente. El enemigo ya debería haber muerto por combate.
+                const hex = board[4][4];
+                if (hex && hex.feature === 'ruins') {
+                    logMessage("El enemigo ha caído, dejando ruinas en el campo de batalla.");
+                }
+                resetUnitsForNewTurn(1);
+                gameState.tutorial.unitHasMerge = false;
+            },
+
             actionCondition: () => units.filter(u => u.player === 1).length === 1
         },
 
@@ -168,7 +186,13 @@ const TUTORIAL_SCRIPTS = {
             id: 'TUT_16_SUPPLY_MOVE',
             message: "<strong>Mueve tu división dañada junto a tu capital</strong>.",
             highlightHexCoords: [{r: 1, c: 2}],
-            onStepStart: () => resetUnitsForNewTurn(1),
+            onStepStart: () => {
+                resetUnitsForNewTurn(1);
+                // Forzamos el redibujado completo de unidades
+                if (UIManager && UIManager.renderAllUnitsFromData) UIManager.renderAllUnitsFromData();
+                UIManager.updateAllUIDisplays();
+            },
+
             actionCondition: () => units.some(u => u.player === 1 && u.r === 1 && u.c === 2)
         },
         {
@@ -186,6 +210,8 @@ const TUTORIAL_SCRIPTS = {
                 const secondUnit = AiGameplayManager.createUnitObject({ name: "Exploradores", regiments: [{...REGIMENT_TYPES["Infantería Ligera"], type: 'Infantería Ligera'}]}, 1, {r: 0, c: 2});
                 placeFinalizedDivision(secondUnit, 0, 2);
                 resetUnitsForNewTurn(1);
+                // Forzamos el redibujado completo de unidades
+                if (UIManager && UIManager.renderAllUnitsFromData) UIManager.renderAllUnitsFromData();
                 UIManager.updateAllUIDisplays();
             },
             actionCondition: () => selectedUnit && selectedUnit.name === "Exploradores"
@@ -226,7 +252,9 @@ const TUTORIAL_SCRIPTS = {
                 gameState.playerResources[1].madera += 300;
                 gameState.playerResources[1].researchPoints += 160;
                 UIManager.updateAllUIDisplays();
+                units.filter(u => u.player === 1).forEach(u => { u.morale = 50; u.currentHealth = u.maxHealth; });
             },
+            
             // La condición se cumple solo cuando LOS TRES tramos del camino están construidos
             actionCondition: () => {
                 const hex1 = board[1]?.[2];
@@ -365,6 +393,7 @@ const TUTORIAL_SCRIPTS = {
         // =====================================================================
         // === CAPÍTULO 6: Conquista y Asimilación (¡NUEVO!)
         // =====================================================================
+        /*
         {
             id: 'TUT_28_CONQUEST_INTRO',
             message: "¡Bien hecho! Ahora aprenderás a conquistar. <strong>Selecciona tu división en (4,4)</strong>.",
@@ -377,6 +406,45 @@ const TUTORIAL_SCRIPTS = {
             },
             actionCondition: () => selectedUnit && selectedUnit.r === 4 && selectedUnit.c === 4
         },
+        */
+        {
+            id: 'TUT_28_CONQUEST_INTRO',
+            message: "¡Bien hecho! Ahora aprenderás a conquistar. <strong>Selecciona tu división más avanzada</strong> (la resaltada).",
+            onStepStart: () => {
+                resetUnitsForNewTurn(1);
+                
+                // 1. Buscamos la unidad del jugador 1 más alejada de la capital (1,1)
+                const playerUnits = units.filter(u => u.player === 1);
+                let farthestUnit = playerUnits[0];
+                let maxDist = -1;
+
+                playerUnits.forEach(u => {
+                    const dist = hexDistance(1, 1, u.r, u.c);
+                    if (dist > maxDist) {
+                        maxDist = dist;
+                        farthestUnit = u;
+                    }
+                });
+
+                // 2. Guardamos su posición para que el resaltado la encuentre
+                if (farthestUnit) {
+                    gameState.tutorial.targetCoords = { r: farthestUnit.r, c: farthestUnit.c };
+                    
+                    // 3. Preparamos ese hexágono para la lección (lo hacemos enemigo temporalmente)
+                    const hex = board[farthestUnit.r][farthestUnit.c];
+                    if(hex) {
+                        hex.owner = 2;
+                        hex.nacionalidad = { 1: 0, 2: 1 };
+                        renderSingleHexVisuals(farthestUnit.r, farthestUnit.c);
+                    }
+                }
+                gameState.tutorial.unit_selected_by_objective = false;
+            },
+            // Usamos una función para que el resaltado sea dinámico
+            highlightHexCoords: () => [gameState.tutorial.targetCoords],
+            actionCondition: () => gameState.tutorial.unit_selected_by_objective === true
+        },
+
         {
             id: 'TUT_29_NATIONALITY_INFO',
             message: "En el panel inferior, fíjate en <strong>'Nac: 1/5'</strong>. Es la lealtad del territorio. Debes reducirla a 0 para conquistarlo.",

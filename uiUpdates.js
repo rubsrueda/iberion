@@ -390,7 +390,7 @@ const UIManager = {
     // <<< FUNCIÓN ANTIGUA, AHORA MÁS SIMPLE >>>
     // El juego normal llamará a esta, que se detiene durante el tutorial.
     updateActionButtonsBasedOnPhase: function() {
-        if (gameState.isTutorialActive) return; // El "guardia de seguridad" se queda aquí.
+        //if (gameState.isTutorialActive) return; // El "guardia de seguridad" se queda aquí.
         
         this.refreshActionButtons(); // Llama a la función que hace el trabajo.
     },
@@ -739,7 +739,7 @@ const UIManager = {
         
         // --- Lógica para mostrar los botones de acción ---
         //this.hideAllActionButtons();
-        const isPlayerUnit = unit.player === gameState.myPlayerNumber;
+        const isPlayerUnit = isOwnUnit;
         const isScoutedEnemy = !isPlayerUnit && isEnemyScouted(unit);
         
         if (isPlayerUnit || isScoutedEnemy) {
@@ -1006,8 +1006,13 @@ const UIManager = {
         }
         
         // 2. Busca y elimina TODOS los "aros de luz" que puedan existir
+        /*
         const existingOverlays = document.querySelectorAll('.tutorial-hex-overlay');
         existingOverlays.forEach(overlay => overlay.remove());
+        */
+        document.querySelectorAll('.tutorial-highlight-hex').forEach(hex => {
+            hex.classList.remove('tutorial-highlight-hex');
+        });
     },
 
     // Función para crear los resaltados
@@ -1025,6 +1030,7 @@ const UIManager = {
         }
         
         // Lógica para resaltar hexágonos (creando el "aro de luz")
+        /*
         if (hexCoords) {
             const coords = (typeof hexCoords === 'function') ? hexCoords() : hexCoords;
             coords.forEach(coord => {
@@ -1040,6 +1046,17 @@ const UIManager = {
                     
                     // 3. Lo añadimos al tablero de juego
                     this._domElements.gameBoard.appendChild(overlay);
+                }
+            });
+        }*/
+
+        if (hexCoords) {
+            const coords = (typeof hexCoords === 'function') ? hexCoords() : hexCoords;
+            coords.forEach(coord => {
+                const hexData = board[coord.r]?.[coord.c];
+                if (hexData && hexData.element) {
+                    // Cambio mínimo: Aplicar la clase que ya existe en el CSS
+                    hexData.element.classList.add('tutorial-highlight-hex');
                 }
             });
         }

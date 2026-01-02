@@ -174,7 +174,7 @@ const AiDeploymentManager = {
         const newUnit = {
             id: `u${unitIdCounter++}`,
             player: playerNumber,
-            name: `${definition.name} IA`,
+             name: definition.name,
             regiments: definition.regiments.map(r => ({ ...r, id: `r${Date.now()}${Math.random()}`})),
             r: spot.r, c: spot.c,
             hasMoved: false, hasAttacked: false, level: 0,

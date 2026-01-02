@@ -1564,17 +1564,24 @@ if (newSkirmishBtn) {
 // Botón del Tutorial
 const newTutorialBtn = document.getElementById('startTutorialBtn_new');
 if (newTutorialBtn) {
-    newTutorialBtn.addEventListener('click', () => {
+    newTutorialBtn.addEventListener('click', async () => {
+        if (!PlayerDataManager.currentPlayer) PlayerDataManager.login("General", "tutorial");
         document.getElementById('gameModesModal').style.display = 'none';
+        
         
         if (typeof resetGameStateVariables === 'function') {
             resetGameStateVariables(2);
         }
 
+        //PlayerDataManager.login("General", "tutorial");
+        
+        gameState.playerCivilizations[2] = 'Roma';
+        gameState.playerCivilizations[1] = 'Iberia';
+
         const tutorialScenario = GAME_DATA_REGISTRY.scenarios["TUTORIAL_SCENARIO"];
         const tutorialMap = GAME_DATA_REGISTRY.maps[tutorialScenario.mapFile];
 
-        if(typeof resetAndSetupTacticalGame === 'function') resetAndSetupTacticalGame(tutorialScenario, tutorialMap, "tutorial");
+        if(typeof resetAndSetupTacticalGame === 'function') await resetAndSetupTacticalGame(tutorialScenario, tutorialMap, "tutorial");
         
         if(typeof initializeTutorialState === 'function') initializeTutorialState(); 
         gameState.currentPhase = "deployment";

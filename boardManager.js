@@ -1176,6 +1176,7 @@ function renderSingleHexVisuals(r, c) {
     }
 }
 
+/*
 // Lógica para el sprite de la estructura (sin cambios)
 let structureSpriteEl = hexEl.querySelector('.structure-sprite');
 
@@ -1215,7 +1216,7 @@ else {
         // console.log(`   -> No se encontró ningún sprite para eliminar. El hex está limpio.`);
     }
 }
-
+*/
 
 /**
  * Asegura que exista al menos un camino transitable entre dos puntos (capitales)

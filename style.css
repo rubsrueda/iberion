@@ -1071,10 +1071,19 @@ body {
 #floatingMenuPanel .resource-values span { font-size: 0.9em; font-weight: bold; color: #212529; }
 
 /* --- Paneles Inferiores (Contextual y Tutorial) - REGLA PRINCIPAL --- */
+
+#contextualInfoPanel {
+    bottom: 10px; /* Lo subimos para que deje espacio al tutorial debajo */
+}
+
+.tutorial-panel {
+    bottom: 260px;
+}
+
 #contextualInfoPanel,
 .tutorial-panel {
     position: fixed;
-    bottom: 10px;
+   /* bottom: 10px;*/
     left: 50%;
     
     width: 90vw;

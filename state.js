@@ -146,7 +146,7 @@ function resetGameStateVariables(playerCount = 2, turnDuration = Infinity) {
     console.log(`state.js: gameState reseteado para ${playerCount} jugadores.`);
 }
 
-async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaignTerritoryId) {
+async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaignTerritoryId, turnDuration = Infinity) {
     console.log("state.js: Resetting and setting up tactical game for scenario:", scenarioData.scenarioId);
 
     const initialP1Resources = JSON.parse(JSON.stringify(scenarioData.playerSetup.initialResources || INITIAL_PLAYER_RESOURCES[0]));
