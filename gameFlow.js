@@ -1218,9 +1218,16 @@ function selectNextIdleUnit() {
 
     // Selecciona la unidad y centra la vista (necesitaremos una función para centrar)
     if (nextUnitToSelect) {
+        // 1. Cerrar el modal de detalles/reforzar si estuviera abierto
+        if (domElements.unitDetailModal) domElements.unitDetailModal.style.display = 'none';
+
+        // 2. Seleccionar la unidad (esto ya actualiza el panel inferior)
         selectUnit(nextUnitToSelect);
-        // Idealmente, aquí llamaríamos a una función para centrar el mapa en (nextUnitToSelect.r, nextUnitToSelect.c)
-        console.log(`Centrando en la siguiente unidad inactiva: ${nextUnitToSelect.name}`);
+
+        // 3. Centrar la cámara en la nueva unidad
+        if (typeof centerMapOn === 'function') {
+            centerMapOn(nextUnitToSelect.r, nextUnitToSelect.c);
+        }
     }
 }
 
