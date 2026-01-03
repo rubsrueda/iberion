@@ -58,7 +58,7 @@ function RequestReinforceRegiment(division, regiment) {
     const healthToRestore = regData.health - regiment.health;
     const totalCost = Math.ceil(costPerHp * healthToRestore * reinforceCostMultiplier);
     
-    if (confirm(`¿Reforzar ${getAbbreviatedName(regiment.type)} por ${totalCost} de oro?`)) {
+    //if (confirm(`¿Reforzar ${getAbbreviatedName(regiment.type)} por ${totalCost} de oro?`)) {
         const action = {
             type: 'reinforceRegiment',
             payload: {
@@ -79,7 +79,7 @@ function RequestReinforceRegiment(division, regiment) {
             return;
         }
         handleReinforceRegiment(division, regiment);
-    }
+    //}
 }
 
 function showCityContextualInfo(cityData) { // Modificar función existente o crear una nueva
@@ -1111,6 +1111,7 @@ function handleFinalizeSplit() {
     _unitBeingSplit = null;
     _tempOriginalRegiments = [];
     _tempNewUnitRegiments = [];
+
 }
 
 
@@ -1314,7 +1315,7 @@ function handleReinforceRegiment(division, regiment) {
     }
 
     // Usamos el `confirm` de siempre para la interacción
-    if (confirm(`¿Reforzar ${getAbbreviatedName(regiment.type)} por ${totalCost} de oro?`)) {
+    //if (confirm(`¿Reforzar ${getAbbreviatedName(regiment.type)} por ${totalCost} de oro?`)) {
 
         if (gameState.isTutorialActive) {
             // Usamos el nombre de la bandera que espera el paso 23 del guion
@@ -1337,7 +1338,7 @@ function handleReinforceRegiment(division, regiment) {
             UIManager.updatePlayerAndPhaseInfo();
             UIManager.updateUnitStrengthDisplay(division);
         }
-    }
+    //}
 }
 
 // Listener para el botón de cerrar del nuevo modal
@@ -1745,7 +1746,6 @@ function RequestReinforceRegiment(division, regiment) {
             card.innerHTML = `
                 ${spriteHTML}
                 <div class="hero-name">${heroData.name}</div>
-                <div class="hero-level">Nivel ${heroInstance.level}</div>
                 <div class="hero-stars">${'⭐'.repeat(heroInstance.stars)}</div>
             `;
         }
@@ -1807,7 +1807,6 @@ function refreshBarracksView() {
             card.innerHTML = `
                 ${spriteHTML}
                 <div class="hero-name">${heroData.name}</div>
-                <div class="hero-level">Nivel ${heroInstance.level}</div>
                 <div class="hero-stars">${'⭐'.repeat(heroInstance.stars)}</div>
             `;
         }

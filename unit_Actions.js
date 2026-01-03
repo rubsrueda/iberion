@@ -175,6 +175,7 @@ function splitUnit(originalUnit, targetR, targetC) {
         r: -1, c: -1, hasMoved: false, hasAttacked: false,
         isSplit: true,
         // (el resto de tus propiedades iniciales...)
+        
     };
     
     calculateRegimentStats(newUnitData);
@@ -192,6 +193,8 @@ function splitUnit(originalUnit, targetR, targetC) {
         TutorialManager.notifyActionCompleted('unit_split');
     }
     logMessage(`División completada.`);
+
+    deselectUnit();
     return true; 
 }
 

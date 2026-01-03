@@ -57,6 +57,9 @@ const AiGameplayManager = {
             const unitInMemory = units.find(u => u.id === unit.id);
                 // Comprobamos de nuevo por si una acción anterior (ej. fusión) ya la ha hecho actuar.
             if (unitInMemory?.currentHealth > 0 && !unitInMemory.hasMoved) {
+
+                if (typeof centerMapOn === 'function') centerMapOn(unitInMemory.r, unitInMemory.c);
+                
                 await AiGameplayManager.decideAndExecuteUnitAction(unitInMemory);
                 await new Promise(resolve => setTimeout(resolve, 200)); 
             }

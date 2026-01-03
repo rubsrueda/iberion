@@ -137,6 +137,9 @@
 
     </div>
     
+    <!-- versión -->
+    <div class="version-watermark">v1.0</div>
+
     <!-- El resto de tus elementos como #combatPredictionPanel y los scripts van después -->
     <div id="combatPredictionPanel" style="display: none;"></div>
     <div id="debug-console" style="display: none;">
@@ -373,12 +376,16 @@
     <!-- ====================================================================== -->
     <div id="barracksModal" class="modal modal-themed" style="display: none;">
         <div class="modal-content" style="max-width: 800px;">
-            <span class="close-button" id="closeBarracksBtn">×</span>
-            <h2>Cuartel de Héroes</h2>
-            <p>Aquí puedes ver los héroes que has reclutado para tu causa.</p>
-            <div id="heroCollectionContainer" class="hero-collection-grid">
-                <!-- Los héroes del jugador se insertarán aquí -->
-            </div>
+            <header class="modal-header">
+                <h2>Cuartel de Héroes</h2>
+                <span class="close-button" id="closeBarracksBtn">×</span>
+            </header>
+            
+            <main class="modal-body">
+                <div id="heroCollectionContainer" class="hero-collection-grid">
+                    <!-- JS insertará aquí las tarjetas -->
+                </div>
+            </main>
         </div>
     </div>
     <!-- ====================================================================== -->
@@ -687,10 +694,21 @@
     
     <div id="buildStructureModal" class="modal modal-themed">
         <div class="modal-content">
-            <span class="close-button">×</span>
-            <h3>Construir Estructura en (<span id="buildHexCoordsDisplay"></span>)</h3>
-            <ul id="availableStructuresList"></ul>
-            <button id="confirmBuildBtn">Construir Seleccionado</button>
+            <header class="modal-header">
+                <h3>Construir en (<span id="buildHexCoordsDisplay"></span>)</h3>
+                <span class="close-button">×</span>
+            </header>
+            
+            <main class="modal-body">
+                <p style="font-size: 0.9em; color: #bdc3c7; margin-bottom: 10px;">Selecciona la estructura que deseas levantar en esta casilla:</p>
+                <ul id="availableStructuresList">
+                    <!-- JS llenará esto -->
+                </ul>
+            </main>
+
+            <footer class="modal-footer">
+                <button id="confirmBuildBtn" class="button-primary">Confirmar Construcción</button>
+            </footer>
         </div>
     </div>
 

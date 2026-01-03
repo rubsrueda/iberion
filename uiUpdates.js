@@ -733,12 +733,13 @@ const UIManager = {
             console.log("Autocerrando panel contextual de unidad...");
             this._domElements.contextualInfoPanel.classList.remove('visible');
                 // Usa this._reopenBtn para mostrar el botón
-            if (this._reopenBtn) this._reopenBtn.style.display = 'block'; 
+            if (this._reopenBtn) this._reopenBtn.style.display = 'block';
+            if (gameState.isTutorialActive) return; // Si es el tutorial, no sigas ocultando cosas 
             //this.hideAllActionButtons();
         }, 3000);
         
         // --- Lógica para mostrar los botones de acción ---
-        //this.hideAllActionButtons();
+        this.hideAllActionButtons();
         const isPlayerUnit = isOwnUnit;
         const isScoutedEnemy = !isPlayerUnit && isEnemyScouted(unit);
         
@@ -900,11 +901,12 @@ const UIManager = {
         }, 3000);
 
         // --- Lógica para mostrar los botones de acción ---
-        //this.hideAllActionButtons();
+        this.hideAllActionButtons();
         
         const isPlayerTerritory = hexData.owner === gameState.currentPlayer;
         const isUnitPresent = getUnitOnHex(r, c);
-        const canActHere = gameState.currentPhase === 'play' && isPlayerTerritory && !isUnitPresent;
+        const canActHere = (gameState.currentPhase === 'play' || gameState.isTutorialActive) && isPlayerTerritory && !isUnitPresent;
+        
         
         if (canActHere) {
             const playerTechs = gameState.playerResources[gameState.currentPlayer]?.researchedTechnologies || [];
@@ -942,7 +944,9 @@ const UIManager = {
             this._domElements.contextualInfoPanel.classList.remove('visible');
         }
         this.removeAttackPredictionListener();
-        this.hideAllActionButtons();
+        if (!gameState.isTutorialActive) {
+            this.hideAllActionButtons();
+        }
     },
 
     _buildUnitLine: function(unit) {
@@ -1099,6 +1103,7 @@ const UIManager = {
     // ==   FUNCIÓN DE AUTOCIERRE QUE FALTABA                     ==
     // =============================================================
     _startAutocloseTimer: function(isHexPanel = false) {
+        if (gameState.isTutorialActive) return;
         // 1. Limpiar cualquier temporizador anterior para evitar cierres conflictivos
         if (this._autoCloseTimeout) {
             clearTimeout(this._autoCloseTimeout);

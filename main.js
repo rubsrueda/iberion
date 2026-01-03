@@ -141,7 +141,7 @@ function showScreen(screenElement) {
 
 function initApp() {
 
-
+    if (typeof TurnTimerManager !== 'undefined') TurnTimerManager.init();
     // Precargar todos los sonidos al iniciar la aplicación
     if (typeof AudioManager !== 'undefined' && AudioManager.preload) {
         AudioManager.preload();
@@ -982,7 +982,7 @@ if (tutorialPanel && closeTutorialBtn) {
                     console.error("main.js: CRÍTICO: showScreen o domElements.gameContainer no disponibles."); 
                     return;
             }
-            
+            UIManager.hideAllActionButtons();
             gameState.currentPhase = "deployment";
                 // Corrección en el inicializador de unidades
             gameState.unitsPlacedByPlayer = {}; 
@@ -1591,6 +1591,7 @@ if (newTutorialBtn) {
         initializeTutorialState(); 
         gameState.currentPhase = "deployment";
         TutorialManager.start(TUTORIAL_SCRIPTS.completo);
+        TurnTimerManager.start(300); // Inicia el reloj con 3 minutos
     });
 }
 

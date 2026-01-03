@@ -11,11 +11,10 @@ const TUTORIAL_SCRIPTS = {
             duration: 3000,
            
             onStepStart: () => {
-               // units = [];
-               // board.forEach(row => row.forEach(hex => { hex.owner = null; hex.isCapital = false; hex.structure = null; hex.unit = null; }));
-               // renderFullBoardVisualState();
                 gameState.currentPhase = "play";
                 addCityToBoardData(1, 1, 1, "Tu Capital", true);
+                UIManager.updateActionButtonsBasedOnPhase();
+                UIManager.updateAllUIDisplays();
                 renderSingleHexVisuals(1, 1);
                 gameState.playerResources[1].oro += 1000;
                 gameState.playerResources[1].piedra += 2100;
@@ -25,8 +24,18 @@ const TUTORIAL_SCRIPTS = {
             },
             highlightHexCoords: [{r: 1, c: 1}]
             
-            
         },
+
+        {
+            id: 'orientation_intro',
+            message: "¡General! Para una mejor experiencia, puedes <strong>girar tu dispositivo</strong>. Prueba a jugar en horizontal o vertical según tu preferencia antes de empezar.",
+            duration: 4000, // 4 segundos para que el jugador pruebe a girar el móvil
+            onStepStart: () => {
+                gameState.currentPhase = "play";
+                UIManager.updateActionButtonsBasedOnPhase();
+            }
+        },
+
         {
             id: 'TUT_2_CREATE_UNIT',
             message: "Tu primera tarea: selecciona tu ciudad, y recluta una división. Pulsa el botón <strong>'Crear División' (➕)</strong>.",
@@ -56,6 +65,13 @@ const TUTORIAL_SCRIPTS = {
             highlightHexCoords: [{r: 2, c: 2}],
             actionCondition: () => units.some(u => u.player === 1 && u.r === 2 && u.c === 2)
         },
+
+        {
+            id: 'ui_layout_intro',
+            message: "Familiarízate con los mandos: a la <strong>izquierda</strong> verás las acciones de tus unidades, y a la <strong>derecha</strong> los controles del juego.",
+            duration: 8000
+        },
+
         {
             id: 'TUT_6_SELECT_AND_MOVE',
             message: "Ahora, <strong>selecciona tu división</strong> y <strong>muévela a la posición estratégica</strong>.",
@@ -70,7 +86,9 @@ const TUTORIAL_SCRIPTS = {
             onStepStart: () => {
                 const enemy = AiGameplayManager.createUnitObject({ name: "Explorador Hostil", regiments: [{...REGIMENT_TYPES["Infantería Ligera"], type: 'Infantería Ligera', health: 100 }]}, 2, {r: 4, c: 4});
                 placeFinalizedDivision(enemy, 4, 4);
+                if (typeof centerMapOn === 'function') centerMapOn(4, 4); // <--- CENTRA EN EL ENEMIGO
                 const playerUnit = units.find(u => u.player === 1);
+
                 if (playerUnit) playerUnit.hasAttacked = false;
                 gameState.tutorial.attack_completed = false;
             },
@@ -217,6 +235,17 @@ const TUTORIAL_SCRIPTS = {
             actionCondition: () => selectedUnit && selectedUnit.name === "Exploradores"
         },
         
+        {
+            id: 'TUT_GOLD_RESOURCES',
+            message: "¡Excelente! Ahora, <strong>mueve tu unidad hacia la mina de oro (💰) en (2,1)</strong>. Ocupar hexágonos aumenta tus ingresos por turno.",
+            onStepStart: () => {
+                resetUnitsForNewTurn(1); // Nos aseguramos de que pueda moverse
+                if (typeof centerMapOn === 'function') centerMapOn(2, 1); // <--- CENTRA LA CÁMARA
+            },
+            highlightHexCoords: [{r: 2, c: 1}],
+            actionCondition: () => units.some(u => u.player === 1 && u.r === 2 && u.c === 1)
+        },
+
         // =====================================================================
         // === CAPÍTULO 4: Tecnología y Construcción (5 Pasos)
         // =====================================================================
@@ -556,7 +585,7 @@ const TUTORIAL_SCRIPTS = {
         },
         {
             id: 'TUT_38_VICTORY',
-            message: "Has completado tu entrenamiento. ¡Ahora estás listo para la conquista!",
+            message: "Has completado tu entrenamiento. ¡Ahora estás listo para la conquista! Termina el Turno y comienza a Jugar",
             onStepStart: () => {
                 UIManager.showRewardToast("¡TUTORIAL COMPLETADO!", "🏆");
                 UIManager.setEndTurnButtonToFinalizeTutorial();

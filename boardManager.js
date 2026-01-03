@@ -693,24 +693,35 @@ if (tacticalUiContainer && tacticalUiContainer.style.display !== 'none') {
 // --- ASIGNACIÓN DE LISTENERS CON REFERENCIAS ---
     
 _boundMouseDown = function(e) {
-if (e.target.closest('button')) return;
-if (e.button !== 0 || (typeof placementMode !== 'undefined' && placementMode.active)) return;
-        
-// Esta línea es la que causaba el problema, y ahora no se ejecutará si haces clic en un botón.
- e.preventDefault();
- domElements.isPanning = true;
- domElements.panStartX = e.clientX - domElements.currentBoardTranslateX;
- domElements.panStartY = e.clientY - domElements.currentBoardTranslateY;
- gameBoard.classList.add('grabbing');
+    if (e.target.closest('button')) return;
+    if (e.button !== 0 || (typeof placementMode !== 'undefined' && placementMode.active)) return;
+    
+    e.preventDefault();
+    domElements.initialClickX = e.clientX; // Guardamos para el final
+    domElements.initialClickY = e.clientY;
+    domElements.isPanning = true; // Activamos movimiento YA
+    gameState.justPanned = false; // El clic es válido hasta que se demuestre lo contrario
+    
+    domElements.panStartX = e.clientX - domElements.currentBoardTranslateX;
+    domElements.panStartY = e.clientY - domElements.currentBoardTranslateY;
+    gameBoard.classList.add('grabbing');
 };
+
 gameBoard.addEventListener('mousedown', _boundMouseDown);
 
 _boundMouseMove = function(e) {
-if (!domElements.isPanning) return;
-domElements.currentBoardTranslateX = e.clientX - domElements.panStartX;
-domElements.currentBoardTranslateY = e.clientY - domElements.panStartY;
-applyTransform();
+    if (!domElements.isPanning) return;
+    
+    domElements.currentBoardTranslateX = e.clientX - domElements.panStartX;
+    domElements.currentBoardTranslateY = e.clientY - domElements.panStartY;
+
+    // Solo si el movimiento es real (más de 5px), bloqueamos el clic
+    if (Math.hypot(e.clientX - domElements.initialClickX, e.clientY - domElements.initialClickY) > 5) {
+        gameState.justPanned = true;
+    }
+    applyTransform();
 };
+
 document.addEventListener('mousemove', _boundMouseMove);
 
 _boundMouseUp = function(e) {
@@ -735,12 +746,16 @@ if ((typeof placementMode !== 'undefined' && placementMode.active)) return;
         
 // Paneo con un dedo
  if (e.touches.length === 1) {
-     domElements.isPanning = true; 
-     domElements.isPinching = false;
-     const touch = e.touches[0]; 
-     lastTouchX_pan_bm = touch.clientX; 
-     lastTouchY_pan_bm = touch.clientY;
- } else if (e.touches.length === 2) {
+        const touch = e.touches[0];
+        domElements.initialTouchX = touch.clientX; // Guardamos para el final
+        domElements.initialTouchY = touch.clientY;
+        domElements.isPanning = true; // Iniciamos movimiento al instante
+        gameState.justPanned = false; // El clic es válido hasta que se mueva más de 5px
+        
+        domElements.isPinching = false;
+        lastTouchX_pan_bm = touch.clientX; 
+        lastTouchY_pan_bm = touch.clientY;
+    } else if (e.touches.length === 2) {
      // Zoom con dos dedos
      domElements.isPinching = true; 
      domElements.isPanning = false;
@@ -753,16 +768,23 @@ _boundTouchMove = function(e) {
 e.preventDefault();
         
 // Mover con un dedo
- if (domElements.isPanning && e.touches.length === 1) {
-     const touch = e.touches[0]; 
-     const dx = touch.clientX - lastTouchX_pan_bm; 
-     const dy = touch.clientY - lastTouchY_pan_bm;
-     domElements.currentBoardTranslateX += dx; 
-     domElements.currentBoardTranslateY += dy;
-     lastTouchX_pan_bm = touch.clientX; 
-     lastTouchY_pan_bm = touch.clientY;
-     applyTransform();
- } else if (domElements.isPinching && e.touches.length === 2) {
+if (domElements.isPanning && e.touches.length === 1) {
+        const touch = e.touches[0]; 
+        const dx = touch.clientX - lastTouchX_pan_bm; 
+        const dy = touch.clientY - lastTouchY_pan_bm;
+        domElements.currentBoardTranslateX += dx; 
+        domElements.currentBoardTranslateY += dy;
+        lastTouchX_pan_bm = touch.clientX; 
+        lastTouchY_pan_bm = touch.clientY;
+
+        // --- LA CLAVE: Si el dedo se ha movido más de 5px en total, anulamos el clic ---
+        const distTotal = Math.hypot(touch.clientX - domElements.initialTouchX, touch.clientY - domElements.initialTouchY);
+        if (distTotal > 5) {
+            gameState.justPanned = true;
+        }
+
+        applyTransform();
+    } else if (domElements.isPinching && e.touches.length === 2) {
      // Hacer zoom con dos dedos
      const newDist = getPinchDistance(e.touches); 
      const scaleFactor = newDist / domElements.initialPinchDistance;
@@ -1397,4 +1419,21 @@ ruinsPlaced++;
 }
 
     console.log(`[Mapa] ${ruinsPlaced} ruinas generadas en el mapa.`);
+}
+
+function centerMapOn(r, c) {
+    const gameBoard = document.getElementById('gameBoard');
+    const viewport = gameBoard?.parentElement;
+    if (!gameBoard || !viewport || typeof HEX_WIDTH === 'undefined') return;
+
+    // Calculamos la posición física del hexágono en el lienzo
+    const xPos = c * HEX_WIDTH + (r % 2 !== 0 ? HEX_WIDTH / 2 : 0);
+    const yPos = r * HEX_VERT_SPACING;
+
+    // Calculamos el desplazamiento necesario para centrarlo
+    domElements.currentBoardTranslateX = (viewport.clientWidth / 2) - (xPos * domElements.currentBoardScale);
+    domElements.currentBoardTranslateY = (viewport.clientHeight / 2) - (yPos * domElements.currentBoardScale);
+
+    // Aplicamos el movimiento visualmente
+    gameBoard.style.transform = `translate(${domElements.currentBoardTranslateX}px, ${domElements.currentBoardTranslateY}px) scale(${domElements.currentBoardScale})`;
 }
