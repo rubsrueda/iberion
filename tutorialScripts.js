@@ -37,6 +37,13 @@ const TUTORIAL_SCRIPTS = {
         },
 
         {
+            id: 'tutorial_menu_intro',
+            message: "Antes de marchar, fíjate arriba. El <strong>Menú (☰)</strong> oculta tus recursos detallados y opciones de guardado. ¡Púlsalo para verlo!",
+            highlightElementId: 'floatingMenuBtn',
+            actionCondition: () => document.getElementById('top-bar-menu').style.display === 'flex'
+        },
+
+        {
             id: 'TUT_2_CREATE_UNIT',
             message: "Tu primera tarea: selecciona tu ciudad, y recluta una división. Pulsa el botón <strong>'Crear División' (➕)</strong>.",
             highlightElementId: 'floatingCreateDivisionBtn',

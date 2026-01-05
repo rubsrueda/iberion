@@ -138,8 +138,63 @@ function showScreen(screenElement) {
     }
 }
 
+// ======================================================================
+// 2. LÓGICA DE CUENTAS DE USUARIO
+// ======================================================================
+
+const showMainMenu = () => {
+    if (PlayerDataManager.currentPlayer) {
+        const newGeneralNameDisplay = document.getElementById('currentGeneralName_main');
+        if (newGeneralNameDisplay) newGeneralNameDisplay.textContent = PlayerDataManager.currentPlayer.username;
+        if (domElements.currentGeneralName) domElements.currentGeneralName.textContent = PlayerDataManager.currentPlayer.username;
+    }
+    if (typeof AudioManager !== 'undefined') {
+        AudioManager.playMusic('menu_theme');
+    }
+
+    //audio
+    if (typeof AudioManager !== 'undefined') {
+        AudioManager.playMusic('menu_theme');
+    }
+
+    // Forzamos que se muestre directamente el nuevo menú principal
+    showScreen(domElements.mainMenuScreenEl);
+};
+
+const showLoginScreen = () => {
+    showScreen(domElements.loginScreen);
+    const lastUser = localStorage.getItem('lastUser');
+    
+    // Usamos un pequeño retraso y comprobamos que los elementos existan
+    setTimeout(() => {
+        // Intentamos obtener los elementos directamente si domElements falla
+        const userInp = domElements.usernameInput || document.getElementById('loginEmail');
+        const passInp = domElements.passwordInput || document.getElementById('loginPassword');
+
+        if (userInp) {
+            if (lastUser) userInp.value = lastUser;
+            userInp.focus();
+        }
+        // Si el usuario ya estaba puesto, enfocamos la contraseña
+        if (lastUser && passInp) {
+            passInp.focus();
+        }
+    }, 200); // 200ms es suficiente para que el DOM se estabilice
+};
 
 function initApp() {
+
+    const googleBtn = document.getElementById('googleLoginBtn');
+    if (googleBtn) {
+        googleBtn.addEventListener('click', () => {
+            PlayerDataManager.loginWithGoogle();
+        });
+    }
+
+    // ACTIVAMOS EL ESCUCHADOR DE SUPABASE
+    if (PlayerDataManager.initAuthListener) {
+        PlayerDataManager.initAuthListener();
+    }
 
     if (typeof TurnTimerManager !== 'undefined') TurnTimerManager.init();
     // Precargar todos los sonidos al iniciar la aplicación
@@ -181,35 +236,33 @@ function initApp() {
     if (typeof UIManager !== 'undefined' && UIManager.setDomElements) { UIManager.setDomElements(domElements); } 
     else { console.error("main.js: CRÍTICO: UIManager no definido."); }
     
-
-    // DENTRO DE initApp(), ASEGÚRATE DE TENER ESTA VERSIÓN FINAL
+    if (typeof InventoryManager !== 'undefined') InventoryManager.init();
 
 // ======================================================================
 // === LÓGICA DE PANELES (ÚNICA Y DEFINITIVA) ===========================
 // ======================================================================
-const infoPanel = document.getElementById('contextualInfoPanel');
-const closeInfoBtn = document.getElementById('closeContextualPanelBtn');
-const tutorialPanel = document.getElementById('tutorialMessagePanel');
-const closeTutorialBtn = document.getElementById('closeTutorialPanelBtn');
-const reopenInfoBtn = document.getElementById('reopenContextualPanelBtn');
+    const infoPanel = document.getElementById('contextualInfoPanel');
+    const closeInfoBtn = document.getElementById('closeContextualPanelBtn');
+    const tutorialPanel = document.getElementById('tutorialMessagePanel');
+    const closeTutorialBtn = document.getElementById('closeTutorialPanelBtn');
+    const reopenInfoBtn = document.getElementById('reopenContextualPanelBtn');
 
-if (infoPanel && closeInfoBtn) {
-    closeInfoBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        infoPanel.classList.remove('visible'); // Cierre limpio
-        if (reopenInfoBtn) reopenInfoBtn.style.display = 'block'; // Muestra ▲
-        //if (typeof deselectUnit === 'function') deselectUnit();
-    });
-}
+    if (infoPanel && closeInfoBtn) {
+        closeInfoBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            infoPanel.classList.remove('visible');
+            if (reopenInfoBtn) reopenInfoBtn.style.display = 'block';
+        });
+    }
 
-if (tutorialPanel && closeTutorialBtn) {
-    closeTutorialBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        tutorialPanel.classList.remove('visible'); // Cierre limpio
-        if (reopenInfoBtn) reopenInfoBtn.style.display = 'block'; // Muestra ▲
-    });
-}
-
+    if (tutorialPanel && closeTutorialBtn) {
+        closeTutorialBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            tutorialPanel.classList.remove('visible');
+            if (reopenInfoBtn) reopenInfoBtn.style.display = 'block';
+        });
+    }
+    
     // Botón de Re-apertura ▲ (ya no debería tener problemas)
     if (reopenInfoBtn) {
         reopenInfoBtn.addEventListener('click', (e) => {
@@ -229,67 +282,18 @@ if (tutorialPanel && closeTutorialBtn) {
             }
         });
     }
-    
-    /*
-    // Cierre automático del panel de INFO al hacer clic fuera (con excepción para ▲)
-    document.body.addEventListener('click', (event) => {
-        if (event.target === reopenInfoBtn) return;
         
-        const currentInfoPanel = document.getElementById('contextualInfoPanel'); // Le cambio el nombre para evitar conflictos
-        if (currentInfoPanel && currentInfoPanel.classList.contains('visible')) {
-            const tacticalUI = document.getElementById('tactical-ui-container');
-            if (!currentInfoPanel.contains(event.target) && !(tacticalUI && tacticalUI.contains(event.target))) {
-                currentInfoPanel.classList.remove('visible');
-                if (typeof deselectUnit === 'function') deselectUnit();
-            }
-        }
-    }, true);
-    */
-    // ======================================================================
-    // 2. LÓGICA DE CUENTAS DE USUARIO
-    // ======================================================================
-
-    const showMainMenu = () => {
-    if (PlayerDataManager.currentPlayer) {
-        // <<== MODIFICACIÓN IMPORTANTE ==>>
-        // Actualizamos los dos posibles displays del nombre del general
-        const newGeneralNameDisplay = document.getElementById('currentGeneralName_main');
-        if (newGeneralNameDisplay) newGeneralNameDisplay.textContent = PlayerDataManager.currentPlayer.username;
-        if (domElements.currentGeneralName) domElements.currentGeneralName.textContent = PlayerDataManager.currentPlayer.username;
-    }
-
-    //audio
-    if (typeof AudioManager !== 'undefined') {
-        AudioManager.playMusic('menu_theme');
-    }
-
-    // Forzamos que se muestre directamente el nuevo menú principal
-    showScreen(domElements.mainMenuScreenEl);
-};
-
-    const showLoginScreen = () => {
-        showScreen(domElements.loginScreen);
-        const lastUser = localStorage.getItem('lastUser');
-        if (lastUser) {
-            domElements.usernameInput.value = lastUser;
-            domElements.passwordInput.focus();
-        } else {
-            domElements.usernameInput.focus();
-        }
-    };
-    
     if (domElements.loginBtn) {
-        domElements.loginBtn.addEventListener('click', () => {
-            domElements.loginErrorMessage.textContent = "";
+        domElements.loginBtn.addEventListener('click', async () => { // Añade async
+            domElements.loginErrorMessage.textContent = "Conectando...";
             const username = domElements.usernameInput.value;
             const password = domElements.passwordInput.value;
-            const result = PlayerDataManager.login(username, password);
+            
+            // Añade el await aquí:
+            const result = await PlayerDataManager.login(username, password);
             
             if (result.success) {
-                // 1. Ocultamos explícitamente la pantalla de login.
-                showScreen(null); // Esto oculta todas las pantallas.
-                
-                // 2. Luego, procedemos a mostrar el menú principal.
+                showScreen(null);
                 showMainMenu();
             } else {
                 domElements.loginErrorMessage.textContent = result.message;
@@ -378,11 +382,9 @@ if (tutorialPanel && closeTutorialBtn) {
     }
 
     // Cargar Partida (Nuevo input)
-    const loadGameInputTop = document.getElementById('loadGameInput_top');
-    if (loadGameInputTop) {
-        loadGameInputTop.addEventListener('change', (event) => { 
-            if (typeof handleLoadGame === "function") handleLoadGame(event);
-        });
+    const loadBtnTop = document.getElementById('loadGameBtn_top'); // Asegúrate de que el ID en el HTML sea un botón, no un label
+    if (loadBtnTop) {
+        loadBtnTop.onclick = () => handleLoadGame();
     }
 
     // Exportar Perfil (Nuevo botón)
@@ -428,15 +430,6 @@ if (tutorialPanel && closeTutorialBtn) {
         });
     }
 
-    // Lógica para el panel del tutorial
-    if (closeTutorialBtn && tutorialPanel) {
-        closeTutorialBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            tutorialPanel.classList.remove('visible');
-            // Opcional: podrías mostrar un botón para reabrir el tutorial si quisieras
-        });
-    }
-    
     // <<== "Forja" ==>>
 
     const openForgeBtn = document.getElementById('openForgeBtn');
@@ -1632,7 +1625,15 @@ if (newGeneralNameDisplay && PlayerDataManager.currentPlayer) {
         showLoginScreen();
     }
     
+     // Si en 2 segundos no se ha detectado sesión automática, mostramos el login
+    setTimeout(() => {
+        if (!PlayerDataManager.currentPlayer) {
+            showLoginScreen();
+        }
+    }, 2000); // Damos 2 segundos a Supabase para recuperar la sesión
+
     console.log("main.js: initApp() FINALIZADO.");
+
 }
 
 function isNetworkGame() {
@@ -2167,6 +2168,8 @@ function reconstruirJuegoDesdeDatos(datos) {
         console.error("Error crítico al reconstruir el juego en el cliente:", error);
         logMessage("Error: No se pudo sincronizar la partida con el anfitrión.", "error");
     }
+
 }
 
 document.addEventListener('DOMContentLoaded', initApp);
+console.log("main.js: Archivo cargado y listo.");

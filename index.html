@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
     <title>Hex General Evolved - Modular</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
 </head>
 <body>
 
@@ -68,13 +69,13 @@
     <div id="top-bar-info" class="top-bar-panel">
         <div id="top-bar-phase-turn">Fase: - | Turno: - | Jugador: -</div>
         <div id="top-bar-resources">
-            <div class="resource-item"><span>Oro</span><strong data-resource="oro">0</strong></div>
-            <div class="resource-item"><span>Fe</span><strong data-resource="hierro">0</strong></div>
-            <div class="resource-item"><span>Pi</span><strong data-resource="piedra">0</strong></div>
-            <div class="resource-item"><span>Ma</span><strong data-resource="madera">0</strong></div>
-            <div class="resource-item"><span>Com</span><strong data-resource="comida">0</strong></div>
-            <div class="resource-item"><span>Inv</span><strong data-resource="researchPoints">0</strong></div>
-            <div class="resource-item"><span>PR</span><strong data-resource="puntosReclutamiento">0</strong></div>
+            <div class="resource-item"><span>💰</span><strong data-resource="oro">0</strong></div>
+            <div class="resource-item"><span>⛓️</span><strong data-resource="hierro">0</strong></div>
+            <div class="resource-item"><span>🗿</span><strong data-resource="piedra">0</strong></div>
+            <div class="resource-item"><span>🌲</span><strong data-resource="madera">0</strong></div>
+            <div class="resource-item"><span>🌾</span><strong data-resource="comida">0</strong></div>
+            <div class="resource-item"><span>💡</span><strong data-resource="researchPoints">0</strong></div>
+            <div class="resource-item"><span>🎖️</span><strong data-resource="puntosReclutamiento">0</strong></div>
         </div>
     </div>
 
@@ -121,6 +122,7 @@
                 <button id="toggle-right-menu-btn" class="menu-toggle-btn" title="Opciones Globales">⚙️</button>
                 <div id="right-submenu" class="submenu">
                     <button id="barracksBtn" title="Cuartel">🎖️</button>
+                    <button id="openInventoryBtn" title="Bolsa de Objetos">🎒</button>
                     <button id="openForgeBtn" title="Forja">⚔️</button>
                     <button id="floatingWikiBtn" title="Wiki">ℹ️</button>
                     <button id="floatingInboxBtn" title="Buzón">✉️</button>
@@ -152,27 +154,46 @@
     <!-- ======================== PANTALLA DE LOGIN ========================= -->
     <!-- ====================================================================== -->
     <div id="loginScreen" class="modal" style="display: none; text-align: center; align-items: center; justify-content: center; background-color: rgba(0,0,0,0.8); z-index: 2000;">
-        <div class="modal-content" style="width: auto; min-width: 350px; max-width: 450px; position: relative; z-index: 2001;">
+        <div class="modal-content" style="width: auto; min-width: 350px; max-width: 450px; position: relative; z-index: 2001; padding: 30px; border-radius: 10px;">
             <h2>Acceso de General</h2>
-            <p>Inicia sesión o crea un nuevo perfil de General.</p>
+            <p>Inicia sesión en la nube para sincronizar tu progreso.</p>
             
-            <div style="margin: 20px 0;">
-                <label for="usernameInput" style="display: block; margin-bottom: 5px;">Nombre de General:</label>
-                <input type="text" id="usernameInput" placeholder="Escribe tu nombre..." style="width: 80%; padding: 10px; font-size: 1.1em;">
+            <!-- Campo de Email (NUEVO) -->
+            <div style="margin: 15px 0;">
+                <label for="emailInput" style="display: block; margin-bottom: 5px; font-weight: bold;">Email:</label>
+                <input type="email" id="emailInput" placeholder="tu@email.com" style="width: 90%; padding: 10px; border: 1px solid #ccc; border-radius: 5px;">
+            </div>
+
+            <div style="margin: 15px 0;">
+                <label for="passwordInput" style="display: block; margin-bottom: 5px; font-weight: bold;">Contraseña:</label>
+                <input type="password" id="passwordInput" placeholder="Mínimo 6 caracteres" style="width: 90%; padding: 10px; border: 1px solid #ccc; border-radius: 5px;">
             </div>
             
-            <div style="margin: 20px 0;">
-                <label for="passwordInput" style="display: block; margin-bottom: 5px;">Contraseña:</label>
-                <input type="password" id="passwordInput" placeholder="Escribe tu contraseña..." style="width: 80%; padding: 10px; font-size: 1.1em;">
+            <!-- Botón de Entrar Clásico -->
+            <button id="loginBtn" style="padding: 12px 25px; font-size: 1.1em; width: 95%; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 10px;">
+                Entrar / Registrarse
+            </button>
+
+            <div style="margin: 15px 0; border-top: 1px solid #eee; padding-top: 15px;">
+                <p style="font-size: 0.9em; color: #666;">O utiliza tu cuenta de Google:</p>
+                
+                <button id="googleLoginBtn" style="padding: 10px 20px; background-color: #fff; color: #757575; border: 1px solid #ddd; border-radius: 5px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 95%; margin: 0 auto;">
+                    <!-- Este dibujo vectorial (SVG) siempre se cargará -->
+                    <svg style="width:20px; margin-right:10px" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
+                    Entrar con Gmail
+                </button>
             </div>
-            
-            <button id="loginBtn" style="padding: 12px 25px; font-size: 1.2em; margin-top: 15px;">Entrar</button>
 
             <div style="margin-top: 20px;">
-            <label for="importProfileInput" class="button-like-label" style="background-color: #17a2b8; padding: 8px 15px; border-radius: 5px; cursor: pointer; color: white;">
-                Importar Perfil
-            </label>
-            <input type="file" id="importProfileInput" style="display: none;" accept=".json">
+                <label for="importProfileInput" class="button-like-label" style="background-color: #17a2b8; padding: 8px 15px; border-radius: 5px; cursor: pointer; color: white; display: inline-block;">
+                    Importar Perfil Local (.json)
+                </label>
+                <input type="file" id="importProfileInput" style="display: none;" accept=".json">
             </div>
             
             <p id="loginErrorMessage" style="color: #dc3545; font-weight: bold; min-height: 20px; margin-top: 15px;"></p>
@@ -489,6 +510,52 @@
             <div id="equipmentSelectorFooter" style="text-align: center; margin-top: 20px; display: none;">
                 <button id="equipItemBtn">Equipar Objeto Seleccionado</button>
                 <button id="unequipItemBtn" style="background-color: #dc3545;">Quitar Objeto Actual</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- Modal: Bolsa de Objetos -->
+    <!-- ====================================================================== -->
+    <div id="inventoryModal" class="modal modal-themed" style="display: none;">
+        <div class="modal-content" style="max-width: 900px; height: 80vh;">
+            <header class="modal-header">
+                <h2>Bolsa del General</h2>
+                <span class="close-button" id="closeInventoryBtn">×</span>
+            </header>
+
+            <div class="gacha-main-layout" style="grid-template-columns: 200px 1fr 250px;">
+                <!-- Izquierda: Categorías -->
+                <div class="gacha-column">
+                    <h3>Cat.</h3>
+                    <button class="gacha-button" onclick="InventoryManager.filter('all')">📦 Todo</button>
+                    <button class="gacha-button" onclick="InventoryManager.filter('resources')">💰 Res.</button>
+                    <button class="gacha-button" onclick="InventoryManager.filter('consumables')">💊 Obj.</button>
+                    <button class="gacha-button" onclick="InventoryManager.filter('fragments')">🎖️ Frag.</button>
+                    <button class="gacha-button" onclick="InventoryManager.filter('equipment')">🛡️ Eqp.</button>
+                </div>
+
+                <!-- Centro: Rejilla de Objetos -->
+                <div class="gacha-column">
+                    <div id="inventoryGrid" class="hero-collection-grid" style="background: rgba(0,0,0,0.2); max-height: none;">
+                        <!-- Los items se generarán aquí -->
+                    </div>
+                </div>
+
+                <!-- Derecha: Detalles del objeto seleccionado -->
+                <div class="gacha-column" id="inventoryDetailPanel">
+                    <h3>Detalles</h3>
+                    <div id="itemDetailPlaceholder" style="text-align: center; color: #888; margin-top: 50px;">
+                        <p>Selecciona un objeto para ver sus detalles.</p>
+                    </div>
+                    <div id="itemDetailContent" style="display: none; text-align: center;">
+                        <div id="itemDetailIcon" style="font-size: 4em; margin-bottom: 15px;"></div>
+                        <h2 id="itemDetailName" style="color: #f1c40f;"></h2>
+                        <p id="itemDetailDescription" style="font-style: italic; color: #bdc3c7;"></p>
+                        <hr style="border-color: #444;">
+                        <p id="itemDetailQuantity" style="font-weight: bold;"></p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -954,6 +1021,8 @@
     <!-- ===================== CARGA DE SCRIPTS ===================== -->
     <!-- ====================================================================== -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabaseConfig.js"></script>
     <script src="commanders.js"></script>
     <script src="constants.js"></script>
     <script src="talents.js"></script>
@@ -1010,6 +1079,7 @@
     <script src="bank_logic.js"></script>
     <script src="saveLoad.js"></script>
     <script src="campaignManager.js"></script>
+    <script src="inventoryLogic.js"></script>
     <script src="main.js"></script>
     <script src="techScreenUI.js"></script>
     

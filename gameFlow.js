@@ -823,6 +823,12 @@ function endTacticalBattle(winningPlayerNumber) {
         }, 2000); // 2 segundos después de que termine la batalla
     }
 
+    // Sincronización con la nube al terminar
+    if (PlayerDataManager.currentPlayer) {
+        console.log("Sincronizando progreso post-batalla...");
+        PlayerDataManager.saveCurrentPlayer();
+    }
+
 }
 
 /**
@@ -1218,16 +1224,22 @@ function selectNextIdleUnit() {
 
     // Selecciona la unidad y centra la vista (necesitaremos una función para centrar)
     if (nextUnitToSelect) {
-        // 1. Cerrar el modal de detalles/reforzar si estuviera abierto
-        if (domElements.unitDetailModal) domElements.unitDetailModal.style.display = 'none';
+        // 1. Forzar el cierre de cualquier modal abierto (Reforzar, Construir, etc.)
+        document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+        
+        // 2. Si el panel contextual está oculto por el botón ▲, lo preparamos para que se vea
+        const reopenBtn = document.getElementById('reopenContextualPanelBtn');
+        if (reopenBtn) reopenBtn.style.display = 'none';
 
-        // 2. Seleccionar la unidad (esto ya actualiza el panel inferior)
+        // 3. Seleccionamos la unidad
         selectUnit(nextUnitToSelect);
 
-        // 3. Centrar la cámara en la nueva unidad
-        if (typeof centerMapOn === 'function') {
-            centerMapOn(nextUnitToSelect.r, nextUnitToSelect.c);
-        }
+        // 4. Centramos la cámara (con un pequeño retraso para evitar tirones de la UI)
+        setTimeout(() => {
+            if (typeof centerMapOn === 'function') {
+                centerMapOn(nextUnitToSelect.r, nextUnitToSelect.c);
+            }
+        }, 50);
     }
 }
 

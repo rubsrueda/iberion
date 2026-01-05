@@ -728,10 +728,105 @@ const AiGameplayManager = {
     findAndExecuteMerge_Reactive: async function(unit,attackTarget){const allies=units.filter(u=>u.player===unit.player&&u.id!==unit.id&&!u.hasMoved&&(unit.regiments.length+u.regiments.length)<=MAX_REGIMENTS_PER_DIVISION);let bestMergePartner=null;let bestPostMergeScore=-Infinity;const currentOutcome=predictCombatOutcome(unit,attackTarget);let currentScore=(currentOutcome.damageToDefender*2)-(currentOutcome.damageToAttacker*1.5);for(const ally of allies){if(hexDistance(unit.r,unit.c,ally.r,ally.c)<=(ally.currentMovement||ally.movement)){const combinedRegs=[...unit.regiments,...ally.regiments];const tempSuperUnit=JSON.parse(JSON.stringify(unit));tempSuperUnit.regiments=combinedRegs;recalculateUnitStats(tempSuperUnit);tempSuperUnit.currentHealth=unit.currentHealth+ally.currentHealth;const outcome=predictCombatOutcome(tempSuperUnit,attackTarget);let score=(outcome.damageToDefender*2)-(outcome.damageToAttacker*1.5);if(score>currentScore&&score>bestPostMergeScore){bestPostMergeScore=score;bestMergePartner=ally;}}} if(bestMergePartner){await _executeMoveUnit(bestMergePartner,unit.r,unit.c,true);const unitOnTarget=units.find(u=>u.id===unit.id);if(unitOnTarget){mergeUnits(bestMergePartner,unitOnTarget);return{merged:true,allyId:bestMergePartner.id};}} return null;},
     handleStrategicReinforcements:function(playerNumber){const{frentes,necesitaRefuerzos}=AiGameplayManager.analyzeFrontera(playerNumber);if(!gameState.ai_reaction_forces)gameState.ai_reaction_forces={};if(necesitaRefuerzos){for(const zona in frentes){const frente=frentes[zona];if(frente.aiPower<frente.enemyPower){const fuerzaAsignada=gameState.ai_reaction_forces[zona]?units.find(u=>u.id===gameState.ai_reaction_forces[zona].unitId&&u.currentHealth>0):null;if(!fuerzaAsignada){const capital=gameState.cities.find(c=>c.isCapital&&c.owner===playerNumber);if(!capital)continue;const neededPower=(frente.enemyPower-frente.aiPower)*1.2;let composition=[];let currentPower=0;while(currentPower<neededPower){composition.push('Infantería Pesada');const regHeavy=REGIMENT_TYPES['Infantería Pesada'];currentPower+=(regHeavy.attack+regHeavy.defense)/2;if(currentPower>=neededPower)break;composition.push('Arqueros');const regArcher=REGIMENT_TYPES['Arqueros'];currentPower+=(regArcher.attack+regArcher.defense)/2;} const newUnit=AiGameplayManager.produceUnit(playerNumber,composition,'defender',`Defensa-${zona}`);if(newUnit)gameState.ai_reaction_forces[zona]={unitId:newUnit.id,targetCoords:frente.enemyCenter};}}}}},
     analyzeFrontera:function(playerNumber){const enemyPlayer=playerNumber===1?2:1;const cols=board[0].length;const zonaWidth=Math.floor(cols/3);const zonas={'Flanco-Izquierdo':{minCol:0,maxCol:zonaWidth,aiPower:0,enemyPower:0,enemyUnits:[]},'Centro':{minCol:zonaWidth+1,maxCol:zonaWidth*2,aiPower:0,enemyPower:0,enemyUnits:[]},'Flanco-Derecho':{minCol:(zonaWidth*2)+1,maxCol:cols,aiPower:0,enemyPower:0,enemyUnits:[]}};const getZona=(c)=>{if(c<=zonas['Flanco-Izquierdo'].maxCol)return 'Flanco-Izquierdo';if(c<=zonas['Centro'].maxCol)return 'Centro';return 'Flanco-Derecho';};units.forEach(unit=>{if(unit.currentHealth>0){const zona=getZona(unit.c);if(!zonas[zona])return;const power=(unit.attack+unit.defense)/2;if(unit.player===playerNumber){zonas[zona].aiPower+=power;}else if(unit.player===enemyPlayer){zonas[zona].enemyPower+=power;zonas[zona].enemyUnits.push(unit);}}});for(const zona in zonas){const frente=zonas[zona];if(frente.enemyUnits.length>0){const avgR=Math.round(frente.enemyUnits.reduce((sum,u)=>sum+u.r,0)/frente.enemyUnits.length);const avgC=Math.round(frente.enemyUnits.reduce((sum,u)=>sum+u.c,0)/frente.enemyUnits.length);frente.enemyCenter={r:avgR,c:avgC};}}const necesitaRefuerzos=Object.values(zonas).some(z=>z.aiPower<z.enemyPower);return{frentes:zonas,necesitaRefuerzos};},
-    findBestOverallAttack: function(unit, enemies) { let bestAction = null; let bestScore = -Infinity; const reachableHexes = AiGameplayManager.getReachableHexes(unit); reachableHexes.push({r: unit.r, c: unit.c, cost: 0}); for (const movePos of reachableHexes) { const tempAttacker = {...unit, r:movePos.r, c:movePos.c}; for (const enemy of enemies) { if(isValidAttack(tempAttacker, enemy)) { const outcome = predictCombatOutcome(tempAttacker, enemy); let score = (outcome.damageToDefender * 2) - (outcome.damageToAttacker * 1.5); if(outcome.defenderDies) score += 100; if(outcome.attackerDiesInRetaliation) score -= 500; score -= (movePos.cost || 0) * 2; if (score > bestScore) { bestScore = score; bestAction = { score, target: enemy, moveHex: (movePos.r !== unit.r || movePos.c !== unit.c) ? movePos : null, isFavorable: !outcome.attackerDiesInRetaliation && outcome.damageToDefender > outcome.damageToAttacker * 1.2, isSuicidal: outcome.attackerDiesInRetaliation || outcome.damageToAttacker > outcome.damageToDefender * 1.2}; } } } } return bestAction; },
+    
+    findBestOverallAttack: function(unit, enemies) { 
+        let bestAction = null; 
+        let bestScore = -Infinity; 
+        const reachableHexes = AiGameplayManager.getReachableHexes(unit); 
+        
+        // Incluimos la posición actual como opción de ataque
+        reachableHexes.push({r: unit.r, c: unit.c, cost: 0}); 
+
+        for (const movePos of reachableHexes) { 
+            const tempAttacker = {...unit, r: movePos.r, c: movePos.c}; 
+
+            for (const enemy of enemies) { 
+                if (isValidAttack(tempAttacker, enemy)) { 
+                    const outcome = predictCombatOutcome(tempAttacker, enemy); 
+
+                    // --- Lógica Inteligente de Balance de Amenaza ---
+                    // 1. Beneficio: Capacidad de daño que le quitamos al enemigo
+                    const enemyAtkLoss = enemy.attack * (outcome.damageToDefender / enemy.maxHealth);
+                    
+                    // 2. Coste: Capacidad de daño que perdemos nosotros por el contraataque
+                    const myAtkLoss = unit.attack * (outcome.damageToAttacker / unit.maxHealth);
+
+                    // 3. Puntuación base: Valoramos un 50% más nuestra supervivencia que su daño
+                    let score = enemyAtkLoss - (myAtkLoss * 1.5);
+
+                    // 4. Filtro anti-suicidio: Penalización masiva si morimos y el enemigo sigue vivo
+                    if (outcome.attackerDies && !outcome.defenderDies) {
+                        score -= 5000;
+                    }
+
+                    // 5. Bonus estratégico: Rematar solo si es una unidad crítica (Héroe o Suministros)
+                    const isCritical = enemy.commander || enemy.regiments.some(r => r.type === "Columna de Suministro");
+                    if (outcome.defenderDies && isCritical) {
+                        score += 500;
+                    }
+
+                    // 6. Penalización por coste de movimiento (preferir atacar desde cerca)
+                    score -= (movePos.cost || 0) * 2;
+
+                    if (score > bestScore) { 
+                        bestScore = score; 
+                        bestAction = { 
+                            score, 
+                            target: enemy, 
+                            moveHex: (movePos.r !== unit.r || movePos.c !== unit.c) ? movePos : null, 
+                            // Actualizamos los flags para que la IA sepa qué tipo de combate ha elegido
+                            isFavorable: !outcome.attackerDies && (enemyAtkLoss > myAtkLoss),
+                            isSuicidal: outcome.attackerDies && !outcome.defenderDies
+                        }; 
+                    } 
+                } 
+            } 
+        } 
+        return bestAction; 
+    },
+    
     getReachableHexes: function(unit) { let reachable=[];let queue=[{r:unit.r,c:unit.c,cost:0}];let visited=new Set([`${unit.r},${unit.c}`]);const maxMove=unit.currentMovement||unit.movement;while(queue.length>0){let curr=queue.shift();for(const n of getHexNeighbors(curr.r,curr.c)){const key=`${n.r},${n.c}`;if(!visited.has(key)){visited.add(key);const neighborHex=board[n.r]?.[n.c];if(neighborHex&&!neighborHex.unit&&!TERRAIN_TYPES[neighborHex.terrain].isImpassableForLand){const moveCost=TERRAIN_TYPES[neighborHex.terrain]?.movementCostMultiplier||1;const newCost=curr.cost+moveCost;if(newCost<=maxMove){reachable.push({r:n.r,c:n.c,cost:newCost});queue.push({r:n.r,c:n.c,cost:newCost});}}}}}return reachable;},
     executeGeneralMovement: async function(unit) { const mission = AiGameplayManager.missionAssignments.get(unit.id); if (mission?.type === 'AXIS_ADVANCE') { const potentialTargets = AiGameplayManager.findBestStrategicObjective(unit, 'expansion', mission.objective); if (potentialTargets.length > 0) { const targetHex = potentialTargets[0]; const path = AiGameplayManager.findPathToTarget(unit, targetHex.r, targetHex.c); if (path && path.length > 1) { const moveHex = path[Math.min(path.length - 1, unit.currentMovement || unit.movement)]; if (!getUnitOnHex(moveHex.r, moveHex.c)) { await _executeMoveUnit(unit, moveHex.r, moveHex.c); return true; } } } } const localTarget = AiGameplayManager._findBestLocalMove(unit); if (localTarget) { await _executeMoveUnit(unit, localTarget.r, localTarget.c); return true; } return false; },
-    findBestStrategicObjective: function(unit, objectiveType = 'expansion', axisTarget = null) { const objectives = []; if (!unit) return []; board.flat().forEach(hex => { if (!hex || hex.owner === unit.player || hex.unit || TERRAIN_TYPES[hex.terrain].isImpassableForLand) return; let score = 0; if (axisTarget) { const distToAxisTarget = hexDistance(hex.r, hex.c, axisTarget.r, axisTarget.c); score = 1000 - distToAxisTarget; } else { score = 100 - hexDistance(unit.r, unit.c, hex.r, hex.c); } if (hex.resourceNode) score += 50; if (hex.isCity) score += 200; if (score > 0) objectives.push({ hex, score }); }); objectives.sort((a, b) => b.score - a.score); return objectives.map(o => o.hex); },
+    
+    findBestStrategicObjective: function(unit, objectiveType = 'expansion', axisTarget = null) {
+        const objectives = [];
+        if (!unit) return [];
+
+        const enemyPlayer = unit.player === 1 ? 2 : 1;
+        const enemyCapital = gameState.cities.find(c => c.isCapital && c.owner === enemyPlayer);
+
+        board.flat().forEach(hex => {
+            if (!hex || hex.owner === unit.player || hex.unit || TERRAIN_TYPES[hex.terrain].isImpassableForLand) return;
+
+            let score = 0;
+
+            // 1. Prioridad de Eje (Seguir el plan maestro)
+            if (axisTarget) {
+                const distToAxisTarget = hexDistance(hex.r, hex.c, axisTarget.r, axisTarget.c);
+                score = 1000 - distToAxisTarget;
+            } else {
+                score = 100 - hexDistance(unit.r, unit.c, hex.r, hex.c);
+            }
+
+            // 2. Bonus por importancia económica (Aumentado)
+            if (hex.resourceNode) score += 150; 
+            if (hex.isCity) score += 300;
+
+            // 3. LÓGICA DE NEGACIÓN (Punto clave): 
+            // Si la casilla está cerca del humano, es mucho más valiosa para la IA (quiere quitártela).
+            if (enemyCapital) {
+                const distToHuman = hexDistance(hex.r, hex.c, enemyCapital.r, enemyCapital.c);
+                // Cuanto más cerca esté de tu casa, más puntos recibe para que la IA "empuje" hacia ti.
+                score += (25 - distToHuman) * 15; 
+            }
+
+            if (score > 0) objectives.push({ hex, score });
+        });
+
+        objectives.sort((a, b) => b.score - a.score);
+        return objectives.map(o => o.hex);
+    },
+
     _findBestLocalMove: function(unit) { const reachableHexes = AiGameplayManager.getReachableHexes(unit); if (reachableHexes.length === 0) return null; const aiCapital = gameState.cities.find(c => c.isCapital && c.owner === unit.player); if (!aiCapital) return null; let bestLocalTarget = null; let maxScore = -Infinity; for (const hexCoords of reachableHexes) { const hexData = board[hexCoords.r]?.[hexCoords.c]; if (hexData && hexData.owner === null) { const score = hexDistance(aiCapital.r, aiCapital.c, hexCoords.r, hexCoords.c); if (score > maxScore) { maxScore = score; bestLocalTarget = hexCoords; } } } return bestLocalTarget; },
 
     /**

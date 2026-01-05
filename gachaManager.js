@@ -109,45 +109,39 @@ const GachaManager = {
     },
     
     _getReward: function(rarity, bannerId) {
-        // Probabilidad reducida para equipo
-        const rewardTypeRoll = Math.random() * 100;
-        const EQUIPMENT_CHANCE = 30; // Mantenemos la probabilidad baja
+    // 1. Unificamos la rareza para evitar errores de acentos o mayúsculas
+    const cleanRarity = rarity.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase(); 
+    // Ahora 'cleanRarity' será siempre: COMUN, RARO, EPICO o LEGENDARIO
 
-        if (rewardTypeRoll < EQUIPMENT_CHANCE) {
-            const possibleItems = Object.values(EQUIPMENT_DEFINITIONS).filter(item => item.rarity === rarity);
-            if (possibleItems.length > 0) {
-                const droppedItem = possibleItems[Math.floor(Math.random() * possibleItems.length)];
-                
-                // <<== LÓGICA DE FRAGMENTOS ==>>
-                // Determinar cuántos fragmentos dar. Menos para rarezas altas.
-                let fragmentsAmount = 1;
-                if (rarity === "Común") fragmentsAmount = Math.floor(Math.random() * 3) + 3; // 3-5 fragmentos
-                else if (rarity === "Raro") fragmentsAmount = Math.floor(Math.random() * 2) + 2;  // 2-3 fragmentos
-                else if (rarity === "Épico") fragmentsAmount = Math.floor(Math.random() * 2) + 1;  // 1-2 fragmentos
-                else if (rarity === "Legendario") fragmentsAmount = 1; // 1 fragmento
-                
-                // Llamar a la función del PlayerDataManager para añadir los fragmentos
-                PlayerDataManager.addEquipmentFragments(droppedItem.id, fragmentsAmount);
+    const typeRoll = Math.random() * 100;
+    console.log(`[GACHA] Roll: ${typeRoll.toFixed(1)} para Rareza: ${cleanRarity}`);
 
-                return { type: 'equipment_fragments', item: droppedItem, rarity: rarity, fragments: fragmentsAmount };
-            }
+    // 40% de probabilidad de dar fragmentos de FORJA (Equipo)
+    if (typeRoll < 40) {
+        const possibleEquips = Object.values(EQUIPMENT_DEFINITIONS).filter(e => 
+            e.rarity.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === cleanRarity
+        );
+
+        if (possibleEquips.length > 0) {
+            const item = possibleEquips[Math.floor(Math.random() * possibleEquips.length)];
+            let qty = 1;
+            if (cleanRarity === "COMUN") qty = Math.floor(Math.random() * 3) + 3;
+            else if (cleanRarity === "RARO") qty = Math.floor(Math.random() * 2) + 2;
+            else if (cleanRarity === "EPICO") qty = Math.floor(Math.random() * 2) + 1;
+
+            PlayerDataManager.addEquipmentFragments(item.id, qty);
+            console.log(`🎁 EQUIPO: ${qty} frags de ${item.name}`);
+            return { type: 'equipment_fragments', item: item, rarity: rarity, fragments: qty };
         }
-        
-        // ... (la lógica para fragmentos de héroe se mantiene exactamente igual)
-        const heroPool = GACHA_CONFIG.HERO_POOLS_BY_RARITY[rarity];
-        if (!heroPool || heroPool.length === 0) { 
-            const fallbackPool = GACHA_CONFIG.HERO_POOLS_BY_RARITY.COMUN;
-            const heroId = fallbackPool[0];
-            const fragments = GACHA_CONFIG.FRAGMENTS_PER_PULL.COMUN[0];
-            PlayerDataManager.addFragmentsToHero(heroId, fragments);
-            return { type: 'fragments', heroId, rarity: "COMUN", fragments };
-        }
-        
-        const randomHeroId = heroPool[Math.floor(Math.random() * heroPool.length)];
-        const fragmentPool = GACHA_CONFIG.FRAGMENTS_PER_PULL[rarity];
-        const randomFragments = fragmentPool[Math.floor(Math.random() * fragmentPool.length)];
+    }
 
-        PlayerDataManager.addFragmentsToHero(randomHeroId, randomFragments);
-        return { type: 'fragments', heroId: randomHeroId, rarity: rarity, fragments: randomFragments };
-    },
+    // 60% (o si falla lo anterior) damos fragmentos de HÉROE
+    const heroPool = GACHA_CONFIG.HERO_POOLS_BY_RARITY[cleanRarity] || GACHA_CONFIG.HERO_POOLS_BY_RARITY.COMUN;
+    const randomHeroId = heroPool[Math.floor(Math.random() * heroPool.length)];
+    const fragments = GACHA_CONFIG.FRAGMENTS_PER_PULL[cleanRarity] ? GACHA_CONFIG.FRAGMENTS_PER_PULL[cleanRarity][0] : 10;
+
+    PlayerDataManager.addFragmentsToHero(randomHeroId, fragments);
+    console.log(`👤 HÉROE: ${fragments} frags de ${randomHeroId}`);
+    return { type: 'fragments', heroId: randomHeroId, rarity: rarity, fragments: fragments };
+}
 };

@@ -1,150 +1,122 @@
 // saveLoad.js
 // Funciones para guardar y cargar el estado del juego.
 
-function handleSaveGame() {
-    if (!gameState || !board || !units) {
-        logMessage("Error: Estado del juego no inicializado para guardar.");
+async function handleSaveGame() {
+    if (!PlayerDataManager.currentPlayer || !PlayerDataManager.currentPlayer.auth_id) {
+        logMessage("Debes estar conectado a la nube para guardar la partida.", "error");
         return;
     }
-    const gameDataToSave = {
+
+    const saveName = prompt("Introduce un nombre para esta partida:", "Partida Guardada " + new Date().toLocaleDateString());
+    if (!saveName) return;
+
+    // Recopilamos los datos (esto ya lo tenías)
+    const boardState = board.map(row => row.map(hex => ({
+        terrain: hex.terrain,
+        owner: hex.owner,
+        structure: hex.structure,
+        isCity: hex.isCity,
+        isCapital: hex.isCapital,
+        resourceNode: hex.resourceNode,
+        visibility: hex.visibility,
+        nacionalidad: hex.nacionalidad,
+        estabilidad: hex.estabilidad
+    })));
+
+    const unitsState = units.map(unit => ({
+        ...unit,
+        element: undefined // No guardamos el elemento visual
+    }));
+
+    const fullSaveData = {
         gameState: gameState,
-        board: board.map(row => row.map(hex => ({
-            terrain: hex.terrain,
-            owner: hex.owner,
-            structure: hex.structure,
-            isCity: hex.isCity,
-            isCapital: hex.isCapital,
-            resourceNode: hex.resourceNode,
-            visibility: hex.visibility,
-            nacionalidad: hex.nacionalidad,
-            estabilidad: hex.estabilidad
-        }))),
-        units: units.map(unit => ({
-            ...unit,
-            element: undefined
-        })),
+        board: boardState,
+        units: unitsState,
         unitIdCounter: unitIdCounter
     };
 
-    try {
-        const dataStr = JSON.stringify(gameDataToSave);
-        const blob = new Blob([dataStr], {type: "application/json"});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'hexGeneralEvolved_save.json';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        logMessage("Partida Guardada.");
-    } catch (error) {
-        logMessage("Error al guardar la partida: " + error.message);
-        console.error("Error de guardado:", error);
+    logMessage("Guardando en la nube...");
+
+    // ENVIAR A SUPABASE
+    const { data, error } = await supabaseClient
+        .from('game_saves')
+        .insert({
+            user_id: PlayerDataManager.currentPlayer.auth_id,
+            save_name: saveName,
+            board_state: boardState,
+            game_state: {
+                gameState: gameState,
+                units: unitsState,
+                unitIdCounter: unitIdCounter
+            }
+        });
+
+    if (error) {
+        console.error("Error al guardar:", error);
+        logMessage("Error al guardar en la nube: " + error.message, "error");
+    } else {
+        logMessage("¡Partida '" + saveName + "' guardada con éxito en la nube!", "success");
     }
 }
 
-function handleLoadGame(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+async function handleLoadGame() {
+    if (!PlayerDataManager.currentPlayer || !PlayerDataManager.currentPlayer.auth_id) {
+        logMessage("Inicia sesión para cargar tus partidas de la nube.", "error");
+        return;
+    }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const loadedData = JSON.parse(e.target.result);
-            if (!loadedData.gameState || !loadedData.board || !loadedData.units) {
-                throw new Error("Archivo de guardado inválido o corrupto.");
-            }
+    logMessage("Buscando partidas en la nube...");
 
-            if (domElements.gameBoard) domElements.gameBoard.innerHTML = '';
-            board = [];
-            units = [];
+    // 1. Obtener lista de partidas
+    const { data: saves, error } = await supabaseClient
+        .from('game_saves')
+        .select('id, save_name, created_at')
+        .eq('user_id', PlayerDataManager.currentPlayer.auth_id)
+        .order('created_at', { ascending: false });
+
+    if (error || !saves || saves.length === 0) {
+        logMessage("No se han encontrado partidas guardadas.", "warning");
+        return;
+    }
+
+    // 2. Mostrar un selector simple (puedes mejorar esto con un modal luego)
+    let message = "Selecciona el número de la partida a cargar:\n";
+    saves.forEach((s, i) => {
+        message += `${i + 1}. ${s.save_name} (${new Date(s.created_at).toLocaleString()})\n`;
+    });
+
+    const choice = prompt(message);
+    const index = parseInt(choice) - 1;
+
+    if (saves[index]) {
+        const saveId = saves[index].id;
+        
+        // 3. Descargar la partida elegida
+        const { data: fullSave, error: loadError } = await supabaseClient
+            .from('game_saves')
+            .select('*')
+            .eq('id', saveId)
+            .single();
+
+        if (fullSave) {
+            logMessage("Cargando datos...");
             
-            Object.assign(gameState, loadedData.gameState);
+            // Usamos tu función existente para reconstruir el mundo
+            const dataToRestore = {
+                gameState: fullSave.game_state.gameState,
+                board: fullSave.board_state,
+                units: fullSave.game_state.units,
+                unitIdCounter: fullSave.game_state.unitIdCounter
+            };
 
-            ensureFullGameState();
+            reconstruirJuegoDesdeDatos(dataToRestore);
             
-            unitIdCounter = loadedData.unitIdCounter || 0;
-
-            const boardSize = loadedData.board.length > 0 ? { rows: loadedData.board.length, cols: loadedData.board[0].length } : BOARD_SIZES.small;
-            if (domElements.gameBoard) {
-                 domElements.gameBoard.style.width = `${boardSize.cols * HEX_WIDTH + HEX_WIDTH / 2}px`;
-                 domElements.gameBoard.style.height = `${boardSize.rows * HEX_VERT_SPACING + HEX_HEIGHT * 0.25}px`;
-            }
-            
-            board = Array(boardSize.rows).fill(null).map(() => Array(boardSize.cols).fill(null));
-
-            for (let r_load = 0; r_load < boardSize.rows; r_load++) {
-                for (let c_load = 0; c_load < boardSize.cols; c_load++) {
-                    const hexElement = createHexDOMElementWithListener(r_load, c_load);
-                    if (domElements.gameBoard) domElements.gameBoard.appendChild(hexElement);
-                    
-                    const loadedHexData = loadedData.board[r_load]?.[c_load];
-                    if (loadedHexData) {
-                        board[r_load][c_load] = { 
-                            ...loadedHexData,
-                            // <<== SOLUCIÓN: GARANTIZAR QUE EXISTEN LAS PROPIEDADES ==>>
-                            nacionalidad: loadedHexData.nacionalidad || { 1: 0, 2: 0 },
-                            estabilidad: loadedHexData.estabilidad || 0,
-                            // <<== FIN DE LA SOLUCIÓN ==>>
-                            element: hexElement,
-                            unit: null
-                        };
-                    } else {
-                         board[r_load][c_load] = { 
-                             element: hexElement, terrain: 'plains', owner: null, structure: null, isCity: false, 
-                             isCapital: false, resourceNode: null, visibility: {player1: 'hidden', player2: 'hidden'}, 
-                             unit: null, nacionalidad: {1:0, 2:0}, estabilidad: 0
-                         };
-                    }
-                }
-            }
-
-            loadedData.units.forEach(unitData => {
-                const hydratedStats = calculateRegimentStats(unitData.regiments, unitData.player);
-                const hydratedUnit = {
-                    ...unitData,
-                    attack: hydratedStats.attack, defense: hydratedStats.defense,
-                    movement: hydratedStats.movement, visionRange: hydratedStats.visionRange,
-                    attackRange: hydratedStats.attackRange, initiative: hydratedStats.initiative,
-                    maxHealth: hydratedStats.maxHealth,
-                    element: null
-                };
-
-                const unitElement = document.createElement('div');
-                unitElement.classList.add('unit', `player${hydratedUnit.player}`);
-                unitElement.textContent = hydratedUnit.sprite;
-                unitElement.dataset.id = hydratedUnit.id;
-                const strengthDisplay = document.createElement('div');
-                strengthDisplay.classList.add('unit-strength');
-                strengthDisplay.textContent = hydratedUnit.currentHealth;
-                unitElement.appendChild(strengthDisplay);
-                if (domElements.gameBoard) domElements.gameBoard.appendChild(unitElement);
-                
-                hydratedUnit.element = unitElement;
-                units.push(hydratedUnit);
-                
-                if (hydratedUnit.r !== -1 && hydratedUnit.c !== -1 && board[hydratedUnit.r]?.[hydratedUnit.c]) {
-                    board[hydratedUnit.r][hydratedUnit.c].unit = hydratedUnit;
-                }
-            });
-
-            renderFullBoardVisualState(); 
-            UIManager.updateAllUIDisplays();    
-            deselectUnit();
-            if (UIManager.hideContextualPanel) UIManager.hideContextualPanel();
-            
-            logMessage("Partida Cargada Correctamente.");
+            // Cerrar menús y mostrar juego
             if (domElements.setupScreen) domElements.setupScreen.style.display = 'none';
             if (domElements.gameContainer) domElements.gameContainer.style.display = 'flex';
-
-        } catch (error) {
-            logMessage("Error al cargar la partida: " + error.message);
-            console.error("Error de Carga Detallado:", error);
+            logMessage("Partida cargada desde la nube.", "success");
         }
-    };
-    reader.readAsText(file);
-    if (domElements.loadGameInput) domElements.loadGameInput.value = "";
+    }
 }
 
 // Archivo a modificar: saveLoad.js (añadir al final)
@@ -221,3 +193,4 @@ function importProfile(event) {
     };
     reader.readAsText(file);
 }
+

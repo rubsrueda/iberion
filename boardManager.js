@@ -1426,14 +1426,53 @@ function centerMapOn(r, c) {
     const viewport = gameBoard?.parentElement;
     if (!gameBoard || !viewport || typeof HEX_WIDTH === 'undefined') return;
 
-    // Calculamos la posición física del hexágono en el lienzo
+    // 1. Obtener dimensiones y escala actual
+    const scale = domElements.currentBoardScale;
+    const boardWidth = gameBoard.offsetWidth * scale;
+    const boardHeight = gameBoard.offsetHeight * scale;
+    const viewportWidth = viewport.clientWidth;
+    const viewportHeight = viewport.clientHeight;
+
+    // 2. Calcular la posición física del hexágono en el lienzo original (sin escala)
     const xPos = c * HEX_WIDTH + (r % 2 !== 0 ? HEX_WIDTH / 2 : 0);
     const yPos = r * HEX_VERT_SPACING;
 
-    // Calculamos el desplazamiento necesario para centrarlo
-    domElements.currentBoardTranslateX = (viewport.clientWidth / 2) - (xPos * domElements.currentBoardScale);
-    domElements.currentBoardTranslateY = (viewport.clientHeight / 2) - (yPos * domElements.currentBoardScale);
+    // 3. Calcular el destino IDEAL (el centro puro)
+    let targetX = (viewportWidth / 2) - (xPos * scale);
+    let targetY = (viewportHeight / 2) - (yPos * scale);
 
-    // Aplicamos el movimiento visualmente
-    gameBoard.style.transform = `translate(${domElements.currentBoardTranslateX}px, ${domElements.currentBoardTranslateY}px) scale(${domElements.currentBoardScale})`;
+    // 4. APLICAR LÍMITES (Clamping)
+    // No permitimos que el mapa se separe de los bordes si el mapa es más grande que la pantalla
+    
+    // Eje X
+    if (boardWidth > viewportWidth) {
+        // El X nunca puede ser mayor que 0 (borde izquierdo)
+        // Ni menor que la diferencia negativa (borde derecho)
+        targetX = Math.min(0, Math.max(viewportWidth - boardWidth, targetX));
+    } else {
+        // Si el mapa es más pequeño que la pantalla, lo centramos
+        targetX = (viewportWidth - boardWidth) / 2;
+    }
+
+    // Eje Y
+    if (boardHeight > viewportHeight) {
+        // El Y nunca puede ser mayor que 0 (borde superior)
+        // Ni menor que la diferencia negativa (borde inferior)
+        targetY = Math.min(0, Math.max(viewportHeight - boardHeight, targetY));
+    } else {
+        // Si el mapa es más bajito que la pantalla, lo centramos
+        targetY = (viewportHeight - boardHeight) / 2;
+    }
+
+    // 5. Guardar en el estado global y aplicar
+    domElements.currentBoardTranslateX = targetX;
+    domElements.currentBoardTranslateY = targetY;
+
+    gameBoard.style.transition = "transform 0.5s ease-out"; // Añadimos una transición suave
+    gameBoard.style.transform = `translate(${targetX}px, ${targetY}px) scale(${scale})`;
+
+    // Quitamos la transición después de que termine para que el panning manual no se sienta "chicloso"
+    setTimeout(() => {
+        gameBoard.style.transition = "none";
+    }, 500);
 }

@@ -1631,6 +1631,18 @@ function populateWikiConceptsTab() {
             <p><strong>Uso del Terreno:</strong> Los <strong>bosques</strong> ofrecen una enorme protección contra ataques a distancia. Las <strong>colinas</strong> dan bonus de defensa y un bonus de ataque a las unidades cuerpo a cuerpo. Usar el terreno a tu favor es clave para la victoria.</p>
             <p><strong>Flanqueo:</strong> Atacar a una unidad enemiga que ya está en combate con otra de tus unidades la considera "flanqueada", reduciendo drásticamente su defensa y moral.</p>
         </div>
+        <div class="wiki-section">
+            <h4>🏦 La Banca Neutral</h4>
+            <p>En el centro del mapa reside 'La Banca'. Puedes comerciar recursos a un ratio de 4:1. Sus caravanas recorren los caminos; protegerlas o saquearlas cambiará el flujo de oro del mundo.</p>
+        </div>
+        <div class="wiki-section">
+            <h4>🏆 Victoria por Prestigio (9 Puntos)</h4>
+            <p>No solo la conquista total gana guerras. El primero en obtener 9 PV gana. Obtienes puntos por: Tener el ejército más grande, la ruta comercial más larga, más tecnologías o más héroes. También explorando Ruinas Antiguas.</p>
+        </div>
+        <div class="wiki-section">
+            <h4>📉 Nacionalidad y Estabilidad</h4>
+            <p>Ocupar un hexágono no lo hace tuyo. La estabilidad sube con presencia militar. Una vez estabilizado (Nivel 3), la Nacionalidad empezará a convertirse a tu bando. ¡La conquista real toma tiempo!</p>
+        </div>
     `;
 }
 
