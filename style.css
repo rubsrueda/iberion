@@ -4903,3 +4903,65 @@ input[type="range"] {
         margin: 2px 0 !important;
     }
 }
+
+/* --- 1. Solución Wiki X (Moverla para que el contador no la tape) --- */
+#wikiModal .close-button {
+    top: 50px !important; /* Baja la X para esquivar el reloj de arriba a la derecha */
+    right: 20px !important;
+    background: #c0392b;
+    border-radius: 50%;
+    width: 35px;
+    height: 35px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10001;
+}
+
+/* --- 2. Fondo Negro para el Buzón de Mensajes --- */
+#inboxModal .modal-content, 
+#inboxListContainer, 
+#inboxDetailContainer {
+    background-color: #0a0e12 !important;
+    color: #ecf0f1 !important;
+}
+.inbox-list-item {
+    background-color: #1a1e22 !important;
+    border-bottom: 1px solid #333 !important;
+    color: #ccc !important;
+}
+.inbox-list-item strong { color: #f1c40f; }
+
+/* --- 3. Tablet Fix: Panel de Héroes (Visualizar más casillas) --- */
+@media (min-width: 769px) {
+    .hero-collection-grid {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
+        gap: 20px !important;
+        max-width: 95vw;
+    }
+}
+
+/* --- WIKI V2.0: Soporte para múltiples pestañas en móvil --- */
+.wiki-tabs {
+    display: flex;
+    overflow-x: auto; /* Permite scroll horizontal */
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap; /* Impide que las letras salten de línea */
+    border-bottom: 2px solid #7f8c8d;
+    padding-bottom: 2px;
+}
+
+.wiki-tab-btn {
+    flex: 0 0 auto; /* Los botones no se encogen, mantienen su tamaño de texto */
+    font-size: 0.9em;
+    padding: 8px 12px;
+}
+
+@media (max-width: 620px) {
+    .wiki-tab-btn {
+        font-size: 0.8em;
+        padding: 6px 10px;
+    }
+}

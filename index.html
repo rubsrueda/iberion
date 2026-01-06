@@ -695,9 +695,12 @@
             <h2>Wiki del Juego</h2>
             <div class="wiki-tabs">
                 <button class="wiki-tab-btn active" data-tab="regimientos">Regimientos</button>
-                <button class="wiki-tab-btn" data-tab="estructuras">Estructuras e Ingresos</button>
+                <button class="wiki-tab-btn" data-tab="estructuras">Estructuras</button>
                 <button class="wiki-tab-btn" data-tab="tecnologias">Investigación</button>
-                <button class="wiki-tab-btn" data-tab="conceptos">Conceptos Clave</button>
+                <button class="wiki-tab-btn" data-tab="heroes">Héroes/Forja</button> <!-- Nueva -->
+                <button class="wiki-tab-btn" data-tab="comercio">Banca/Comercio</button> <!-- Nueva -->
+                <button class="wiki-tab-btn" data-tab="victoria">Victoria</button> <!-- Nueva -->
+                <button class="wiki-tab-btn" data-tab="conceptos">Conceptos</button>
             </div>
             <div class="wiki-tab-content">
                 <div id="wiki-tab-regimientos" class="wiki-page active">
@@ -714,6 +717,17 @@
                     <p>Las tecnologías desbloquean nuevas unidades y estructuras.</p>
                     <div class="table-container"><table id="wikiTechTable"></table></div>
                 </div>
+
+                <div id="wiki-tab-heroes" class="wiki-page">
+                    <p>Los Héroes mejoran el rendimiento de su división asignada.</p>
+                </div> <!-- Contenedor nuevo -->
+                <div id="wiki-tab-comercio" class="wiki-page">
+                    <p>La Banca es un buen aliado económico a largo Plazo</p>
+                </div> <!-- Contenedor nuevo -->
+                <div id="wiki-tab-victoria" class="wiki-page">
+                    <p>La Victoria no solo se consigue luchando.</p>
+                </div> <!-- Contenedor nuevo -->
+
                 <div id="wiki-tab-conceptos" class="wiki-page">
                     <h3>Conceptos Clave del Juego</h3>
                     <div id="wikiConceptsContent"></div>

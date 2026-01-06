@@ -1378,6 +1378,9 @@ function openWikiModal() {
     populateWikiRegimentsTab();
     populateWikiStructuresTab();
     populateWikiTechTab();
+    populateWikiHeroes();
+    populateWikiComercio();
+    populateWikiVictoria();
     populateWikiConceptsTab();
     
     // Configurar los listeners de las pestañas
@@ -1399,7 +1402,7 @@ function openWikiModal() {
             }
         });
     });
-
+    
     // Forzar clic en la primera pestaña para mostrar su contenido por defecto
     document.querySelector('.wiki-tab-btn[data-tab="regimientos"]').click();
 
@@ -1642,6 +1645,59 @@ function populateWikiConceptsTab() {
         <div class="wiki-section">
             <h4>📉 Nacionalidad y Estabilidad</h4>
             <p>Ocupar un hexágono no lo hace tuyo. La estabilidad sube con presencia militar. Una vez estabilizado (Nivel 3), la Nacionalidad empezará a convertirse a tu bando. ¡La conquista real toma tiempo!</p>
+        </div>
+    `;
+}
+
+function populateWikiHeroes() {
+    document.getElementById('wiki-tab-heroes').innerHTML = `
+        <h3>🎖️ Comandantes y el Arte de la Forja</h3>
+        <p>Los Héroes son líderes únicos que mejoran tus divisiones a través de habilidades pasivas y activas.</p>
+        <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:5px;">
+            <strong>Progresión:</strong>
+            <ul>
+                <li><strong>Nivel:</strong> Mejora el daño y desbloquea puntos de talento usando Libros de XP.</li>
+                <li><strong>Estrellas:</strong> Aumentan la rareza y desbloquean habilidades mediante fragmentos.</li>
+            </ul>
+            <strong>La Forja:</strong>
+            <p>Obtén planos en el Altar y reúnete con fragmentos de equipo para fabricar piezas legendarias. Existen 6 slots: Cabeza, Arma, Pecho, Guantes, Piernas y Botas.</p>
+        </div>
+    `;
+}
+
+function populateWikiComercio() {
+    document.getElementById('wiki-tab-comercio').innerHTML = `
+        <h3>🏦 Sistema Financiero de Iberion</h3>
+        <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:5px; margin-bottom:10px;">
+            <h4>Mercado de La Banca</h4>
+            <p>La gran ciudad central ofrece servicios de intercambio. El ratio es <strong>4:1</strong> para cualquier recurso (oro, hierro, madera, etc.). Es la forma más rápida de obtener materiales críticos.</p>
+        </div>
+        <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:5px;">
+            <h4>Rutas Comerciales</h4>
+            <p>Asigna un General a una <strong>Columna de Suministros</strong>. Si hay un camino conectado entre dos de tus ciudades, puedes iniciar una ruta comercial. Generarás ingresos pasivos en cada turno mientras la unidad viaje protegida.</p>
+        </div>
+    `;
+}
+
+function populateWikiVictoria() {
+    document.getElementById('wiki-tab-victoria').innerHTML = `
+        <h3>👑 El Camino a la Supremacía</h3>
+        <p>Iberion se puede ganar de dos formas fundamentales:</p>
+        <div style="border-left: 3px solid #f1c40f; padding-left: 10px; margin-bottom: 15px;">
+            <strong>1. Conquista Militar:</strong>
+            <p>Captura la capital de tus oponentes o aniquila todas sus unidades en el campo de batalla.</p>
+        </div>
+        <div style="border-left: 3px solid #3498db; padding-left: 10px;">
+            <strong>2. Prestigio (9 Puntos de Victoria):</strong>
+            <p>El primer General en alcanzar 9 PV será el ganador absoluto. Puntos otorgados por:</p>
+            <ul>
+                <li>Ejército más imponente.</li>
+                <li>Hegemonía tecnológica (más avances).</li>
+                <li>Red de rutas comerciales más extensa.</li>
+                <li>Poseer el mayor número de Héroes.</li>
+                <li>Saquear la mayor cantidad de recursos.</li>
+                <li>Descubrir PV ocultos en 🧭 <strong>Ruinas Antiguas</strong>.</li>
+            </ul>
         </div>
     `;
 }
@@ -2553,7 +2609,7 @@ function showGachaResults(results) {
  * (NUEVO) Abre el modal para seleccionar una pieza de equipo para un slot específico.
  * @param {object} heroInstance - La instancia del héroe que se está editando.
  * @param {string} slotType - El tipo de slot (ej: 'head', 'weapon').
- */
+ 
 function openEquipmentSelector(heroInstance, slotType) {
     const modal = document.getElementById('equipmentSelectorModal');
     if (!modal) return;
@@ -2674,6 +2730,127 @@ function openEquipmentSelector(heroInstance, slotType) {
     };
     
     // Lógica del botón "Quitar"
+    const unequipBtn = document.getElementById('unequipItemBtn');
+    // Mostrar el botón solo si ya hay algo equipado en ese slot
+    if (heroInstance.equipment[slotType]) {
+        unequipBtn.style.display = 'inline-block';
+        unequipBtn.onclick = () => {
+            heroInstance.equipment[slotType] = null; // Quitar el equipo
+            PlayerDataManager.saveCurrentPlayer();
+
+            modal.style.display = 'none';
+            openHeroDetailModal(heroInstance);
+        };
+    } else {
+        unequipBtn.style.display = 'none';
+    }
+
+    document.getElementById('closeEquipmentSelectorBtn').onclick = () => {
+        modal.style.display = 'none';
+    };
+
+    modal.style.display = 'flex';
+}
+*/
+function openEquipmentSelector(heroInstance, slotType) {
+    const modal = document.getElementById('equipmentSelectorModal');
+    if (!modal) return;
+
+    const allPlayerHeroes = PlayerDataManager.currentPlayer.heroes || [];
+    const playerInventory = PlayerDataManager.currentPlayer.inventory.equipment || [];
+
+    // 1. Mapeamos qué piezas están ocupadas por otros generales
+    const occupiedInstances = new Map();
+    allPlayerHeroes.forEach(hero => {
+        if (hero.equipment) {
+            Object.entries(hero.equipment).forEach(([slot, instId]) => {
+                if (instId) occupiedInstances.set(instId, hero.id);
+            });
+        }
+    });
+
+    // 2. Filtramos el inventario para encontrar piezas compatibles con el slot
+    const compatibleItems = playerInventory.filter(itemInst => {
+        const itemDef = EQUIPMENT_DEFINITIONS[itemInst.item_id];
+        return itemDef && itemDef.slot === slotType;
+    });
+
+    // 3. Preparamos la UI del Modal
+    document.getElementById('equipmentSelectorTitle').textContent = `Asignar: ${slotType.toUpperCase()}`;
+    const listContainer = document.getElementById('equipmentListContainer');
+    const footer = document.getElementById('equipmentSelectorFooter');
+    listContainer.innerHTML = '';
+    footer.style.display = 'none';
+
+    if (compatibleItems.length === 0) {
+        listContainer.innerHTML = '<p style="text-align:center; padding: 20px; color: #ff9999;">No hay equipo disponible para este espacio.</p>';
+    } else {
+        compatibleItems.forEach(itemInst => {
+            const itemDef = EQUIPMENT_DEFINITIONS[itemInst.item_id];
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'equipment-item';
+            itemDiv.dataset.instanceId = itemInst.instance_id;
+
+            // Verificamos si esta instancia específica la lleva alguien
+            const currentOwnerId = occupiedInstances.get(itemInst.instance_id);
+            const isOnThisHero = heroInstance.equipment[slotType] === itemInst.instance_id;
+            
+            let statusText = "";
+            if (isOnThisHero) {
+                itemDiv.classList.add('selected'); // Marcamos visualmente si es el actual
+                statusText = '<small style="color: #2ecc71;">(Equipado)</small>';
+            } else if (currentOwnerId) {
+                const ownerName = COMMANDERS[currentOwnerId]?.name || "Otro";
+                statusText = `<small style="color: #e74c3c;">(En uso por ${ownerName})</small>`;
+            }
+
+            const statsStr = itemDef.bonuses.map(b => `${b.value}${b.is_percentage ? '%' : ''} ${b.stat}`).join(', ');
+
+            itemDiv.innerHTML = `
+                <span class="item-icon">${itemDef.icon}</span>
+                <div class="item-info">
+                    <strong class="item-name rarity-${itemDef.rarity}">${itemDef.name} ${statusText}</strong>
+                    <span class="item-stats">${statsStr}</span>
+                </div>
+            `;
+            
+            // Lógica para la selección
+            itemDiv.addEventListener('click', () => {
+                document.querySelectorAll('.equipment-item').forEach(el => el.classList.remove('selected'));
+                itemDiv.classList.add('selected');
+                footer.style.display = 'block';
+            });
+
+            listContainer.appendChild(itemDiv);
+        });
+    }
+
+    // --- CONFIGURACIÓN DE LOS BOTONES DEL FOOTER ---
+
+    // Botón Equipar/Cambiar
+    document.getElementById('equipItemBtn').onclick = () => {
+        const selected = listContainer.querySelector('.equipment-item.selected');
+        if (selected) {
+            const instId = selected.dataset.instanceId;
+            
+            // Si estaba en otro héroe, lo desequipamos de allí (logica de seguridad)
+            allPlayerHeroes.forEach(hero => {
+                if (hero.equipment) {
+                    for (const s in hero.equipment) {
+                        if (hero.equipment[s] === instId) hero.equipment[s] = null;
+                    }
+                }
+            });
+
+            heroInstance.equipment[slotType] = instId;
+            PlayerDataManager.saveCurrentPlayer();
+            
+            modal.style.display = 'none';
+            openHeroDetailModal(heroInstance);
+        }
+    };
+
+    // Botón Quitar (Unequip) - Se restaura la visibilidad solo si hay algo puesto
     const unequipBtn = document.getElementById('unequipItemBtn');
     // Mostrar el botón solo si ya hay algo equipado en ese slot
     if (heroInstance.equipment[slotType]) {

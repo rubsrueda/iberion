@@ -44,6 +44,25 @@ const TUTORIAL_SCRIPTS = {
         },
 
         {
+            id: 'tut_forja',
+            message: "Fíjate en el botón ⚔️ <strong>Forja</strong>. Aquí fabricarás equipo legendario con los fragmentos que encuentres.",
+            highlightElementId: 'openForgeBtn',
+            duration: 6000
+        },
+        {
+            id: 'tut_bolsa',
+            message: "La 🎒 <strong>Bolsa</strong> guarda todos tus recursos, libros y objetos. Es tu inventario global.",
+            highlightElementId: 'openInventoryBtn',
+            duration: 6000
+        },
+        {
+            id: 'tut_wiki',
+            message: "Usa la ℹ️ <strong>Wiki</strong> para entender los puntos de victoria y cómo conquistar a través del prestigio.",
+            highlightElementId: 'floatingWikiBtn',
+            duration: 6000
+        },
+
+        {
             id: 'TUT_2_CREATE_UNIT',
             message: "Tu primera tarea: selecciona tu ciudad, y recluta una división. Pulsa el botón <strong>'Crear División' (➕)</strong>.",
             highlightElementId: 'floatingCreateDivisionBtn',
