@@ -4965,3 +4965,399 @@ input[type="range"] {
         padding: 6px 10px;
     }
 }
+
+/* --- CORRECCIÓN PANEL HÉROES: ADAPTACIÓN FLUIDA (Móvil, Tablet y PC) --- */
+
+/* Reemplazamos la configuración rígida por una fluida con minmax */
+.hero-collection-grid {
+    display: grid !important;
+    /* Ajusta el ancho de las casillas: mínimo 115px, máximo 1fr (repartir sobra) */
+    grid-template-columns: repeat(auto-fill, minmax(115px, 1fr)) !important;
+    gap: 12px !important;
+    padding: 10px !important;
+    max-height: 70vh; /* Controlamos el alto para que no se pierda el scroll */
+    overflow-y: auto;
+}
+
+/* Ajuste específico para evitar que las cartas sean gigantes en pantallas grandes */
+@media (min-width: 768px) {
+    .hero-collection-grid {
+        grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)) !important;
+        gap: 15px !important;
+        /* Limitamos el ancho total en tablets/PC para que no se desparrame */
+        max-width: 950px; 
+        margin-left: auto;
+        margin-right: auto;
+    }
+}
+
+/* Aseguramos que las imágenes de los héroes se mantengan proporcionales en el grid */
+.hero-card-image {
+    width: 70px !important;
+    height: 70px !important;
+    object-fit: cover;
+    margin: 0 auto 5px auto;
+}
+
+.hero-card .hero-name {
+    font-size: 0.85em !important;
+    line-height: 1.1;
+    min-height: 2.2em; /* Mantiene alineados los nombres de 1 o 2 líneas */
+}
+
+/* ========================================================== */
+/* ==   CENTRO DE MENSAJERÍA HOLOGRÁFICO (RES. 320px)      == */
+/* ========================================================== */
+
+/* 1. Contenedor Base */
+#inboxModal .modal-content {
+    width: 94vw !important;
+    height: 88vh !important;
+    max-width: 800px;
+    background: #050a0f !important; /* Fondo casi negro */
+    border: 1px solid #00f3ff !important; /* Borde Cian Neón */
+    box-shadow: 0 0 20px rgba(0, 243, 255, 0.15) !important;
+    padding: 0 !important;
+    font-family: 'Segoe UI', sans-serif;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 2. Pestañas de Navegación (Altura crítica: 22px) */
+.inbox-tabs {
+    height: 22px !important;
+    background: #0a141d;
+    display: flex;
+    gap: 15px;
+    padding-left: 10px;
+    border-bottom: 1px solid #1a2a33;
+    flex-shrink: 0;
+}
+
+.inbox-tab-btn {
+    height: 100%;
+    background: transparent !important;
+    border: none !important;
+    color: #4b6b7a !important;
+    font-size: 10px !important;
+    font-weight: bold;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 0 5px !important;
+}
+
+.inbox-tab-btn.active {
+    color: #00f3ff !important;
+    border-bottom: 2px solid #00f3ff !important;
+}
+
+/* 3. Distribución Lateral (Sidebar vs Detalle) */
+.inbox-main-layout {
+    display: flex;
+    flex-grow: 1;
+    height: calc(100% - 22px);
+}
+
+/* --- Lista de Mensajes (Izquierda) --- */
+#inboxListContainer {
+    width: 32%;
+    background: rgba(0, 0, 0, 0.4);
+    border-right: 1px solid #1a2a33;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.inbox-list-item {
+    height: 38px !important; /* Altura fija pequeña */
+    border-bottom: 1px solid #1a2a33;
+    padding: 4px 8px !important;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.inbox-list-item:hover { background: rgba(0, 243, 255, 0.05); }
+.inbox-list-item.selected { background: rgba(0, 243, 255, 0.1); }
+
+.inbox-status-bar {
+    width: 2px; height: 70%;
+    background: #00f3ff;
+    box-shadow: 0 0 5px #00f3ff;
+    margin-right: 6px;
+}
+
+.inbox-list-item.read .inbox-status-bar { opacity: 0; }
+
+.inbox-list-item strong {
+    font-size: 9px;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* --- DETALLES DEL MENSAJE (Derecha - El fallo de las columnas estaba aquí) --- */
+#inboxDetailContainer {
+    width: 68%;
+    background: rgba(10, 15, 25, 0.5);
+    display: flex !important;
+    flex-direction: column !important; /* Forzamos FILAS */
+    padding: 8px !important;
+    overflow: hidden; /* El scroll lo tiene el Body */
+}
+
+/* Fila 1: Título */
+#inboxDetailTitle {
+    font-size: 10px;
+    color: #00f3ff;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    border-bottom: 1px solid rgba(0, 243, 255, 0.2);
+    padding-bottom: 2px;
+    flex-shrink: 0;
+}
+
+/* Fila 2: Imagen Opcional (Comprimida) */
+#inboxDetailHeaderImage {
+    height: 60px !important;
+    background-size: cover;
+    background-position: center;
+    border-radius: 4px;
+    margin-bottom: 6px;
+    flex-shrink: 0;
+}
+
+/* Fila 3: El cuerpo del mensaje (Con scroll interno) */
+#inboxDetailBody {
+    flex-grow: 1; /* Ocupa el espacio central */
+    font-size: 11px;
+    line-height: 1.3;
+    color: #cbd5e0;
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+}
+
+/* Fila 4: Footer con Botón y Premios */
+#inboxFooter {
+    margin-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 6px;
+    flex-shrink: 0;
+}
+
+#inboxRewardSection {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+.reward-slot {
+    width: 32px; height: 32px;
+    background: rgba(0, 243, 255, 0.05);
+    border: 1px solid rgba(0, 243, 255, 0.3);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    border-radius: 4px;
+}
+
+#inboxClaimBtn {
+    width: 100%;
+    height: 28px !important;
+    background: rgba(0, 243, 255, 0.1) !important;
+    border: 1px solid #00f3ff !important;
+    color: #00f3ff !important;
+    font-size: 9px !important;
+    font-weight: bold;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+#inboxClaimBtn:hover:not(:disabled) { background: rgba(0, 243, 255, 0.2) !important; }
+#inboxClaimBtn:disabled { opacity: 0.3; border-color: #4b6b7a; color: #4b6b7a; }
+
+/* 4. Botón X de cerrar (Flotando afuera) */
+#closeInboxBtn {
+    position: absolute;
+    top: 5px; right: 5px;
+    width: 20px; height: 20px;
+    background: transparent;
+    border: 1px solid #00f3ff;
+    color: #00f3ff;
+    border-radius: 50%;
+    font-size: 12px;
+    line-height: 18px;
+    text-align: center;
+    z-index: 10005;
+}
+
+#closeInboxBtn:hover { background: #c0392b; border-color: #fff; color: #fff; }
+
+/* --- CORRECCIÓN FINAL: CUERPO DE MENSAJERÍA VERTICAL --- */
+
+#inboxDetailContent {
+    display: flex !important;
+    flex-direction: column !important; /* Forza el apilamiento hacia abajo */
+    height: 100% !important;
+    width: 100%;
+    color: #cbd5e0; /* Asegura que el texto NO sea negro */
+}
+
+#inboxDetailTitle {
+    flex: 0 0 auto; /* No se estira */
+    font-size: 10px;
+    padding: 4px 0;
+    color: #00f3ff;
+    border-bottom: 1px solid rgba(0, 243, 255, 0.2);
+    margin-bottom: 5px;
+}
+
+#inboxDetailHeaderImage {
+    flex: 0 0 60px; /* Altura fija para la imagen */
+    margin-bottom: 8px;
+    background-size: cover;
+    border-radius: 2px;
+}
+
+#inboxDetailBody {
+    flex: 1 1 auto; /* El texto se expande para llenar el centro */
+    overflow-y: auto;
+    font-size: 11px;
+    line-height: 1.4;
+    padding: 5px 0;
+}
+
+#inboxFooter {
+    flex: 0 0 auto; /* El pie se queda anclado abajo */
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+/* Solución definitiva a la caja cian gigante */
+#inboxClaimBtn {
+    display: block !important;
+    width: 100% !important;
+    height: 30px !important; /* Limitamos la altura */
+    min-height: 30px !important;
+    margin: 5px 0 !important;
+    background: rgba(0, 243, 255, 0.1) !important;
+    border: 1px solid #00f3ff !important;
+    color: #00f3ff !important;
+    font-size: 9px !important;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+/*-------------------------------------------------*/
+/* --- WIKI V2.1: AJUSTE DE CONTRASTE Y LECTURA --- */
+
+.wiki-tab-content {
+    height: calc(100% - 28px); /* Un pelín más para la barra superior */
+    overflow-y: auto;
+    padding: 10px;
+    background-color: #080c10; /* Negro profundo mate */
+}
+
+/* Tipografía Legible */
+.wiki-page p, 
+.wiki-page li, 
+.wiki-page td {
+    font-size: 11.5px !important; /* Más grande para no forzar la vista */
+    color: #cbd5e0 !important; /* Gris claro/Blanco hueso */
+    line-height: 1.4;
+}
+
+/* Encabezados suaves */
+.wiki-page h3, 
+.wiki-page h4 {
+    font-size: 13px !important;
+    color: #f1c40f !important; /* Oro suave */
+    border-bottom: 1px solid #1a2a33;
+    margin-top: 10px;
+    margin-bottom: 5px;
+}
+
+/* TABLAS NEÓN DESCANSADAS (Arreglo del Negro/Blanco) */
+.wiki-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 15px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.wiki-content th {
+    background: #16242f !important; /* Azul grisáceo muy oscuro */
+    color: #00f3ff !important; /* Cyan suave */
+    font-size: 10px;
+    padding: 6px;
+    border: 1px solid #1a2a33;
+    text-transform: uppercase;
+}
+
+.wiki-content td {
+    padding: 6px;
+    border: 1px solid #1a2a33;
+    text-align: left;
+}
+
+/* Alternancia de filas sin dañar la vista (Sin Blancos) */
+.wiki-content tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.03) !important;
+}
+
+.wiki-content tr:hover {
+    background: rgba(0, 243, 255, 0.05) !important;
+}
+
+/* --- BOTÓN CERRAR (Eliminamos el rojo feo, ponemos neón) --- */
+#closeWikiModalBtn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: 1px solid #00f3ff;
+    color: #00f3ff;
+    border-radius: 50%;
+    font-size: 14px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(0, 243, 255, 0.5);
+    z-index: 10005;
+}
+
+#closeWikiModalBtn:hover {
+    background: rgba(0, 243, 255, 0.2);
+    box-shadow: 0 0 10px #00f3ff;
+}
+
+/* --- OPTIMIZACIÓN DE ESPACIO VERTICAL (Eliminar h2) --- */
+.wiki-content h2 {
+    display: none; /* Ganamos 40px de altura ocultando "Wiki del Juego" */
+}
+
+/* --- TABLAS SIN FILAS BLANCAS --- */
+.wiki-content table {
+    background: rgba(255, 255, 255, 0.02) !important;
+}
+
+.wiki-content tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.04) !important; /* Un gris casi imperceptible */
+}
+
+.wiki-content tr:hover {
+    background: rgba(0, 243, 255, 0.08) !important;
+}
+
+.wiki-content td, .wiki-content th {
+    color: #cbd5e0 !important;
+    border-color: #1a2a33 !important;
+    font-size: 12px !important; /* Fuente aumentada para comodidad */
+}

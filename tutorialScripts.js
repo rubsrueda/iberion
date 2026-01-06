@@ -44,22 +44,40 @@ const TUTORIAL_SCRIPTS = {
         },
 
         {
-            id: 'tut_forja',
-            message: "Fíjate en el botón ⚔️ <strong>Forja</strong>. Aquí fabricarás equipo legendario con los fragmentos que encuentres.",
-            highlightElementId: 'openForgeBtn',
-            duration: 6000
+            id: 'tut_menu_forge',
+            message: "⚔️ <strong>La Forja:</strong> Aquí transformará los planos y fragmentos recuperados en el campo de batalla en equipo real para sus Generales.",
+            highlightElementId: 'openForgeBtn', // Asegúrate que este ID existe en domElements.js
+            duration: 5000,
+            onStepStart: () => { 
+                // Forzamos que el menú superior/lateral esté visible si no lo está
+                document.getElementById('top-bar-menu').style.display = 'flex';
+            }
         },
         {
-            id: 'tut_bolsa',
-            message: "La 🎒 <strong>Bolsa</strong> guarda todos tus recursos, libros y objetos. Es tu inventario global.",
+            id: 'tut_menu_bag',
+            message: "🎒 <strong>La Bolsa:</strong> Su almacén personal. Aquí podrá supervisar sus libros de experiencia, equipo acumulado y materiales de construcción.",
             highlightElementId: 'openInventoryBtn',
-            duration: 6000
+            duration: 5000
         },
         {
-            id: 'tut_wiki',
-            message: "Usa la ℹ️ <strong>Wiki</strong> para entender los puntos de victoria y cómo conquistar a través del prestigio.",
+            id: 'tut_menu_wiki',
+            message: "ℹ️ <strong>La Wiki:</strong> El manual del General. Indispensable para entender la 🏦 <strong>Banca</strong>, el Comercio y cómo ganar por 🏆 <strong>Prestigio</strong>.",
             highlightElementId: 'floatingWikiBtn',
-            duration: 6000
+            duration: 5000
+        },
+        {
+            id: 'tut_menu_mailbox',
+            message: "✉️ <strong>Mensajes:</strong> Manténgase al tanto de sus hazañas. Aquí recibirá recompensas por misiones completadas y comunicados de alto mando.",
+            highlightElementId: 'floatingInboxBtn',
+            duration: 5000
+        },
+        {
+            id: 'tut_menu_end',
+            message: "Excelente. Una vez familiarizado, puede cerrar el menú pulsando (☰) o clicando en el mapa para volver a la acción.",
+            duration: 5000,
+            onStepComplete: () => {
+                // Marcamos la transición a la siguiente parte de la batalla
+            }
         },
 
         {

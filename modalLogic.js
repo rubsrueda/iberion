@@ -1374,39 +1374,34 @@ document.addEventListener('DOMContentLoaded', () => {
 function openWikiModal() {
     if (!domElements.wikiModal) return;
 
-    // Rellenar cada pestaña con su contenido
-    populateWikiRegimentsTab();
+    // 1. Cargamos TODOS los datos de las pestañas
+    populateWikiRegimentsTab(); 
     populateWikiStructuresTab();
     populateWikiTechTab();
-    populateWikiHeroes();
-    populateWikiComercio();
-    populateWikiVictoria();
-    populateWikiConceptsTab();
-    
-    // Configurar los listeners de las pestañas
+    populateWikiHeroes();   
+    populateWikiComercio(); 
+    populateWikiVictoria(); 
+    populateWikiConceptsTab(); // <-- ESTA debe existir abajo
+
+    // 2. Sistema de navegación
     const tabs = document.querySelectorAll('.wiki-tab-btn');
-    const pages = document.querySelectorAll('.wiki-page');
-
     tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            // Desactivar todas las pestañas y páginas
-            tabs.forEach(t => t.classList.remove('active'));
-            pages.forEach(p => p.classList.remove('active'));
+        tab.onclick = () => {
+            // Limpieza total
+            document.querySelectorAll('.wiki-tab-btn').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.wiki-page').forEach(p => p.classList.remove('active'));
             
-            // Activar la pestaña y página seleccionada
+            // Activación
             tab.classList.add('active');
-            const pageId = `wiki-tab-${tab.dataset.tab}`;
-            const pageToShow = document.getElementById(pageId);
-            if (pageToShow) {
-                pageToShow.classList.add('active');
+            const targetId = `wiki-tab-${tab.dataset.tab}`;
+            const targetPage = document.getElementById(targetId);
+            if (targetPage) {
+                targetPage.classList.add('active');
+                targetPage.scrollTop = 0; // Siempre empezar arriba
             }
-        });
+        };
     });
-    
-    // Forzar clic en la primera pestaña para mostrar su contenido por defecto
-    document.querySelector('.wiki-tab-btn[data-tab="regimientos"]').click();
 
-    // Mostrar el modal
     domElements.wikiModal.style.display = 'flex';
 }
 

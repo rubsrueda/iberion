@@ -6,6 +6,18 @@
     <title>Hex General Evolved - Modular</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <script>
+    // Registra el Service Worker para habilitar la instalación
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js')
+        .then(() => console.log("Iberion Service Worker registrado"));
+    }
+    </script>
+
 </head>
 <body>
 
@@ -697,10 +709,11 @@
                 <button class="wiki-tab-btn active" data-tab="regimientos">Regimientos</button>
                 <button class="wiki-tab-btn" data-tab="estructuras">Estructuras</button>
                 <button class="wiki-tab-btn" data-tab="tecnologias">Investigación</button>
-                <button class="wiki-tab-btn" data-tab="heroes">Héroes/Forja</button> <!-- Nueva -->
-                <button class="wiki-tab-btn" data-tab="comercio">Banca/Comercio</button> <!-- Nueva -->
+                <button class="wiki-tab-btn" data-tab="heroes">Héroes</button> <!-- Nueva -->
+                <button class="wiki-tab-btn" data-tab="comercio">Banca</button> <!-- Nueva -->
                 <button class="wiki-tab-btn" data-tab="victoria">Victoria</button> <!-- Nueva -->
                 <button class="wiki-tab-btn" data-tab="conceptos">Conceptos</button>
+                
             </div>
             <div class="wiki-tab-content">
                 <div id="wiki-tab-regimientos" class="wiki-page active">
@@ -984,47 +997,43 @@
     <!-- ====================================================================== -->
     <!-- ======================= BUZÓN DEL GENERAL (Misiones, Banners, Mensajes) -->
     <!-- ====================================================================== -->
-    <div id="inboxModal" class="modal modal-themed" style="display: none;">
-        <div class="modal-content" style="max-width: 900px; height: 70vh; display: flex; flex-direction: column; padding: 0;">
-            <span class="close-button" id="closeInboxBtn">×</span>
-            
-            <!-- Pestañas Superiores -->
-            <div class="inbox-tabs" style="display: flex; border-bottom: 2px solid #ccc; padding: 0 10px; flex-shrink: 0;">
+    <div id="inboxModal" class="modal">
+        <!-- El botón X flotando sobre la interfaz pero fuera del contenido -->
+        <div id="closeInboxBtn" class="close-button" style="z-index: 10005;">X</div>
+        
+        <div class="modal-content" style="display: flex; flex-direction: column;">
+            <div class="inbox-tabs">
                 <button class="inbox-tab-btn active" data-tab="missions">Misiones</button>
-                <button class="inbox-tab-btn" data-tab="banners">Banners</button>
-                <button class="inbox-tab-btn" data-tab="messages">Mensajes</button>
+                <button class="inbox-tab-btn" data-tab="banners">Héroes</button>
+                <button class="inbox-tab-btn" data-tab="messages">Sistema</button>
             </div>
 
-            <!-- Contenido Principal (2 Columnas) -->
-            <div class="inbox-body" style="display: flex; flex-grow: 1; overflow: hidden;">
+            <div style="display: flex; flex-grow: 1; height: calc(100% - 22px);">
+                <div id="inboxListContainer"></div>
                 
-                <!-- Columna Izquierda: Lista de Items -->
-                <div id="inboxListContainer" style="width: 35%; border-right: 1px solid #ddd; overflow-y: auto; padding: 10px;">
-                    <!-- Los items de la lista (misiones, etc.) se insertarán aquí -->
-                </div>
-
-                <!-- Columna Derecha: Detalle del Item -->
-                <div id="inboxDetailContainer" style="width: 65%; padding: 20px; display: flex; flex-direction: column; overflow-y: auto;">
                     
-                    <!-- Placeholder mientras no hay nada seleccionado -->
-                    <div id="inboxDetailPlaceholder" style="text-align:center; color: #888; margin-top: 50px;">
-                        <p>Selecciona un elemento de la izquierda para ver sus detalles.</p>
-                    </div>
-
-                    <!-- Contenido del Detalle (oculto por defecto) -->
-                    <div id="inboxDetailContent" style="display: none;">
-                        <div id="inboxDetailHeaderImage" style="width: 100%; height: 120px; background-size: cover; background-position: center; border-radius: 5px; margin-bottom: 15px;"></div>
-                        <h3 id="inboxDetailTitle" style="margin-top: 0;"></h3>
-                        <p id="inboxDetailBody"></p>
+                    <!-- Reemplaza el bloque 'inboxDetailContainer' en index.html -->
+                    <div id="inboxDetailContainer">
+                        <div id="inboxDetailPlaceholder">SELECCIONE UN INFORME DE COMUNICACIONES...</div>
                         
-                        <div id="inboxRewardSection" style="margin-top: auto; padding-top: 15px; border-top: 1px solid #eee;">
-                            <!-- Las recompensas se insertarán aquí -->
+                        <!-- Este es el contenedor real del contenido que se activa en JS -->
+                        <div id="inboxDetailContent" style="display:none;">
+                            <h3 id="inboxDetailTitle"></h3>
+                            
+                            <!-- Fila de imagen opcional -->
+                            <div id="inboxDetailHeaderImage"></div>
+                            
+                            <!-- Fila del cuerpo del mensaje -->
+                            <div id="inboxDetailBody"></div>
+                            
+                            <!-- Fila del Pie de página -->
+                            <div id="inboxFooter">
+                                <div id="inboxRewardSection"></div>
+                                <button id="inboxClaimBtn"></button>
+                            </div>
                         </div>
-
-                        <button id="inboxClaimBtn" style="padding: 12px 25px; font-size: 1.2em; margin-top: 15px; width: 100%;">RECLAMAR</button>
                     </div>
-
-                </div>
+                
             </div>
         </div>
     </div>

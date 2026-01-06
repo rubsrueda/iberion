@@ -59,10 +59,10 @@ const INBOX_DATA = {
 
 const MailboxManager = {
     
-    activeTab: 'missions', // La pestaña por defecto
+    activeTab: 'missions',
 
     init: function() {
-        // Listeners para las pestañas
+        // Mantiene tus listeners originales
         document.querySelectorAll('.inbox-tab-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 document.querySelectorAll('.inbox-tab-btn').forEach(b => b.classList.remove('active'));
@@ -72,16 +72,17 @@ const MailboxManager = {
             });
         });
 
-        // Listener para el botón de cerrar
-        document.getElementById('closeInboxBtn').addEventListener('click', this.close);
+        // Botón cerrar
+        const closeBtn = document.getElementById('closeInboxBtn');
+        if(closeBtn) closeBtn.onclick = () => this.close();
     },
 
     open: function() {
-        // Ya no usamos showScreen. Simplemente hacemos visible el modal del buzón.
-        document.getElementById('inboxModal').style.display = 'flex'; 
-        
-        // Y luego, como siempre, renderizamos su contenido interno.
-        this.renderList();
+        const modal = document.getElementById('inboxModal');
+        if(modal) {
+            modal.style.display = 'flex';
+            this.renderList();
+        }
     },
 
     close: function() {
@@ -89,43 +90,41 @@ const MailboxManager = {
     },
 
     /**
-     * Rellena la lista de la izquierda según la pestaña activa.
+     * Rellena la lista (32% ancho) con micro-tipografía y barra neón
      */
     renderList: function() {
         const listContainer = document.getElementById('inboxListContainer');
-        const detailContainer = document.getElementById('inboxDetailContent');
-        const placeholder = document.getElementById('inboxDetailPlaceholder');
-
+        if (!listContainer) return;
         listContainer.innerHTML = '';
-        detailContainer.style.display = 'none';
-        placeholder.style.display = 'block';
         
         const data = INBOX_DATA[this.activeTab];
 
         data.forEach(item => {
             const itemEl = document.createElement('div');
-            itemEl.className = 'inbox-list-item'; // Estilos en CSS
-            itemEl.style.cssText = `
-                padding: 10px; border-bottom: 1px solid #eee; cursor: pointer;
-                background-color: ${item.read ? '#fff' : '#f0f8ff'};
-            `;
+            // Aplicamos clase 'read' si ya se leyó
+            itemEl.className = `inbox-list-item ${item.read ? 'read' : ''}`;
+            
             itemEl.innerHTML = `
-                <strong style="display: block; font-size: 1.1em;">${item.title}</strong>
-                <span>${item.description.substring(0, 40)}...</span>
-                <small style="display: block; color: #888; margin-top: 5px;">Hace poco</small>
+                <div class="inbox-status-bar"></div>
+                <div style="overflow:hidden; margin-left: 8px;">
+                    <strong style="display:block; font-size:9px; color:#fff; white-space:nowrap; text-overflow:ellipsis;">${item.title.toUpperCase()}</strong>
+                    <span style="font-size:8px; color:#4b6b7a;">REPORTE RECIBIDO</span>
+                </div>
             `;
+            
             itemEl.addEventListener('click', () => {
-                item.read = true; // Marcar como leído
+                // Marcar como leído lógicamente y visualmente
+                item.read = true; 
                 this.renderDetail(item.id);
-                itemEl.style.backgroundColor = '#fff';
+                document.querySelectorAll('.inbox-list-item').forEach(el => el.classList.remove('selected'));
+                itemEl.classList.add('selected', 'read');
             });
             listContainer.appendChild(itemEl);
         });
     },
 
     /**
-     * Rellena el panel de detalles de la derecha.
-     * @param {string} itemId - El ID del item a mostrar.
+     * Rellena el detalle (68% ancho) con el sistema de burbujas y premios neón
      */
     renderDetail: function(itemId) {
         const detailContainer = document.getElementById('inboxDetailContent');
@@ -136,43 +135,55 @@ const MailboxManager = {
         const item = INBOX_DATA[this.activeTab].find(i => i.id === itemId);
         if (!item) return;
         
-        // Mostrar contenido, ocultar placeholder
         placeholder.style.display = 'none';
         detailContainer.style.display = 'flex';
 
-        // Rellenar datos
-        document.getElementById('inboxDetailTitle').textContent = item.title;
+        // Imagen de cabecera opcional
+        const headerImg = document.getElementById('inboxDetailHeaderImage');
+        if (item.headerImage) {
+            headerImg.style.display = 'block';
+            headerImg.style.backgroundImage = `url(${item.headerImage})`;
+        } else {
+            headerImg.style.display = 'none';
+        }
+
+        // Título y cuerpo neón
+        document.getElementById('inboxDetailTitle').textContent = item.title.toUpperCase();
         document.getElementById('inboxDetailBody').textContent = item.description;
-        document.getElementById('inboxDetailHeaderImage').style.backgroundImage = `url(${item.headerImage})`;
         
-        // Rellenar recompensas
+        // Rellenar recompensas con el nuevo diseño de slots
         rewardSection.innerHTML = '';
-        if (item.rewards.length > 0) {
-            item.rewards.forEach(reward => {
-                // Lógica para mostrar la recompensa
-                rewardSection.innerHTML += `<p><strong>${reward.amount} x </strong> ${reward.type.replace('_', ' ')}</p>`;
+        if (item.rewards && item.rewards.length > 0) {
+            const rewardLabel = document.createElement('div');
+            rewardLabel.style.fontSize = "8px";
+            rewardLabel.style.color = "#4b6b7a";
+            rewardLabel.style.marginBottom = "5px";
+            rewardLabel.textContent = "OBJETOS DISPONIBLES";
+            rewardSection.appendChild(rewardLabel);
+
+            item.rewards.forEach(r => {
+                const icon = r.type === 'oro' ? '💰' : (r.type === 'sellos_guerra' ? '💎' : '📖');
+                rewardSection.innerHTML += `
+                    <div class="reward-slot">
+                        <span style="font-size:14px;">${icon}</span>
+                        <div style="font-size:8px; color:#f1c40f; font-weight:bold;">x${r.amount}</div>
+                    </div>`;
             });
         }
         
-        // Configurar el botón de acción
+        // Configurar el botón de acción según tu lógica original de GOTO_GACHA o Recursos
         if (item.action?.type === 'GOTO_GACHA') {
-            claimBtn.textContent = "IR AL ALTAR";
-            claimBtn.onclick = () => {
-                this.close();
-                // Aquí se podría pasar el item.action.bannerId a openDeseosModal
-                openDeseosModal(); 
-            };
+            claimBtn.textContent = "ACCEDER AL ALTAR";
             claimBtn.disabled = false;
+            claimBtn.onclick = () => { this.close(); openDeseosModal(); };
         } else if (item.rewards.length > 0) {
-            claimBtn.textContent = item.claimed ? "RECLAMADO" : "RECLAMAR";
+            claimBtn.textContent = item.claimed ? "CONTENIDO RECLAMADO" : "RECLAMAR RECOMPENSA";
             claimBtn.disabled = item.claimed;
             claimBtn.onclick = () => this.claimReward(item.id);
         } else {
-            claimBtn.textContent = "OK";
-            claimBtn.onclick = () => {
-                this.close();
-            };
+            claimBtn.textContent = "CERRAR INFORME";
             claimBtn.disabled = false;
+            claimBtn.onclick = () => this.close();
         }
     },
 
@@ -186,8 +197,8 @@ const MailboxManager = {
 
         item.claimed = true;
 
+        // Ejecuta el intercambio de recursos real de tu lógica original
         item.rewards.forEach(reward => {
-            console.log(`Reclamando ${reward.amount} de ${reward.type}`);
             switch(reward.type) {
                 case 'sellos_guerra':
                     PlayerDataManager.addWarSeals(reward.amount);
@@ -198,12 +209,11 @@ const MailboxManager = {
                 case 'xp_books':
                     PlayerDataManager.currentPlayer.inventory.xp_books += reward.amount;
                     break;
-                // Se pueden añadir más tipos de recompensas aquí...
             }
         });
         
         PlayerDataManager.saveCurrentPlayer();
-        logMessage("¡Recompensas reclamadas!", "success");
-        this.renderDetail(itemId); // Re-renderizar para actualizar el botón
+        logMessage("Logística: Suministros integrados al tesoro.");
+        this.renderDetail(item.id); // Refresca para mostrar botón deshabilitado
     }
 };
