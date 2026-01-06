@@ -12,13 +12,14 @@ function getXpForNextLevel(currentLevel) {
 const PlayerDataManager = {
     currentPlayer: null,
 
-    // Dentro de PlayerDataManager en playerDataManager.js
     loginWithGoogle: async function() {
+    // Detecta automáticamente si estás en LOCAL o en GITHUB
+        const siteUrl = window.location.origin + window.location.pathname;
+
         const { data, error } = await supabaseClient.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                // Esto redirigirá al usuario de vuelta a tu web tras loguearse
-                redirectTo: window.location.origin 
+                redirectTo: siteUrl
             }
         });
 
