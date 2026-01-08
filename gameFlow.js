@@ -625,6 +625,39 @@ function updateFogOfWar() {
 }
 
 function checkVictory() {
+
+    // PUNTO DE CONTROL A: Entrada al árbitro
+    console.log("%c[AUDITORÍA] checkVictory() ejecutándose...", "color: #00f3ff; font-weight: bold;");
+
+    // --- PUENTE DE COMPATIBILIDAD ESCARAMUZA/CAMPAÑA ---
+    // Buscamos la capital de J1
+    const pCap = gameState.currentMapData?.playerCapital || gameState.capitalCityId?.[1];
+    // Buscamos la capital de J2
+    const eCap = gameState.currentMapData?.enemyCapital || gameState.capitalCityId?.[2];
+
+    // Extraemos las coordenadas de forma segura
+    const pCapR = pCap?.r;
+    const pCapC = pCap?.c;
+    const eCapR = eCap?.r;
+    const eCapC = eCap?.c;
+    
+    if (pCap && board[pCap.r] && board[pCap.r][pCap.c]) {
+        console.log(`[OJO-CAPITAL] J1 Capital en (${pCap.r},${pCap.c}) | Dueño real: ${board[pCap.r][pCap.c].owner}`);
+    } else {
+        console.log("[OJO-CAPITAL] J1 Capital: No definida en MapData");
+    }
+
+    if (eCap && board[eCap.r] && board[eCap.r][eCap.c]) {
+        console.log(`[OJO-CAPITAL] J2 Capital en (${eCap.r},${eCap.c}) | Dueño real: ${board[eCap.r][eCap.c].owner}`);
+    } else {
+        console.log("[OJO-CAPITAL] J2 Capital: No definida en MapData");
+    }
+
+    const p1Units = units.filter(u => u.player === 1 && u.currentHealth > 0).length;
+    const p2Units = units.filter(u => u.player === 2 && u.currentHealth > 0).length;
+    console.log(`[OJO-UNIDADES] Vivas -> J1: ${p1Units}, J2: ${p2Units}`);
+    // --- FIN DEL BLOQUE DE OJO DE DATOS ---
+
    if (gameState.isTutorialActive) {
         // Durante el tutorial, la victoria solo la dicta el propio tutorial.
         // No se debe declarar una victoria normal.
@@ -634,13 +667,35 @@ function checkVictory() {
 
     let winner = null; // 1 para jugador humano, 2 para IA u oponente
 
+    // 1. Verificación por Capital (Usando las coordenadas del log)
+    if (eCapR !== undefined && eCapC !== undefined) {
+        if (board[eCapR][eCapC].owner === 1) {
+            console.log("[VEREDICTO] Victoria J1: Capital enemiga capturada.");
+            winner = 1;
+        } else if (board[pCapR][pCapC].owner === 2) {
+            console.log("[VEREDICTO] Victoria J2: Capital aliada perdida.");
+            winner = 2;
+        }
+    }
+
+    // 2. Verificación por Eliminación (Si no hay ganador por capital aún)
+    if (!winner) {
+        if (p1Units > 0 && p2Units === 0) {
+            console.log("[VEREDICTO] Victoria J1: Enemigo aniquilado.");
+            winner = 1;
+        } else if (p2Units > 0 && p1Units === 0) {
+            console.log("[VEREDICTO] Victoria J2: Ejercito aliado destruido.");
+            winner = 2;
+        }
+    }
+
     // --- 1. Condiciones de Victoria/Derrota Específicas del Escenario ---
     if (gameState.isCampaignBattle && gameState.currentScenarioData) {
         const scenario = gameState.currentScenarioData;
         const playerHuman = 1; // Asumimos que el jugador humano es siempre el jugador 1
         const enemyPlayer = 2; // Asumimos que el oponente IA es jugador 2 (esto podría necesitar ser más flexible)
 
-        // Chequear condiciones de victoria del jugador
+        // Checar condiciones de victoria del jugador
         if (scenario.victoryConditions) {
             for (const condition of scenario.victoryConditions) {
                 if (condition.type === "eliminate_all_enemies") {
@@ -656,6 +711,9 @@ function checkVictory() {
             }
         }
         if (winner) { // Si ya ganó el jugador
+
+            // PUNTO DE CONTROL B1: Victoria detectada por Capital o Eliminación
+            console.log(`%c[AUDITORÍA] ¡GANADOR DETECTADO! J${winner}. Procediendo a llamar endTacticalBattle.`, "color: #2ecc71; font-weight: bold;");
             endTacticalBattle(winner);
             return true;
         }
@@ -683,6 +741,8 @@ function checkVictory() {
             return true;
         }
     }
+
+
 
     // --- 2. Condiciones de Victoria/Derrota Genéricas (si no es campaña o no se cumplieron las específicas) ---
     // Solo si no se ha determinado un ganador por condiciones de escenario
@@ -745,17 +805,29 @@ function checkVictory() {
 }
 
 // Función para centralizar el fin de una batalla táctica
-function endTacticalBattle(winningPlayerNumber) {
+async function endTacticalBattle(winningPlayerNumber) {
     if (gameState.currentPhase === "gameOver") {
         console.warn("[endTacticalBattle] La batalla ya había terminado. Saliendo.");
         return; // Evitar múltiples ejecuciones si checkVictory se llama varias veces
     }
+
+    // PUNTO DE CONTROL C: Inicio del cierre
+    console.log(`%c[AUDITORÍA] >>> ENTRANDO EN endTacticalBattle con ganador: J${winningPlayerNumber}`, "background: #fff; color: #000; font-weight: bold;");
+
+    // --- LINEA ADICIONAL PARA EL PROGRESO ---
+    PlayerDataManager.processEndGameProgression(winningPlayerNumber);
 
     TurnTimerManager.stop(); 
     
     logMessage(`Fin de la batalla. Jugador ${winningPlayerNumber} es el vencedor.`);
     gameState.currentPhase = "gameOver";
     gameState.winner = winningPlayerNumber;
+
+    // --- Registrar el progreso de carrera ---
+    if (PlayerDataManager.applyCareerProgression) {
+        PlayerDataManager.applyCareerProgression(winningPlayerNumber)
+            .catch(err => console.error("Error en progresión:", err));
+    }
 
     // --- AÑADIR LÓGICA DE BONUS DE ORO POR VICTORIA ---
     let goldBonus = 0;
@@ -790,12 +862,34 @@ function endTacticalBattle(winningPlayerNumber) {
         UIManager.hideContextualPanel();
     }
 
+    const playerWon = (winningPlayerNumber === gameState.myPlayerNumber);
+
+    // --- Captura de métricas de progreso ---
+    const matchMetrics = {
+        outcome: playerWon ? 'victoria' : 'derrota',
+        turns: gameState.turnNumber,
+        duration: 30, // Aquí podrías calcular la diferencia de tiempo real si quieres
+        heroes: units.filter(u => u.player === gameState.myPlayerNumber && u.commander).map(u => u.commander),
+        kills: gameState.playerStats.unitsDestroyed[`player${gameState.myPlayerNumber}`] || 0
+    };
+
+    const xpGained = PlayerDataManager.calculateMatchXP(playerWon, matchMetrics.turns, matchMetrics.kills);
+    
+    // Guardar progreso
+    const progress = await PlayerDataManager.syncMatchResult(xpGained, matchMetrics);
+
+    // Llamar a la nueva pantalla de resultados
+    if (UIManager && UIManager.showPostMatchSummary) {
+        UIManager.showPostMatchSummary(playerWon, xpGained, progress, matchMetrics);
+    }
+
     // Mostrar un resumen de la partida (Tarea B10) - Lo dejamos pendiente por ahora
     // if (typeof UIManager !== 'undefined' && UIManager.showGameSummaryModal) { 
     //     UIManager.showGameSummaryModal(winningPlayerNumber, goldBonus);
     // } else {
          // alert(victoryMessage); // Movido el alert para que no se repita si hay modal
     // }
+
     if (!gameState.isCampaignBattle) { // Solo mostrar alert para escaramuza si no hay un flujo de campaña que lo maneje
          setTimeout(() => alert(victoryMessage), 100); // Pequeño delay para que los logs se asienten
     }
@@ -846,15 +940,6 @@ function simpleAiDeploymentTurn() {
         console.error("[simpleAiDeploymentTurn] AiDeploymentManager no está definido. Revisa que ai_deploymentLogic.js esté cargado.");
     }
     
-    /* RRC
-    // La IA de despliegue termina su turno automáticamente después de colocar sus unidades.
-    if (domElements.endTurnBtn && !domElements.endTurnBtn.disabled) {
-        // Usamos un pequeño retardo para que la colocación visual termine antes de pasar al siguiente.
-        setTimeout(() => {
-            if(domElements.endTurnBtn) domElements.endTurnBtn.click();
-        }, 1000); 
-    }
-    */
 }
 
 function simpleAiTurn() {
@@ -1394,385 +1479,7 @@ function handleChangeCapital(r, c) {
     return true;
 }
 
-// --- EJEMPLO DE CÓMO SE USARÍA DESDE UN BOTÓN DE LA UI ---
-/*
-// Suponiendo que tienes un botón en el HTML: <button id="setAsCapitalBtn">Establecer como Capital</button>
-// Y que este botón está dentro de un contexto donde se muestra información de una ciudad propia seleccionada.
-
-const setCapitalBtn = document.getElementById('setAsCapitalBtn');
-if (setCapitalBtn) {
-    // Asegúrate de que 'selectedCityData' tenga la información de la ciudad del jugador
-    // Esto podría venir de un click en el mapa, o de la información mostrada en el panel contextual.
-    let selectedCityData = null; // Esto se obtendría de otra parte del código
-
-    setCapitalBtn.addEventListener('click', () => {
-        if (selectedCityData) {
-            requestChangeCapital(selectedCityData.r, selectedCityData.c);
-            
-            // Ocultar el botón/panel después de la acción
-            if (typeof UIManager !== 'undefined' && typeof UIManager.hideContextualPanel === 'function') {
-                UIManager.hideContextualPanel();
-            }
-        }
-    });
-}
-*/
 let handleEndTurnCallCount = 0; // Se pondría fuera de la función
-
-/*
-async function handleEndTurn(isHostProcessing = false) {
-
-    //audio
-    if (typeof AudioManager !== 'undefined') {
-        AudioManager.playSound('turn_start');
-    }
-
-    handleEndTurnCallCount++;
-    console.error(`handleEndTurn ha sido llamada ${handleEndTurnCallCount} veces.`);
-    
-    console.log(`[handleEndTurn V4 - COMPLETA Y CORREGIDA] INICIO. Fase: ${gameState.currentPhase}, Jugador: ${gameState.currentPlayer}, Host?: ${isHostProcessing}`);
-
-    // Esto evita que la lógica de fin de turno del juego se ejecute al mismo tiempo que el tutorial avanza.
-    if (gameState.isTutorialActive && !isHostProcessing) {
-        console.log("[handleEndTurn] MODO TUTORIAL: Notificando al manager y deteniendo la ejecución normal del turno.");
-        TutorialManager.notifyActionCompleted('turnEnded');
-        return; // Detiene la función aquí mismo.
-    }
-    
-    // --- CAPA DE RED (PUNTO DE ENTRADA) ---
-    // Este bloque se ejecuta cuando un jugador (anfitrión o cliente) hace clic en el botón de fin de turno.
-    if (!isHostProcessing && isNetworkGame()) {
-        if (gameState.currentPlayer !== gameState.myPlayerNumber) {
-            logMessage("No es tu turno.");
-            return;
-        }
-        const endTurnAction = { type: 'endTurn', payload: { playerId: gameState.myPlayerNumber } };
-        
-        // El cliente SIEMPRE envía una petición.
-        if (!NetworkManager.esAnfitrion) {
-            NetworkManager.enviarDatos({ type: 'actionRequest', action: endTurnAction });
-        } else {
-            // El anfitrión se procesa a sí mismo. La llamada a processActionRequest
-            // desencadenará la ejecución de este MISMO handleEndTurn, pero con isHostProcessing = true.
-            await processActionRequest(endTurnAction);
-        }
-        
-        if (domElements.endTurnBtn) domElements.endTurnBtn.disabled = true;
-        return; // La acción ya ha sido enviada o procesada, no continuar con la lógica local.
-    }
-    // --- FIN CAPA DE RED ---
-
-    // --- LÓGICA DE VALIDACIÓN DEL TUTORIAL ---
-    // (Este bloque está duplicado, pero lo dejo porque pediste no quitar nada)
-    if (window.TUTORIAL_MODE_ACTIVE === true) {
-        console.log("[TUTORIAL] Clic en 'Finalizar Turno' interceptado. Notificando al manager.");
-        TutorialManager.notifyActionCompleted('turnEnded');
-    }
-
-    // --- LÓGICA DE EJECUCIÓN DEL CAMBIO DE TURNO ---
-    if (typeof deselectUnit === "function") deselectUnit();
-    if (gameState.currentPhase === "gameOver") {
-        logMessage("La partida ya ha terminado.");
-        return;
-    }
-    // Al inicio del proceso de cambio de turno, detenemos cualquier temporizador activo.
-    TurnTimerManager.stop();
-
-    const playerEndingTurn = gameState.currentPlayer;
-
-    // <<== INICIO DE LA LÓGICA SEGURA PARA EL TUTORIAL ==>>
-    // (Este bloque también está duplicado, pero lo dejo para respetar tu código)
-    if (gameState.isTutorialActive) {
-        console.log("[handleEndTurn] MODO TUTORIAL DETECTADO. Flujo de turno especial activado.");
-
-        // 3. Preparar al jugador para su nuevo turno
-        resetUnitsForNewTurn(gameState.currentPlayer);
-
-        // Avisa al tutorial de que el turno terminó
-        TutorialManager.notifyActionCompleted('turnEnded');
-
-        units.forEach(u => {
-            if (u.player === 1) {
-                u.hasMoved = false;
-                u.hasAttacked = false;
-                // Si por algún error la unidad no tiene puntos de movimiento, le damos 2 por defecto
-                u.currentMovement = (u.movement > 0) ? u.movement : 2; 
-            }
-        });
-
-        // 1. Ejecutar las tareas de mantenimiento del jugador
-        updateTerritoryMetrics(playerEndingTurn);
-        collectPlayerResources(playerEndingTurn);
-        handleUnitUpkeep(playerEndingTurn);
-        handleHealingPhase(playerEndingTurn);
-        const tradeGold = calculateTradeIncome(playerEndingTurn);
-        if (tradeGold > 0) gameState.playerResources[playerEndingTurn].oro += tradeGold;
-        
-        // 2. SALTAR EL TURNO DE LA IA COMPLETAMENTE
-        // Directamente volvemos al jugador 1 y aumentamos el número de turno del juego.
-        gameState.currentPlayer = 1;
-        gameState.turnNumber++;
-
-        logMessage(`Comienza el turno del Jugador ${gameState.currentPlayer} (Turno ${gameState.turnNumber}).`);
-        
-        units.forEach(u => { u.hasMoved = false; u.hasAttacked = false; u.currentMovement = u.movement || 2; });
-        // Avisa al tutorial de que el turno terminó
-        TutorialManager.notifyActionCompleted('turnEnded');
-
-        // Actualizamos TODA la UI INMEDIATAMENTE después de cambiar de jugador
-        if (UIManager) UIManager.updateAllUIDisplays(); 
-
-        // El siguiente jugador es una IA?
-        if (gameState.playerTypes[`player${gameState.currentPlayer}`].includes('ai')) {
-            
-            // Mostramos un bloqueador TEMPORAL para que el jugador sepa que la IA está jugando
-            const turnBlocker1 = document.getElementById('turnBlocker');
-            if (turnBlocker1) {
-                turnBlocker1.textContent = `Turno de la IA (Jugador ${gameState.currentPlayer})...`;
-                turnBlocker1.style.display = 'flex';
-            }
-
-            setTimeout(() => {
-                executeAiTurn();
-                const turnBlocker2 = document.getElementById('turnBlocker');
-                if (turnBlocker2) {
-                    turnBlocker2.style.display = 'none';
-                }
-            }, 500);
-
-        }
-        
-        // El resto de la lógica de preparación (moral, experiencia, comida)
-        if (gameState.currentPlayer === 1) {
-             units.forEach(unit => { if (unit.player === 1) unit.experience++; });
-             gameState.playerResources[1].researchPoints += BASE_INCOME.RESEARCH_POINTS_PER_TURN;
-        }
-        if (UIManager) UIManager.updateAllUIDisplays();
-        return; // Detenemos aquí para el tutorial
-    }
-
-    // --- LÓGICA NORMAL PARA N JUGADORES ---
-    if (gameState.currentPhase === "deployment") {
-        // Si el jugador actual NO es el último jugador, simplemente pasa al siguiente
-        if (playerEndingTurn < gameState.numPlayers) {
-            console.error(`¡CAMBIO DE FASE EJECUTADO! Se va a cambiar de '${gameState.currentPhase}' a 'play'. Jugador 1 comenzará.`);
-            gameState.currentPlayer++;
-            // Resetear el contador de unidades desplegadas para el nuevo jugador
-            if (!gameState.unitsPlacedByPlayer) gameState.unitsPlacedByPlayer = {};
-            gameState.unitsPlacedByPlayer[gameState.currentPlayer] = 0;
-            logMessage(`Despliegue: Turno del Jugador ${gameState.currentPlayer}.`);
-        } else {
-            // Si es el último jugador, termina la fase de despliegue y empieza el juego
-            gameState.currentPhase = "play";
-            gameState.currentPlayer = 1; // El juego siempre empieza con el jugador 1
-            gameState.turnNumber = 1;
-            resetUnitsForNewTurn(1); // Prepara las unidades del J1 para el primer turno
-            logMessage("¡Comienza la Batalla! Turno del Jugador 1.");
-        }
-    } // --- SECCIÓN 2: LÓGICA DE FASE DE JUEGO ---
-    else if (gameState.currentPhase === "play") {
-        
-
-        // A. Tareas de MANTENIMIENTO del jugador que TERMINA el turno
-        updateTerritoryMetrics(playerEndingTurn);
-        collectPlayerResources(playerEndingTurn); 
-        handleUnitUpkeep(playerEndingTurn);
-        handleHealingPhase(playerEndingTurn);
-
-        updateTradeRoutes(playerEndingTurn); // Mueve las caravanas del jugador
-        
-        const tradeGold = calculateTradeIncome(playerEndingTurn);
-        if (tradeGold > 0) gameState.playerResources[playerEndingTurn].oro += tradeGold;
-
-        // <<== CORRECCIÓN 2 de 2: Se REEMPLAZA el bloque 'B' por uno que funciona ==>>
-        // B. LÓGICA DE CAMBIO DE JUGADOR (VERSIÓN FINAL Y CORRECTA PARA N JUGADORES)
-        let nextPlayer = playerEndingTurn; // Empezamos desde el jugador que acaba de terminar.
-        let foundValidPlayer = false;
-        let attempts = 0;
-
-        // Bucle para encontrar el siguiente jugador VÁLIDO.
-        do {
-            // 1. Avanza al siguiente jugador en el ciclo.
-            nextPlayer = (nextPlayer % gameState.numPlayers) + 1;
-
-            // 2. Si volvemos al jugador 1, es una nueva ronda. (Se comprueba solo al principio del ciclo)
-            if (nextPlayer === 1 && attempts === 0) { 
-                gameState.turnNumber++;
-                if (typeof Chronicle !== 'undefined') Chronicle.logEvent('turn_start');
-
-                // Justo aquí, cuando una ronda completa ha terminado, ejecutamos el turno de La Banca.
-                if (typeof BankManager !== 'undefined' && BankManager.executeTurn) {
-                    BankManager.executeTurn();
-                }
-
-                // --- calculamos los puntos de victoria ---
-                calculateVictoryPoints();
-            }
-            
-            attempts++;
-
-            // 3. Comprobamos si el jugador candidato NO está eliminado.
-            if (!gameState.eliminatedPlayers.includes(nextPlayer)) {
-                foundValidPlayer = true;
-            }
-
-        // 4. Repetimos si no hemos encontrado un jugador válido y no hemos dado ya la vuelta.
-        } while (!foundValidPlayer && attempts < gameState.numPlayers * 2);
-
-        // 5. Asignamos el jugador encontrado.
-        if (foundValidPlayer) {
-            gameState.currentPlayer = nextPlayer;
-        } else {
-            console.warn("[Fin de Turno] No se encontró ningún jugador activo. Terminando juego.");
-            gameState.currentPhase = "gameOver"; // Condición de fin de partida.
-        }
-
-        // En partidas locales, actualizamos quién es el "jugador humano activo".
-        if (!isNetworkGame()) {
-            const nextPlayerType = gameState.playerTypes[`player${gameState.currentPlayer}`];
-            if (nextPlayerType === 'human') {
-                gameState.myPlayerNumber = gameState.currentPlayer;
-            }
-        }
-    }
-    
-    // Tras determinar el nuevo jugador (sea cual sea la fase), log y preparación
-    logMessage(`Comienza el turno del Jugador ${gameState.currentPlayer}.`);
-    resetUnitsForNewTurn(gameState.currentPlayer);
-
-        // C. Tareas de PREPARACIÓN para el jugador que EMPIEZA el turno.
-        resetUnitsForNewTurn(gameState.currentPlayer);
-        handleBrokenUnits(gameState.currentPlayer);
-        // D. Lógica de ingresos pasivos (XP, investigación, comida) para el jugador que EMPIEZA.
-        units.forEach(unit => {
-            if (unit.player === gameState.currentPlayer && unit.currentHealth > 0) {
-                unit.experience = Math.min(unit.maxExperience || 500, (unit.experience || 0) + 1);
-                if (typeof checkAndApplyLevelUp === "function") checkAndApplyLevelUp(unit);
-            }
-        });
-
-        if (gameState.playerResources[gameState.currentPlayer]) {
-            const baseResearchIncome = BASE_INCOME.RESEARCH_POINTS_PER_TURN || 5;
-            gameState.playerResources[gameState.currentPlayer].researchPoints = (gameState.playerResources[gameState.currentPlayer].researchPoints || 0) + baseResearchIncome;
-            logMessage(`Jugador ${gameState.currentPlayer} obtiene ${baseResearchIncome} Puntos de Investigación.`);
-        }
-
-        const playerRes = gameState.playerResources[gameState.currentPlayer];
-        if (playerRes) {
-            // Lógica de consumo de comida
-            let foodActuallyConsumed = 0;
-            let unitsSufferingAttrition = 0;
-            let unitsDestroyedByAttrition = [];
-            units.filter(u => u.player === gameState.currentPlayer && u.currentHealth > 0).forEach(unit => {
-                let unitConsumption = (unit.regiments || []).reduce((sum, reg) => sum + (REGIMENT_TYPES[reg.type]?.foodConsumption || 0), 0);
-                
-                if (isHexSupplied(unit.r, unit.c, unit.player) && playerRes.comida >= unitConsumption) {
-                    playerRes.comida -= unitConsumption;
-                    foodActuallyConsumed += unitConsumption;
-                } else {
-                    const damage = ATTRITION_DAMAGE_PER_TURN || 1;
-
-                    // --- INICIO DE LA SOLUCIÓN ---
-                    // 1. Buscamos el primer regimiento que todavía tenga salud para dañarlo.
-                    const regimentToDamage = unit.regiments.find(reg => reg.health > 0);
-
-                    // 2. Si encontramos un regimiento, le aplicamos el daño.
-                    if (regimentToDamage) {
-                        regimentToDamage.health = Math.max(0, regimentToDamage.health - damage);
-                    }
-
-                    // 3. Recalculamos la salud total de la división a partir de la suma de sus regimientos.
-                    //    Esto garantiza la consistencia.
-                    recalculateUnitHealth(unit); 
-                    // --- FIN DE LA SOLUCIÓN ---
-
-                    unitsSufferingAttrition++;
-                    logMessage(`¡${unit.name} sufre atrición!`);
-
-                    if (unit.currentHealth <= 0) {
-                        unitsDestroyedByAttrition.push(unit.id);
-                    } else if (UIManager) {
-                        UIManager.updateUnitStrengthDisplay(unit);
-                    }
-                }
-            });
-            unitsDestroyedByAttrition.forEach(unitId => { 
-                const unit = units.find(u => u.id === unitId); 
-                if (unit && handleUnitDestroyed) handleUnitDestroyed(unit, null); 
-            });
-            if (foodActuallyConsumed > 0 || unitsSufferingAttrition > 0) logMessage(`Comida consumida: ${foodActuallyConsumed}.`);
-            if (playerRes.comida < 0) playerRes.comida = 0;
-        }
-
-    // --- SINCRONIZACIÓN FINAL (SOLO PARA ANFITRIÓN) ---
-    // Este es el bloque que te causaba confusión. Se ejecuta DESPUÉS de toda la lógica de cambio de turno.
-    if (isNetworkGame() && NetworkManager.esAnfitrion) {
-        console.log(`[Red - Anfitrión] Fin de turno procesado. Retransmitiendo estado y FORZANDO reconstrucción local.`);
-        NetworkManager.broadcastFullState();
-
-        const replacer = (key, value) => (key === 'element' ? undefined : value);
-        const selfData = {
-            gameState: JSON.parse(JSON.stringify(gameState, replacer)),
-            board: JSON.parse(JSON.stringify(board, replacer)),
-            units: JSON.parse(JSON.stringify(units, replacer)),
-            unitIdCounter: unitIdCounter
-        };
-        // El anfitrión se fuerza a reconstruir su propia vista para evitar desincronización visual.
-        reconstruirJuegoDesdeDatos(selfData);
-    }
-    
-    // PASO 1: Actualizar la Interfaz Gráfica para reflejar el nuevo turno.
-    if (UIManager) {
-        UIManager.updateAllUIDisplays();
-        if (isNetworkGame()) {
-            UIManager.updateTurnIndicatorAndBlocker();
-        }
-    }
-
-
-
-    // PASO 2: Después de actualizar la UI, llamar a la IA SI ES SU TURNO.
-    // comprueba explícitamente el gameState actual.
-
-    // PASO 1: Actualizar toda la interfaz para reflejar el estado del nuevo turno.
-    if (UIManager) UIManager.updateAllUIDisplays();
-    
-    // PASO 2: Comprobar si el NUEVO jugador actual es una IA.
-    const isNextPlayerAI = gameState.playerTypes[`player${gameState.currentPlayer}`]?.startsWith('ai_');
-    console.log(`[handleEndTurn] Verificación final: Turno de J${gameState.currentPlayer}. ¿Es IA? ${isNextPlayerAI}`);
-    
-    // Si no hay jugadores eliminados y es el turno de la IA
-    if (isNextPlayerAI && gameState.currentPhase !== "gameOver") {
-    if (checkVictory && checkVictory()) return;
-
-        const turnBlocker3 = document.getElementById('turnBlocker');
-        if (turnBlocker3) {
-            turnBlocker3.textContent = `Turno de la IA (Jugador ${gameState.currentPlayer})...`;
-            turnBlocker3.style.display = 'flex';
-        }
-        // Damos un respiro a la UI para que se renderice
-        setTimeout(async () => {
-            // Esta es la nueva línea. Guarda el número del jugador actual de forma segura.
-            const playerNumberForAI = gameState.currentPlayer;
-
-            if (gameState.currentPhase === 'deployment') {
-                // Y aquí pasamos ese número a la función.
-                await simpleAiDeploymentTurn(playerNumberForAI);
-            } else {
-                // Y aquí también.
-                await simpleAiTurn(playerNumberForAI); 
-            }
-            // ...
-        }, 700);
-    } else {
-        // ...¡Iniciamos el temporizador con la duración que guardamos en gameState!
-        console.log(`[handleEndTurn] Turno de jugador humano (Jugador ${gameState.currentPlayer}). Iniciando temporizador.`);
-        TurnTimerManager.start(gameState.turnDurationSeconds); 
-        // Si es un jugador humano, simplemente comprobamos si ha ganado.
-        if (checkVictory) checkVictory();
-    }
-}
-*/
 
 async function handleEndTurn(isHostProcessing = false) {
 
@@ -2045,235 +1752,221 @@ async function handleEndTurn(isHostProcessing = false) {
 }
 
 /**
- * Actualiza la posición y estado de todas las unidades en modo ruta comercial.
- * @param {number} playerNum - El número del jugador cuyo turno está terminando.
+ * Motor de Logística v2.2: Recolecta en tierra/mar, llegada por adyacencia y reinicio fluido.
  */
 function updateTradeRoutes(playerNum) {
     const tradeUnits = units.filter(u => u.player === playerNum && u.tradeRoute);
     if (tradeUnits.length === 0) return;
 
-    if (playerNum === BankManager.PLAYER_ID) {
-        console.log(`[Banca] Moviendo ${tradeUnits.length} caravana(s)...`);
-    }
-
     tradeUnits.forEach(unit => {
         const route = unit.tradeRoute;
+        
+        // Validación inicial
         if (!route || !route.path || route.path.length === 0) {
-            console.warn(`Ruta comercial inválida para "${unit.name}". Se detiene la ruta.`);
             delete unit.tradeRoute;
             return;
         }
 
         let movesLeft = unit.movement;
+        
+        // Quitar de la rejilla para evitar auto-bloqueo durante el bucle
+        if (board[unit.r]?.[unit.c]) board[unit.r][unit.c].unit = null;
+
         while (movesLeft > 0) {
-            // Condición de parada 1: Ya ha llegado al final de su camino.
-            if (route.position >= route.path.length - 1) {
-                
-                // --- INICIO DE LA SECCIÓN DE DEBUG ---
-                console.group(`[Debug Entrega] Caravana "${unit.name}" ha llegado.`);
-                const destinationCity = route.destination;
-                const cityOwner = board[destinationCity.r]?.[destinationCity.c]?.owner;
-                
-                console.log(`  - Destino: ${destinationCity.name} (Dueño: J${cityOwner})`);
-                console.log(`  - Oro transportado: ${route.goldCarried}`);
-                console.log(`  - Verificando condiciones: cityOwner !== null (${cityOwner !== null}), cityOwner !== BankManager.PLAYER_ID (${cityOwner !== BankManager.PLAYER_ID}), goldCarried > 0 (${route.goldCarried > 0})`);
+            // Si la ruta se ha borrado en una iteración anterior del while (por llegar a destino y fallar la vuelta), salimos.
+            if (!unit.tradeRoute) break;
 
-                if (cityOwner !== null && cityOwner !== BankManager.PLAYER_ID && route.goldCarried > 0) {
-                    console.log(`%c  -> CONDICIONES CUMPLIDAS. Entregando oro...`, "color: green");
-                    gameState.playerResources[cityOwner].oro += route.goldCarried;
-                    logMessage(`La caravana "${unit.name}" entregó ${route.goldCarried} oro en ${destinationCity.name}.`);
-                } else {
-                    console.log(`%c  -> CONDICIONES NO CUMPLIDAS. No se entrega oro.`, "color: orange");
+            // --- PASO 1: AVANZAR ---
+            if (route.position < route.path.length - 1) {
+                route.position++;
+                movesLeft--;
+                
+                const hexPos = route.path[route.position];
+                const hexData = board[hexPos.r]?.[hexPos.c];
+
+                // RECOLECCIÓN: Cobro por hex de Camino, Ciudad o Mar (water)
+                if (hexData && (hexData.structure === 'Camino' || hexData.isCity || hexData.terrain === 'water')) {
+                    const goldPerHex = GOLD_INCOME.PER_ROAD || 20;
+                    if (route.goldCarried < route.cargoCapacity) {
+                        route.goldCarried = Math.min(route.cargoCapacity, route.goldCarried + goldPerHex);
+                    }
                 }
-                
-                console.log("  - Estado ANTES de invertir: ", { origin: route.origin.name, destination: route.destination.name });
-                // --- FIN DE LA SECCIÓN DE DEBUG ---
+            }
 
-                // Curación y Recomposición al llegar
+            // --- PASO 2: CONTROL DE LLEGADA ---
+            const currentPos = route.path[route.position];
+            const dest = route.destination; 
+            const dist = hexDistance(currentPos.r, currentPos.c, dest.r, dest.c);
+
+            // Llegada si está en la casilla o a distancia 1 (barco atracado)
+            if (dist <= 1 || route.position >= route.path.length - 1) {
+                const ownerOfDest = board[dest.r]?.[dest.c]?.owner;
+                
+                // Entrega de oro
+                if (ownerOfDest !== null && ownerOfDest !== BankManager.PLAYER_ID && route.goldCarried > 0) {
+                    gameState.playerResources[ownerOfDest].oro += route.goldCarried;
+                    logMessage(`${unit.name} ha entregado ${route.goldCarried} de oro en ${dest.name}.`);
+                }
+
+                // Curación y Reparación
                 unit.currentHealth = unit.maxHealth;
-                unit.regiments.forEach(reg => reg.health = REGIMENT_TYPES[reg.type].health);
+                unit.regiments.forEach(reg => {
+                    const rType = REGIMENT_TYPES[reg.type];
+                    if (rType) reg.health = rType.health;
+                });
 
-                if (unit.player === BankManager.PLAYER_ID) {
-                    BankManager.recomposeCaravan(unit);
-                    logMessage(`La caravana de La Banca se ha reabastecido y recompuesto en ${destinationCity.name}.`);
-                } else {
-                    logMessage(`La caravana "${unit.name}" ha sido reabastecida en ${destinationCity.name}.`);
-                }
-
-                // Invertir ruta para el viaje de regreso
+                // Reinicio e Inversión
                 route.goldCarried = 0;
                 route.position = 0;
-                [route.origin, route.destination] = [route.destination, route.origin];
+                const prevOrigin = route.origin;
+                route.origin = route.destination;
+                route.destination = prevOrigin;
+
+                // Pathfinding de regreso
+                const isShip = unit.regiments.some(r => REGIMENT_TYPES[r.type].is_naval);
                 
-                console.log("  - Estado DESPUÉS de invertir: ", { origin: route.origin.name, destination: route.destination.name }); // DEBUG
-                
-                route.path = findInfrastructurePath(route.origin, route.destination);
-                
-                if (!route.path) {
-                    logMessage(`Ruta de regreso no encontrada para "${unit.name}". Se detiene el comercio.`);
-                    delete unit.tradeRoute;
-                    console.groupEnd();
-                    break; 
+                if (isShip) {
+                    // Usamos la función global que está en unit_Actions.js
+                    if (typeof traceNavalPath === 'function') {
+                        route.path = traceNavalPath(unit, {r: currentPos.r, c: currentPos.c}, route.destination);
+                    } else {
+                        console.error("traceNavalPath no está definida.");
+                        route.path = null;
+                    }
+                } else {
+                    route.path = findInfrastructurePath(currentPos, route.destination);
                 }
-                logMessage(`"${unit.name}" inicia viaje de regreso a ${route.destination.name}.`);
-                console.groupEnd();
-            }
 
-            // Si no ha llegado, avanza.
-            if (route.position >= route.path.length - 1) break; // Seguridad extra
-            
-            const nextStepCoords = route.path[route.position + 1];
-            if (!nextStepCoords) { // Seguridad por si el path es corto
-                break;
+                if (!route.path || route.path.length === 0) {
+                    logMessage(`"${unit.name}" cancela ruta: camino de vuelta obstruido o inexistente.`);
+                    delete unit.tradeRoute; // <--- AQUÍ SE BORRA LA RUTA
+                    break; // Rompe el while, e irá a la comprobación de seguridad de abajo
+                }
             }
-            const unitOnNextStep = getUnitOnHex(nextStepCoords.r, nextStepCoords.c);
-            // Si hay una unidad, no es la propia caravana, y NO es la casilla final del path
-            if (unitOnNextStep && unitOnNextStep.id !== unit.id && (route.position + 1 < route.path.length - 1)) {
-                 logMessage(`Caravana "${unit.name}" espera porque la ruta está bloqueada.`);
-                 break; // Detener el movimiento de esta caravana en este turno
-            }
-            
-            // Si pasa las condiciones, avanza un paso
-            route.position++;
-            
-            const incomePerHex = GOLD_INCOME.PER_ROAD || 20;
-            if (route.goldCarried < route.cargoCapacity) {
-                route.goldCarried = Math.min(route.cargoCapacity, route.goldCarried + incomePerHex);
-            }
-            movesLeft--;
         }
 
-        // Actualizar la posición lógica de la unidad en el tablero
-        if (route && route.path && route.path[route.position]) {
-             const newCoords = route.path[route.position];
-             if (board[unit.r]?.[unit.c]?.unit?.id === unit.id) {
-                 board[unit.r][unit.c].unit = null;
-             }
-             unit.r = newCoords.r;
-             unit.c = newCoords.c;
-             if (board[unit.r]?.[unit.c]) {
-                 board[unit.r][unit.c].unit = unit;
-             }
+        // --- PASO 3: FINALIZAR POSICIÓN ---
+        
+        // <<== CORRECCIÓN CRÍTICA: Verificar que la ruta aún existe antes de leerla ==>>
+        if (unit.tradeRoute && unit.tradeRoute.path) {
+            const finalCoords = unit.tradeRoute.path[unit.tradeRoute.position];
+            
+            // Seguridad adicional por si el índice está fuera de rango
+            if (finalCoords) {
+                unit.r = finalCoords.r;
+                unit.c = finalCoords.c;
+            }
+        } else {
+            // Si la ruta se borró, la unidad se queda donde estaba en la última iteración válida (currentPos)
+            // No necesitamos hacer nada, unit.r y unit.c ya tienen valores, pero debemos asegurarnos
+            // de que se pinte en el tablero.
         }
-         // Las unidades en ruta comercial siempre están listas para su siguiente movimiento automático
-        if (unit.player !== BankManager.PLAYER_ID) {
-            unit.hasMoved = false;
-            unit.hasAttacked = false;
-        }
+
+        // Reinsertar en el tablero lógico
+        if (board[unit.r]?.[unit.c]) board[unit.r][unit.c].unit = unit;
+
+        unit.hasMoved = true;
+        unit.hasAttacked = true;
+        positionUnitElement(unit);
     });
 
-    if (UIManager && UIManager.renderAllUnitsFromData) {
-        UIManager.renderAllUnitsFromData();
-    }
+    if (UIManager) UIManager.renderAllUnitsFromData();
 }
 
 /**
  * Calcula y asigna los Puntos de Victoria al final de una ronda.
  */
 function calculateVictoryPoints() {
+    if (gameState.turnNumber < 2) return; 
 
-    if (gameState.turnNumber < 11) return;
-
-    // Bloque de seguridad: Si playerStats no existe, lo inicializamos.
     ensureFullGameState();
-
-    console.log("%c[Victoria por Puntos] Calculando PV para el final de la ronda " + (gameState.turnNumber -1), "background: gold; color: black;");
 
     const players = Array.from({ length: gameState.numPlayers }, (_, i) => i + 1);
     const metrics = {};
-
-    // 1. Recopilar métricas de todos los jugadores
-    players.forEach(p => {
-        const playerKey = `player${p}`;
-        const playerUnits = units.filter(u => u.player === p);
-        metrics[p] = {
-            cities: gameState.cities.filter(c => c.owner === p).length,
-            armySize: playerUnits.reduce((sum, u) => sum + u.maxHealth, 0),
-            longestRoute: playerUnits.filter(u => u.tradeRoute).reduce((max, u) => Math.max(max, u.tradeRoute.path.length), 0),
-            kills: gameState.playerStats.unitsDestroyed[playerKey] || 0,
-            techs: gameState.playerResources[p].researchedTechnologies.length,
-            heroes: playerUnits.filter(u => u.commander).length,
-            resources: Object.values(gameState.playerResources[p]).reduce((sum, val) => typeof val === 'number' ? sum + val : sum, 0),
-            trades: gameState.playerStats.sealTrades[playerKey] || 0
-        };
-    });
-    
     const vp = gameState.victoryPoints;
     const oldHolders = { ...vp.holders };
 
-    // 2. Determinar quién ostenta cada título
+    // 1. Recopilar métricas según acuerdo técnico
+    players.forEach(p => {
+        const pKey = `player${p}`;
+        const res = gameState.playerResources[p] || {};
+        const playerUnits = units.filter(u => u.player === p && u.currentHealth > 0);
+
+        metrics[p] = {
+            // MÉTRICA ACORDADA 1: Conteo de rutas activas
+            routesCount: playerUnits.filter(u => u.tradeRoute).length,
+
+            // MÉTRICA ACORDADA 2: Suma directa de 5 recursos
+            wealthSum: (res.oro || 0) + (res.hierro || 0) + (res.piedra || 0) + (res.madera || 0) + (res.comida || 0),
+
+            // Otras métricas existentes (fijas para el resto de PV)
+            cities: board.flat().filter(h => h && h.owner === p && (h.isCity || h.structure === 'Aldea')).length,
+            armySize: playerUnits.reduce((sum, u) => sum + u.maxHealth, 0),
+            kills: gameState.playerStats?.unitsDestroyed?.[pKey] || 0,
+            techs: (res.researchedTechnologies || []).length,
+            heroes: playerUnits.filter(u => u.commander).length,
+            trades: gameState.playerStats?.sealTrades?.[pKey] || 0,
+            ruinsCount: gameState.playerStats?.ruinsExplored?.[pKey] || 0
+        };
+    });
+
+    // Función auxiliar de comparación (Récordista)
     const findWinner = (metric) => {
-        let maxVal = -1;
+        let maxVal = 0;
         let winner = null;
         players.forEach(p => {
-            if (metrics[p][metric] > maxVal) {
-                maxVal = metrics[p][metric];
+            const val = metrics[p][metric];
+            if (val > maxVal) {
+                maxVal = val;
                 winner = `player${p}`;
-            } else if (metrics[p][metric] === maxVal) {
+            } else if (val === maxVal && val > 0) {
                 winner = null; // Empate anula el punto
             }
         });
-        // Aplicar condiciones mínimas
-        if (metric === 'longestRoute' && maxVal < 5) return null;
-        if (metric === 'resources' && maxVal < 25000) return null; // 5000 * 5 recursos
         return winner;
     };
 
+    // 2. Asignación de Títulos por Récord
     vp.holders.mostCities = findWinner('cities');
     vp.holders.largestArmy = findWinner('armySize');
-    vp.holders.longestRoute = findWinner('longestRoute');
+    vp.holders.mostRoutes = findWinner('routesCount'); // Cambio aplicado
     vp.holders.mostKills = findWinner('kills');
     vp.holders.mostTechs = findWinner('techs');
     vp.holders.mostHeroes = findWinner('heroes');
-    vp.holders.mostResources = findWinner('resources');
+    vp.holders.mostResources = findWinner('wealthSum'); // Cambio aplicado
+    vp.holders.mostTrades = findWinner('trades');
+    vp.holders.mostRuins = findWinner('ruinsCount'); 
 
-    // Lógica especial para empates en comercio
-    let maxTrades = -1;
-    players.forEach(p => { maxTrades = Math.max(maxTrades, metrics[p].trades); });
-    vp.holders.mostTrades = [];
-    if (maxTrades > 0) {
-        players.forEach(p => {
-            if (metrics[p].trades === maxTrades) {
-                vp.holders.mostTrades.push(`player${p}`);
-            }
-        });
-    }
-
-    // 3. Recalcular totales y anunciar cambios
+    // 3. Recalcular total de PV para cada jugador
     players.forEach(p => {
-        const playerKey = `player${p}`;
-        let totalPoints = vp.ruins[playerKey] || 0;
-        for (const holder in vp.holders) {
-            if (Array.isArray(vp.holders[holder])) {
-                if (vp.holders[holder].includes(playerKey)) totalPoints++;
-            } else {
-                if (vp.holders[holder] === playerKey) totalPoints++;
-            }
+        const pKey = `player${p}`;
+        // Base: Puntos encontrados directamente + Trofeos de récord
+        let total = vp.ruins[pKey] || 0; 
+        for (const title in vp.holders) {
+            if (vp.holders[title] === pKey) total++;
         }
-        vp[playerKey] = totalPoints;
+        vp[pKey] = total;
     });
 
-    // Anunciar cambios de titularidad
-    for (const holder in vp.holders) {
-        if (vp.holders[holder] !== oldHolders[holder]) {
-            if (vp.holders[holder]) {
-                 logMessage(`¡${vp.holders[holder]} ahora ostenta el título de "${holder}"!`, "event");
-            }
+    // 4. Notificar cambios de manos y comprobar victoria (Tu lógica original)
+    for (const title in vp.holders) {
+        if (vp.holders[title] !== oldHolders[title]) {
+            if (vp.holders[title]) logMessage(`¡${vp.holders[title]} ahora ostenta el título de "${title}"!`, "success");
         }
     }
-    
-    // 4. Comprobar victoria
-    players.forEach(p => {
-        if (vp[`player${p}`] >= 9) {
-            logMessage(`¡El Jugador ${p} ha alcanzado 9 Puntos de Victoria y gana la partida!`, "victory");
-            endTacticalBattle(p);
-        }
-    });
 
-    // Llamar a la UI para que actualice el display
-    if (typeof UIManager !== 'undefined' && UIManager.updateVictoryPointsDisplay) {
-        UIManager.updateVictoryPointsDisplay();
+    // PUNTO DE CONTROL B2: Comprobación de puntos acumulados
+    const currentScore = vp[`player${gameState.currentPlayer}`];
+    console.log(`[AUDITORÍA] Puntos de J${gameState.currentPlayer}: ${currentScore} / Objetivo: 9`);
+
+    if (currentScore >= 9) {
+        console.log("%c[AUDITORÍA] ¡Victoria por 9 puntos alcanzada! Llamando a endTacticalBattle.", "color: #f1c40f; font-weight: bold;");
+        endTacticalBattle(gameState.currentPlayer);
     }
 
-    console.log("[Victoria por Puntos] Estado actualizado:", JSON.parse(JSON.stringify(vp)));
+    if (vp[`player${gameState.currentPlayer}`] >= 9) {
+        endTacticalBattle(gameState.currentPlayer);
+    }
+
+    if (UIManager) UIManager.updateVictoryPointsDisplay();
 }

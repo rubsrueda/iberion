@@ -1508,6 +1508,13 @@ if (interactiveBoard) {
             case 'openGameModes':
                 document.getElementById('gameModesModal').style.display = 'flex';
                 break;
+
+            case 'openProfile':
+                if (typeof openProfileModal === 'function') {
+                    openProfileModal();
+                }
+                break;
+                    
             case 'openAltar':
                 if (typeof openDeseosModal === 'function') {
                     openDeseosModal();
@@ -1523,6 +1530,9 @@ if (interactiveBoard) {
                     openForgeModal();
                 }
                 break;
+
+            
+            
             case 'showComingSoon':
             // Usamos la nueva función de notificación para el jugador
             if (typeof showToast === 'function') {

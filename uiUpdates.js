@@ -1032,27 +1032,6 @@ const UIManager = {
                 this._lastTutorialHighlightElementId = elementId; 
             }
         }
-        
-        // Lógica para resaltar hexágonos (creando el "aro de luz")
-        /*
-        if (hexCoords) {
-            const coords = (typeof hexCoords === 'function') ? hexCoords() : hexCoords;
-            coords.forEach(coord => {
-                const hexData = board[coord.r]?.[coord.c];
-                if (hexData && hexData.element) {
-                    // 1. Creamos el nuevo div para el "aro de luz"
-                    const overlay = document.createElement('div');
-                    overlay.className = 'tutorial-hex-overlay';
-                    
-                    // 2. Lo posicionamos exactamente encima del hexágono
-                    overlay.style.left = hexData.element.style.left;
-                    overlay.style.top = hexData.element.style.top;
-                    
-                    // 3. Lo añadimos al tablero de juego
-                    this._domElements.gameBoard.appendChild(overlay);
-                }
-            });
-        }*/
 
         if (hexCoords) {
             const coords = (typeof hexCoords === 'function') ? hexCoords() : hexCoords;
@@ -1100,7 +1079,7 @@ const UIManager = {
     },
 
     // =============================================================
-    // ==   FUNCIÓN DE AUTOCIERRE QUE FALTABA                     ==
+    // ==   FUNCIÓN DE AUTOCIERRE                     ==
     // =============================================================
     _startAutocloseTimer: function(isHexPanel = false) {
         if (gameState.isTutorialActive) return;
@@ -1167,10 +1146,11 @@ const UIManager = {
         // 2. Construir el contenido del tooltip detallado (sin cambios en la lógica)
         let tooltipHTML = '<h4>Títulos de Victoria</h4><ul>';
         const titles = {
-            mostCities: "Más Ciudades", largestArmy: "Ejército Grande", longestRoute: "Ruta Larga",
+            mostCities: "Más Ciudades", largestArmy: "Ejército Grande", mostRoutes: "Ruta Larga",
             mostKills: "Más Victorias", mostTechs: "Más Avances", mostHeroes: "Más Héroes",
-            mostResources: "Más Riqueza", mostTrades: "Más Comercios"
+            mostResources: "Más Riqueza", mostTrades: "Más Comercios", mostRuins: "Gran Arqueólogo"  
         };
+
         for (const key in vpData.holders) {
             const title = titles[key];
             let holderText = '(Nadie)';
@@ -1204,5 +1184,64 @@ const UIManager = {
         
         tooltipEl.innerHTML = tooltipHTML;
     },
-    
+
+    // =============================================================
+    // ==   pantalla de resultados                     ==
+    // =============================================================
+
+    showPostMatchSummary: function(playerWon, xpGained, progress, metrics) {
+        const modal = document.getElementById('postMatchModal');
+        if (!modal) return;
+
+        const title = document.getElementById('matchResultTitle');
+        const levelDisplay = document.getElementById('playerLevelDisplay');
+        const xpBar = document.getElementById('playerXpBar');
+        const statsGrid = document.getElementById('matchStatsGrid');
+
+        statsGrid.innerHTML = `
+            <div>Turnos: <strong>${metrics.turns}</strong></div>
+            <div>Bajas: <strong>${metrics.kills}</strong></div>
+        `;
+
+        modal.style.display = 'flex';
+
+        // 1. Configurar Título y Color
+        title.textContent = playerWon ? "¡VICTORIA ÉPICA!" : "DERROTA HONORABLE";
+        title.style.color = playerWon ? "#f1c40f" : "#e74c3c";
+
+        // 2. Mostrar Estadísticas de la partida
+        statsGrid.innerHTML = `
+            <div>Turnos: <strong>${metrics.turns || 0}</strong></div>
+            <div>Bajas: <strong>${metrics.kills || 0}</strong></div>
+            <div>XP Ganada: <strong>+${xpGained || 0}</strong></div>
+            <div>Resultado: <strong>${(metrics.outcome || 'Finalizado').toUpperCase()}</strong></div>
+        `;
+
+        // 3. Animación de la barra de XP
+        levelDisplay.textContent = progress.level;
+        setTimeout(() => {
+            const xpToNext = Math.floor(1000 * Math.pow(1.2, progress.level - 1));
+            const percentage = (progress.xp / xpToNext) * 100;
+            document.getElementById('playerXpBar').style.width = percentage + '%';
+        }, 500);
+        
+        // Mostramos el modal
+        modal.style.display = 'flex';
+
+        // Pequeño delay para que la animación se vea fluida
+        setTimeout(() => {
+            const percentage = (progress.xp / progress.xpNext) * 100;
+            xpBar.style.transition = "width 1.5s ease-out";
+            xpBar.style.width = `${percentage}%`;
+        }, 500);
+
+        // 4. Botón de cerrar (Vuelve al menú principal)
+        document.getElementById('closePostMatchBtn').onclick = () => {
+            modal.style.display = 'none';
+            if (!gameState.isCampaignBattle) {
+                showScreen(domElements.mainMenuScreenEl);
+            }
+        };
+    },
+
 };

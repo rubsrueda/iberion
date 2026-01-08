@@ -1084,31 +1084,62 @@ resourceTypesArray.forEach(type => {
 logMessage(`Generación de recursos completada.`);
 }
 
-function addCityToBoardData(r, c, owner, name, isCapitalInitial = false) { // Añadir parámetro 'isCapitalInitial'
-if (board[r]?.[c]) {
-board[r][c].isCity = true;
-board[r][c].owner = owner; // 'owner' puede ser el ID del jugador (1, 2) o null/0 para neutral
-        
-// Asegurar que la propiedad isCapital se maneja
-    board[r][c].isCapital = isCapitalInitial; 
-
-    // Guardar referencia en gameState.cities si no existe o actualizarla
-    let cityEntry = gameState.cities?.find(city => city.r === r && city.c === c);
-    if (cityEntry) {
-        cityEntry.owner = owner;
-        cityEntry.name = name;
-        cityEntry.isCapital = isCapitalInitial;
-    } else {
-        gameState.cities.push({ r, c, owner, name, isCapital: isCapitalInitial });
+// --- HELPER Obtener nombre único ---
+function getUniqueCityName() {
+    // 1. Recopilar nombres ya usados en el juego actual
+    const usedNames = new Set(gameState.cities.map(c => c.name));
+    
+    // 2. Filtrar la lista de constantes para ver cuáles quedan libres
+    const availableNames = IBERIAN_CITY_NAMES.filter(name => !usedNames.has(name));
+    
+    // 3. Si quedan nombres, elegir uno al azar
+    if (availableNames.length > 0) {
+        const randomIndex = Math.floor(Math.random() * availableNames.length);
+        return availableNames[randomIndex];
     }
-
-    // Si se establece como capital inicial, actualizar también el ID de capital en gameState
-    if (isCapitalInitial && owner !== null && gameState.capitalCityId) {
-        gameState.capitalCityId[owner] = { r: r, c: c }; // Guardamos la coordenada como string o objeto
-    }
-} else {
-    console.warn(`Intento de añadir ciudad en hexágono inválido o inexistente: (${r},${c})`);
+    
+    // 4. Fallback si nos quedamos sin nombres históricos
+    return `Nueva Ciudad ${gameState.cities.length + 1}`;
 }
+
+// --- addCityToBoardData ---
+function addCityToBoardData(r, c, owner, name, isCapitalInitial = false) { 
+    if (board[r]?.[c]) {
+        board[r][c].isCity = true;
+        board[r][c].owner = owner;
+
+        // LÓGICA DE NOMBRE MEJORADA
+        // Si no hay nombre, O si el nombre es genérico, asignamos uno histórico.
+        const genericNames = ["Aldea", "Ciudad", "Metrópoli", "Capital P1 (Escaramuza)", "Capital P2 (Escaramuza)"];
+        
+        let finalName = name;
+        if (!name || genericNames.includes(name) || name.startsWith("Capital P")) {
+            finalName = getUniqueCityName();
+        }
+
+        board[r][c].cityName = finalName; 
+        board[r][c].isCapital = isCapitalInitial; 
+
+        // Guardar referencia en gameState.cities
+        let cityEntry = gameState.cities?.find(city => city.r === r && city.c === c);
+        if (cityEntry) {
+            cityEntry.owner = owner;
+            cityEntry.name = finalName; // Actualizamos el nombre
+            cityEntry.isCapital = isCapitalInitial;
+        } else {
+            gameState.cities.push({ r, c, owner, name: finalName, isCapital: isCapitalInitial });
+        }
+
+        if (isCapitalInitial && owner !== null && gameState.capitalCityId) {
+            gameState.capitalCityId[owner] = { r: r, c: c };
+        }
+        
+        // Actualizar visualmente si la partida ya está corriendo
+        if (typeof renderSingleHexVisuals === 'function') renderSingleHexVisuals(r, c);
+
+    } else {
+        console.warn(`Intento de añadir ciudad en hexágono inválido: (${r},${c})`);
+    }
 }
 
 function addResourceNodeToBoardData(r, c, type) {
@@ -1198,48 +1229,6 @@ function renderSingleHexVisuals(r, c) {
     }
 }
 
-/*
-// Lógica para el sprite de la estructura (sin cambios)
-let structureSpriteEl = hexEl.querySelector('.structure-sprite');
-
-// CASO 1: El hexágono DEBERÍA tener una estructura según los datos.
-if (hexData.structure && STRUCTURE_TYPES[hexData.structure]) {
-    // Log de diagnóstico
-    // console.log(`[Render] Hex (${r},${c}) debe tener la estructura: ${hexData.structure}`);
-    
-    // Si no existe el elemento <span> para el sprite, lo creamos.
-    if (!structureSpriteEl) {
-        structureSpriteEl = document.createElement('span');
-        structureSpriteEl.className = 'structure-sprite'; // Usamos className para asegurarnos de que solo tenga esta clase.
-        hexEl.appendChild(structureSpriteEl);
-    }
-    
-    // Aplicamos el sprite correcto (lógica sin cambios)
-    const spriteValue = STRUCTURE_TYPES[hexData.structure].sprite;
-    if (spriteValue.includes('.') || spriteValue.includes('/')) {
-        structureSpriteEl.style.backgroundImage = `url('${spriteValue}')`;
-        structureSpriteEl.textContent = '';
-    } else {
-        structureSpriteEl.style.backgroundImage = 'none';
-        structureSpriteEl.textContent = spriteValue;
-    }
-} 
-// CASO 2: El hexágono NO DEBERÍA tener una estructura (hexData.structure es null).
-else {
-    // Log de diagnóstico
-    // console.log(`[Render] Hex (${r},${c}) NO debe tener estructura. Buscando sprite para eliminar...`);
-    
-    // Si encontramos un elemento de sprite de una renderización anterior, lo eliminamos.
-    // Esta es la parte crucial que debería limpiar el camino.
-    if (structureSpriteEl) {
-        // console.log(`   -> Sprite encontrado. Eliminando...`);
-        structureSpriteEl.remove();
-    } else {
-        // console.log(`   -> No se encontró ningún sprite para eliminar. El hex está limpio.`);
-    }
-}
-*/
-
 /**
  * Asegura que exista al menos un camino transitable entre dos puntos (capitales)
  * convirtiendo los hexágonos del camino en llanuras.
@@ -1312,8 +1301,6 @@ for (let r = 0; r < board.length; r++) {
 }
 console.log("Inicialización de territorio completada.");
 }
-
-// Al final de boardManager.js
 
 /**
  * (NUEVO) Inicializa el tablero para la modalidad de juego "Iberia Magna".

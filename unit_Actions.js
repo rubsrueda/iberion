@@ -220,7 +220,7 @@ async function mergeUnits(mergingUnit, targetUnit) {
         logMessage(`Límite de regimientos excedido.`, "warning");
         return false;
     }
-
+    
     // CORRECCIÓN: La confirmación ya se hizo en RequestMergeUnits antes de enviar la acción
     // Por lo tanto, cuando esta función se ejecuta, ya está confirmado
     // Eliminamos el window.confirm para evitar que aparezca en el anfitrión
@@ -276,26 +276,15 @@ function prepareSplitOrDisembark(unit) {
     const hasNavalRegiments = unit.regiments.some(reg => REGIMENT_TYPES[reg.type]?.is_naval);
     const hasLandRegiments = unit.regiments.some(reg => !REGIMENT_TYPES[reg.type]?.is_naval);
 
-    // <<== INICIO: LÓGICA DE DECISIÓN CORREGIDA ==>>
+    
 
     // CASO 1: Es una unidad mixta (transporte con tropas). DEBE desembarcar/dividir.
     if (hasNavalRegiments && hasLandRegiments) {
-        console.log(`[Action Prep] Unidad mixta detectada (${unit.name}). Preparando para desembarco/división.`);
-        // Abre el modal avanzado, que ahora podrá manejar la división de tropas navales y terrestres.
-        if (typeof openAdvancedSplitUnitModal === "function") {
-           openAdvancedSplitUnitModal(unit);
-        } else {
-           console.error("Error: La función openAdvancedSplitUnitModal no está definida.");
-        }
+        if (typeof openAdvancedSplitUnitModal === "function") openAdvancedSplitUnitModal(unit);
     } 
     // CASO 2: Es una unidad de tierra con múltiples regimientos. Puede dividirse en tierra.
     else if (!hasNavalRegiments && unit.regiments.length > 1) {
-        console.log(`[Action Prep] División terrestre detectada (${unit.name}).`);
-        if (typeof openAdvancedSplitUnitModal === "function") {
-           openAdvancedSplitUnitModal(unit);
-        } else {
-           console.error("Error: La función openAdvancedSplitUnitModal no está definida.");
-        }
+        if (typeof openAdvancedSplitUnitModal === "function") openAdvancedSplitUnitModal(unit);
     }
     // CASO 3: Es una flota naval pura o una unidad terrestre de un solo regimiento.
     else {
@@ -328,18 +317,10 @@ function handleActionWithSelectedUnit(r_target, c_target, clickedUnitOnTargetHex
 
     // --- MANEJO DE ACCIÓN PREPARADA (AQUÍ ESTÁ LA CORRECCIÓN) ---
     if (gameState.preparingAction && gameState.preparingAction.unitId === selectedUnit.id) {
-        console.log(`[handleAction] Detectada acción preparada: ${gameState.preparingAction.type}`);
-        
         if (gameState.preparingAction.type === 'split_unit') {
-            // ANTES (PROBLEMÁTICO):
-            // if (splitUnit(selectedUnit, r_target, c_target)) {
-            
-            // DESPUÉS (CORREGIDO):
             if (isNetworkGame()) {
                 // En partidas de red, usar el sistema de red
                 RequestSplitUnit(selectedUnit, r_target, c_target);
-                success = true;
-                console.log("[handleAction] División enviada al anfitrión. Limpiando acción preparada.");
                 cancelPreparingAction();
                 return true;
             } else {
@@ -365,11 +346,10 @@ function handleActionWithSelectedUnit(r_target, c_target, clickedUnitOnTargetHex
         
         // Subcaso 1.1: Es una unidad ENEMIGA.
         if (clickedUnitOnTargetHex.player !== selectedUnit.player) {
-            console.log(`[handleAction] Clic en ENEMIGO. Verificando ataque...`);
             if (isValidAttack(selectedUnit, clickedUnitOnTargetHex)) {
                 console.log(`[handleAction] ¡ATAQUE VÁLIDO! Iniciando RequestAttackUnit...`);
                 RequestAttackUnit(selectedUnit, clickedUnitOnTargetHex);
-                return true; // <<< DEVUELVE TRUE
+                return true; 
             } else {
                 logMessage(`${selectedUnit.name} no puede atacar a ${clickedUnitOnTargetHex.name}.`);
             }
@@ -378,24 +358,20 @@ function handleActionWithSelectedUnit(r_target, c_target, clickedUnitOnTargetHex
         else {
             if (clickedUnitOnTargetHex.id === selectedUnit.id) return false;
             
-            console.log(`[handleAction] Clic en ALIADO. Verificando fusión...`);
             if (isValidMove(selectedUnit, r_target, c_target, true)) {
                 console.log(`[handleAction] ¡FUSIÓN VÁLIDA! Iniciando RequestMergeUnits...`);
                 RequestMergeUnits(selectedUnit, clickedUnitOnTargetHex);
-                return true; // <<< DEVUELVE TRUE
+                return true;
             }
         }
     }
     // CASO 2: Se hizo clic sobre una casilla VACÍA.
     else {
-        console.log(`[handleAction] Clic en casilla VACÍA. Verificando movimiento...`);
         if (isValidMove(selectedUnit, r_target, c_target, false)) {
          // Ahora decidimos qué función llamar basándonos en si es una partida en red o no.   
             if (isNetworkGame()) {
-                console.log(`[handleAction] ¡MOVIMIENTO VÁLIDO (RED)! Iniciando RequestMoveUnit...`);
                 RequestMoveUnit(selectedUnit, r_target, c_target);
             } else {
-                console.log(`[handleAction] ¡MOVIMIENTO VÁLIDO (LOCAL)! Iniciando moveUnit...`);
                 _executeMoveUnit(selectedUnit, r_target, c_target);
             }
             return true;
@@ -408,8 +384,6 @@ function handleActionWithSelectedUnit(r_target, c_target, clickedUnitOnTargetHex
 }
 
 function selectUnit(unit) {
-        console.log(`[DEBUG selectUnit] INICIO - Intentando seleccionar: ${unit?.name || 'unidad nula'}`);
-
     if (!unit) {
         console.warn("[selectUnit] Intento de seleccionar unidad nula.");
         if (typeof deselectUnit === "function") deselectUnit();
@@ -421,11 +395,10 @@ function selectUnit(unit) {
     if (gameState.currentPhase === 'play' && unit.player !== gameState.currentPlayer) {
         console.log(`[selectUnit] No se puede tomar control de ${unit.name} (Jugador ${unit.player}).`);
         if (typeof deselectUnit === "function") deselectUnit();
-        return; // Mostramos su info pero no la seleccionamos como 'activa'
+        return; 
     }
 
     if (selectedUnit && selectedUnit.id === unit.id && gameState.preparingAction?.type === 'split_unit') {
-        console.log(`[DEBUG selectUnit] Clic en la misma unidad (${unit.name}) con acción de división preparada. No se hace nada.`);
         if (typeof highlightPossibleActions === "function") highlightPossibleActions(selectedUnit);
         return; 
     }
@@ -435,7 +408,6 @@ function selectUnit(unit) {
     }
 
     selectedUnit = unit;
-    console.log(`[selectUnit] ${selectedUnit.name} establecida como selectedUnit.`);
     
     if (gameState) {
         gameState.selectedHexR = unit.r;
@@ -453,7 +425,7 @@ function selectUnit(unit) {
     
     logMessage(`${unit.name} (J${unit.player}) seleccionada.`);
 
-    // >> LÓGICA AÑADIDA/MODIFICADA PARA UNIDADES "ZOMBIS" <<
+    // >> LÓGICA PARA UNIDADES "ZOMBIS" <<
     const isBroken = unit.morale <= 0;
     const canAct = gameState.currentPhase !== 'play' || (!unit.hasMoved && !unit.hasAttacked);
 
@@ -464,24 +436,17 @@ function selectUnit(unit) {
     
     if (isBroken) {
         // Si la unidad está rota, no mostramos ninguna acción posible.
-        if (typeof UIManager !== 'undefined' && UIManager.clearHighlights) {
-            UIManager.clearHighlights();
-        }
+        if (typeof UIManager !== 'undefined' && UIManager.clearHighlights) UIManager.clearHighlights();
         logMessage(`${unit.name} tiene la moral rota y no puede actuar este turno.`);
     } else if (canAct) {
-        // Si no está rota Y puede actuar, mostramos las acciones posibles.
-        if (typeof UIManager !== 'undefined' && UIManager.highlightPossibleActions) {
-            UIManager.highlightPossibleActions(unit);
-        }
+        if (typeof UIManager !== 'undefined' && UIManager.highlightPossibleActions) UIManager.highlightPossibleActions(unit);
     } else {
         // Si no está rota pero ya actuó.
         logMessage(`${unit.name} ya ha actuado este turno.`);
-        if (typeof UIManager !== 'undefined' && UIManager.clearHighlights) {
-            UIManager.clearHighlights();
-        }
+        if (typeof UIManager !== 'undefined' && UIManager.clearHighlights) UIManager.clearHighlights();
     }
-    
-    // --- INICIO DEL DIAGNÓSTICO DEFINITIVO (EN SU LUGAR CORRECTO) ---
+
+    // --- INICIO DEL DIAGNÓSTICO ---
     if (isNetworkGame() && !NetworkManager.esAnfitrion) { // Solo ejecutar en el cliente
         console.group(`===== DIAGNÓSTICO DE UI PARA '${unit.name}' =====`);
 
@@ -515,10 +480,8 @@ function selectUnit(unit) {
         console.groupEnd();
     }
     // --- FIN DEL DIAGNÓSTICO DEFINITIVO ---
-
+    
     if (gameState.isTutorialActive) TutorialManager.notifyActionCompleted('unit_selected_by_objective');
-
-    console.log(`[DEBUG selectUnit] FIN - selectedUnit ahora es: ${selectedUnit?.name}`);
 }
 
 function deselectUnit() {
@@ -527,11 +490,9 @@ function deselectUnit() {
     }
     selectedUnit = null;
     
-    // --- ¡CORRECCIÓN CLAVE! ---
     // Si deseleccionas una unidad, cualquier acción que estuvieras preparando
     // con ella debe ser cancelada.
     cancelPreparingAction(); 
-    // --- FIN DE LA CORRECCIÓN ---
 }
 
 /**
@@ -586,123 +547,114 @@ function isValidMove(unit, toR, toC, isPotentialMerge = false) {
 }
 
 function getMovementCost(unit, r_start, c_start, r_target, c_target, isPotentialMerge = false) {
-        if (!unit) return Infinity;
-        if (r_start === r_target && c_start === c_target) return 0;
+    if (!unit) return Infinity;
+    if (r_start === r_target && c_start === c_target) return 0;
 
-        // === ZOC ======
+    // --- ZOC Block ---
+    let ignoresRule = unit.regiments.every(reg => REGIMENT_TYPES[reg.type]?.abilities?.includes("Jump"));
 
-        let ignoresRule = unit.regiments.every(reg => REGIMENT_TYPES[reg.type]?.abilities?.includes("Jump"));
+    const lockingEnemies = getHexNeighbors(r_start, c_start)
+        .map(coords => getUnitOnHex(coords.r, coords.c))
+        .filter(u => u && u.player !== unit.player);
 
-        const lockingEnemies = getHexNeighbors(r_start, c_start)
-            .map(coords => getUnitOnHex(coords.r, coords.c))
-            .filter(u => u && u.player !== unit.player);
-
-        if (!ignoresRule && lockingEnemies.length > 0) {
-            const isAttackOrMerge = isPotentialMerge || (!!getUnitOnHex(r_target, c_target) && getUnitOnHex(r_target, c_target).player !== unit.player);
+    if (!ignoresRule && lockingEnemies.length > 0) {
+        const isAttackOrMerge = isPotentialMerge || (!!getUnitOnHex(r_target, c_target) && getUnitOnHex(r_target, c_target).player !== unit.player);
             
-            if (!isAttackOrMerge) {
-                const isMovingTowardsEnemy = lockingEnemies.some(enemy => 
-                    hexDistance(r_target, c_target, enemy.r, enemy.c) < hexDistance(r_start, c_start, enemy.r, enemy.c)
-                );
-
-                if (isMovingTowardsEnemy) {
-                    return Infinity; // SI EL MOVIMIENTO ES ILEGAL, LA RUTA ES IMPOSIBLE
-                }
-            }
+        if (!isAttackOrMerge) {
+            const isMovingTowardsEnemy = lockingEnemies.some(enemy => 
+                hexDistance(r_target, c_target, enemy.r, enemy.c) < hexDistance(r_start, c_start, enemy.r, enemy.c)
+            );
+            if (isMovingTowardsEnemy) return Infinity; 
         }
-        // === FIN DEL BLOQUE AÑADIDO ================
+    }
+    // --- End ZOC Block ---
 
-        const unitRegimentData = REGIMENT_TYPES[unit.regiments[0]?.type];
+    const unitRegimentData = REGIMENT_TYPES[unit.regiments[0]?.type];
         if (!unitRegimentData) return Infinity; // No se puede mover si no hay datos del regimiento
 
-        // Se detecta si la unidad que se mueve tiene la habilidad.
-        const hasJumpAbility = unit.regiments.some(reg => 
-            REGIMENT_TYPES[reg.type]?.abilities?.includes("Jump")
-        );
+    // Se detecta si la unidad que se mueve tiene la habilidad.
+    const hasJumpAbility = unit.regiments.some(reg => REGIMENT_TYPES[reg.type]?.abilities?.includes("Jump"));
 
-        let queue = [{ r: r_start, c: c_start, cost: 0 }];
-        let visited = new Map([[`${r_start},${c_start}`, 0]]);
+    let queue = [{ r: r_start, c: c_start, cost: 0 }];
+    let visited = new Map([[`${r_start},${c_start}`, 0]]);
 
-        while (queue.length > 0) {
-            // No es necesario ordenar la cola para un BFS simple de coste, procesamos en orden de llegada.
-            let current = queue.shift();
+    while (queue.length > 0) {
+        // No es necesario ordenar la cola para un BFS simple de coste, procesamos en orden de llegada.
+        let current = queue.shift();
+        
+        // Condición de éxito: hemos llegado al hexágono de destino
+        if (current.r === r_target && current.c === c_target) return current.cost;
+        // No buscar caminos absurdamente largos
+        if (current.cost > (unit.movement || 1) * 3) continue;
+
+        let neighbors = getHexNeighbors(current.r, current.c);
+        for (const neighbor of neighbors) {
+            const neighborHexData = board[neighbor.r]?.[neighbor.c];
+            if (!neighborHexData) continue;
             
-            // Condición de éxito: hemos llegado al hexágono de destino
-            if (current.r === r_target && current.c === c_target) {
-                return current.cost;
-            }
+            const neighborKey = `${neighbor.r},${neighbor.c}`;
+            const unitAtNeighbor = getUnitOnHex(neighbor.r, neighbor.c);
             
-            // No buscar caminos absurdamente largos
-            if (current.cost > (unit.movement || 1) * 3) {
-                continue;
-            }
-
-            let neighbors = getHexNeighbors(current.r, current.c);
-            for (const neighbor of neighbors) {
-                const neighborHexData = board[neighbor.r]?.[neighbor.c];
-                if (!neighborHexData) continue;
-                
-                const neighborKey = `${neighbor.r},${neighbor.c}`;
-                const unitAtNeighbor = getUnitOnHex(neighbor.r, neighbor.c);
-                
                 // --- INICIO LÓGICA DE VALIDEZ DE MOVIMIENTO ---
-                let canPassThrough = false;
+            let canPassThrough = false;
 
-                // CASO 1: Movimiento a un hexágono vacío.
-                if (!unitAtNeighbor) {
-                    // Si la casilla está vacía, se verifican las reglas normales de terreno.
-                    if (unitRegimentData.is_naval) {
-                        canPassThrough = neighborHexData.terrain === 'water';
-                    } else {
-                        const unitCategory = unitRegimentData.category;
-                        const isImpassable = (IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY.all_land.includes(neighborHexData.terrain)) ||
-                                            (IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[unitCategory] || []).includes(neighborHexData.terrain);
-                        canPassThrough = !isImpassable;
-                    }
-                } 
-                // Si la casilla está ocupada, se comprueba si es un aliado y si tenemos "Jump".
-                else if (unitAtNeighbor.player === unit.player && hasJumpAbility) {
-                    canPassThrough = true; // Se puede pasar, pero no terminar el movimiento.
+            // CASO 1: Movimiento a un hexágono vacío.
+            const isMyTrade = !!unit.tradeRoute;
+            const isNeighborTrade = unitAtNeighbor && !!unitAtNeighbor.tradeRoute;
+
+            if (!unitAtNeighbor) {
+                // Si la casilla está vacía, se verifican las reglas normales de terreno.
+                if (unitRegimentData.is_naval) canPassThrough = neighborHexData.terrain === 'water';
+                else {
+                    const unitCategory = unitRegimentData.category;
+                    const isImpassable = (IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY.all_land.includes(neighborHexData.terrain)) ||
+                                        (IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[unitCategory] || []).includes(neighborHexData.terrain);
+                    canPassThrough = !isImpassable;
                 }
-                else if (isPotentialMerge && neighbor.r === r_target && neighbor.c === c_target) {
-                    // Solo permitimos entrar si el vecino es el hexágono exacto de nuestro objetivo de fusión.
-                    canPassThrough = true;
-                }
-                
+            } 
+            // Si la casilla está ocupada, se comprueba si es un aliado y si tenemos "Jump".
+            else if (isMyTrade && isNeighborTrade) {
+                canPassThrough = true;
+            }
+            else if (unitAtNeighbor.player === unit.player && (hasJumpAbility || isPotentialMerge)) {
+                 // Solo permitimos entrar si el vecino es el hexágono exacto de nuestro objetivo de fusión.
+                canPassThrough = true;
+            }
+            
                 // Un movimiento NUNCA puede terminar en una casilla ocupada, aunque se pueda pasar por ella.
-                if (isPotentialMerge === false && neighbor.r === r_target && neighbor.c === c_target && unitAtNeighbor) {
-                    canPassThrough = false;
-                }
+            if (isPotentialMerge === false && neighbor.r === r_target && neighbor.c === c_target && unitAtNeighbor) {
+                canPassThrough = false;
+            }
 
-                if (canPassThrough) { 
-                    let moveCost = 1.0; 
+            if (canPassThrough) { 
+                let moveCost = 1.0; 
 
                     // 1. PRIORIDAD MÁXIMA: Comprobar si hay una ESTRUCTURA y no es una unidad naval.
-                    if (neighborHexData.structure && !unitRegimentData.is_naval) {
-                        const structureData = STRUCTURE_TYPES[neighborHexData.structure];
+                if (neighborHexData.structure && !unitRegimentData.is_naval) {
+                    const structureData = STRUCTURE_TYPES[neighborHexData.structure];
                         // Si la estructura define un coste de movimiento, lo usamos.
                         if (structureData && typeof structureData.movementCost === 'number') {
                             moveCost = structureData.movementCost;
-                        }
                     } 
+                } 
                     // 2. SI NO HAY ESTRUCTURA: Usamos el coste del TERRENO.
-                    else if (TERRAIN_TYPES[neighborHexData.terrain]) {
-                        moveCost = TERRAIN_TYPES[neighborHexData.terrain].movementCostMultiplier;
-                    }
-                    
-                    const newCost = current.cost + moveCost;
+                else if (TERRAIN_TYPES[neighborHexData.terrain]) {
+                    moveCost = TERRAIN_TYPES[neighborHexData.terrain].movementCostMultiplier;
+                }
+                
+                const newCost = current.cost + moveCost;
 
                     // La validación de coste ahora debe usar el movimiento TOTAL, no el actual, para el pathfinding.
-                    if ((!visited.has(neighborKey) || newCost < visited.get(neighborKey)) && newCost <= (unit.movement || 0) * 2 ) { 
-                        visited.set(neighborKey, newCost);
-                        queue.push({ r: neighbor.r, c: neighbor.c, cost: newCost });
-                    }
+                if ((!visited.has(neighborKey) || newCost < visited.get(neighborKey)) && newCost <= (unit.movement || 0) * 2 ) { 
+                    visited.set(neighborKey, newCost);
+                    queue.push({ r: neighbor.r, c: neighbor.c, cost: newCost });
                 }
             }
         }
+    }
 
         // Si la cola se agota y no se encontró el destino, es inalcanzable.
-        return Infinity;
+    return Infinity;
 }
 
 async function moveUnit(unit, toR, toC) {
@@ -813,7 +765,7 @@ function positionUnitElement(unit) {
         const elementToPosition = unit.element; 
         if (!elementToPosition) return;
 
-        // Comprobación de constantes (sin cambios)
+        // Comprobación de constantes 
         if (typeof HEX_WIDTH === 'undefined') {
             elementToPosition.style.left = (unit.c * 60) + 'px';
             elementToPosition.style.top = (unit.r * 70) + 'px';
@@ -821,7 +773,7 @@ function positionUnitElement(unit) {
             return;
         }
 
-        // Cálculo de posición (sin cambios)
+        // Cálculo de posición 
         const unitWidth = elementToPosition.offsetWidth || 36;
         const unitHeight = elementToPosition.offsetHeight || 36;
         const xPos = unit.c * HEX_WIDTH + (unit.r % 2 !== 0 ? HEX_WIDTH / 2 : 0) + (HEX_WIDTH - unitWidth) / 2;
@@ -832,27 +784,19 @@ function positionUnitElement(unit) {
             return;
         }
 
-        // Aplicación de estilos (sin cambios)
+        // Aplicación de estilos 
         elementToPosition.style.left = `${xPos}px`;
         elementToPosition.style.top = `${yPos}px`;
         elementToPosition.style.display = 'flex';
-        
-        //console.log(`[positionUnitElement async] Unidad "${unit.name}" (ID: ${unit.id}) posicionada VISUALMENTE en (${xPos.toFixed(0)}, ${yPos.toFixed(0)}).`);
-
-    }, 0); // El retardo de 0 es la clave.
+    }, 0); 
 }
 
 function isValidAttack(attacker, defender) {
-    // --- 1. VALIDACIONES BÁSICAS ---
-    if (!attacker || !defender) {
-        console.error("[isValidAttack] Error: Atacante o defensor no definidos.");
-        return false;
-    }
-    if (attacker.player === defender.player) {
-        return false;
-    }
+    if (!attacker || !defender) return false;
+    if (attacker.player === defender.player) return false;
+    
     if (gameState.isTutorialActive && gameState.tutorial.force_attack_allowed) {
-        // Salta la comprobación en el tutorial si es necesario
+        // Permitido en tutorial
     } else {
         if (gameState.currentPhase === 'play' && attacker.player === gameState.currentPlayer && attacker.hasAttacked) {
             return false;
@@ -914,10 +858,6 @@ function isValidAttack(attacker, defender) {
     
     // --- 5. COMPROBACIÓN FINAL DE RANGO ---
     const canAttack = distance <= finalRange;
-
-    // Log final con el rango calculado
-    console.log(`[Chequeo de Ataque]: ${attackerName} ${attackerPosition} vs ${defenderName} ${defenderPosition}. Distancia: ${distance}, Rango de Ataque Final: ${finalRange}. ¿Válido?: ${canAttack}`);
-    
     return canAttack;
 }
 
@@ -925,20 +865,13 @@ function isValidAttack(attacker, defender) {
  * Orquesta un combate completo entre dos divisiones, resolviéndolo a nivel de regimientos.
  * Crea una cola de acciones basada en la iniciativa y el rango de ataque de cada regimiento,
  * y luego procesa cada acción de forma secuencial.
- * @param {object} attackerDivision - La división que inicia el combate.
- * @param {object} defenderDivision - La división que es atacada.
-**/
+ **/
 async function attackUnit(attackerDivision, defenderDivision) {
 
     //audio
-    if (typeof AudioManager !== 'undefined') {
-        AudioManager.playSound('attack_swords');
-    }
-    console.log(`%c[VIAJE-DESTINO FINAL] La función de combate 'attackUnit' ha sido ejecutada. Atacante: ${attackerDivision.name}, Defensor: ${defenderDivision.name}`, 'background: #222; color: #bada55; font-size: 1.2em; font-weight: bold;');
-    // <<== LLAMADA AL CRONISTA ==>>
+    if (typeof AudioManager !== 'undefined') AudioManager.playSound('attack_swords');
+    
     if (gameState.isTutorialActive && typeof TutorialManager !== 'undefined') {
-        
-        // Primero, notificamos siempre que se ha completado un ataque (útil para el paso 8).
         TutorialManager.notifyActionCompleted('attack_completed');
         
         // Ahora, una comprobación específica y segura para el paso 10.
@@ -946,16 +879,12 @@ async function attackUnit(attackerDivision, defenderDivision) {
         // entonces CUALQUIER ataque cumplirá la condición.
         const currentTutorialStep = TutorialManager.currentSteps[TutorialManager.currentIndex];
         if (currentTutorialStep && currentTutorialStep.actionCondition && currentTutorialStep.actionCondition.toString().includes('flank_attack_completed')) {
-            // <<== LÓGICA DE FLANQUEO PARA EL TUTORIAL MEJORADA ==>>
-            // Comprobamos si realmente hay un aliado adyacente para considerarlo flanqueo
             const neighbors = getHexNeighbors(defenderDivision.r, defenderDivision.c);
             const isFlankedByAlly = neighbors.some(n => {
                 const unit = getUnitOnHex(n.r, n.c);
                 return unit && unit.player === attackerDivision.player && unit.id !== attackerDivision.id;
             });
-            if (isFlankedByAlly) {
-                TutorialManager.notifyActionCompleted('flank_attack_completed');
-            }
+            if (isFlankedByAlly) TutorialManager.notifyActionCompleted('flank_attack_completed');
         }
         TutorialManager.notifyActionCompleted('attack_completed');
     }
@@ -975,8 +904,6 @@ async function attackUnit(attackerDivision, defenderDivision) {
 
         // --- MODIFICACIÓN DE INTEGRIDAD ---
         const defenderHex = board[defenderDivision.r]?.[defenderDivision.c];
-
-        console.log(`[DEBUG INTEGRIDAD] Verificando hexágono del defensor (${defenderDivision.r}, ${defenderDivision.c}). Contenido:`, JSON.parse(JSON.stringify(defenderHex)));
         let battleIntegrity = 0;
         
         if (defenderHex && defenderHex.structure) {
@@ -991,8 +918,6 @@ async function attackUnit(attackerDivision, defenderDivision) {
                 }
             }
         }
-
-        console.group(`--- ANÁLISIS DE COMBATE ---`);
 
         const initialHealthAttacker = attackerDivision.currentHealth;
         const initialHealthDefender = defenderDivision.currentHealth;
@@ -1071,7 +996,7 @@ async function attackUnit(attackerDivision, defenderDivision) {
                 });
                 
                 // fin revisión de habilidad
-
+                
                 if (distance <= finalRange) {
                     const numAttacks = 1;
                     for (let i = 0; i < numAttacks; i++) {
@@ -1097,7 +1022,7 @@ async function attackUnit(attackerDivision, defenderDivision) {
         actionQueue.sort((a, b) => b.initiative - a.initiative || b.isAttackerTurn - a.isAttackerTurn);
         console.log(`Secuencia de batalla con ${actionQueue.length} acciones.`);
         console.groupEnd();
-
+        
         console.group("--- SECUENCIA DE DUELOS ---");
         
         // --- INICIO DE LA MODIFICACIÓN ---
@@ -1147,9 +1072,9 @@ async function attackUnit(attackerDivision, defenderDivision) {
                  // La actualización de salud ahora se hace dentro de applyDamage, pero
                 // recalcular la salud total de la división aquí sigue siendo una buena práctica.
                 recalculateUnitHealth(opposingDivision);
-                    if (UIManager) UIManager.updateUnitStrengthDisplay(opposingDivision);
-                }
+                if (UIManager) UIManager.updateUnitStrengthDisplay(opposingDivision);
             }
+        }
         console.groupEnd();
 
         // === FASE DE RESOLUCIÓN FINAL =====
@@ -1240,13 +1165,8 @@ async function attackUnit(attackerDivision, defenderDivision) {
 /**
  * Calcula los stats combinados de una división a partir de sus regimientos,
  * aplicando los bonus de la Civilización y del General asignado.
- * @param {Array<object>} regimentsArray - El array de regimientos.
- * @param {number} playerNum - El número del jugador.
- * @param {string|null} commanderId - El ID del general asignado a la división. // <<== NUEVO PARÁMETRO
- * @returns {object} Objeto con los stats calculados.
  */
 function calculateRegimentStats(unit) {
-    // 1. VALIDACIÓN 
     if (!unit || !Array.isArray(unit.regiments)) {
         console.error("calculateRegimentStats recibió una unidad inválida.", unit);
         Object.assign(unit, { attack: 0, defense: 0, maxHealth: 0, movement: 0, visionRange: 0, attackRange: 1 });
@@ -1258,7 +1178,7 @@ function calculateRegimentStats(unit) {
     if (unit.regiments.length === 0) {
         finalStats.movement = 0; Object.assign(unit, finalStats); return;
     }
-
+   
 // 3. OBTENCIÓN DE DATOS DESDE LA UNIDAD: Ahora sacamos la info del propio objeto 'unit'.    
     const playerNum = unit.player;
     //const playerCivName = gameState?.playerCivilizations?.[playerNum] || 'ninguna';
@@ -1271,8 +1191,7 @@ function calculateRegimentStats(unit) {
         commanderData = COMMANDERS[unit.commander];
         heroInstance = PlayerDataManager.currentPlayer?.heroes?.find(h => h.id === unit.commander) || null;
     }
-    unit.base_regiment_stats = {}; // Inicializar
-    console.log(`[calculateRegimentStats] Procesando unidad: ${unit.name} (ID: ${unit.id}). Creando base_regiment_stats.`);
+    unit.base_regiment_stats = {};
 
     unit.regiments.forEach((reg, index) => {
         const baseRegData = REGIMENT_TYPES[reg.type];
@@ -1347,36 +1266,28 @@ function calculateRegimentStats(unit) {
     if (typeof unit.currentHealth === 'undefined') {
         unit.currentHealth = unit.maxHealth;
     }
-    console.log(`[calculateRegimentStats] Finalizado para ${unit.name}. Ataque total: ${finalStats.attack}`);
 }
 
 /**
  * Calcula y aplica el daño de un duelo 1vs1 entre regimientos,
  * considerando todos los modificadores de sus divisiones y del terreno.
- * @param {object} attackerRegiment - El regimiento que ataca.
- * @param {object} targetRegiment - El regimiento que defiende.
- * @param {object} attackerDivision - La división a la que pertenece el atacante.
- * @param {object} targetDivision - La división a la que pertenece el defensor.
- * @returns {number} La cantidad de daño real infligido.
  * Calcula y aplica el daño de un duelo 1vs1 entre regimientos,
  * considerando todos los modificadores (terreno, moral, experiencia, desgaste, etc.)
  * y generando logs detallados para cada paso.
  */
+
 function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetDivision, battleIntegrity, defenderHex) {
     // 1. OBTENCIÓN DE DATOS BASE
     const attackerData = REGIMENT_TYPES[attackerRegiment.type];
     const targetData = REGIMENT_TYPES[targetRegiment.type];
-    if (!attackerData || !targetData) {
-        console.error("applyDamage: Datos de regimiento no encontrados.", { attackerRegiment, targetRegiment });
-        return 0;
-    }
+    if (!attackerData || !targetData) return 0;
     
         // --- CONTEXTO DEL DUELO ---
     const isFirstHitOnTarget = (targetRegiment.hitsTakenThisRound || 0) === 0;
 
     // --- 1. OBTENER BONIFICACIONES (¡AQUÍ ESTÁ EL CAMBIO!) ---
     const attackerTalentBonuses = calculateTalentBonuses(attackerDivision, targetDivision, isFirstHitOnTarget) || {};
-    const defenderTalentBonuses = calculateTalentBonuses(targetDivision, attackerDivision, false) || {}; // El defensor nunca hace el "primer golpe"
+    const defenderTalentBonuses = calculateTalentBonuses(targetDivision, attackerDivision, false) || {};
 
     const attackerCivName = CIVILIZATIONS[gameState.playerCivilizations[attackerDivision.player]]?.name || 'Sin Civ';
     const defenderCivName = CIVILIZATIONS[gameState.playerCivilizations[targetDivision.player]]?.name || 'Sin Civ';
@@ -1420,14 +1331,14 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
 
                 if (skillDef?.scope === 'combat' && skillDef.effect?.stat === 'attack') {
                     // Filtro de ubicación
-                const locationFilter = skill.filters?.location;
-                if (locationFilter) {
-                    const hexOwner = board[attackerDivision.r][attackerDivision.c].owner;
-                    const isOwnTerritory = hexOwner === attackerDivision.player;
-                    if ((locationFilter === 'own_territory' && !isOwnTerritory) || (locationFilter === 'enemy_territory' && isOwnTerritory)) {
+                    const locationFilter = skill.filters?.location;
+                    if (locationFilter) {
+                        const hexOwner = board[attackerDivision.r][attackerDivision.c].owner;
+                        const isOwnTerritory = hexOwner === attackerDivision.player;
+                        if ((locationFilter === 'own_territory' && !isOwnTerritory) || (locationFilter === 'enemy_territory' && isOwnTerritory)) {
                         return; // No se cumple la condición de ubicación
+                        }
                     }
-                }
                 
                 // 3. Comprobar filtro de tipo de tropa
                 const categoryFilter = skillDef.filters?.category;
@@ -1451,7 +1362,6 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
     console.log(`%c   = Ataque Total (con Habilidades): ${totalAttack.toFixed(1)}`, 'font-weight: bold;');
     // <<== FIN: LÓGICA DE HABILIDADES DE ATAQUE ==>>
   
-    // ====================================================================
     // --- DEFENSOR ---
     // ====================================================================
     console.log(`%c--- DEFENSOR ---`, 'color: lightblue;');
@@ -1483,29 +1393,29 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
 
                 if (skillDef?.scope === 'combat' && (skillDef.effect?.stat === 'defense' || skillDef.effect?.stat === 'health')) {
                     // (Lógica de filtros igual que la del atacante)
-                const locationFilter = skill.filters?.location;
-                if (locationFilter) {
-                    const hexOwner = board[targetDivision.r][targetDivision.c].owner;
-                    const isOwnTerritory = hexOwner === targetDivision.player;
-                    if ((locationFilter === 'own_territory' && !isOwnTerritory) || (locationFilter === 'enemy_territory' && isOwnTerritory)) {
-                        return;
+                    const locationFilter = skill.filters?.location;
+                    if (locationFilter) {
+                        const hexOwner = board[targetDivision.r][targetDivision.c].owner;
+                        const isOwnTerritory = hexOwner === targetDivision.player;
+                        if ((locationFilter === 'own_territory' && !isOwnTerritory) || (locationFilter === 'enemy_territory' && isOwnTerritory)) {
+                            return;
+                        }
                     }
-                }
 
                 // 3. Filtro de tipo de tropa
-                const categoryFilter = skillDef.filters?.category;
-                if (categoryFilter && !categoryFilter.includes('all') && !categoryFilter.includes(targetData.category)) {
-                    return;
-                }
+                    const categoryFilter = skillDef.filters?.category;
+                    if (categoryFilter && !categoryFilter.includes('all') && !categoryFilter.includes(targetData.category)) {
+                        return;
+                    }
 
                     const skillLevel = heroInstance.skill_levels[index] || 1;
-                const bonusValue = skill.scaling_override[skillLevel - 1];
+                    const bonusValue = skill.scaling_override[skillLevel - 1];
 
                 // Los bonus de salud se tratan como bonus de defensa en el cálculo de daño
-                if (skillDef.effect.is_percentage) {
-                    totalDefense *= (1 + bonusValue / 100);
-                } else {
-                    totalDefense += bonusValue;
+                    if (skillDef.effect.is_percentage) {
+                        totalDefense *= (1 + bonusValue / 100);
+                    } else {
+                        totalDefense += bonusValue;
                     }
                 }
             });
@@ -1544,15 +1454,10 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
     totalAttack *= (attackerRegiment.health / attackerData.health);
     console.log(`Ataque Final (mod. salud): ${totalAttack.toFixed(1)}`);
     
-    
-    // ====================================================================
-    // --- RESOLUCIÓN FINAL  ---
-    // ====================================================================
+    // --- RESOLUCIÓN ---
 
-    // Añadimos el bono de integridad a la defensa total del regimiento.
     if (battleIntegrity > 0) {
         totalDefense += battleIntegrity;
-        console.log(`Defensa con Bonus de Integridad: +${battleIntegrity} -> ${totalDefense.toFixed(1)}`);
     }
 
     finalDefense = totalDefense; // Renombramos para claridad
@@ -1593,11 +1498,6 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
     // --- APLICACIÓN DE DAÑO AL REGIMIENTO ---
     const actualDamage = Math.min(targetRegiment.health, damageDealt);
     targetRegiment.health -= actualDamage;
-
-    console.log(`%c>> DAÑO AL REGIMIENTO: ${actualDamage}. Salud restante: ${targetRegiment.health}`, 'background: #333; color: #ff9999;');
-    if (!isSiegeUnit) { // Solo mostrar el daño a la unidad si no es de asedio (para no duplicar números)
-        showFloatingDamage(targetDivision, actualDamage);
-    }
     
     targetRegiment.hitsTakenThisRound = (targetRegiment.hitsTakenThisRound || 0) + 1;
 
@@ -1741,15 +1641,9 @@ function predictCombatOutcome(attacker, defender) {
                 prediction.attackerDiesInRetaliation = true; 
                 prediction.attackerDies = true; 
             }
-            prediction.log.push(`Predicción Retaliación: ${defender.name} (Atk:${defenderAttackStat}) vs ${attacker.name} (Def:${attackerDefenseStat}). Daño Atk: ${prediction.damageToAttacker}. Atacante muere: ${prediction.attackerDiesInRetaliation}`);
-        } else {
-            prediction.log.push(`Predicción Retaliación: ${defender.name} no puede contraatacar (fuera de rango o condición inválida).`);
         }
-    } else {
-        prediction.log.push(`Predicción Retaliación: ${defender.name} muere, no hay contraataque.`);
     }
     
-    // console.log(`%c[AI Predict Outcome] Para ${attacker.name} vs ${defender.name}:\n${prediction.log.join("\n")}`, "color: olive");
     return prediction;
 }
 
@@ -1757,7 +1651,6 @@ function handleReinforceUnitAction(unitToReinforce) {
     console.log("%c[Reinforce] Iniciando acción de refuerzo...", "color: darkviolet; font-weight:bold;");
 
     if (!unitToReinforce) { unitToReinforce = selectedUnit; if (!unitToReinforce) { logMessage("No hay unidad seleccionada para reforzar."); return; } }
-    console.log(`[Reinforce] Intentando reforzar a: ${unitToReinforce.name}`);
     if (unitToReinforce.currentHealth >= unitToReinforce.maxHealth) { logMessage("La unidad ya tiene la salud máxima."); return; }
 
      if (typeof isHexSuppliedForReinforce !== "function" || !isHexSuppliedForReinforce(unitToReinforce.r, unitToReinforce.c, unitToReinforce.player)) {
@@ -1908,250 +1801,10 @@ function applyFlankingPenalty(targetUnit, mainAttacker) {
         const moraleLoss = 10;
         targetUnit.morale = Math.max(0, targetUnit.morale - moraleLoss);
         
-        // <<< MODIFICACIÓN: Un único mensaje claro >>>
+        // <<< Un único mensaje claro >>>
         logMessage(`¡${targetUnit.name} es flanqueada, sufre daño extra y pierde ${moraleLoss} de moral!`);
     }
 }
-
-/*
-async function handleUnitDestroyed(destroyedUnit, victorUnit) {
-
-    // audio
-    if (typeof AudioManager !== 'undefined') {
-        AudioManager.playSound('unit_destroyed');
-    }
-
-    if (!destroyedUnit) {
-        console.warn("[handleUnitDestroyed] Intento de destruir una unidad nula.");
-        return;
-    }
-
-    // Determinar si es una destrucción por combate o por otras causas (fusión, rendición)
-    const isCombatDestruction = victorUnit && victorUnit.player !== destroyedUnit.player;
-
-    console.log(`[handleUnitDestroyed] Destruyendo ${destroyedUnit.name}. ¿Por combate? ${isCombatDestruction}`);
-    
-    if (isCombatDestruction) {
-
-        // --- puntos de victoria ---
-        const victorPlayerKey = `player${victorUnit.player}`;
-        if (gameState.playerStats.unitsDestroyed[victorPlayerKey] !== undefined) {
-            gameState.playerStats.unitsDestroyed[victorPlayerKey]++;
-        }
-
-        logMessage(`¡${destroyedUnit.name} ha sido destruida por ${victorUnit.name}!`);
-
-        if (gameState.isTutorialActive && destroyedUnit.player === 2) {
-             // Notifica que un enemigo (jugador 2 en el tutorial) ha sido derrotado
-             TutorialManager.notifyActionCompleted('enemy_defeated');
-        }
-
-        if (typeof Chronicle !== 'undefined') {
-            Chronicle.logEvent('unit_destroyed', { destroyedUnit, victorUnit });
-        }
-
-        // --- INICIO: LÓGICA DE HABILIDADES DE FIN DE BATALLA ---
-        let xpGainBonusPercent = 0;
-        let bookDropBonusChance = 0;
-        let fragmentDropBonusChance = 0;
-
-        if (victorUnit.commander) {
-            const commanderData = COMMANDERS[victorUnit.commander];
-            const playerProfile = PlayerDataManager.getCurrentPlayer();
-            const heroInstance = playerProfile?.heroes.find(h => h.id === victorUnit.commander);
-
-            if (commanderData && heroInstance) {
-                commanderData.skills.forEach((skill, index) => {
-                    const skillDef = SKILL_DEFINITIONS[skill.skill_id];
-                    const starsRequired = index + 1;
-                    if (heroInstance.stars >= starsRequired && skillDef?.scope === 'fin') {
-                        const skillLevel = heroInstance.skill_levels[index] || (index === 0 ? 1 : 0);
-                        if (skillLevel > 0 && skill.scaling_override) {
-                            const bonusValue = skill.scaling_override[skillLevel - 1];
-                            if (skillDef.effect.stat === 'xp_gain') {
-                                xpGainBonusPercent += bonusValue;
-                            } else if (skillDef.effect.stat === 'book_drop') {
-                                bookDropBonusChance += bonusValue;
-                            } else if (skillDef.effect.stat === 'fragment_drop') {
-                                fragmentDropBonusChance += bonusValue;
-                            }
-                        }
-                    }
-                });
-            }
-        }
-        // --- FIN: LÓGICA DE HABILIDADES ---
-
-        // 1. Recompensa de Experiencia (XP) para el vencedor (Ahora con Bonus)
-        let experienceGained = 10 + Math.floor((destroyedUnit.maxHealth || 0) / 10);
-
-        // <<== INICIO DE LA INTEGRACIÓN DE TALENTOS (XP) ==>>
-        const victorTalentBonuses = calculateTalentBonuses(victorUnit);
-        if (victorTalentBonuses && victorTalentBonuses.xp_gain_percentage) {
-            const xpBonus = experienceGained * (victorTalentBonuses.xp_gain_percentage / 100);
-            experienceGained += xpBonus;
-            logMessage(`¡Bonus de Talento! (+${victorTalentBonuses.xp_gain_percentage}% XP)`, "success");
-        }
-        // <<== FIN DE LA INTEGRACIÓN DE TALENTOS (XP) ==>>
-
-        if (xpGainBonusPercent > 0) {
-            const xpBonus = experienceGained * (xpGainBonusPercent / 100);
-            experienceGained += xpBonus;
-            logMessage(`¡Bonus de ${victorUnit.commander}! (+${xpGainBonusPercent}% XP)`, "success");
-        }
-        experienceGained = Math.round(experienceGained);
-        victorUnit.experience = (victorUnit.experience || 0) + experienceGained;
-        logMessage(`${victorUnit.name} gana ${experienceGained} XP por la victoria.`);
-        checkAndApplyLevelUp(victorUnit);
-
-        // 2. Recompensa de Oro por la victoria (Intacto)
-        let goldGained = REGIMENT_TYPES[destroyedUnit.regiments[0]?.type]?.goldValueOnDestroy || 10;
- 
-        // Si la unidad destruida era una caravana, roba el oro que transportaba.
-        if (destroyedUnit.tradeRoute && destroyedUnit.tradeRoute.goldCarried > 0) {
-            const stolenGold = destroyedUnit.tradeRoute.goldCarried;
-            goldGained += stolenGold;
-            logMessage(`¡Además, ${victorUnit.name} saquea ${stolenGold} de oro de la caravana!`, "success");
-        }
-
-        if (goldGained > 0 && gameState.playerResources[victorUnit.player]) {
-            gameState.playerResources[victorUnit.player].oro += goldGained;
-            logMessage(`${victorUnit.name} obtiene un total de ${goldGained} de oro por la victoria.`);
-        }
-        
-        // 3. Recompensas de Perfil (Libros y Fragmentos con Probabilidad Aumentada)
-        if (PlayerDataManager.currentPlayer) {
-            const playerInventory = PlayerDataManager.currentPlayer.inventory;
-
-            // Recompensa de Libros de XP
-            const baseBookChance = 35; // 25% de probabilidad base de obtener un libro
-            const finalBookChance = baseBookChance + bookDropBonusChance;
-            if (Math.random() * 100 < finalBookChance) {
-                playerInventory.xp_books = (playerInventory.xp_books || 0) + Math.floor(Math.random() * 3) + 1;;
-                
-                logMessage(`¡Recompensa! Has obtenido 1 Libro de XP (Prob: ${finalBookChance.toFixed(0)}%).`, "success");
-                if(UIManager.showRewardToast) UIManager.showRewardToast("+1 Libro de XP", "📖");
-            }
-            
-            // Recompensa de Fragmentos (Ahora con Probabilidad Aumentada)
-            const baseFragmentChance = 20; // 20% de probabilidad base
-            const finalFragmentChance = baseFragmentChance + fragmentDropBonusChance;
-            if (Math.random() * 100 < finalFragmentChance) {
-                const rewardPool = Object.keys(COMMANDERS).filter(id => COMMANDERS[id].rarity === "Común" || COMMANDERS[id].rarity === "Raro");
-                if(rewardPool.length > 0) {
-                    const randomHeroId = rewardPool[Math.floor(Math.random() * rewardPool.length)];
-                    const fragmentsToAdd = Math.floor(Math.random() * 3) + 1;
-                    PlayerDataManager.addFragmentsToHero(randomHeroId, fragmentsToAdd);
-                    const heroData = COMMANDERS[randomHeroId];
-                    if(UIManager.showRewardToast) UIManager.showRewardToast(`+${fragmentsToAdd} Fragmentos de ${heroData.name}`, heroData.sprite);
-                }
-            
-            }
-            
-            // <<== INICIO DE LA NUEVA LÓGICA: OBTENCIÓN DE EQUIPO ==>>
-            const baseEquipmentChance = 15; // 15% de probabilidad base de obtener una pieza de equipo
-            if (Math.random() * 100 < baseEquipmentChance) {
-                
-                // Determinar la rareza del equipo obtenido (ej: 70% Común, 25% Raro, 5% Épico)
-                const rarityRoll = Math.random() * 100;
-                let rarityToDrop;
-                if (rarityRoll < 5) rarityToDrop = "Épico";
-                else if (rarityRoll < 30) rarityToDrop = "Raro";
-                else rarityToDrop = "Común";
-
-                // Obtener todos los objetos de esa rareza del catálogo
-                const possibleItems = Object.values(EQUIPMENT_DEFINITIONS).filter(item => item.rarity === rarityToDrop);
-                
-                if (possibleItems.length > 0) {
-                    // Elegir un objeto al azar de la rareza seleccionada
-                    const droppedItem = possibleItems[Math.floor(Math.random() * possibleItems.length)];
-
-                    // En lugar de crear una instancia, añadimos fragmentos
-                    const fragmentsAmount = Math.floor(Math.random() * 2) + 1; // 1-2 fragmentos por victoria
-                    PlayerDataManager.addEquipmentFragments(droppedItem.id, fragmentsAmount);
-                    
-                    if(UIManager.showRewardToast) UIManager.showRewardToast(`+${fragmentsAmount} Fragmentos de ${droppedItem.name}`, droppedItem.icon);
-                }
-            }
-
-            PlayerDataManager.saveCurrentPlayer();
-        }
-
-        // Lógica de Moral y Objeto de bonificación
-        const victoryMoraleBonus = 20;
-        victorUnit.morale = Math.min((victorUnit.maxMorale || 100), (victorUnit.morale || 50) + victoryMoraleBonus);
-        logMessage(`¡La moral de ${victorUnit.name} sube a ${victorUnit.morale} por la victoria decisiva!`);
-
-        // === FASE B: Añadimos la lógica del objeto de bonificación ======
-
-        const hexOfUnit = board[destroyedUnit.r]?.[destroyedUnit.c];
-        if (hexOfUnit) {
-            hexOfUnit.destroyedUnitBonus = { experience: 10, morale: 15, claimedBy: null };
-            renderSingleHexVisuals(destroyedUnit.r, destroyedUnit.c); 
-        }
-        
-        // === FASE C (NUEVA): Generar Ruinas tras la batalla ===
-        const ruinChance = RUIN_GENERATION_CHANCE.ON_UNIT_DESTROYED || 50; // Probabilidad del 50% por defecto
-        const roll = Math.random() * 100;
-
-        // Solo genera ruinas en la casilla si está vacía (no hay otra ruina o estructura)
-        // y si la tirada de dado es exitosa.
-        if (roll < ruinChance && hexOfUnit && !hexOfUnit.feature && !hexOfUnit.structure) {
-            hexOfUnit.feature = 'ruins';
-            
-            logMessage(`Los restos del combate han dejado unas misteriosas ruinas en (${destroyedUnit.r}, ${destroyedUnit.c}).`);
-            if(typeof Chronicle !== 'undefined') { // Opcional: para el log narrativo
-                Chronicle.logEvent('ruins_appeared', { r: destroyedUnit.r, c: destroyedUnit.c });
-            }
-
-            // Volvemos a renderizar el hexágono para que muestre el nuevo icono de ruina.
-            if (typeof renderSingleHexVisuals === "function") {
-                renderSingleHexVisuals(destroyedUnit.r, destroyedUnit.c);
-            }
-        }
-
-    } // Fin de if (isCombatDestruction)
-    
-    // --- LÓGICA DE ANIMACIÓN Y ELIMINACIÓN (Intacta) ---
-    if (destroyedUnit.element) {
-        const explosionEl = document.createElement('div');
-        explosionEl.classList.add('explosion-animation');
-        if (domElements?.gameBoard && destroyedUnit.element) {
-            const boardRect = domElements.gameBoard.getBoundingClientRect();
-            const unitRect = destroyedUnit.element.getBoundingClientRect();
-            explosionEl.style.left = `${(unitRect.left - boardRect.left) + unitRect.width / 2}px`;
-            explosionEl.style.top = `${(unitRect.top - boardRect.top) + unitRect.height / 2}px`;
-            domElements.gameBoard.appendChild(explosionEl);
-            setTimeout(() => explosionEl.remove(), 1200);
-        }
-            // Bloqueo del tutorial (Movido arriba para mayor claridad)
-    if (window.TUTORIAL_MODE_ACTIVE === true && destroyedUnit.player === 2) {
-        console.warn("[TUTORIAL] Bloqueada la destrucción de la unidad ENEMIGA de práctica.");
-        TutorialManager.notifyActionCompleted('flank_attack_completed');
-        if (destroyedUnit.element) destroyedUnit.element.style.display = 'none'; 
-        return;
-    }
-        // Esto hace que la función espere 500ms antes de continuar, dando tiempo a que la animación empiece.
-        await new Promise(resolve => setTimeout(resolve, 500));
-    }
-    
-    // --- Proceso de eliminación de la unidad ---
-    if (destroyedUnit.element) destroyedUnit.element.remove();
-    const hexOfUnitDestroyed = board[destroyedUnit.r]?.[destroyedUnit.c];
-    if (hexOfUnitDestroyed && hexOfUnitDestroyed.unit?.id === destroyedUnit.id) {
-        hexOfUnitDestroyed.unit = null;
-    }
-    const index = units.findIndex(u => u.id === destroyedUnit.id);
-    if (index > -1) units.splice(index, 1);
-    if (selectedUnit?.id === destroyedUnit.id) {
-        selectedUnit = null;
-        if (UIManager) UIManager.hideContextualPanel();
-    }
-    if (isCombatDestruction && !gameState.isTutorialActive) { // <<== Añadida comprobación de tutorial aquí también
-        if (typeof checkVictory === 'function') checkVictory();
-    }
-}
-*/
 
 async function handleUnitDestroyed(destroyedUnit, victorUnit) {
     if (!destroyedUnit) return;
@@ -2190,12 +1843,21 @@ async function handleUnitDestroyed(destroyedUnit, victorUnit) {
 }
 
 function _applyDestructionRewards(destroyedUnit, victorUnit) {
+    
+    
+
     // 1. Validaciones de seguridad iniciales
     if (!victorUnit || !gameState || !destroyedUnit) return;
     const isCombatDestruction = victorUnit.player !== destroyedUnit.player;
     if (!isCombatDestruction) return;
 
     const victorPlayerKey = `player${victorUnit.player}`;
+
+    if (!gameState.playerStats) gameState.playerStats = { unitsDestroyed: {}, sealTrades: {} };
+    if (!gameState.playerStats.unitsDestroyed[victorPlayerKey]) gameState.playerStats.unitsDestroyed[victorPlayerKey] = 0;
+
+    gameState.playerStats.unitsDestroyed[victorPlayerKey]++;
+
 
     // 2. Registro de bajas (con protección contra objetos no definidos)
     if (gameState.playerStats && gameState.playerStats.unitsDestroyed) {
@@ -2454,11 +2116,9 @@ function recalculateUnitStats(unit) {
     }
 
     unit.discipline = calculateDivisionDiscipline(unit);
-    console.log(`Stats recalculados para ${unit.name} (Nivel ${unit.level}): Atk=${unit.attack}, Def=${unit.defense}`);
 }
 
 function handleDisbandUnit(unitToDisband) {
-    console.log("%c[TRACE] La función 'handleDisbandUnit' (la que tiene el 'confirm') ha sido llamada.", "color: red; font-weight: bold;");
     if (!unitToDisband) return;
 
     const confirmationMessage = `¿Estás seguro de que quieres disolver "${unitToDisband.name}"? Se recuperará el 50% de su coste en oro.`;
@@ -2467,14 +2127,7 @@ function handleDisbandUnit(unitToDisband) {
     }
 }
 
-//==============================================================
-//== NUEVAS FUNCIONES DE RED ==
-//==============================================================
-
-// --- FUNCIONES DE ACC IÓN CON LÓGICA DE RED CORREGIDA ---
 function handlePlacementModeClick(r, c) {
-    console.log(`[Placement] Clic en (${r},${c}). Modo activo: ${placementMode.active}, Unidad: ${placementMode.unitData?.name || 'Ninguna'}`);
-    
     if (!placementMode.active || !placementMode.unitData) {
         console.error("[Placement] Error: Modo de colocación inactivo o sin datos de unidad. Se cancelará.");
         placementMode.active = false;
@@ -2581,13 +2234,11 @@ async function RequestAttackUnit(attacker, defender) {
     await attackUnit(attacker, defender);
 }
 
-// Variable global para prevenir fusiones simultáneas
 let _isMergingUnits = false;
 
 async function RequestMergeUnits(mergingUnit, targetUnit) {
     // PROTECCIÓN: Prevenir múltiples llamadas simultáneas
     if (_isMergingUnits) {
-        console.warn("[RequestMergeUnits] Ya hay una fusión en proceso, ignorando solicitud duplicada.");
         logMessage("Ya hay una fusión en proceso.", "warning");
         return;
     }
@@ -2595,7 +2246,7 @@ async function RequestMergeUnits(mergingUnit, targetUnit) {
     _isMergingUnits = true; // Bloquear nuevas solicitudes
     
     try {
-        // CORRECCIÓN: La confirmación debe ocurrir ANTES de enviar la acción al anfitrión
+        // La confirmación debe ocurrir ANTES de enviar la acción al anfitrión
         // para que el modal aparezca en el cliente que inicia la fusión
         const confirmation = window.confirm(`¿Fusionar "${mergingUnit.name}" con "${targetUnit.name}"?`);
         if (!confirmation) {
@@ -2685,7 +2336,7 @@ function requestRazeStructure() {
 
     const action = {
         type: 'razeStructure',
-        actionId: `raze_${selectedUnit.id}_${Date.now()}`, // <-- AÑADIDO
+        actionId: `raze_${selectedUnit.id}_${Date.now()}`, 
         payload: {
             playerId: selectedUnit.player,
             unitId: selectedUnit.id,
@@ -2718,7 +2369,7 @@ function RequestPillageAction() {
     
     const action = {
         type: 'pillageHex',
-        actionId: `pillage_${selectedUnit.id}_${Date.now()}`, // <-- AÑADIDO
+        actionId: `pillage_${selectedUnit.id}_${Date.now()}`, 
         payload: { playerId: selectedUnit.player, unitId: selectedUnit.id }
     };
     
@@ -2785,9 +2436,6 @@ function _executeRazeStructure(payload) {
     const unit = units.find(u => u.id === unitId);
     const hex = board[r]?.[c];
 
-    console.log(`[RAZE - Ejecutando]  Jugador: ${playerId}, Unidad: ${unit?.name}, Coordenadas: (${r},${c})`); // Log #1
-
-    // --- Validaciones de Lógica ---
     if (!unit || !hex) return;
     if (unit.player !== playerId) return;
     
@@ -2807,11 +2455,6 @@ function _executeRazeStructure(payload) {
     // Convertimos la estructura en ruinas
     hex.structure = null;
     hex.feature = 'ruins'; 
-
-    // La unidad consume su turno
-    const structureAfter = hex.structure;
-    const featureAfter = hex.feature;
-    console.log(`[RAZE - Ejecutando] Estado de los datos despues de modificar estructura:  Structure: ${structureBefore} -> ${structureAfter} , Feature: ${featureBefore} -> ${featureAfter} `); // Log #7
     
     unit.hasMoved = true;
     unit.hasAttacked = true;
@@ -3005,12 +2648,6 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
 }
 
 function handleConfirmBuildStructure(actionData) {
-    // Si la función se llama SIN datos (desde el botón del modal)
-    // usa las variables globales como antes.
-    console.log(`%c[handleConfirmBuildStructure] INICIO.`, "background: #222; color: #bada55");
-    
-
-    // Este booleano es crucial para distinguir entre una acción del jugador (a través del modal) y una acción de la IA.
     const isPlayerAction = !actionData;
     
     const r = isPlayerAction ? parseInt(domElements.buildStructureModal.dataset.r) : actionData.r;
@@ -3018,8 +2655,6 @@ function handleConfirmBuildStructure(actionData) {
     const structureType = isPlayerAction ? selectedStructureToBuild : actionData.structureType;
 
     const playerId = isPlayerAction ? gameState.currentPlayer : actionData.playerId;
-
-    console.log(` -> Datos: Jugador=${playerId}, Estructura=${structureType}, Coords=(${r},${c})`);
     
     if (!structureType || typeof r === 'undefined') {
         console.error(`   -> DIAGNÓSTICO: FALLO. Datos de construcción inválidos. Saliendo.`);
@@ -3028,10 +2663,7 @@ function handleConfirmBuildStructure(actionData) {
 
     const data = STRUCTURE_TYPES[structureType];
     const playerRes = gameState.playerResources[playerId];
-    console.log(`   -> Recursos del Jugador ${playerId} ANTES:`, JSON.parse(JSON.stringify(playerRes)));
 
-    // Validación de costes
-    console.log("   -> Fase: Validando costes...");
     for (const res in data.cost) {
         if (res === 'Colono') {
             // --- INICIO DE LA SOLUCIÓN ---
@@ -3044,18 +2676,15 @@ function handleConfirmBuildStructure(actionData) {
                 if (isPlayerAction) logMessage(`Error: Se requiere una unidad Colono en la casilla.`);
                 return; // Detiene si no hay un Colono válido
             }
-            // --- FIN DE LA SOLUCIÓN ---
         } else {
             // Lógica normal para los demás recursos.
             if ((playerRes[res] || 0) < data.cost[res]) {
-                console.error(`      -> DIAGNÓSTICO: FALLO. No hay suficientes ${res}. Necesita ${data.cost[res]}, tiene ${playerRes[res] || 0}.`);
                 if (isPlayerAction) logMessage(`Error: No tienes suficientes ${res}.`);
                 return; // Detiene si no se puede pagar
             }
         }
     }
 
-    // Deducir costes
     for (const res in data.cost) {
         playerRes[res] -= data.cost[res];
     }
@@ -3104,17 +2733,10 @@ function handleConfirmBuildStructure(actionData) {
     
     logMessage(`${data.name} construido en (${r},${c}) para el Jugador ${playerId}.`);
 
-    // El redibujado
-    console.log("   -> Fase: Solicitando redibujado visual de la casilla...");
     if (typeof renderSingleHexVisuals === 'function') {
-    renderSingleHexVisuals(r, c);
-        console.log(`      -> OK: Llamada a renderSingleHexVisuals(${r}, ${c}) completada.`);
-    } else {
-        console.error("   -> DIAGNÓSTICO: FALLO. La función renderSingleHexVisuals no existe.");
+        renderSingleHexVisuals(r, c);
     }
     
-    // Actualización de UI
-    console.log("   -> Fase: Actualizando UI global...");
     if (isPlayerAction) {
         // Si la acción fue de un jugador humano, actualizamos y cerramos sus ventanas.
         if(UIManager) {
@@ -3256,11 +2878,10 @@ function findInfrastructurePath(startCoords, targetCoords) {
 
             const hex = board[neighbor.r]?.[neighbor.c];
             
-            // --- INICIO DE LA CORRECCIÓN ---
+            
             // La condición ahora solo comprueba si el hexágono tiene infraestructura.
             // IGNORA si hay una unidad en él.
             if (hex && (hex.structure || hex.isCity)) {
-            // --- FIN DE LA CORRECCIÓN ---
                 visited.add(key);
                 const newPath = [...current.path, neighbor];
                 queue.push({ ...neighbor, path: newPath });
@@ -3268,13 +2889,58 @@ function findInfrastructurePath(startCoords, targetCoords) {
         }
     }
     
-    return null; // RUTA NO ENCONTRADA
+    return null; 
 }
 
-/**
- * (TU FUNCIÓN ORIGINAL, AHORA SIN LA LÓGICA DE INFRAESTRUCTURA)
- * Encuentra la ruta óptima para unidades militares.
- */
+function findNavalPath(start, target) {
+    if (!start || !target) return null;
+
+    let openSet = [{ r: start.r, c: start.c, f: 0, g: 0, parent: null }];
+    let visited = new Set();
+    let iterations = 0;
+    const MAX_ITERATIONS = 3000; 
+
+    while (openSet.length > 0) {
+        iterations++;
+        if (iterations > MAX_ITERATIONS) {
+            console.warn("[NavalPath] Pathfinding timed out.");
+            return null;
+        }
+
+        openSet.sort((a, b) => a.f - b.f);
+        let current = openSet.shift();
+        const currentKey = `${current.r},${current.c}`;
+
+        if (visited.has(currentKey)) continue;
+        visited.add(currentKey);
+
+        if (current.r === target.r && current.c === target.c) {
+            let path = [];
+            let curr = current;
+            while (curr) {
+                path.unshift({ r: curr.r, c: curr.c });
+                curr = curr.parent;
+            }
+            return path;
+        }
+
+        for (const neighbor of getHexNeighbors(current.r, current.c)) {
+            const nKey = `${neighbor.r},${neighbor.c}`;
+            if (visited.has(nKey)) continue;
+
+            const hex = board[neighbor.r]?.[neighbor.c];
+            
+            if (hex && hex.terrain === 'water') {
+                const g = current.g + 1;
+                const h = hexDistance(neighbor.r, neighbor.c, target.r, target.c);
+                const f = g + h;
+                openSet.push({ r: neighbor.r, c: neighbor.c, f, g, parent: current });
+            }
+        }
+    }
+    return null;
+}
+
 function findPath_A_Star(unit, startCoords, targetCoords) {
     if (!unit || !startCoords || !targetCoords) return null;
 
@@ -3350,7 +3016,7 @@ function requestExploreRuins() {
 
     const action = {
         type: 'exploreRuins',
-        actionId: `explore_${selectedUnit.id}_${Date.now()}`, // <-- AÑADIDO
+        actionId: `explore_${selectedUnit.id}_${Date.now()}`, 
         payload: {
             playerId: selectedUnit.player,
             unitId: selectedUnit.id,
@@ -3416,8 +3082,14 @@ function _executeExploreRuins(payload) {
     
     if (!selectedEvent) selectedEvent = RUIN_EVENTS.find(e => e.id === 'nothing'); // Fallback
 
-    // Procesar el efecto del evento
+    // Procesar el efecto del evento en victoria
     processRuinEvent(selectedEvent, unit, playerResources);
+
+    const pKey = `player${playerId}`;
+    if (!gameState.playerStats.ruinsExplored) gameState.playerStats.ruinsExplored = {};
+    if (!gameState.playerStats.ruinsExplored[pKey]) gameState.playerStats.ruinsExplored[pKey] = 0;
+
+    gameState.playerStats.ruinsExplored[pKey]++; // SUMAR AL CONTADOR PARA EL TÍTULO
     
     // Marcar la ruina como saqueada y actualizar visuales
     hex.feature = null; // Hacemos que la ruina desaparezca por completo
@@ -3563,7 +3235,6 @@ function processRuinEvent(event, unit, playerResources) {
                 toastType = 'success';
             }
             break;
-        //
 
         case 'nothing':
             // No hacemos nada, el toastText ya es "No has encontrado nada"
@@ -3634,65 +3305,139 @@ function RequestDisbandUnit(unitToDisband) {
 /** comercio **/
 
 /**
- * [Punto de Entrada UI] Inicia el proceso para establecer una ruta comercial.
+ * Escanea y presenta rutas válidas. Ahora soluciona el bloqueo marítimo y nombra unidades.
  */
 function requestEstablishTradeRoute() {
     if (!selectedUnit) return;
+    const unit = selectedUnit;
+    const pId = unit.player;
+    const isNaval = unit.regiments.some(r => REGIMENT_TYPES[r.type].is_naval);
 
-    // 1. Validaciones básicas
-    if (!selectedUnit.regiments.some(reg => (REGIMENT_TYPES[reg.type].abilities || []).includes("provide_supply"))) {
-        logMessage("Esta división no tiene capacidad de suministro para comerciar.", "warning");
+    console.log(`[COMERCIO] Iniciando escáner para ${unit.name}`);
+
+    // 1. DETECTAR ORIGEN
+    let startPoint = null; 
+    const currentHex = board[unit.r]?.[unit.c];
+
+    if (!isNaval) {
+        // TIERRA: Debe estar en la ciudad
+        startPoint = gameState.cities.find(c => c.r === unit.r && c.c === unit.c && c.owner === pId);
+    } else {
+        // MAR: Debe estar en agua TOCANDO una ciudad propia
+        if (currentHex.terrain === 'water') {
+            const neighbors = getHexNeighbors(unit.r, unit.c);
+            startPoint = gameState.cities.find(c => c.owner === pId && neighbors.some(n => n.r === c.r && n.c === c.c));
+        }
+    }
+
+    if (!startPoint) {
+        logMessage(isNaval ? "Error: El barco debe estar en un hexágono de agua pegado a una ciudad propia." : "Error: La caravana debe estar sobre una ciudad propia.", "warning");
         return;
     }
-    const currentHex = board[selectedUnit.r]?.[selectedUnit.c];
-    if (!currentHex || (!currentHex.structure && !currentHex.isCity)) {
-        logMessage("La ruta comercial debe iniciarse desde una ciudad o infraestructura.", "warning");
-        return;
-    }
 
-    // 2. Encontrar las ciudades conectadas
-    const connectedCities = findConnectedCities(selectedUnit.r, selectedUnit.c);
-    if (connectedCities.length < 2) {
-        logMessage("No se ha encontrado una ruta válida entre dos ciudades desde esta posición.", "warning");
-        return;
-    }
-
-    const cityA = connectedCities[0];
-    const cityB = connectedCities[1];
-
-    // 3. Confirmación del jugador
-    if (confirm(`¿Establecer una ruta comercial para "${selectedUnit.name}" entre ${cityA.name} y ${cityB.name}? La unidad se moverá automáticamente.`)) {
+    // 2. RECOPILAR RUTAS ACTIVAS DEL JUGADOR
+    const playerUnits = units.filter(u => u.player === pId && u.tradeRoute);
+    const existingRouteKeys = new Set(); // Para filtrar duplicados "Origen-Destino"
+    
+    // Preparar HTML para la sección de "Rutas Activas"
+    let activeRoutesHTML = '';
+    if (playerUnits.length > 0) {
+        activeRoutesHTML += `<div style="padding: 5px; background: rgba(0,255,0,0.1); border-bottom: 1px solid #333; margin-bottom: 10px;">
+            <strong style="color: #2ecc71; font-size: 10px;">RUTAS ACTIVAS (${playerUnits.length}):</strong>`;
         
-        const path = findPath_A_Star(selectedUnit, cityA, cityB);
-        if (!path) {
-            logMessage("No se pudo calcular la ruta.", "error");
-            return;
-        }
-
-        const actionPayload = {
-            unitId: selectedUnit.id,
-            origin: { r: cityA.r, c: cityA.c, name: cityA.name },
-            destination: { r: cityB.r, c: cityB.c, name: cityB.name },
-            path: path
-        };
-
-        // 4. Lógica de Red / Local
-        const action = { 
-            type: 'establishTradeRoute', 
-            actionId: `trade_${selectedUnit.id}_${Date.now()}`,
-            payload: { playerId: selectedUnit.player, ...actionPayload }
-        };
-
-        if (isNetworkGame()) {
-            if (NetworkManager.esAnfitrion) {
-                processActionRequest(action);
-            } else {
-                NetworkManager.enviarDatos({ type: 'actionRequest', action });
-            }
-        } else {
-            _executeEstablishTradeRoute(actionPayload);
-        }
+        playerUnits.forEach(u => {
+            const r = u.tradeRoute;
+            // Guardamos la clave para evitar duplicados luego
+            existingRouteKeys.add(`${r.origin.name}-${r.destination.name}`);
+            
+            activeRoutesHTML += `
+                <div style="font-size: 9px; color: #ccc; margin-top: 2px;">
+                    🚚 ${r.origin.name} ➔ ${r.destination.name} (${u.name})
+                </div>`;
+        });
+        activeRoutesHTML += `</div>`;
     }
+
+    // 3. ESCANEO DE NUEVOS DESTINOS
+    const potentialDestinations = gameState.cities.filter(c => 
+        (c.owner === pId || c.owner === BankManager.PLAYER_ID) && 
+        (c.r !== startPoint.r || c.c !== startPoint.c) // Que no sea la misma ciudad
+    );
+
+    const validRoutes = [];
+
+    // --- DENTRO DE requestEstablishTradeRoute ---
+    potentialDestinations.forEach(dest => {
+        // FILTRO DE DUPLICADOS: Si ya existe una ruta de A -> B, saltar.
+        const routeKey = `${startPoint.name}-${dest.name}`;
+        if (existingRouteKeys.has(routeKey)) {
+            return; // Ya existe, no la añadimos a la lista de opciones
+        }
+
+        let path = null;
+        
+        if (isNaval) {
+            // PIEZA A: Si es un barco, usamos traceNavalPath 
+            // (la cual ya configuramos para que llame internamente a findNavalPath)
+            path = traceNavalPath(unit, {r: unit.r, c: unit.c}, dest);
+        } else {
+            // PIEZA B: Si es tierra, usamos la infraestructura de caminos
+            path = findInfrastructurePath(startPoint, dest);
+        }
+        
+        // Si alguna de las dos funciones anteriores devolvió un camino válido (no null)
+        if (path && path.length > 0) {
+            validRoutes.push({ 
+                name: `${startPoint.name} ➔ ${dest.name}`, 
+                destData: dest, 
+                pathData: path 
+            });
+        }
+    });
+
+    // 4. RENDERIZADO DEL MODAL
+    const list = document.getElementById('routeListContainer');
+    list.innerHTML = activeRoutesHTML; // Insertamos primero las activas
+    
+    if (validRoutes.length === 0) {
+        const noRoutesDiv = document.createElement('div');
+        noRoutesDiv.style.padding = "10px";
+        noRoutesDiv.style.color = "#888";
+        noRoutesDiv.style.fontStyle = "italic";
+        noRoutesDiv.style.textAlign = "center";
+        
+        if (playerUnits.length > 0 && potentialDestinations.length > 0) {
+            noRoutesDiv.textContent = "Todas las rutas posibles desde esta ciudad ya están cubiertas.";
+        } else {
+            noRoutesDiv.textContent = "No se encontraron nuevas conexiones válidas.";
+        }
+        list.appendChild(noRoutesDiv);
+    } else {
+        // Título para nuevas rutas
+        const newRoutesTitle = document.createElement('div');
+        newRoutesTitle.innerHTML = `<strong style="color: #00f3ff; font-size: 10px; padding-left: 5px;">ESTABLECER NUEVA:</strong>`;
+        list.appendChild(newRoutesTitle);
+
+        validRoutes.forEach(route => {
+            const div = document.createElement('div');
+            div.className = "inbox-list-item"; 
+            div.style.fontSize = "10px";
+            div.innerHTML = `${isNaval ? '⚓' : '📦'} ${route.name}`;
+            div.onclick = () => {
+                // RE-BAUTIZAMOS LA UNIDAD CON LOS NOMBRES REALES
+                unit.name = `${isNaval ? 'Flota' : 'Caravana'} a ${route.destData.name}`;
+                
+                _executeEstablishTradeRoute({ unitId: unit.id, origin: startPoint, destination: route.destData, path: route.pathData });
+                document.getElementById('routeSelectorModal').style.display = 'none';
+            };
+            list.appendChild(div);
+        });
+    }
+
+    document.getElementById('routeSelectorModal').style.display = 'flex';
+    document.getElementById('closeRouteSelectorBtn').onclick = () => {
+        document.getElementById('routeSelectorModal').style.display = 'none';
+    };
 }
 
 /**
@@ -3703,8 +3448,10 @@ function _executeEstablishTradeRoute(payload) {
     const unit = units.find(u => u.id === unitId);
     if (!unit) return false;
 
+    const isNaval = unit.regiments.some(r => REGIMENT_TYPES[r.type].is_naval);
+
     const cargoCapacity = unit.regiments.reduce((sum, reg) => {
-        return sum + (REGIMENT_TYPES[reg.type].cargoCapacity || 0);
+        return sum + (REGIMENT_TYPES[reg.type].cargoCapacity || 200);
     }, 0);
 
     unit.tradeRoute = {
@@ -3714,18 +3461,81 @@ function _executeEstablishTradeRoute(payload) {
         position: 0,
         goldCarried: 0,
         cargoCapacity: cargoCapacity,
-        forward: true // true = viajando de origen a destino
+        forward: true
     };
 
-    // La unidad ya no puede ser controlada manualmente
+    // --- CORRECCIÓN CRÍTICA ---
+    // Si NO es naval, lo movemos al centro de la ciudad de origen.
+    // SI ES NAVAL, se queda en su hexágono de agua actual (no tocamos unit.r/c)
+    if (!isNaval) {
+        if (board[unit.r]?.[unit.c]) board[unit.r][unit.c].unit = null;
+        unit.r = origin.r;
+        unit.c = origin.c;
+        if (board[unit.r]?.[unit.c]) board[unit.r][unit.c].unit = unit;
+        positionUnitElement(unit);
+    }
+
     unit.hasMoved = true;
     unit.hasAttacked = true;
 
-    logMessage(`¡"${unit.name}" ha comenzado una ruta comercial entre ${origin.name} y ${destination.name}!`);
+    logMessage(`¡"${unit.name}" ha comenzado la ruta hacia ${destination.name}!`);
     if (UIManager) UIManager.hideContextualPanel();
 
     return true;
 }
 
-console.log("unit_Actions.js se ha cargado.");
+/**
+ * BUSCADOR DE ATRAQUES (Solo para Barcos)
+ * Encuentra hexágonos de AGUA adyacentes a una coordenada de tierra.
+ */
+function getWaterAtracaderos(city) {
+    // Verificación de seguridad para no enviar nulos
+    if (!city || typeof city.r === 'undefined') return [];
 
+    // Ahora enviamos números reales a getHexNeighbors
+    return getHexNeighbors(city.r, city.c).filter(n => {
+        const hex = board[n.r]?.[n.c];
+        // Solo nos interesa si el vecino es agua
+        return hex && hex.terrain === 'water';
+    });
+}
+
+function traceNavalPath(unit, startWaterHex, destCity) {
+    // 1. Obtener los puntos de agua que tocan la ciudad destino (Atracaderos)
+    const muellesDestino = getWaterAtracaderos(destCity); 
+    
+    if (muellesDestino.length === 0) {
+        console.warn(`[NAV-LOG] La ciudad ${destCity.name} no tiene salida al mar.`);
+        return null;
+    }
+
+    // 2. Comprobar si YA estamos en uno de los muelles de destino.
+    // Esto evita que el pathfinding falle si simplemente tenemos que "dar la vuelta" en el sitio.
+    const alreadyAtDestination = muellesDestino.some(muelle => muelle.r === startWaterHex.r && muelle.c === startWaterHex.c);
+    if (alreadyAtDestination) {
+        console.log(`[NAV-LOG] El barco ya está en un muelle válido de ${destCity.name}. Generando ruta estática.`);
+        return [{ r: startWaterHex.r, c: startWaterHex.c }]; // Ruta de 1 paso (quedarse ahí)
+    }
+
+    let bestPath = null;
+
+    // 3. Por cada muelle posible, buscar camino desde la posición actual
+    for (let muelle of muellesDestino) {
+        const path = findNavalPath(startWaterHex, muelle);
+        
+        if (path && path.length > 0) {
+            // Si es el primer camino encontrado o es más corto que el anterior, guardarlo
+            if (!bestPath || path.length < bestPath.length) {
+                bestPath = path;
+            }
+        }
+    }
+
+    if (!bestPath) {
+        console.warn(`[NAV-LOG] No hay una ruta ininterrumpida de agua desde (${startWaterHex.r},${startWaterHex.c}) hasta ${destCity.name}.`);
+    }
+
+    return bestPath;
+}
+
+console.log("unit_Actions.js se ha cargado.");

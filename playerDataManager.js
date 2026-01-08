@@ -410,4 +410,235 @@ const PlayerDataManager = {
         return true;
     },
 
+    /**
+     * Calcula cuánta XP gana el jugador basado en la partida
+     */
+    calculateMatchXP: function(isWinner, turns, unitsKilled) {
+        const XP_BASE = isWinner ? 500 : 200; // Bonus por ganar
+        const XP_POR_TURNO = turns * 5;      // Recompensar partidas épicas largas
+        const XP_POR_BAJA = unitsKilled * 15;
+        
+        return XP_BASE + XP_POR_TURNO + XP_POR_BAJA;
+    },
+
+    /**
+     * Guarda el progreso en Supabase y actualiza el nivel si es necesario
+     */
+    syncMatchResult: async function(xpGained, matchData) {
+        if (!this.currentPlayer) return;
+
+        // 1. Actualizar XP y Nivel localmente
+        this.currentPlayer.xp = (this.currentPlayer.xp || 0) + xpGained;
+        this.currentPlayer.level = this.currentPlayer.level || 1;
+        
+        // Fórmula: Cada nivel pide un 20% más que el anterior
+        let xpToNext = Math.floor(1000 * Math.pow(1.2, this.currentPlayer.level - 1));
+
+        while (this.currentPlayer.xp >= xpToNext) {
+            this.currentPlayer.xp -= xpToNext;
+            this.currentPlayer.level++;
+            xpToNext = Math.floor(1000 * Math.pow(1.2, this.currentPlayer.level - 1));
+            logMessage(`¡NIVEL DE CUENTA SUBIDO A ${this.currentPlayer.level}!`, 'success');
+        }
+
+        // 2. Guardar en la tabla de HISTORIAL (para el Códice)
+        const { error: matchError } = await supabaseClient
+            .from('match_history')
+            .insert([{
+                player_id: this.currentPlayer.auth_id,
+                outcome: matchData.outcome,
+                duration_minutes: matchData.duration,
+                turns_played: matchData.turns,
+                xp_gained: xpGained,
+                hero_ids: matchData.heroes,
+                created_at: new Date().toISOString()
+            }]);
+
+        // 3. Sincronizar el Perfil completo (JSON) en la nube
+        await this.saveCurrentPlayer();
+
+        return { 
+            level: this.currentPlayer.level, 
+            xp: this.currentPlayer.xp, 
+            xpNext: xpToNext 
+        };
+    },
+
+    updateAchievements: async function(matchStats) {
+        if (!this.currentPlayer?.auth_id) return;
+
+        // 1. Ejemplo: Actualizar logro de bajas
+        const { data, error } = await supabaseClient
+            .from('user_achievements')
+            .select('*')
+            .eq('player_id', this.currentPlayer.auth_id)
+            .eq('achievement_id', 'SLAYER_1')
+            .maybeSingle();
+
+        let current = data ? data.current_progress : 0;
+        let newProgress = current + matchStats.kills;
+        let goal = REWARDS_CONFIG.ACHIEVEMENTS['SLAYER_1'].goal;
+
+        await supabaseClient.from('user_achievements').upsert({
+            player_id: this.currentPlayer.auth_id,
+            achievement_id: 'SLAYER_1',
+            current_progress: newProgress,
+            is_completed: newProgress >= goal
+        }, { onConflict: 'player_id, achievement_id' });
+
+        if (newProgress >= goal && (!data || !data.is_completed)) {
+            logMessage(`¡LOGRO COMPLETADO: ${REWARDS_CONFIG.ACHIEVEMENTS['SLAYER_1'].title}!`, 'success');
+            // Aquí podrías disparar un sonido o animación
+        }
+    },
+
+    // En PlayerDataManager
+    checkDailyReward: async function() {
+        if (!this.currentPlayer?.auth_id) return;
+
+        const { data: profile } = await supabaseClient
+            .from('profiles')
+            .select('last_daily_claim, level')
+            .eq('id', this.currentPlayer.auth_id)
+            .single();
+
+        const lastClaim = profile.last_daily_claim ? new Date(profile.last_daily_claim) : new Date(0);
+        const today = new Date();
+
+        // Comprobar si ha pasado el día (misma fecha no cuenta)
+        if (lastClaim.toDateString() !== today.toDateString()) {
+            const reward = REWARDS_CONFIG.getDailyReward(profile.level);
+            
+            // Entregar premio
+            if (reward.type === 'oro') this.currentPlayer.currencies.gold += reward.qty;
+            if (reward.type === 'sellos') PlayerDataManager.addWarSeals(reward.qty);
+
+            // Guardar en Supabase
+            await supabaseClient
+                .from('profiles')
+                .update({ last_daily_claim: today.toISOString(), profile_data: this.currentPlayer })
+                .eq('id', this.currentPlayer.auth_id);
+
+            logMessage(`¡RECOMPENSA DIARIA RECIBIDA: ${reward.label}!`, 'success');
+            return reward;
+        }
+        return null;
+    },
+
+    // fin
+    processEndGameProgression: async function(winningPlayerNumber) {
+        // 1. Verificación de seguridad: ¿Hay un jugador logueado?
+        if (!this.currentPlayer || !this.currentPlayer.auth_id) {
+            console.warn("[PROGRESIÓN] No hay sesión activa para guardar progreso.");
+            return;
+        }
+
+        const playerWon = (winningPlayerNumber === gameState.myPlayerNumber);
+        const pKey = `player${gameState.myPlayerNumber}`;
+
+        // 2. Recolección de méritos de la partida actual
+        // Obtenemos bajas del sistema de estadísticas
+        const matchKills = (gameState.playerStats && gameState.playerStats.unitsDestroyed) 
+            ? (gameState.playerStats.unitsDestroyed[pKey] || 0) 
+            : 0;
+
+        // Contamos ciudades controladas en el mapa final
+        const matchCities = board.flat().filter(h => h && h.owner === gameState.myPlayerNumber && h.isCity).length;
+        
+        // Obtenemos comercios realizados
+        const matchTrades = (gameState.playerStats && gameState.playerStats.sealTrades)
+            ? (gameState.playerStats.sealTrades[pKey] || 0)
+            : 0;
+
+        // 3. Actualización de las estadísticas de CARRERA (Histórico acumulado)
+        this.currentPlayer.total_kills = (this.currentPlayer.total_kills || 0) + matchKills;
+        this.currentPlayer.total_cities = (this.currentPlayer.total_cities || 0) + matchCities;
+        this.currentPlayer.total_trades = (this.currentPlayer.total_trades || 0) + matchTrades;
+        this.currentPlayer.favorite_civ = gameState.playerCivilizations[gameState.myPlayerNumber] || 'Iberia';
+
+        // 4. Cálculo de XP para el Nivel de Comandante
+        // Fórmula: 500 por ganar, 200 por perder + 15 por cada regimiento destruido
+        const xpGained = (playerWon ? 500 : 200) + (matchKills * 15);
+
+        // 5. Preparar objeto de métricas para el Historial y la UI
+        // Aquí incluimos 'outcome' explícitamente para evitar el error 'toUpperCase'
+        const matchData = {
+            outcome: playerWon ? 'victoria' : 'derrota',
+            turns: gameState.turnNumber || 0,
+            kills: matchKills,
+            xp_gained: xpGained,
+            heroes: units.filter(u => u.player === gameState.myPlayerNumber && u.commander).map(u => u.commander)
+        };
+
+        // 6. Sincronizar Nivel en Supabase y Guardar en Historial (Tabla match_history)
+        // Esta llamada actualiza localmente el XP y Level y lo sube a la nube.
+        const progress = await this.syncMatchResult(xpGained, matchData);
+
+        // 7. Lanzar el Resumen Visual (El modal postMatchModal)
+        // Pasamos 'matchData' que ahora SÍ contiene el campo 'outcome'
+        if (UIManager && UIManager.showPostMatchSummary) {
+            UIManager.showPostMatchSummary(playerWon, xpGained, progress, matchData);
+        }
+
+        console.log(`%c[PROGRESIÓN] Finalizada con éxito. XP: +${xpGained}`, "color: #2ecc71; font-weight: bold;");
+    },
+
+    // FUNCIÓN PARA EL BOTÓN DE RECLAMAR
+    claimDailyReward: async function() {
+        if (!this.currentPlayer) return;
+        
+        const reward = REWARDS_CONFIG.getDailyReward(this.currentPlayer.level || 1);
+        
+        if (reward.type === 'oro') this.currentPlayer.currencies.gold += reward.qty;
+        if (reward.type === 'sellos') this.currentPlayer.currencies.sellos_guerra += reward.qty;
+
+        this.currentPlayer.last_daily_claim = new Date().toISOString();
+        await this.saveCurrentPlayer();
+        
+        showToast(`¡Has reclamado ${reward.label}!`, "success");
+        openProfileModal(); // Refrescar pantalla
+    },
+
+    // Añadir al objeto PlayerDataManager en playerDataManager.js
+    applyCareerProgression: async function(winningPlayerNumber) {
+        if (!this.currentPlayer) return;
+
+        const playerWon = (winningPlayerNumber === gameState.myPlayerNumber);
+        const pKey = `player${gameState.myPlayerNumber}`;
+
+        // 1. Recolección de méritos de la partida actual
+        const killsInMatch = gameState.playerStats?.unitsDestroyed?.[pKey] || 0;
+        const citiesInMatch = board.flat().filter(h => h && h.owner === gameState.myPlayerNumber && h.isCity).length;
+        const tradesInMatch = gameState.playerStats?.sealTrades?.[pKey] || 0;
+
+        // 2. Actualización del Perfil Global (Suma a lo que ya tenía)
+        this.currentPlayer.total_kills = (this.currentPlayer.total_kills || 0) + killsInMatch;
+        this.currentPlayer.total_cities = (this.currentPlayer.total_cities || 0) + citiesInMatch;
+        this.currentPlayer.total_trades = (this.currentPlayer.total_trades || 0) + tradesInMatch;
+        
+        // 3. Registrar civilización favorita (la actual)
+        this.currentPlayer.favorite_civ = gameState.playerCivilizations[gameState.myPlayerNumber] || 'Iberia';
+
+        // 4. Cálculo de Experiencia de Cuenta (Nivel de Comandante)
+        const xpBase = playerWon ? 500 : 200;
+        const xpBonus = (killsInMatch * 10) + (citiesInMatch * 50);
+        const totalXpGained = xpBase + xpBonus;
+
+        // 5. Sincronizar Nivel y Guardar en Historial (Usando tus funciones previas)
+        const progress = await this.syncMatchResult(totalXpGained, {
+            outcome: playerWon ? 'victoria' : 'derrota',
+            turns: gameState.turnNumber,
+            kills: killsInMatch
+        });
+
+        // 6. Lanzar la pantalla de resultados (El modal que ya tienes en el index)
+        if (UIManager && UIManager.showPostMatchSummary) {
+            UIManager.showPostMatchSummary(playerWon, totalXpGained, progress, {
+                turns: gameState.turnNumber, 
+                kills: killsInMatch
+            });
+        }
+        
+        console.log("Progreso de carrera aplicado con éxito.");
+    },
 };

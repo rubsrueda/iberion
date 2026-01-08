@@ -68,7 +68,7 @@ const PlayerDataManager = {
                 }
             }
         });
-    }
+    },
 
     // Función de "hash" simple para no guardar contraseñas en texto plano.
     // En un entorno real, esto sería una librería criptográfica.
@@ -487,6 +487,22 @@ const PlayerDataManager = {
         this.currentPlayer.currencies.sellos_guerra -= amount;
         this.saveCurrentPlayer();
         return true;
+    },
+
+    getBattleHistory: async function() {
+        if (!this.currentPlayer?.auth_id) return [];
+
+        const { data, error } = await supabaseClient
+            .from('match_history')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(10); // Traemos las últimas 10 batallas
+
+        if (error) {
+            console.error("Error cargando historial:", error);
+            return [];
+        }
+        return data;
     },
 
 };

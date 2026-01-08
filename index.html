@@ -250,7 +250,7 @@
         <!-- Altar de los Deseos: Estatua a la derecha -->
             <div id="hotspotAltar" class="main-menu-hotspot" data-action="openAltar"></div>
         <!-- Campaña: Edificio grande arriba -->
-            <div id="hotspotCampaign" class="main-menu-hotspot" data-action="showComingSoon"></div>
+            <div id="hotspotCampaign" class="main-menu-hotspot" data-action="openProfile"></div>
         <!-- Tronos de Iberia: Ruinas a la derecha -->
             <div id="hotspotThrones" class="main-menu-hotspot" data-action="showComingSoon"></div>
         
@@ -273,6 +273,92 @@
         </div>
     </div>
 
+    <!-- ====================================================================== -->
+    <!-- ====== Modal del perfil del jugador                             ====== -->
+    <!-- ====================================================================== -->
+
+    <div id="profileModal" class="modal" style="display: none; background: rgba(0,0,0,0.85);">
+        <div class="modal-content" style="max-width: 800px; width: 95vw; background: #2c2219; border: 3px solid #5d4037; border-radius: 15px; color: #fdf5e6; padding: 0; overflow: hidden; font-family: 'Arial', sans-serif; position: relative;">
+            
+            <!-- CABECERA SUPERIOR (Fondo temático) -->
+            <div style="background: linear-gradient(to bottom, #8d6e63, #4e342e); padding: 20px; display: flex; gap: 20px; align-items: flex-start; position: relative;">
+                
+                <!-- Foto de Perfil y Nivel -->
+                <div style="position: relative;">
+                    <div id="profileAvatar" onclick="changeAvatar()" style="width: 100px; height: 100px; border-radius: 15px; border: 3px solid #ffd700; background: #333; display: flex; align-items: center; justify-content: center; font-size: 3.5em; cursor: pointer; box-shadow: 0 4px 8px rgba(0,0,0,0.5);">
+                        🎖️
+                    </div>
+                    <div style="position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); background: #ffd700; color: #000; padding: 2px 10px; border-radius: 10px; font-weight: bold; font-size: 14px; border: 2px solid #4e342e;">
+                        Lvl <span id="profileLevelNum">1</span>
+                    </div>
+                </div>
+
+                <!-- Info Principal -->
+                <div style="flex-grow: 1;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <h2 id="profileUsername" style="margin: 0; font-size: 1.5em; text-shadow: 2px 2px #000;">General Name</h2>
+                        <span onclick="editName()" style="cursor:pointer; font-size: 18px;">📝</span>
+                    </div>
+                    <div style="margin-top: 5px; font-size: 0.9em; color: #d7ccc8;">
+                        <span id="allianceSection" onclick="openAllianceMenu()" style="cursor:pointer;">
+                            Alianza: <strong id="allianceName" style="color: #fff;">Sin Alianza</strong> ➔
+                        </span>
+                        <br>
+                        <span>Civilización: <strong id="statTopCiv" style="color: #fff;">Vikingos</strong></span>
+                    </div>
+                    <!-- Barra de XP pequeña debajo del nombre -->
+                    <div style="width: 100%; height: 8px; background: #1a1a1a; border-radius: 4px; margin-top: 10px; border: 1px solid #795548;">
+                        <div id="profileXpBar" style="width: 0%; height: 100%; background: #4caf50; border-radius: 4px;"></div>
+                    </div>
+                </div>
+
+                <span class="close-button" onclick="document.getElementById('profileModal').style.display='none'" style="position: absolute; top: 10px; right: 15px; font-size: 30px; color: #fff; cursor: pointer;">×</span>
+            </div>
+
+            <!-- CUERPO CENTRAL (Estadísticas tipo Tarjeta) -->
+            <div style="padding: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                
+                <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 10px; border: 1px solid #5d4037; display: flex; flex-direction: column; align-items: center;">
+                    <span style="font-size: 0.75em; color: #bcaaa4; text-transform: uppercase;">Puntos de Muerte</span>
+                    <strong id="statKills" style="font-size: 1.3em; color: #ff5252;">0</strong>
+                </div>
+
+                <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 10px; border: 1px solid #5d4037; display: flex; flex-direction: column; align-items: center;">
+                    <span style="font-size: 0.75em; color: #bcaaa4; text-transform: uppercase;">Poder de Comercio</span>
+                    <strong id="statTrades" style="font-size: 1.3em; color: #ffeb3b;">0</strong>
+                </div>
+
+                <!-- Historial / Códice integrado en el centro -->
+                <div style="grid-column: span 2; background: rgba(0,0,0,0.4); border-radius: 10px; padding: 10px;">
+                    <h4 style="margin: 0 0 10px 0; font-size: 0.8em; border-bottom: 1px solid #5d4037; padding-bottom: 5px; color: #ffd700;">📜 CÓDICE DE LAS ÚLTIMAS BATALLAS</h4>
+                    <div id="battleCodexList" style="max-height: 100px; overflow-y: auto;">
+                        <!-- JS rellena esto -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- BOTÓN DE RECOMPENSA (Solo aparece si hay algo) -->
+            <div id="dailyRewardSection" style="padding: 0 15px 10px 15px;">
+                <button id="claimDailyBtn" class="button-primary" style="width: 100%; padding: 12px; background: #f1c40f; color: #000; font-weight: bold; border-radius: 8px; border: none; display: none;">🎁 RECLAMAR BENEFICIO DIARIO</button>
+            </div>
+
+            <!-- BARRA DE NAVEGACIÓN INFERIOR (Iconos) -->
+            <div style="background: #1b130c; padding: 10px; display: flex; justify-content: space-around; border-top: 2px solid #5d4037;">
+                <div onclick="showToast('Próximamente')" style="text-align: center; cursor: pointer;">
+                    <div style="font-size: 20px;">ℹ️</div><span style="font-size: 9px;">INFO</span>
+                </div>
+                <div onclick="showRanking()" style="text-align: center; cursor: pointer;">
+                    <div style="font-size: 20px;">🏆</div><span style="font-size: 9px;">RANKING</span>
+                </div>
+                <div onclick="document.getElementById('barracksModal').style.display='flex'" style="text-align: center; cursor: pointer;">
+                    <div style="font-size: 20px;">🎖️</div><span style="font-size: 9px;">HEROES</span>
+                </div>
+                <div onclick="document.getElementById('profileModal').style.display='none'" style="text-align: center; cursor: pointer;">
+                    <div style="font-size: 20px;">⚙️</div><span style="font-size: 9px;">CONFIG</span>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- ====================================================================== -->
     <!-- ====== PANTALLA DE CONFIGURACIÓN DE PARTIDA RÁPIDA (ESCARAMUZA) ====== -->
@@ -713,19 +799,22 @@
                 <button class="wiki-tab-btn" data-tab="comercio">Banca</button> <!-- Nueva -->
                 <button class="wiki-tab-btn" data-tab="victoria">Victoria</button> <!-- Nueva -->
                 <button class="wiki-tab-btn" data-tab="conceptos">Conceptos</button>
-                
+                <button class="wiki-tab-btn" data-tab="logros">🎖️ Logros</button>
             </div>
+
             <div class="wiki-tab-content">
                 <div id="wiki-tab-regimientos" class="wiki-page active">
                     <p>Valoraciones de 1 a 5 estrellas (⭐) para Ataque, Defensa, Salud, Movimiento y Rango.</p>
                     <div class="table-container"><table id="wikiRegimentsTable"></table></div>
                 </div>
+                
                 <div id="wiki-tab-estructuras" class="wiki-page">
                     <h3>Estructuras</h3>
                     <div class="table-container"><table id="wikiStructuresTable"></table></div>
                     <h3>Ingresos por Territorio (Base)</h3>
                     <div class="table-container"><table id="wikiIncomeTable"></table></div>
                 </div>
+                
                 <div id="wiki-tab-tecnologias" class="wiki-page">
                     <p>Las tecnologías desbloquean nuevas unidades y estructuras.</p>
                     <div class="table-container"><table id="wikiTechTable"></table></div>
@@ -734,17 +823,29 @@
                 <div id="wiki-tab-heroes" class="wiki-page">
                     <p>Los Héroes mejoran el rendimiento de su división asignada.</p>
                 </div> <!-- Contenedor nuevo -->
+                
                 <div id="wiki-tab-comercio" class="wiki-page">
                     <p>La Banca es un buen aliado económico a largo Plazo</p>
                 </div> <!-- Contenedor nuevo -->
+                
                 <div id="wiki-tab-victoria" class="wiki-page">
                     <p>La Victoria no solo se consigue luchando.</p>
                 </div> <!-- Contenedor nuevo -->
-
+                
                 <div id="wiki-tab-conceptos" class="wiki-page">
                     <h3>Conceptos Clave del Juego</h3>
                     <div id="wikiConceptsContent"></div>
                 </div>
+
+                <div id="wiki-tab-logros" class="wiki-page">
+                    <h3>Hazañas del General</h3>
+                    <p>Completa estos desafíos para obtener recursos adicionales.</p>
+                    <div id="wikiAchievementsList">
+                        <!-- JS llenará esto con los logros de Supabase -->
+                        <p>Cargando tus hazañas...</p>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
@@ -830,6 +931,44 @@
                 <button id="finalizeAdvancedSplitBtn">Confirmar División</button>
                 <button id="cancelAdvancedSplitBtn" style="background-color: #6c757d;">Cancelar</button>
             </div>
+        </div>
+    </div>
+       
+    <!-- ====================================================================== -->
+    <!-- ======================= modal para la selección de rutas ================ -->
+    <!-- ====================================================================== -->
+    <div id="routeSelectorModal" class="modal modal-themed" style="display: none; z-index: 10006;">
+        <div class="modal-content" style="max-width: 400px; max-height: 250px;">
+            <span class="close-button" id="closeRouteSelectorBtn">×</span>
+            <h3 style="font-size: 11px; color: #00f3ff; border-bottom: 1px solid #1a2a33; padding-bottom: 4px;">ESTABLECER RUTA COMERCIAL</h3>
+            <div id="routeListContainer" style="overflow-y: auto; flex-grow: 1; margin: 10px 0;">
+                <!-- Aquí JS inyectará las rutas encontradas -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- ======================= modal resumen de partida ================ -->
+    <!-- ====================================================================== -->
+
+    <div id="postMatchModal" class="modal modal-themed" style="display: none;">
+        <div class="modal-content" style="max-width: 500px; text-align: center;">
+            <h2 id="matchResultTitle" style="font-size: 2.5em; margin: 10px 0;">¡VICTORIA!</h2>
+            <div id="mvpHeroContainer"></div>
+            
+            <div style="margin: 20px 0;">
+                <p>Nivel de Comandante: <strong id="playerLevelDisplay">1</strong></p>
+                <div class="xp-bar-container" style="height: 25px; background: #1a2a33; border: 2px solid #7f8c8d;">
+                    <div id="playerXpBar" class="xp-bar" style="width: 0%; background: linear-gradient(to right, #f1c40f, #e67e22);"></div>
+                </div>
+                <p id="xpGainedDisplay">+450 XP ganada</p>
+            </div>
+
+            <div id="matchStatsGrid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.9em; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px;">
+                <!-- Stats dinámicas -->
+            </div>
+
+            <button id="closePostMatchBtn" class="button-primary" style="margin-top: 20px; width: 100%; padding: 15px;">VOLVER AL CUARTEL GENERAL</button>
         </div>
     </div>
     
@@ -927,8 +1066,7 @@
     <!-- ====================================================================== -->
     <!-- ======================= MODAL DE LA BANCA (MERCADO) ================== -->
     <!-- ====================================================================== -->
-    <!-- EN index.html -->
-<!-- REEMPLAZA EL DIV #bankModal COMPLETO POR ESTE -->
+    
     <div id="bankModal" class="modal modal-themed" style="display: none;">
         <div class="modal-content compact-modal"> <!-- Nueva clase 'compact-modal' -->
             

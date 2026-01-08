@@ -5361,3 +5361,38 @@ input[type="range"] {
     border-color: #1a2a33 !important;
     font-size: 12px !important; /* Fuente aumentada para comodidad */
 }
+
+/* Pantalla del perfil del jugador */ 
+/* Cajas de estadísticas estilo tarjeta de juego */
+.stat-box {
+    background: linear-gradient(145deg, #3e2723, #212121) !important;
+    border: 2px solid #8d6e63 !important;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+    transition: transform 0.2s;
+}
+
+.stat-box:hover {
+    transform: scale(1.05);
+    border-color: #ffd700 !important;
+}
+
+/* Efecto de barra de navegación inferior */
+.profile-nav-item {
+    filter: grayscale(0.5);
+    transition: 0.3s;
+}
+
+.profile-nav-item:hover {
+    filter: grayscale(0);
+    color: #ffd700;
+}
+
+/* Animación de entrada para el Códice */
+#battleCodexList div {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+}

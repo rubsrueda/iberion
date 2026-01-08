@@ -33,48 +33,67 @@ const BankManager = {
      * Comprueba las condiciones y, si se cumplen, crea una nueva caravana.
      */
     createNewCaravanIfNeeded: function() {
-        const bankCaravans = units.filter(u => u.player === this.PLAYER_ID && u.tradeRoute);
-        const totalCities = gameState.cities.filter(c => c.owner > 0);
-        
-        if (bankCaravans.length >= totalCities.length) {
-            return;
-        }
-
+        // 1. Get Bank City
         const bankCity = gameState.cities.find(c => c.owner === this.PLAYER_ID);
         if (!bankCity) return;
         
-        // Crear una lista de TODOS los nombres de ciudades que ya están en una ruta,
-        // ya sea como origen o como destino.
-        const activeDestinations = new Set();
+        // Check if spawn point is blocked. If Bank city has a unit, we can't spawn.
+        const unitAtBank = getUnitOnHex(bankCity.r, bankCity.c);
+        if (unitAtBank) {
+            // console.log("[Banca] La ciudad está bloqueada. No se puede desplegar caravana.");
+            return;
+        }
+
+        const bankCaravans = units.filter(u => u.player === this.PLAYER_ID && u.tradeRoute);
+        const totalCities = gameState.cities.filter(c => c.owner > 0); // Real player cities
+        
+        // Global Hard Limit
+        if (bankCaravans.length >= totalCities.length * 2) {
+            return;
+        }
+
+        // Count active caravans per destination
+        const activeDestinations = new Map(); 
         bankCaravans.forEach(caravan => {
             if (caravan.tradeRoute) {
-                activeDestinations.add(caravan.tradeRoute.origin.name);
-                activeDestinations.add(caravan.tradeRoute.destination.name);
+                const destName = caravan.tradeRoute.destination.name;
+                activeDestinations.set(destName, (activeDestinations.get(destName) || 0) + 1);
             }
-            });
+        });
 
-        const availableTargets = totalCities.filter(c => !activeDestinations.has(c.name));
+        // Filter available targets
+        // Valid if: Path exists AND Route is not saturated.
+        let availableTargets = totalCities.filter(targetCity => {
+            // Check path existence silently first
+            const path = findInfrastructurePath(bankCity, targetCity);
+            if (!path) return false; // If no road connection, skip (prevents the console error)
+
+            const routeLength = path.length;
+            const caravansOnRoute = activeDestinations.get(targetCity.name) || 0;
+
+            // DENSITY RULE: Max 1 caravan per 3 hexes of road length.
+            // e.g., 6 hex road = max 2 caravans.
+            const maxCaravans = Math.max(1, Math.floor(routeLength / 3));
+
+            return caravansOnRoute < maxCaravans;
+        });
 
         if (availableTargets.length === 0) {
+            // console.log("[Banca] Rutas saturadas o inexistentes. No se envían más caravanas.");
             return;
         }
         
-        // --- INICIO DE LA CORRECCIÓN: Iterar hasta encontrar una ruta válida ---
-        // Barajar los objetivos para que no intente siempre el mismo.
+        // Shuffle targets
         for (let i = availableTargets.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [availableTargets[i], availableTargets[j]] = [availableTargets[j], availableTargets[i]];
         }
 
+        // Attempt build
         for (const targetCity of availableTargets) {
-            // Intentar construir y desplegar
             const success = this.buildAndDeployCaravan(bankCity, targetCity);
-            // Si tiene éxito, detener el bucle (solo creamos una caravana por turno)
-            if (success) {
-                break;
-            }
+            if (success) break; // Only one per turn
         }
-        // --- FIN DE LA CORRECCIÓN ---
     },
 
     /**

@@ -490,33 +490,42 @@ function findConnectedCities(startR, startC) {
 function ensureFullGameState() {
     if (!gameState) return;
 
-    // Verificar y añadir playerStats si falta
-    if (!gameState.playerStats) {
-        console.warn("[GameState Check] gameState.playerStats no existía. Inicializando ahora.");
-        gameState.playerStats = { unitsDestroyed: {}, sealTrades: {} };
-        for (let i = 1; i <= gameState.numPlayers; i++) {
-            gameState.playerStats.unitsDestroyed[`player${i}`] = 0;
-            gameState.playerStats.sealTrades[`player${i}`] = 0;
-        }
-    }
+    // A. INICIALIZACIÓN DE OBJETOS PADRE (Crucial para evitar el crash 'reading player1')
+    if (!gameState.playerStats) gameState.playerStats = {};
+    if (!gameState.playerStats.unitsDestroyed) gameState.playerStats.unitsDestroyed = {};
+    if (!gameState.playerStats.sealTrades) gameState.playerStats.sealTrades = {};
+    if (!gameState.playerStats.ruinsExplored) gameState.playerStats.ruinsExplored = {};
 
-    // Verificar y añadir victoryPoints si falta
-    if (!gameState.victoryPoints) {
-        console.warn("[GameState Check] gameState.victoryPoints no existía. Inicializando ahora.");
-        gameState.victoryPoints = {
-            holders: {
-                mostCities: null, largestArmy: null, longestRoute: null, mostKills: null,
-                mostTechs: null, mostHeroes: null, mostResources: null, mostTrades: [],
-            },
-            ruins: {}
-        };
-        for (let i = 1; i <= gameState.numPlayers; i++) {
-            gameState.victoryPoints[`player${i}`] = 0;
-            gameState.victoryPoints.ruins[`player${i}`] = 0;
-        }
+    if (!gameState.victoryPoints) gameState.victoryPoints = { holders: {}, ruins: {} };
+    if (!gameState.victoryPoints.holders) gameState.victoryPoints.holders = {};
+    if (!gameState.victoryPoints.ruins) gameState.victoryPoints.ruins = {};
+
+    // B. INICIALIZACIÓN DE VALORES POR JUGADOR
+    const totalPlayers = gameState.numPlayers || 2;
+    for (let i = 1; i <= totalPlayers; i++) {
+        const pKey = `player${i}`;
+        
+        // Inicializar contadores a 0 si no existen
+        if (typeof gameState.playerStats.unitsDestroyed[pKey] === 'undefined') gameState.playerStats.unitsDestroyed[pKey] = 0;
+        if (typeof gameState.playerStats.sealTrades[pKey] === 'undefined') gameState.playerStats.sealTrades[pKey] = 0;
+        if (typeof gameState.playerStats.ruinsExplored[pKey] === 'undefined') gameState.playerStats.ruinsExplored[pKey] = 0;
+        if (typeof gameState.victoryPoints.ruins[pKey] === 'undefined') gameState.victoryPoints.ruins[pKey] = 0;
+        if (typeof gameState.victoryPoints[pKey] === 'undefined') gameState.victoryPoints[pKey] = 0;
     }
+}
+
+/**
+ * Detecta si el input es una ruta de imagen o un emoji y devuelve el HTML correcto.
+ */
+function renderEquipIcon(iconValue, className = "item-icon") {
+    if (!iconValue) return "❓";
     
-    // Puedes añadir aquí futuras comprobaciones para otras propiedades
+    // Si contiene puntos o barras, es una imagen
+    if (iconValue.includes('.') || iconValue.includes('/')) {
+        return `<img src="${iconValue}" class="${className}" style="width:100%; height:100%; object-fit:contain;">`;
+    }
+    // Si no, es un emoji o texto
+    return `<span class="${className}">${iconValue}</span>`;
 }
 
 console.log("utils.js se ha cargado.");

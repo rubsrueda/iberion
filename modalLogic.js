@@ -1140,13 +1140,21 @@ function populateUnitDetailList(unit) {
     let commanderHTML = '';
     if (unit.commander && COMMANDERS[unit.commander]) {
         const cmdr = COMMANDERS[unit.commander];
+        
+        // Decidimos si pintar Emoji (viejo) o Imagen (nuevo)
+        const isImagePath = cmdr.sprite.includes('/') || cmdr.sprite.includes('.');
+        const visualContent = isImagePath 
+            ? `<img src="${cmdr.sprite}" style="width: 50px; height: 50px; border-radius: 50%; border: 2px solid gold; vertical-align: middle;">`
+            : `<span style="font-size: 2.5em;">${cmdr.sprite}</span>`;
+
         commanderHTML = `
-            <div class="commander-details-section" style="background-color: #fff; padding: 10px; border-radius: 5px; border: 1px solid gold; margin-bottom: 15px; text-align: center;">
-                <h4 style="margin: 0 0 5px 0; color: #333;">Líder de la División</h4>
-                <p style="font-size: 1.2em; font-weight: bold; margin: 0; color: #555;">
-                    <span style="font-size: 1.5em; vertical-align: middle;">${cmdr.sprite}</span> ${cmdr.name}
+            <div class="commander-details-section" style="background: rgba(0,0,0,0.4); padding: 10px; border-radius: 8px; border: 1px solid #f1c40f; margin-bottom: 15px; text-align: center;">
+                <h4 style="margin: 0 0 5px 0; color: #888; font-size: 10px; text-transform: uppercase;">Comandante de División</h4>
+                <div style="margin-bottom: 5px;">${visualContent}</div>
+                <p style="font-size: 14px; font-weight: bold; margin: 0; color: #f1c40f;">
+                    ${cmdr.name}
                 </p>
-                <p style="font-size: 0.9em; font-style: italic; margin: 2px 0 0 0; color: #6c757d;">
+                <p style="font-size: 10px; font-style: italic; margin: 2px 0 0 0; color: #cbd5e0;">
                     ${cmdr.title}
                 </p>
             </div>
@@ -1381,7 +1389,7 @@ function openWikiModal() {
     populateWikiHeroes();   
     populateWikiComercio(); 
     populateWikiVictoria(); 
-    populateWikiConceptsTab(); // <-- ESTA debe existir abajo
+    populateWikiConceptsTab();
 
     // 2. Sistema de navegación
     const tabs = document.querySelectorAll('.wiki-tab-btn');
@@ -3258,25 +3266,40 @@ function handleBankTrade() {
 function _executeTradeWithBank(payload) {
     const { playerId, offerResource, offerAmount, requestResource, requestAmount } = payload;
     const playerRes = gameState.playerResources[playerId];
+    
+    // --- SOLUCIÓN AL ERROR: Definir playerKey para las estadísticas ---
+    const playerKey = `player${playerId}`;
+    // -----------------------------------------------------------------
 
     if (!playerRes || (playerRes[offerResource] || 0) < offerAmount) {
         return false; // Falló la validación final en el Host
     }
 
-    // Ejecutar el intercambio
+    // 1. Ejecutar el intercambio lógico
     playerRes[offerResource] -= offerAmount;
     playerRes[requestResource] = (playerRes[requestResource] || 0) + requestAmount;
 
+    // 2. Incrementar la estadística de Comercio para los Puntos de Victoria (PV)
+    // Usamos el "Escudo" de seguridad por si el objeto no existe
+    if (!gameState.playerStats) gameState.playerStats = { sealTrades: {} };
+    if (!gameState.playerStats.sealTrades) gameState.playerStats.sealTrades = {};
+    
+    gameState.playerStats.sealTrades[playerKey] = (gameState.playerStats.sealTrades[playerKey] || 0) + 1;
+
     logMessage(`Intercambio completado: ${offerAmount} de ${offerResource} por ${requestAmount} de ${requestResource}.`);
     
-    // Actualizar la UI si la acción se ejecuta en la máquina local
+    // 3. Actualizar la interfaz
     if (UIManager) {
         UIManager.updateAllUIDisplays();
         // Si el modal de la banca sigue abierto, refrescar sus datos
-        if (domElements.bankModal.style.display === 'flex') {
+        if (domElements.bankModal && domElements.bankModal.style.display === 'flex') {
             updateBankTradeUI();
         }
     }
+
+    // puntos de victoria
+    if (!gameState.playerStats.sealTrades[playerKey]) gameState.playerStats.sealTrades[playerKey] = 0;
+    gameState.playerStats.sealTrades[playerKey]++;
     
     return true;
 }
@@ -3299,6 +3322,142 @@ function requestTradeWithBank(payload) {
         }
     } else {
         _executeTradeWithBank(payload);
+    }
+}
+
+/**
+ * Rellena la pestaña de logros en la Wiki consultando Supabase.
+ */
+async function populateWikiAchievementsTab() {
+    const listContainer = document.getElementById('wikiAchievementsList');
+    if (!listContainer || !PlayerDataManager.currentPlayer) return;
+
+    // 1. Traer el progreso del jugador desde Supabase
+    const { data: userProgress, error } = await supabaseClient
+        .from('user_achievements')
+        .select('*')
+        .eq('player_id', PlayerDataManager.currentPlayer.auth_id);
+
+    if (error) {
+        listContainer.innerHTML = '<p>Error conectando con el servicio de logros.</p>';
+        return;
+    }
+
+    // 2. Limpiar y generar HTML basado en REWARDS_CONFIG
+    listContainer.innerHTML = '';
+    
+    // Iteramos sobre todos los logros que definimos en la configuración
+    for (const key in REWARDS_CONFIG.ACHIEVEMENTS) {
+        const achievement = REWARDS_CONFIG.ACHIEVEMENTS[key];
+        // Buscamos si el usuario tiene progreso guardado para este logro
+        const progress = userProgress.find(p => p.achievement_id === key) || { current_progress: 0, is_completed: false };
+        
+        const percent = Math.min(100, (progress.current_progress / achievement.goal) * 100);
+
+        listContainer.innerHTML += `
+            <div class="achievement-item" style="background: rgba(0,0,0,0.3); padding: 12px; margin-bottom: 8px; border-radius: 6px; border-left: 4px solid ${progress.is_completed ? '#f1c40f' : '#7f8c8d'};">
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <strong>${achievement.title}</strong>
+                    <span style="color: ${progress.is_completed ? '#f1c40f' : '#bdc3c7'};">
+                        ${progress.current_progress} / ${achievement.goal} ${progress.is_completed ? '✅' : ''}
+                    </span>
+                </div>
+                <p style="font-size: 0.8em; margin: 4px 0; color: #bdc3c7;">${achievement.desc}</p>
+                <div class="xp-bar-container" style="height: 6px; background: #1a2a33; border-radius: 3px; overflow: hidden;">
+                    <div style="width: ${percent}%; height: 100%; background: ${progress.is_completed ? '#f1c40f' : '#3498db'}; transition: width 0.5s;"></div>
+                </div>
+                <div style="font-size: 0.7em; margin-top: 5px; color: #2ecc71;">Premio: ${achievement.rewardQty} ${achievement.rewardType}</div>
+            </div>
+        `;
+    }
+}
+
+async function openProfileModal() {
+    const player = PlayerDataManager.currentPlayer;
+    if (!player) return;
+
+    // 1. Mostrar el panel
+    document.getElementById('profileModal').style.display = 'flex';
+
+    // 2. Identidad (Usar || para evitar que salgan blancos o nombres por defecto)
+    document.getElementById('profileUsername').textContent = player.username || "Comandante";
+    document.getElementById('profileAvatar').textContent = player.avatar_url || '🎖️';
+    document.getElementById('allianceName').textContent = player.alliance_name || 'Sin Alianza';
+    document.getElementById('statTopCiv').textContent = player.favorite_civ || 'Iberia';
+    document.getElementById('profileLevelNum').textContent = player.level || 1;
+
+    // 3. Estadísticas Acumuladas (Carrera)
+    document.getElementById('statKills').textContent = (player.total_kills || 0).toLocaleString();
+    document.getElementById('statTrades').textContent = (player.total_trades || 0).toLocaleString();
+    document.getElementById('statCities').textContent = (player.total_cities || 0).toLocaleString();
+
+    // 4. Barra de XP
+    const xpToNext = Math.floor(1000 * Math.pow(1.2, (player.level || 1) - 1));
+    const percent = ((player.xp || 0) / xpToNext) * 100;
+    document.getElementById('profileXpBar').style.width = Math.min(100, percent) + '%';
+
+    // 5. El Botón de Recompensa (Logros/Diario)
+    const claimBtn = document.getElementById('claimDailyBtn');
+    if (claimBtn) {
+        const lastClaim = player.last_daily_claim ? new Date(player.last_daily_claim) : new Date(0);
+        const isToday = lastClaim.toDateString() === new Date().toDateString();
+        claimBtn.style.display = isToday ? 'none' : 'block';
+        claimBtn.onclick = () => PlayerDataManager.claimDailyReward();
+    }
+
+    // 6. Cargar el Códice (Últimas 5 batallas)
+    await loadCodexData(player.auth_id);
+}
+
+async function loadCodexData(authId) {
+    const container = document.getElementById('battleCodexList');
+    if (!container) return;
+
+    const { data: matches, error } = await supabaseClient
+        .from('match_history')
+        .select('*')
+        .eq('player_id', authId)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+    if (error || !matches) {
+        container.innerHTML = '<p style="font-size:10px; color:#888;">Códice no disponible.</p>';
+        return;
+    }
+
+    container.innerHTML = matches.map(m => `
+        <div style="font-size: 11px; border-bottom: 1px solid #5d4037; padding: 5px 0; display: flex; justify-content: space-between;">
+            <span style="color: ${m.outcome === 'victoria' ? '#4caf50' : '#ff5252'}; font-weight: bold;">${m.outcome.toUpperCase()}</span>
+            <span style="color: #bcaaa4;">Turnos: ${m.turns_played}</span>
+            <span style="color: #8d6e63;">${new Date(m.created_at).toLocaleDateString()}</span>
+        </div>
+    `).join('') || '<p style="font-size:10px; color:#888; text-align:center;">No hay batallas registradas.</p>';
+}
+
+/**
+ * Edición de Nombre
+ */
+async function editName() {
+    const newName = prompt("Introduce tu nuevo nombre de Comandante:");
+    if (newName && newName.length >= 3) {
+        PlayerDataManager.currentPlayer.username = newName;
+        document.getElementById('profileUsername').textContent = newName;
+        await PlayerDataManager.saveCurrentPlayer(); // Sincroniza con Supabase
+        logMessage("Nombre de Comandante actualizado.");
+    }
+}
+
+/**
+ * Edición de Emblema (Avatar)
+ */
+async function changeAvatar() {
+    const avatars = ['🎖️', '⚔️', '🦁', '🦅', '🏹', '🏰', '🔱', '🐺'];
+    const choice = prompt("Elige tu nuevo emblema militar:\n" + avatars.join(' '));
+    if (avatars.includes(choice)) {
+        PlayerDataManager.currentPlayer.avatar_url = choice;
+        document.getElementById('profileAvatar').textContent = choice;
+        await PlayerDataManager.saveCurrentPlayer();
+        logMessage("Emblema actualizado.");
     }
 }
 

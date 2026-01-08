@@ -447,6 +447,24 @@ const STRUCTURE_TYPES = {
     }
 };
 
+const IBERIAN_CITY_NAMES = [
+    "Hispalis", "Gadir", "Tarraco", "Olisipo", "Numancia", "Carthago Nova", 
+    "Toletum", "Lucentum", "Malaca", "Asturica", "Emérita Augusta", "Corduba",
+    "Arriaca", "Ilerda", "Iuliobriga", "Baelo Claudia", "Bilbilis", "Itálica", "Iliberis"
+];
+
+const VICTORY_TITLE_NAMES = {
+    mostCities: "Gran Arquitecto",
+    largestArmy: "Señor de la Guerra",
+    mostRoutes: "Red Comercial",    
+    mostKills: "Carnicero",
+    mostTechs: "Mente Suprema",
+    mostHeroes: "Líder de Leyendas",
+    mostResources: "Acaudalado",    
+    mostTrades: "Socio Preferente",
+    mostRuins: "Gran Arqueólogo"    
+};
+
 // Define qué terrenos son intransitables para cada categoría de unidad
 const IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY = {
     "all_land": ["water"],

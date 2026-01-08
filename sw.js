@@ -1,4 +1,8 @@
-// Este archivo permite que la aplicación sea instalable.
-self.addEventListener('fetch', function(event) {
-    // Aquí podrías añadir lógica para jugar offline en el futuro.
+self.addEventListener('install', (e) => {
+    self.skipWaiting();
+});
+
+self.addEventListener('fetch', (e) => {
+    // Solo para permitir la instalación
+    e.respondWith(fetch(e.request));
 });
