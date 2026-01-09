@@ -2648,6 +2648,8 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
 }
 
 function handleConfirmBuildStructure(actionData) {
+    console.log(`%c[handleConfirmBuildStructure] INICIO.`, "background: #222; color: #bada55");
+
     const isPlayerAction = !actionData;
     
     const r = isPlayerAction ? parseInt(domElements.buildStructureModal.dataset.r) : actionData.r;
@@ -2655,7 +2657,7 @@ function handleConfirmBuildStructure(actionData) {
     const structureType = isPlayerAction ? selectedStructureToBuild : actionData.structureType;
 
     const playerId = isPlayerAction ? gameState.currentPlayer : actionData.playerId;
-    
+
     if (!structureType || typeof r === 'undefined') {
         console.error(`   -> DIAGNÓSTICO: FALLO. Datos de construcción inválidos. Saliendo.`);
         return;
@@ -2664,6 +2666,7 @@ function handleConfirmBuildStructure(actionData) {
     const data = STRUCTURE_TYPES[structureType];
     const playerRes = gameState.playerResources[playerId];
 
+    // --- 1. Validación de Costes (sin cambios) ---
     for (const res in data.cost) {
         if (res === 'Colono') {
             // --- INICIO DE LA SOLUCIÓN ---
@@ -2672,7 +2675,6 @@ function handleConfirmBuildStructure(actionData) {
             const tieneRegimientoColono = unitOnHex?.regiments.some(reg => reg.type === 'Colono');
 
             if (!unitOnHex || !tieneRegimientoColono || unitOnHex.player !== playerId) {
-                console.error(`      -> DIAGNÓSTICO: FALLO. Requisito de Colono en (${r},${c}) no cumplido.`);
                 if (isPlayerAction) logMessage(`Error: Se requiere una unidad Colono en la casilla.`);
                 return; // Detiene si no hay un Colono válido
             }
@@ -2685,6 +2687,7 @@ function handleConfirmBuildStructure(actionData) {
         }
     }
 
+    // --- 2. Cobro de Recursos (sin cambios) ---
     for (const res in data.cost) {
         playerRes[res] -= data.cost[res];
     }
@@ -2703,36 +2706,37 @@ function handleConfirmBuildStructure(actionData) {
         AudioManager.playSound('structure_built');
     }
 
-    // Construir la estructura lógicamente
+    // --- 3. APLICACIÓN DE ESTRUCTURA Y CIUDAD  ---
+    
+    // Primero asignamos la estructura física al hexágono
     board[r][c].structure = structureType;
 
+    // Si es una ciudad (Aldea, Ciudad, Metrópoli), usamos la función inteligente
     if (data.isCity) {
         board[r][c].isCity = true;
+        
+        // ¡ESTA ES LA CLAVE!
+        // Pasamos 'null' como nombre para forzar a addCityToBoardData a buscar uno histórico (Gadir, etc).
+        // addCityToBoardData se encarga de actualizar gameState.cities y board[r][c].cityName
+        addCityToBoardData(r, c, playerId, null, false);
+        
+        // Log de confirmación
+        const newName = board[r][c].cityName;
+        logMessage(`¡Se ha fundado la ${structureType} de ${newName}!`, "success");
+    } else {
+        // Si no es ciudad (ej. Camino, Fortaleza simple), solo logueamos la estructura
+        logMessage(`${data.name} construido en (${r},${c}).`);
     }
 
-    if (board[r][c].isCity) {
-        const cityExists = gameState.cities.some(city => city.r === r && city.c === c);
-        if (!cityExists) {
-            gameState.cities.push({
-                r: r,
-                c: c,
-                owner: playerId,
-                name: data.name, // Usamos el nombre de la definición de la estructura
-                isCapital: false // Las estructuras construidas no son capitales por defecto
-            });
-        }
-    }
-
-    // Si la estructura tiene integridad, la inicializamos en el hexágono.
+    // Integridad de estructura
     if (data.integrity) {
         board[r][c].currentIntegrity = data.integrity;
     } else {
         // Si no, nos aseguramos de que no haya un valor antiguo.
         delete board[r][c].currentIntegrity;
     }
-    
-    logMessage(`${data.name} construido en (${r},${c}) para el Jugador ${playerId}.`);
 
+    // --- 4. Actualización de UI ---
     if (typeof renderSingleHexVisuals === 'function') {
         renderSingleHexVisuals(r, c);
     }

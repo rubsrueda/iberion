@@ -527,68 +527,56 @@ const PlayerDataManager = {
 
     // fin
     processEndGameProgression: async function(winningPlayerNumber) {
-        // 1. Verificación de seguridad: ¿Hay un jugador logueado?
-        if (!this.currentPlayer || !this.currentPlayer.auth_id) {
-            console.warn("[PROGRESIÓN] No hay sesión activa para guardar progreso.");
-            return;
-        }
+        if (!this.currentPlayer || !this.currentPlayer.auth_id) return;
 
         const playerWon = (winningPlayerNumber === gameState.myPlayerNumber);
         const pKey = `player${gameState.myPlayerNumber}`;
 
-        // 2. Recolección de méritos de la partida actual
-        // Obtenemos bajas del sistema de estadísticas
-        const matchKills = (gameState.playerStats && gameState.playerStats.unitsDestroyed) 
-            ? (gameState.playerStats.unitsDestroyed[pKey] || 0) 
-            : 0;
-
-        // Contamos ciudades controladas en el mapa final
+        // Captura de méritos de la partida actual
+        const matchKills = (gameState.playerStats?.unitsDestroyed?.[pKey] || 0);
+        const matchTrades = (gameState.playerStats?.sealTrades?.[pKey] || 0);
         const matchCities = board.flat().filter(h => h && h.owner === gameState.myPlayerNumber && h.isCity).length;
-        
-        // Obtenemos comercios realizados
-        const matchTrades = (gameState.playerStats && gameState.playerStats.sealTrades)
-            ? (gameState.playerStats.sealTrades[pKey] || 0)
-            : 0;
 
-        // 3. Actualización de las estadísticas de CARRERA (Histórico acumulado)
+        // SUMAR AL TOTAL ACUMULADO (Carrera)
         this.currentPlayer.total_kills = (this.currentPlayer.total_kills || 0) + matchKills;
-        this.currentPlayer.total_cities = (this.currentPlayer.total_cities || 0) + matchCities;
         this.currentPlayer.total_trades = (this.currentPlayer.total_trades || 0) + matchTrades;
+        this.currentPlayer.total_cities = (this.currentPlayer.total_cities || 0) + matchCities;
         this.currentPlayer.favorite_civ = gameState.playerCivilizations[gameState.myPlayerNumber] || 'Iberia';
 
-        // 4. Cálculo de XP para el Nivel de Comandante
-        // Fórmula: 500 por ganar, 200 por perder + 15 por cada regimiento destruido
+        // Cálculo de XP
         const xpGained = (playerWon ? 500 : 200) + (matchKills * 15);
-
-        // 5. Preparar objeto de métricas para el Historial y la UI
-        // Aquí incluimos 'outcome' explícitamente para evitar el error 'toUpperCase'
-        const matchData = {
+        
+        // Sincronizar con Supabase (Historial y Perfil)
+        const progress = await this.syncMatchResult(xpGained, {
             outcome: playerWon ? 'victoria' : 'derrota',
             turns: gameState.turnNumber || 0,
-            kills: matchKills,
-            xp_gained: xpGained,
-            heroes: units.filter(u => u.player === gameState.myPlayerNumber && u.commander).map(u => u.commander)
-        };
+            kills: matchKills
+        });
 
-        // 6. Sincronizar Nivel en Supabase y Guardar en Historial (Tabla match_history)
-        // Esta llamada actualiza localmente el XP y Level y lo sube a la nube.
-        const progress = await this.syncMatchResult(xpGained, matchData);
-
-        // 7. Lanzar el Resumen Visual (El modal postMatchModal)
-        // Pasamos 'matchData' que ahora SÍ contiene el campo 'outcome'
+        // Mostrar el modal resumen que ya tienes en index
         if (UIManager && UIManager.showPostMatchSummary) {
-            UIManager.showPostMatchSummary(playerWon, xpGained, progress, matchData);
+            UIManager.showPostMatchSummary(playerWon, xpGained, progress, {
+                turns: gameState.turnNumber, 
+                kills: matchKills,
+                outcome: playerWon ? 'victoria' : 'derrota'
+            });
         }
 
         console.log(`%c[PROGRESIÓN] Finalizada con éxito. XP: +${xpGained}`, "color: #2ecc71; font-weight: bold;");
     },
 
-    // FUNCIÓN PARA EL BOTÓN DE RECLAMAR
+    // 2. Lógica del botón con estados (Abierto/Cerrado)
     claimDailyReward: async function() {
         if (!this.currentPlayer) return;
-        
+
+        const lastClaim = this.currentPlayer.last_daily_claim ? new Date(this.currentPlayer.last_daily_claim) : new Date(0);
+        if (lastClaim.toDateString() === new Date().toDateString()) {
+            showToast("Ya has reclamado el beneficio de hoy.", "info");
+            return;
+        }
+
+        // Entregar premio según REWARDS_CONFIG
         const reward = REWARDS_CONFIG.getDailyReward(this.currentPlayer.level || 1);
-        
         if (reward.type === 'oro') this.currentPlayer.currencies.gold += reward.qty;
         if (reward.type === 'sellos') this.currentPlayer.currencies.sellos_guerra += reward.qty;
 
@@ -596,7 +584,7 @@ const PlayerDataManager = {
         await this.saveCurrentPlayer();
         
         showToast(`¡Has reclamado ${reward.label}!`, "success");
-        openProfileModal(); // Refrescar pantalla
+        openProfileModal(); // Refrescar para cambiar estado del botón
     },
 
     // Añadir al objeto PlayerDataManager en playerDataManager.js

@@ -968,12 +968,35 @@ const UIManager = {
     _buildHexLine: function(r, c) {
         const hexData = board[r]?.[c];
         if (!hexData) return 'Datos no disponibles.';
+        
         const terrainName = TERRAIN_TYPES[hexData.terrain]?.name || 'Desconocido';
+        let content = `${terrainName} (${r},${c})`;
+
         if (hexData.owner !== null) {
-            return `${terrainName} (${r},${c}): <strong>J${hexData.owner}</strong> &nbsp;|&nbsp; Est: ${hexData.estabilidad}/${MAX_STABILITY} &nbsp;|&nbsp; Nac: ${hexData.nacionalidad[hexData.owner] || 0}/${MAX_NACIONALIDAD}`;
+            content += ` | <strong>J${hexData.owner}</strong>`;
+            
+            // LÓGICA DE NOMBRE:
+            // 1. Si tiene cityName (ej: "Gadir"), úsalo.
+            // 2. Si no, pero tiene estructura (ej: "Fortaleza"), úsalo.
+            // 3. Si no, nada.
+            if (hexData.cityName) {
+                // Si es capital, le ponemos el icono
+                const prefix = hexData.isCapital ? '👑 ' : (hexData.isCity ? '🏙️ ' : '');
+                // Mostramos: "🏙️ Gadir (Aldea)"
+                const structType = hexData.structure ? ` (${hexData.structure})` : '';
+                content += ` | ${prefix}<strong>${hexData.cityName}</strong>${structType}`;
+            } 
+            else if (hexData.structure) {
+                content += ` | ${hexData.structure}`;
+            }
+
+            content += ` | Est: ${hexData.estabilidad}/${MAX_STABILITY}`;
+            content += ` | Nac: ${hexData.nacionalidad[hexData.owner] || 0}/${MAX_NACIONALIDAD}`;
         } else {
-            return `${terrainName} (${r},${c}): <strong>N</strong>`;
+            content += ` | <strong>Neutral</strong>`;
         }
+        
+        return content;
     },
     
     showTutorialMessage: function(message) {

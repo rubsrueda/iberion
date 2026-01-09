@@ -3376,62 +3376,102 @@ async function openProfileModal() {
     const player = PlayerDataManager.currentPlayer;
     if (!player) return;
 
-    // 1. Mostrar el panel
-    document.getElementById('profileModal').style.display = 'flex';
+    // 1. Mostrar el modal inmediatamente
+    const modal = document.getElementById('profileModal');
+    if (modal) modal.style.display = 'flex';
 
-    // 2. Identidad (Usar || para evitar que salgan blancos o nombres por defecto)
-    document.getElementById('profileUsername').textContent = player.username || "Comandante";
-    document.getElementById('profileAvatar').textContent = player.avatar_url || '🎖️';
-    document.getElementById('allianceName').textContent = player.alliance_name || 'Sin Alianza';
-    document.getElementById('statTopCiv').textContent = player.favorite_civ || 'Iberia';
-    document.getElementById('profileLevelNum').textContent = player.level || 1;
+    // 2. IDENTIDAD (Prioridad máxima: nombre, civ, alianza y nivel)
+    // Usamos el operador || para que si el dato no existe, no rompa el código
+    if (document.getElementById('profileUsername')) 
+        document.getElementById('profileUsername').textContent = player.username || "Comandante";
+    
+    if (document.getElementById('statTopCiv')) 
+        document.getElementById('statTopCiv').textContent = player.favorite_civ || "Iberia";
+    
+    if (document.getElementById('allianceName')) 
+        document.getElementById('allianceName').textContent = player.alliance_name || "Sin Alianza";
+    
+    if (document.getElementById('profileLevelNum')) 
+        document.getElementById('profileLevelNum').textContent = player.level || 1;
 
-    // 3. Estadísticas Acumuladas (Carrera)
-    document.getElementById('statKills').textContent = (player.total_kills || 0).toLocaleString();
-    document.getElementById('statTrades').textContent = (player.total_trades || 0).toLocaleString();
-    document.getElementById('statCities').textContent = (player.total_cities || 0).toLocaleString();
+    if (document.getElementById('profileAvatar')) 
+        document.getElementById('profileAvatar').textContent = player.avatar_url || '🎖️';
 
-    // 4. Barra de XP
-    const xpToNext = Math.floor(1000 * Math.pow(1.2, (player.level || 1) - 1));
-    const percent = ((player.xp || 0) / xpToNext) * 100;
-    document.getElementById('profileXpBar').style.width = Math.min(100, percent) + '%';
 
-    // 5. El Botón de Recompensa (Logros/Diario)
-    const claimBtn = document.getElementById('claimDailyBtn');
-    if (claimBtn) {
-        const lastClaim = player.last_daily_claim ? new Date(player.last_daily_claim) : new Date(0);
-        const isToday = lastClaim.toDateString() === new Date().toDateString();
-        claimBtn.style.display = isToday ? 'none' : 'block';
-        claimBtn.onclick = () => PlayerDataManager.claimDailyReward();
+    // 3. BARRA DE EXPERIENCIA (Blindada)
+    const xpBar = document.getElementById('profileXpBar');
+    if (xpBar) {
+        const level = player.level || 1;
+        const xpToNext = Math.floor(1000 * Math.pow(1.2, level - 1));
+        const currentXp = player.xp || 0;
+        const percent = (currentXp / xpToNext) * 100;
+        xpBar.style.width = Math.min(100, percent) + '%';
+        // Opcional: si quieres ver el % en texto busca un elemento o añade uno
+        const xpText = document.getElementById('xpPercentText');
+        if (xpText) xpText.textContent = Math.floor(percent) + "%";
     }
 
-    // 6. Cargar el Códice (Últimas 5 batallas)
-    await loadCodexData(player.auth_id);
+    // 4. LOS 3 CONTADORES (Blindados con || 0 para que no fallen)
+    // El fallo anterior era llamar a .toLocaleString() de algo vacío.
+    const killsEl = document.getElementById('statKills');
+    if (killsEl) killsEl.textContent = (player.total_kills || 0).toLocaleString();
+
+    const tradesEl = document.getElementById('statTrades');
+    if (tradesEl) tradesEl.textContent = (player.total_trades || 0).toLocaleString();
+
+    const citiesEl = document.getElementById('statCities');
+    if (citiesEl) citiesEl.textContent = (player.total_cities || 0).toLocaleString();
+
+
+    // 5. BOTÓN DE RECOMPENSAS (Estado Abierto/Cerrado)
+    const claimBtn = document.getElementById('claimDailyBtn');
+    if (claimBtn) {
+        const lastClaimStr = player.last_daily_claim || new Date(0).toISOString();
+        const lastClaim = new Date(lastClaimStr);
+        const isClaimed = lastClaim.toDateString() === new Date().toDateString();
+        
+        if (isClaimed) {
+            claimBtn.textContent = "🎁 BENEFICIO RECLAMADO (ABIERTO)";
+            claimBtn.style.background = "#4a5568";
+            claimBtn.disabled = true;
+        } else {
+            claimBtn.textContent = "🎁 RECLAMAR BENEFICIO (CERRADO)";
+            claimBtn.style.background = "#f1c40f";
+            claimBtn.disabled = false;
+            claimBtn.onclick = () => PlayerDataManager.claimDailyReward();
+        }
+        claimBtn.style.display = 'block';
+    }
+
+    // 6. CÓDICE (Carga diferida)
+    const codexContainer = document.getElementById('battleCodexList');
+    if (codexContainer) {
+        codexContainer.innerHTML = '<p style="text-align:center; font-size:10px;">Consultando crónicas...</p>';
+        loadCodexData(player.auth_id);
+    }
 }
 
+// Función Códice corregida
 async function loadCodexData(authId) {
-    const container = document.getElementById('battleCodexList');
-    if (!container) return;
-
     const { data: matches, error } = await supabaseClient
         .from('match_history')
-        .select('*')
+        .select('outcome, turns_played, xp_gained, created_at')
         .eq('player_id', authId)
         .order('created_at', { ascending: false })
         .limit(5);
 
-    if (error || !matches) {
-        container.innerHTML = '<p style="font-size:10px; color:#888;">Códice no disponible.</p>';
+    const container = document.getElementById('battleCodexList');
+    if (error || !matches || matches.length === 0) {
+        container.innerHTML = '<p style="text-align:center; font-size:10px; opacity:0.5;">No hay gestas registradas.</p>';
         return;
     }
 
     container.innerHTML = matches.map(m => `
-        <div style="font-size: 11px; border-bottom: 1px solid #5d4037; padding: 5px 0; display: flex; justify-content: space-between;">
+        <div style="font-size: 11px; border-bottom: 1px solid #5d4037; padding: 5px 0; display: flex; justify-content: space-between; align-items: center;">
             <span style="color: ${m.outcome === 'victoria' ? '#4caf50' : '#ff5252'}; font-weight: bold;">${m.outcome.toUpperCase()}</span>
-            <span style="color: #bcaaa4;">Turnos: ${m.turns_played}</span>
+            <span style="color: #bcaaa4;">Turnos: ${m.turns_played} | XP: +${m.xp_gained}</span>
             <span style="color: #8d6e63;">${new Date(m.created_at).toLocaleDateString()}</span>
-        </div>
-    `).join('') || '<p style="font-size:10px; color:#888; text-align:center;">No hay batallas registradas.</p>';
+        </div>`).join('');
 }
 
 /**
