@@ -524,45 +524,90 @@ const PlayerDataManager = {
         }
         return null;
     },
-
-    // fin
+    
+    /**
+     * Función Maestra de Progresión: Se ejecuta UNA SOLA VEZ al final de la batalla.
+     * Su misión es recolectar los 5 pilares del jugador y guardarlos en la nube.
+     */
     processEndGameProgression: async function(winningPlayerNumber) {
+        // SEGURIDAD: Si no hay jugador identificado, no podemos guardar su carrera.
         if (!this.currentPlayer || !this.currentPlayer.auth_id) return;
 
+        // Calculamos si el usuario local es el que ha ganado la partida.
         const playerWon = (winningPlayerNumber === gameState.myPlayerNumber);
+        // pKey nos sirve para leer las estadísticas temporales (ej: 'player1').
         const pKey = `player${gameState.myPlayerNumber}`;
 
-        // Captura de méritos de la partida actual
-        const matchKills = (gameState.playerStats?.unitsDestroyed?.[pKey] || 0);
-        const matchTrades = (gameState.playerStats?.sealTrades?.[pKey] || 0);
-        const matchCities = board.flat().filter(h => h && h.owner === gameState.myPlayerNumber && h.isCity).length;
+        // --- 1. RECUENTO DE TROPAS SOBREVIVIENTES (Punto de Tropas) ---
+        // Recorremos todas las unidades del mapa, filtramos las que son nuestras y están vivas,
+        // y sumamos cuántos regimientos (la "carne" de la división) han quedado en pie.
+        const survivingTroops = units
+            .filter(u => u.player === gameState.myPlayerNumber && u.currentHealth > 0)
+            .reduce((sum, u) => sum + (u.regiments ? u.regiments.length : 0), 0);
 
-        // SUMAR AL TOTAL ACUMULADO (Carrera)
-        this.currentPlayer.total_kills = (this.currentPlayer.total_kills || 0) + matchKills;
-        this.currentPlayer.total_trades = (this.currentPlayer.total_trades || 0) + matchTrades;
-        this.currentPlayer.total_cities = (this.currentPlayer.total_cities || 0) + matchCities;
-        this.currentPlayer.favorite_civ = gameState.playerCivilizations[gameState.myPlayerNumber] || 'Iberia';
 
-        // Cálculo de XP
-        const xpGained = (playerWon ? 500 : 200) + (matchKills * 15);
-        
-        // Sincronizar con Supabase (Historial y Perfil)
-        const progress = await this.syncMatchResult(xpGained, {
-            outcome: playerWon ? 'victoria' : 'derrota',
-            turns: gameState.turnNumber || 0,
-            kills: matchKills
-        });
+        // ========================================================================
+        // === GUARDADO DE LAS 5 MÉTRICAS EN EL OBJETO LOCAL (CAREER STATS) ===
+        // ========================================================================
 
-        // Mostrar el modal resumen que ya tienes en index
-        if (UIManager && UIManager.showPostMatchSummary) {
-            UIManager.showPostMatchSummary(playerWon, xpGained, progress, {
-                turns: gameState.turnNumber, 
-                kills: matchKills,
-                outcome: playerWon ? 'victoria' : 'derrota'
-            });
+        // MÉTRICA 1: VICTORIAS. Si el General ganó, sumamos 1 al contador histórico.
+        if (playerWon) {
+            this.currentPlayer.total_wins = (this.currentPlayer.total_wins || 0) + 1;
         }
 
-        console.log(`%c[PROGRESIÓN] Finalizada con éxito. XP: +${xpGained}`, "color: #2ecc71; font-weight: bold;");
+        // MÉTRICA 2: MUERTE (KILLS). Sumamos los regimientos enemigos destruidos en este juego al total de por vida.
+        const matchKills = (gameState.playerStats?.unitsDestroyed?.[pKey] || 0);
+        this.currentPlayer.total_kills = (this.currentPlayer.total_kills || 0) + matchKills;
+
+        // MÉTRICA 3: TROPAS (SOBREVIVIENTES). Sumamos los regimientos que el General logró mantener vivos.
+        // Esto premia la calidad del mando sobre el sacrificio inútil.
+        this.currentPlayer.total_troops_created = (this.currentPlayer.total_troops_created || 0) + survivingTroops;
+
+        // MÉTRICA 4: COMERCIO (TRADES). Sumamos los intercambios con la Banca hechos en esta partida.
+        const matchTrades = (gameState.playerStats?.sealTrades?.[pKey] || 0);
+        this.currentPlayer.total_trades = (this.currentPlayer.total_trades || 0) + matchTrades;
+
+        // MÉTRICA 5: INFRAESTRUCTURA (CIUDADES). Contamos cuántas ciudades y fortalezas posees en el mapa
+        // en el momento final y las añadimos a tu récord de constructor.
+        const matchCities = board.flat().filter(h => 
+            h && h.owner === gameState.myPlayerNumber && (h.isCity || h.structure === 'Fortaleza')
+        ).length;
+        this.currentPlayer.total_cities = (this.currentPlayer.total_cities || 0) + matchCities;
+
+        // Guardamos la civilización usada como la "favorita" o última usada.
+        this.currentPlayer.favorite_civ = gameState.playerCivilizations[gameState.myPlayerNumber] || 'Iberia';
+
+        // SINCRONIZACIÓN FINAL
+        await this.saveCurrentPlayer();
+
+        // ========================================================================
+        // === PREPARACIÓN DEL ENVÍO ÚNICO A SUPABASE (HISTORIAL Y CRÓNICA) ===
+        // ========================================================================
+
+        // Creamos el paquete de datos que se convertirá en una fila en la tabla 'match_history'.
+        const matchData = {
+            outcome: playerWon ? 'victoria' : 'derrota',
+            turns: gameState.turnNumber || 0,
+            kills: matchKills,
+            // INTEGRACIÓN CRÓNICA: Metemos todo el array de textos de Chronicle.js aquí.
+            match_log: Chronicle.currentMatchLogs, 
+            created_at: new Date().toISOString()
+        };
+
+        // Calculamos la XP ganada (500 por victoria / 200 derrota + bonus por bajas).
+        const xpGained = (playerWon ? 500 : 200) + (matchKills * 15);
+
+        // LLAMADA A SINCRONIZACIÓN: Esta función sube el perfil actualizado (con los 5 puntos)
+        // y crea el registro en el historial en una sola operación de red.
+        const progress = await this.syncMatchResult(xpGained, matchData);
+        
+        // LIMPIEZA: Borramos los mensajes de la crónica local para que la próxima partida empiece de cero.
+        Chronicle.clearLogs(); 
+
+        // UI: Finalmente, abrimos el modal de resumen para que el jugador vea su recompensa inmediata.
+        if (UIManager?.showPostMatchSummary) {
+            UIManager.showPostMatchSummary(playerWon, xpGained, progress, matchData);
+        }
     },
 
     // 2. Lógica del botón con estados (Abierto/Cerrado)
@@ -628,5 +673,25 @@ const PlayerDataManager = {
         }
         
         console.log("Progreso de carrera aplicado con éxito.");
+    },
+
+    analyzeMatchEmotion: function() {
+        const history = gameState.matchSnapshots;
+        if (history.length < 2) return "Batalla relámpago.";
+
+        // Buscamos el turno donde la diferencia de poder cambió más a tu favor
+        let bestTurn = 0;
+        let maxJump = -Infinity;
+
+        for (let i = 1; i < history.length; i++) {
+            const growth = (history[i].p1 - history[i-1].p1);
+            if (growth > maxJump) {
+                maxJump = growth;
+                bestTurn = history[i].turn;
+            }
+        }
+
+        if (maxJump > 500) return `Turno ${bestTurn}: El contraataque que cambió el destino.`;
+        return "Mando constante y victoria estratégica.";
     },
 };

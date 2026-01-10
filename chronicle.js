@@ -7,6 +7,9 @@ const Chronicle = {
      * @param {string} eventType - El tipo de evento (ej: 'turn_start', 'move', 'battle_start').
      * @param {object} data - Un objeto con toda la información contextual del evento.
      */
+
+    currentMatchLogs: [], // <--- NUEVO: Almacén de textos de la partida actual
+
     logEvent: function(eventType, data) {
         const message = this.generateMessage(eventType, data);
         if (message) {
@@ -18,6 +21,8 @@ const Chronicle = {
             console.log(`[CRÓNICA] ${message}`);
         }
     },
+
+    clearLogs: function() { this.currentMatchLogs = []; }, // Limpiar al empezar partida
 
     /**
      * Genera el texto narrativo basado en el tipo de evento y los datos.

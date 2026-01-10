@@ -60,7 +60,8 @@ function resetGameStateForIberiaMagna() {
         selectedHexC: -1,
         preparingAction: null,
         selectedUnit: null,
-        turnDurationSeconds: turnDuration 
+        turnDurationSeconds: turnDuration, 
+        matchSnapshots: [], // Aquí guardaremos la "foto" de poder de cada turno
     };
 
     for (let i = 1; i <= numPlayers; i++) {

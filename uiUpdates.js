@@ -1212,59 +1212,69 @@ const UIManager = {
     // ==   pantalla de resultados                     ==
     // =============================================================
 
-    showPostMatchSummary: function(playerWon, xpGained, progress, metrics) {
+    showPostMatchSummary: function(playerWon, xpGained, progress, matchData) {
         const modal = document.getElementById('postMatchModal');
         if (!modal) return;
 
+        // 1. ACTIVAR EL BOTÓN PRIMERO (Para que nunca se quede bloqueado)
+        const closeBtn = document.getElementById('closePostMatchBtn');
+        if (closeBtn) {
+            closeBtn.onclick = () => {
+                modal.style.display = 'none';
+                if (!gameState.isCampaignBattle) showScreen(domElements.mainMenuScreenEl);
+            };
+        }
+
+        // 2. TEXTOS PRINCIPALES
         const title = document.getElementById('matchResultTitle');
-        const levelDisplay = document.getElementById('playerLevelDisplay');
-        const xpBar = document.getElementById('playerXpBar');
+        if (title) {
+            title.textContent = playerWon ? "¡VICTORIA!" : "DERROTA";
+            title.style.color = playerWon ? "#f1c40f" : "#e74c3c";
+        }
+
+        const levelDisp = document.getElementById('playerLevelDisplay');
+        if (levelDisp) levelDisp.textContent = progress.level;
+
+        // 3. INYECCIÓN DE STATS Y CONTENEDOR DE GRÁFICO
         const statsGrid = document.getElementById('matchStatsGrid');
+        if (statsGrid) {
+            const emotionMsg = PlayerDataManager.analyzeMatchEmotion();
+            statsGrid.innerHTML = `
+                <div style="grid-column: span 2; color: #ffd700; font-style: italic; font-size: 0.9em; margin-bottom: 10px;">
+                    "${emotionMsg}"
+                </div>
+                <div style="font-size: 0.8em;">Turnos: <strong>${matchData.turns}</strong></div>
+                <div style="font-size: 0.8em;">Bajas: <strong>${matchData.kills}</strong></div>
+                <div id="miniPowerGraph" style="grid-column: span 2; height: 50px; display: flex; align-items: flex-end; gap: 2px; background: rgba(0,0,0,0.5); padding: 5px; margin-top: 10px; border: 1px solid #444;">
+                </div>
+            `;
+        }
 
-        statsGrid.innerHTML = `
-            <div>Turnos: <strong>${metrics.turns}</strong></div>
-            <div>Bajas: <strong>${metrics.kills}</strong></div>
-        `;
+        // 4. DIBUJAR GRÁFICO (Con protección contra nulos)
+        const graph = document.getElementById('miniPowerGraph');
+        if (graph && gameState.matchSnapshots && gameState.matchSnapshots.length > 0) {
+            const maxPower = Math.max(...gameState.matchSnapshots.map(s => s.p1), 1);
+            gameState.matchSnapshots.forEach(snap => {
+                const h = (snap.p1 / maxPower) * 100;
+                const bar = document.createElement('div');
+                bar.style.flex = "1";
+                bar.style.height = `${Math.max(5, h)}%`;
+                bar.style.background = playerWon ? "#4caf50" : "#8d6e63";
+                bar.style.opacity = "0.7";
+                graph.appendChild(bar);
+            });
+        }
 
+        // 5. MOSTRAR MODAL Y ANIMAR BARRA XP
         modal.style.display = 'flex';
-
-        // 1. Configurar Título y Color
-        title.textContent = playerWon ? "¡VICTORIA ÉPICA!" : "DERROTA HONORABLE";
-        title.style.color = playerWon ? "#f1c40f" : "#e74c3c";
-
-        // 2. Mostrar Estadísticas de la partida
-        statsGrid.innerHTML = `
-            <div>Turnos: <strong>${metrics.turns || 0}</strong></div>
-            <div>Bajas: <strong>${metrics.kills || 0}</strong></div>
-            <div>XP Ganada: <strong>+${xpGained || 0}</strong></div>
-            <div>Resultado: <strong>${(metrics.outcome || 'Finalizado').toUpperCase()}</strong></div>
-        `;
-
-        // 3. Animación de la barra de XP
-        levelDisplay.textContent = progress.level;
         setTimeout(() => {
-            const xpToNext = Math.floor(1000 * Math.pow(1.2, progress.level - 1));
-            const percentage = (progress.xp / xpToNext) * 100;
-            document.getElementById('playerXpBar').style.width = percentage + '%';
-        }, 500);
-        
-        // Mostramos el modal
-        modal.style.display = 'flex';
-
-        // Pequeño delay para que la animación se vea fluida
-        setTimeout(() => {
-            const percentage = (progress.xp / progress.xpNext) * 100;
-            xpBar.style.transition = "width 1.5s ease-out";
-            xpBar.style.width = `${percentage}%`;
-        }, 500);
-
-        // 4. Botón de cerrar (Vuelve al menú principal)
-        document.getElementById('closePostMatchBtn').onclick = () => {
-            modal.style.display = 'none';
-            if (!gameState.isCampaignBattle) {
-                showScreen(domElements.mainMenuScreenEl);
+            const xpBar = document.getElementById('playerXpBar');
+            if (xpBar) {
+                const xpToNext = Math.floor(1000 * Math.pow(1.2, progress.level - 1));
+                const percentage = (progress.xp / xpToNext) * 100;
+                xpBar.style.width = percentage + '%';
             }
-        };
+        }, 500);
     },
 
 };

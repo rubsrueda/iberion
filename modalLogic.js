@@ -3411,14 +3411,24 @@ async function openProfileModal() {
         if (xpText) xpText.textContent = Math.floor(percent) + "%";
     }
 
-    // 4. LOS 3 CONTADORES (Blindados con || 0 para que no fallen)
-    // El fallo anterior era llamar a .toLocaleString() de algo vacío.
+    // 4. LOS CONTADORES (Blindados con || 0 para que no fallen)
+    // 1. Victorias Totales
+    const winsEl = document.getElementById('statWins');
+    if (winsEl) winsEl.textContent = (player.total_wins || 0).toLocaleString();
+
+    // 2. Puntos de Muerte (Regimientos enemigos)
     const killsEl = document.getElementById('statKills');
     if (killsEl) killsEl.textContent = (player.total_kills || 0).toLocaleString();
 
+    // 3. Puntos de Tropas (Regimientos creados)
+    const troopsEl = document.getElementById('statTroops');
+    if (troopsEl) troopsEl.textContent = (player.total_troops_created || 0).toLocaleString();
+
+    // 4. Poder de Comercio (Intercambios)
     const tradesEl = document.getElementById('statTrades');
     if (tradesEl) tradesEl.textContent = (player.total_trades || 0).toLocaleString();
 
+    // 5. Puntos de Infraestructura (Ciudades/Fortalezas)
     const citiesEl = document.getElementById('statCities');
     if (citiesEl) citiesEl.textContent = (player.total_cities || 0).toLocaleString();
 
@@ -3498,6 +3508,79 @@ async function changeAvatar() {
         document.getElementById('profileAvatar').textContent = choice;
         await PlayerDataManager.saveCurrentPlayer();
         logMessage("Emblema actualizado.");
+    }
+}
+
+/**
+ * Abre el Códice completo. 
+ * Blindado para evitar el error 'innerHTML of null'.
+ */
+async function openFullCodex() {
+    const player = PlayerDataManager.currentPlayer;
+    if (!player) return;
+
+    const modal = document.getElementById('fullCodexModal');
+    const listContainer = document.getElementById('fullCodexList');
+
+    // VERIFICACIÓN DE SEGURIDAD
+    if (!modal || !listContainer) {
+        console.error("Error: No se encontró 'fullCodexModal' o 'fullCodexList' en el HTML. Asegúrate de haber copiado el bloque del modal.");
+        alert("El Códice se está restaurando, inténtalo en un momento.");
+        return;
+    }
+
+    // Mostrar modal y mensaje de carga
+    modal.style.display = 'flex';
+    listContainer.innerHTML = '<p style="text-align:center; color:#ffd700; font-size:12px;">Abriendo archivos del reino...</p>';
+
+    try {
+        // Consulta a Supabase
+        const { data: matches, error } = await supabaseClient
+            .from('match_history')
+            .select('*')
+            .eq('player_id', player.auth_id)
+            .order('created_at', { ascending: false })
+            .limit(20);
+
+        if (error) throw error;
+
+        if (!matches || matches.length === 0) {
+            listContainer.innerHTML = '<p style="text-align:center; opacity:0.5; font-size:12px;">No hay gestas registradas aún.</p>';
+            return;
+        }
+
+        // Dibujar la lista de batallas
+        listContainer.innerHTML = matches.map((m, index) => {
+            const color = m.outcome === 'victoria' ? '#4caf50' : '#ff5252';
+            return `
+            <div onclick="showMatchDetails(${index})" style="background: rgba(255,255,255,0.05); margin-bottom: 8px; padding: 10px; border-radius: 6px; border-left: 4px solid ${color}; cursor: pointer;">
+                <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                    <strong>Día ${new Date(m.created_at).toLocaleDateString()}</strong>
+                    <span style="color: ${color}; font-weight: bold;">${m.outcome.toUpperCase()}</span>
+                </div>
+                <div style="font-size: 10px; color: #bcaaa4; margin-top: 3px;">${m.kills} bajas | ${m.turns_played} turnos. (Toca para leer)</div>
+                <div id="log-detail-${index}" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid #444; color: #fdf5e6; font-size: 11px; line-height: 1.4;">
+                    ${m.match_log ? m.match_log.join('<br>') : 'No hay crónicas disponibles.'}
+                </div>
+            </div>`;
+        }).join('');
+
+    } catch (err) {
+        console.error("Error al cargar crónicas:", err);
+        listContainer.innerHTML = '<p style="color:red;">Error de conexión con las crónicas.</p>';
+    }
+}
+
+/**
+ * Muestra/Oculta el texto de la crónica de una batalla específica.
+ */
+function showMatchDetails(index) {
+    const detailEl = document.getElementById(`log-detail-${index}`);
+    if (detailEl) {
+        const isVisible = detailEl.style.display === 'block';
+        // Cerramos todos primero para efecto acordeón
+        document.querySelectorAll('[id^="log-detail-"]').forEach(el => el.style.display = 'none');
+        detailEl.style.display = isVisible ? 'none' : 'block';
     }
 }
 

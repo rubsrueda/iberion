@@ -1483,6 +1483,9 @@ let handleEndTurnCallCount = 0; // Se pondría fuera de la función
 
 async function handleEndTurn(isHostProcessing = false) {
 
+    // ESCUDO: Si por algún motivo el cajón no existe, lo creamos ahora mismo
+    if (!gameState.matchSnapshots) gameState.matchSnapshots = [];
+
     //audio
     if (typeof AudioManager !== 'undefined') {
         AudioManager.playSound('turn_start');
@@ -1618,6 +1621,16 @@ async function handleEndTurn(isHostProcessing = false) {
 
             // 2. Si volvemos al jugador 1, es una nueva ronda. (Se comprueba solo al principio del ciclo)
             if (nextPlayer === 1 && attempts === 0) { 
+                
+                const currentPower = units.filter(u => u.player === 1).reduce((sum, u) => sum + u.currentHealth, 0);
+                const enemyPower = units.filter(u => u.player === 2).reduce((sum, u) => sum + u.currentHealth, 0);
+
+                gameState.matchSnapshots.push({
+                    turn: gameState.turnNumber,
+                    p1: units.filter(u => u.player === 1).reduce((sum, u) => sum + u.currentHealth, 0),
+                    p2: units.filter(u => u.player === 2).reduce((sum, u) => sum + u.currentHealth, 0)
+                });
+                
                 gameState.turnNumber++;
                 if (typeof Chronicle !== 'undefined') Chronicle.logEvent('turn_start');
 
