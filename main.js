@@ -1272,31 +1272,43 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
     }
     
     if (domElements.floatingCreateDivisionBtn) {
+        // Clonamos el nodo para eliminar listeners antiguos acumulados (causa común de bugs)
+        const newBtn = domElements.floatingCreateDivisionBtn.cloneNode(true);
+        domElements.floatingCreateDivisionBtn.parentNode.replaceChild(newBtn, domElements.floatingCreateDivisionBtn);
+        domElements.floatingCreateDivisionBtn = newBtn;
+
         domElements.floatingCreateDivisionBtn.addEventListener('click', () => {
-            console.log("%c[+] Botón 'Crear División' presionado.", "color: #28a745; font-weight: bold;"); 
+            console.log("[UI] Botón Crear División presionado.");
             
-            if (typeof gameState === 'undefined' || typeof placementMode === 'undefined') {
-                console.error("main.js: CRÍTICO: gameState o placementMode no definidos. Abortando acción.");
-                return;
-            }
-            const isRecruitingInPlayPhase = gameState.currentPhase === 'play' && typeof hexToBuildOn !== 'undefined' && hexToBuildOn !== null;
-            
-            if (isRecruitingInPlayPhase) {
-                placementMode.recruitHex = { r: hexToBuildOn.r, c: hexToBuildOn.c }; 
-                console.log(`[+] MODO: Reclutamiento en partida. Origen: hex (${placementMode.recruitHex.r},${placementMode.recruitHex.c}).`);
-            } else if (gameState.currentPhase === 'deployment') {
+            // 1. Validaciones de seguridad
+            if (!gameState || typeof gameState.deploymentUnitLimit === 'undefined') return;
+
+            // 2. ¿Es fase de despliegue? VALIDAR LÍMITE
+            if (gameState.currentPhase === 'deployment') {
+                const currentCount = (gameState.unitsPlacedByPlayer && gameState.unitsPlacedByPlayer[gameState.currentPlayer]) || 0;
+                const limit = gameState.deploymentUnitLimit; // Ya debe ser un número o Infinity
+
+                // SI YA ALCANZÓ EL LÍMITE, DETENER AQUÍ.
+                if (limit !== Infinity && currentCount >= limit) {
+                    logMessage(`Has alcanzado el límite de despliegue (${limit} unidades).`);
+                    return; 
+                }
+                
+                // Si pasa, preparamos el modo
                 placementMode.recruitHex = null; 
-                console.log("[+] MODO: Despliegue inicial de partida.");
-            } else {
-                console.warn(`[!] ADVERTENCIA: Botón de crear división presionado en un contexto no válido. Fase: ${gameState.currentPhase}.`);
-                logMessage("No se puede crear una unidad en este momento.");
-                return;
+            } 
+            // 3. ¿Es fase de juego? VALIDAR POSICIÓN
+            else if (gameState.currentPhase === 'play') {
+                if (typeof hexToBuildOn === 'undefined' || hexToBuildOn === null) {
+                    logMessage("Debes seleccionar una ciudad o fortaleza propia.");
+                    return;
+                }
+                placementMode.recruitHex = { r: hexToBuildOn.r, c: hexToBuildOn.c }; 
             }
+
+            // 4. Si pasamos los filtros, abrimos el modal
             if (typeof openUnitManagementModal === "function") {
-                console.log("[>] Llamando a openUnitManagementModal() para mostrar la nueva interfaz...");
-            openUnitManagementModal();
-            } else {
-                console.error("main.js: CRÍTICO: La función 'openUnitManagementModal' no está definida en modalLogic.js.");
+                openUnitManagementModal();
             }
         });
     } else { 
@@ -1975,11 +1987,21 @@ async function processActionRequest(action) {
              break;
 
         case 'placeUnit':
+            if (gameState.currentPhase === 'deployment') {
+                const pId = payload.playerId; // o payload.unitData.player
+                const currentCount = gameState.unitsPlacedByPlayer[pId] || 0;
+                const limit = gameState.deploymentUnitLimit;
+                
+                // Si intenta poner más del límite, rechazamos la acción y no hacemos nada
+                if (limit !== Infinity && currentCount >= limit) {
+                    console.warn(`[Host] Acción rechazada: Jugador ${pId} intentó exceder el límite de despliegue.`);
+                    break; // Salimos del switch sin poner actionExecuted = true
+                }
+            }
+
             const hexToPlace = board[payload.r]?.[payload.c];
             if (hexToPlace && !hexToPlace.unit) {
-                if (payload.unitData.id === null) { 
-                    payload.unitData.id = `u${unitIdCounter++}`;
-                }
+                if (!payload.unitData.id) payload.unitData.id = `u${unitIdCounter++}`;
                 placeFinalizedDivision(payload.unitData, payload.r, payload.c);
                 actionExecuted = true;
             }

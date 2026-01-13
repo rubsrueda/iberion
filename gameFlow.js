@@ -1578,23 +1578,34 @@ async function handleEndTurn(isHostProcessing = false) {
     }
 
     if (gameState.currentPhase === "deployment") {
-        // Si el jugador actual NO es el último jugador, simplemente pasa al siguiente
+        // Si el jugador actual NO es el último jugador, pasa al siguiente
         if (playerEndingTurn < gameState.numPlayers) {
             gameState.currentPlayer++;
-            // Resetear el contador de unidades desplegadas para el nuevo jugador
+            
+            // 1. Aseguramos que el objeto contador existe
             if (!gameState.unitsPlacedByPlayer) gameState.unitsPlacedByPlayer = {};
+            
+            // 2. Inicializamos explícitamente a 0 el contador del NUEVO jugador
             gameState.unitsPlacedByPlayer[gameState.currentPlayer] = 0;
+            
+            // 3. Log de depuración para que lo veas en consola
+            console.log(`[Turno] Pasando despliegue al J${gameState.currentPlayer}. Unidades colocadas reiniciadas a 0.`);
+            
             logMessage(`Despliegue: Turno del Jugador ${gameState.currentPlayer}.`);
+
         } else {
             // Si es el último jugador, termina la fase de despliegue y empieza el juego
             gameState.currentPhase = "play";
             gameState.currentPlayer = 1; 
             gameState.turnNumber = 1;
+            
+            // Importante: Resetear unidades para el combate
             resetUnitsForNewTurn(1); 
+            
             logMessage("¡Comienza la Batalla! Turno del Jugador 1.");
         }
-    } 
-    else if (gameState.currentPhase === "play") {
+    }
+        else if (gameState.currentPhase === "play") {
         
 
         // A. Tareas de MANTENIMIENTO del jugador que TERMINA el turno
