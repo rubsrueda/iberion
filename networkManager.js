@@ -223,6 +223,9 @@ _configurarEventosDeConexion: function() {
     this.conn.on('open', () => {
         console.log(`%c[Red] Conexión establecida/restaurada.`, "color: green;");
         this._isConnecting = false;
+
+        // Inicializamos el reloj AHORA MISMO, para que no piense que es 0
+        this._lastHeartbeatReceived = Date.now(); 
         
         // INICIO DEL HEARTBEAT
         this._startHeartbeat();
