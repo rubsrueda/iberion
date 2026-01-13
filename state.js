@@ -61,6 +61,7 @@ function resetGameStateForIberiaMagna() {
         preparingAction: null,
         selectedUnit: null,
         turnDurationSeconds: turnDuration, 
+        lastActionTimestamp: 0, 
         matchSnapshots: [], // Aquí guardaremos la "foto" de poder de cada turno
     };
 

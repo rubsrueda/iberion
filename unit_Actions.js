@@ -2202,36 +2202,52 @@ function handlePlacementModeClick(r, c) {
 }
 
 async function RequestMoveUnit(unit, toR, toC) {
-    // Generar ID único para esta acción (para deduplicación en el anfitrión)
-    console.log(`[NETWORK FLOW - PASO 1] Jugador ${unit.player} solicita mover ${unit.name} a (${toR},${toC}). Es anfitrión: ${isNetworkGame() && NetworkManager.esAnfitrion}`);
-    const actionId = `move_${unit.id}_${toR}_${toC}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // 1. Generamos el ID y la Acción
+    const actionId = `move_${unit.id}_${toR}_${toC}_${Date.now()}`;
     const action = { type: 'moveUnit', actionId: actionId, payload: { playerId: unit.player, unitId: unit.id, toR, toC }};
-    if (isNetworkGame()) {
-        if (NetworkManager.esAnfitrion) {
-            // El Anfitrión se procesa a sí mismo, sin enviar por la red
-            await processActionRequest(action);
-        } else {
-            NetworkManager.enviarDatos({ type: 'actionRequest', action });
+
+    // 2. Si soy CLIENTE, intento enviar la orden por red (Fire & Forget)
+    if (isNetworkGame() && !NetworkManager.esAnfitrion) {
+        NetworkManager.enviarDatos({ type: 'actionRequest', action });
+    }
+
+    // 3. EJECUCIÓN INMEDIATA (La solución):
+    // Si soy el Anfitrión (siempre ejecuta local) O si soy Cliente y es MI unidad (ejecución optimista)
+    if (NetworkManager.esAnfitrion || unit.player === gameState.myPlayerNumber) {
+        
+        await _executeMoveUnit(unit, toR, toC);
+        
+        // ¡ACTUALIZAMOS EL RELOJ! Esto es lo que permitirá sincronizar al volver de la llamada
+        gameState.lastActionTimestamp = Date.now();
+
+        // Si soy el Anfitrión, envío el estado nuevo a todos
+        if (isNetworkGame() && NetworkManager.esAnfitrion) {
+            NetworkManager.broadcastFullState();
         }
-        return;
-    }// En un juego local, la "petición" es simplemente ejecutar el movimiento directamente.
-    await _executeMoveUnit(unit, toR, toC);
+    }
 }
 
 async function RequestAttackUnit(attacker, defender) {
-    // Generar ID único para esta acción (para deduplicación en el anfitrión)
-    const actionId = `attack_${attacker.id}_${defender.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const actionId = `attack_${attacker.id}_${defender.id}_${Date.now()}`;
     const action = { type: 'attackUnit', actionId: actionId, payload: { playerId: attacker.player, attackerId: attacker.id, defenderId: defender.id }};
-    if (isNetworkGame()) {
-        if (NetworkManager.esAnfitrion) {
-            await processActionRequest(action);
-        } else {
-            NetworkManager.enviarDatos({ type: 'actionRequest', action });
-        }
-        return;
+
+    // 1. Enviar por red si soy Cliente
+    if (isNetworkGame() && !NetworkManager.esAnfitrion) {
+        NetworkManager.enviarDatos({ type: 'actionRequest', action });
     }
-    // Juego local
-    await attackUnit(attacker, defender);
+
+    // 2. Ejecutar localmente si es mi unidad
+    if (NetworkManager.esAnfitrion || attacker.player === gameState.myPlayerNumber) {
+        
+        await attackUnit(attacker, defender);
+        
+        // Actualizamos el reloj
+        gameState.lastActionTimestamp = Date.now();
+
+        if (isNetworkGame() && NetworkManager.esAnfitrion) {
+            NetworkManager.broadcastFullState();
+        }
+    }
 }
 
 let _isMergingUnits = false;

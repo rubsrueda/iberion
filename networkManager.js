@@ -227,33 +227,73 @@ enviarDatos: function(datos) {
 _configurarEventosDeConexion: function() {
     if (!this.conn) return;
 
-    // 1. Conexión Abierta
+    // 1. AL CONECTAR / RECONECTAR
     this.conn.on('open', () => {
-        console.log(`%c[Red] ¡Conexión establecida!`, "background: green; color: white;");
+        console.log(`%c[Red] Conexión establecida. Iniciando protocolo de sincronización...`, "color: green;");
         this._isConnecting = false;
         
         // Iniciamos el latido SOLO para mantener despierto al móvil
         this._startHeartbeat(); 
 
         if (this._onConexionAbierta) this._onConexionAbierta(this.idRemoto);
+
+        // --- PROTOCOLO DE SINCRONIZACIÓN ---
+        // En lugar de pedir datos ciegamente, enviamos NUESTRO reloj.
+        // "Hola, mi partida está actualizada hasta el momento X".
+        const myTimestamp = gameState.lastActionTimestamp || 0;
         
-        // Si soy cliente, pido el estado del juego para sincronizarme
-        if (!this.esAnfitrion) {
-            this.enviarDatos({ type: 'actionRequest', action: { type: 'syncGameState', payload: {} } });
-        }
+        this.enviarDatos({ 
+            type: 'HANDSHAKE_SYNC', 
+            timestamp: myTimestamp 
+        });
     });
 
-    // 2. Datos Recibidos
+    // 2. RECIBIR DATOS
     this.conn.on('data', (datos) => {
-        // Si es un latido, no hacemos NADA. Solo sirve para mantener el flujo de datos activo.
-        if (datos.type === 'HEARTBEAT') {
-            return; 
+        if (datos.type === 'HEARTBEAT') return;
+
+        // A. GESTIÓN DEL HANDSHAKE (Comparar relojes)
+        if (datos.type === 'HANDSHAKE_SYNC') {
+            const remoteTimestamp = datos.timestamp;
+            const localTimestamp = gameState.lastActionTimestamp || 0;
+            
+            console.log(`[Sync] Comparando: Local(${localTimestamp}) vs Remoto(${remoteTimestamp})`);
+
+            if (remoteTimestamp > localTimestamp) {
+                // El OTRO ha jugado mientras yo no estaba.
+                console.log("-> El otro jugador tiene datos más nuevos. Solicitando su estado.");
+                this.enviarDatos({ type: 'REQUEST_FULL_STATE' });
+            } 
+            else if (localTimestamp > remoteTimestamp) {
+                // YO he jugado (o soy el Host y no ha pasado nada). Le envío mi estado.
+                console.log("-> Yo tengo datos más nuevos. Enviando mi estado.");
+                this.broadcastFullState();
+            }
+            else {
+                console.log("-> Estamos sincronizados.");
+            }
+            return;
         }
-        // Si es un dato real del juego, lo procesamos
+
+        // B. ALGUIEN ME PIDE MI ESTADO
+        if (datos.type === 'REQUEST_FULL_STATE') {
+            console.log("-> Me piden el estado completo. Enviando...");
+            this.broadcastFullState();
+            return;
+        }
+
+        // C. RECIBO EL ESTADO COMPLETO (Sobrescribir mi juego)
+        if (datos.type === 'fullStateUpdate' || datos.type === 'initialGameSetup') {
+            console.log("%c[Red] Recibida actualización completa de estado.", "color: orange;");
+            reconstruirJuegoDesdeDatos(datos.payload);
+            return;
+        }
+
+        // D. ACCIONES NORMALES
         if (this._onDatosRecibidos) this._onDatosRecibidos(datos);
     });
 
-    // 3. Cierre REAL de Conexión
+        // 3. Cierre REAL de Conexión
     this.conn.on('close', () => {
         console.warn(`[Red] El navegador ha cerrado la conexión.`);
         this._stopHeartbeat();
@@ -270,11 +310,24 @@ _configurarEventosDeConexion: function() {
 
     // 4. Errores
     this.conn.on('error', (err) => {
-        console.error(`[Red] Error:`, err);
-        // No desconectamos proactivamente por errores menores
+        console.error(`[Red] Error PeerJS:`, err);
+        
+        // Si el error es que no encuentra al otro (típico al desbloquear el móvil),
+        // NO mostramos alerta ni desconectamos. Dejamos que el sistema de autorreconexión actúe.
         if (err.type === 'peer-unavailable') {
-            alert("El otro jugador no está disponible.");
-            this.desconectar();
+            console.warn("El peer no responde (probablemente por bloqueo de pantalla). Intentando recuperar...");
+            
+            // Si soy cliente, fuerzo la reconexión inmediata sin molestar al usuario
+            if (!this.esAnfitrion && this.idRemoto) {
+                this.unirseAPartida(this.idRemoto.replace(GAME_ID_PREFIX, ''));
+            }
+            return; // Salimos para no ejecutar nada más
+        }
+
+        // Solo mostramos alerta para otros errores fatales que no sean de conexión perdida
+        if (err.type === 'network' || err.type === 'server-error') {
+            // Opcional: mostrar un toast en lugar de alert
+            if(typeof showToast === 'function') showToast("Inestabilidad de red detectada", "warning");
         }
     });
 },

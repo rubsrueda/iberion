@@ -1677,6 +1677,9 @@ function isNetworkGame() {
 
 function executeConfirmedAction(action) {
     
+    // Cada vez que alguien hace algo, actualizamos la "hora oficial" del estado
+    gameState.lastActionTimestamp = Date.now();
+    
     console.log(`%c[VIAJE-7] Cliente ${gameState.myPlayerNumber} ha recibido un 'actionBroadcast' y está dentro de executeConfirmedAction. Acción: ${action.type}`, 'color: #DAA520; font-weight: bold;', action.payload);
 
     if (NetworkManager.esAnfitrion && action.payload.playerId === gameState.myPlayerNumber && action.type !== 'syncGameState') {

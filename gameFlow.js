@@ -1499,10 +1499,14 @@ async function handleEndTurn(isHostProcessing = false) {
 
     // --- LÓGICA DE EJECUCIÓN DEL CAMBIO DE TURNO ---
     if (typeof deselectUnit === "function") deselectUnit();
+    
     if (gameState.currentPhase === "gameOver") {
         logMessage("La partida ya ha terminado.");
         return;
     }
+
+    gameState.lastActionTimestamp = Date.now();
+    
     // Al inicio del proceso de cambio de turno, detenemos cualquier temporizador activo.
     TurnTimerManager.stop();
 
