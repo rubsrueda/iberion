@@ -257,7 +257,7 @@ const UIManager = {
 
     hideAllActionButtons: function() {
         if (!this._domElements) return;
-        console.trace("¡ALERTA! hideAllActionButtons() ha sido llamada.");
+        
         const contextualButtons = [
             'floatingUndoMoveBtn', 'floatingReinforceBtn', 'floatingSplitBtn', 
             'floatingBuildBtn', 'floatingPillageBtn', 'setAsCapitalBtn', 
@@ -265,7 +265,16 @@ const UIManager = {
             'floatingRazeBtn', 'floatingExploreRuinBtn',
             'floatingTradeBtn', 'floatingStopTradeBtn' 
         ];
+
         contextualButtons.forEach(id => {
+            // --- LA CORRECCIÓN ESTÁ AQUÍ ---
+            // Si estamos en despliegue y el botón es el de "Crear División", NO LO OCULTES.
+            // Lo saltamos y dejamos que se quede visible.
+            if (gameState && gameState.currentPhase === "deployment" && id === 'floatingCreateDivisionBtn') {
+                return; 
+            }
+
+            // Para todos los demás casos, oculta el botón
             if (this._domElements[id]) {
                 this._domElements[id].style.display = 'none';
             }
@@ -351,39 +360,92 @@ const UIManager = {
     
     // Esta función será llamada por el tutorial para forzar la actualización.
     refreshActionButtons: function() {
+            // 1. Verificaciones de seguridad básicas
         if (!gameState || !this._domElements) return;
-        const { currentPhase, playerTypes, currentPlayer, unitsPlacedByPlayer, deploymentUnitLimit } = gameState;
-        
-        // ... (Aquí va toda la lógica que antes estaba en updateActionButtonsBasedOnPhase)
-        const isPlay = currentPhase === "play";
-        const isGameOver = currentPhase === "gameOver";
 
-        if (this._domElements.floatingTechTreeBtn) this._domElements.floatingTechTreeBtn.style.display = isPlay ? 'flex' : 'none';
-        if (this._domElements.floatingEndTurnBtn) this._domElements.floatingEndTurnBtn.disabled = isGameOver;
+        // --- CORRECCIÓN 1: Inicialización de seguridad ---
+        // Si es el primer turno y esto no existe, se crea para evitar bloqueos.
+        if (!gameState.unitsPlacedByPlayer) gameState.unitsPlacedByPlayer = {};
 
-        if (this._domElements.floatingCreateDivisionBtn) {
-            const isHumanPlayerTurn = playerTypes?.[`player${currentPlayer}`] === 'human';
-            const unitsPlaced = unitsPlacedByPlayer?.[currentPlayer] || 0;
-            const canDeploy = unitsPlaced < deploymentUnitLimit;
-            this._domElements.floatingCreateDivisionBtn.style.display = (currentPhase === "deployment" && isHumanPlayerTurn && canDeploy) ? 'flex' : 'none';
-        }
+        const { currentPhase, playerTypes, currentPlayer, deploymentUnitLimit } = gameState;
+        const isHumanPlayerTurn = playerTypes?.[`player${currentPlayer}`] === 'human';
+        // Determinamos si es "mi turno" (compatible con juego local y red)
+        const isMyTurn = isNetworkGame() ? (currentPlayer === gameState.myPlayerNumber) : isHumanPlayerTurn;
 
-        if (this._domElements.floatingNextUnitBtn) {
-            const hasIdleUnits = units.some(u => u.player === currentPlayer && u.currentHealth > 0 && !u.hasMoved && !u.hasAttacked);
-            const isHumanPlayerTurn = gameState.playerTypes[`player${currentPlayer}`] === 'human';
-            if (currentPhase === "play" && isHumanPlayerTurn && hasIdleUnits) {
-                this._domElements.floatingNextUnitBtn.style.display = 'flex';
-            } else {
-                this._domElements.floatingNextUnitBtn.style.display = 'none';
+        // ==================================================================
+        // === CASO 1: FASE DE DESPLIEGUE (Aquí es donde se perdía el botón)
+        // ==================================================================
+        if (currentPhase === "deployment") {
+            // 1. Ocultamos todo primero para limpiar basura de otras fases
+            this.hideAllActionButtons();
+
+            // 2. Si es mi turno, calculamos si puedo poner más unidades
+            if (isMyTurn) {
+                const unitsPlaced = gameState.unitsPlacedByPlayer[currentPlayer] || 0;
+                const limit = (deploymentUnitLimit === undefined || deploymentUnitLimit === null) ? 5 : deploymentUnitLimit;
+                
+                // Si no hemos llegado al límite, MOSTRAR botón de crear
+                if (unitsPlaced < limit) {
+                    if (this._domElements.floatingCreateDivisionBtn) {
+                        this._domElements.floatingCreateDivisionBtn.style.display = 'flex';
+                        this._domElements.floatingCreateDivisionBtn.disabled = false; // Asegurar que está activo
+                    }
+                }
             }
+
+            // 3. El botón de Fin de Turno SIEMPRE debe verse en despliegue
+            if (this._domElements.floatingEndTurnBtn) {
+                this._domElements.floatingEndTurnBtn.style.display = 'flex';
+                this._domElements.floatingEndTurnBtn.disabled = false;
+            }
+
+            // 4. ¡IMPORTANTE! Salimos de la función aquí. 
+            // Así evitamos que el código de abajo oculte cosas por error.
+            return; 
         }
 
-        if (isGameOver) {
-             ['floatingMenuBtn', 'floatingTechTreeBtn', 'floatingEndTurnBtn', 'floatingCreateDivisionBtn'].forEach(id => {
-                if(this._domElements[id]) this._domElements[id].style.display = 'none';
-             });
-             this.hideAllActionButtons();
-             this.hideContextualPanel(); 
+        // ==================================================================
+        // === CASO 2: FASE DE JUEGO (Batalla)
+        // ==================================================================
+        if (currentPhase === "play") {
+            // 1. Botón de Tecnologías (Siempre visible en juego)
+            if (this._domElements.floatingTechTreeBtn) {
+                this._domElements.floatingTechTreeBtn.style.display = 'flex';
+            }
+
+            // 2. Botón Fin de Turno (Siempre visible en juego)
+            if (this._domElements.floatingEndTurnBtn) {
+                this._domElements.floatingEndTurnBtn.style.display = 'flex';
+                this._domElements.floatingEndTurnBtn.disabled = false;
+            }
+
+            // 3. Botón Siguiente Unidad (Solo si es mi turno y tengo unidades libres)
+            if (this._domElements.floatingNextUnitBtn) {
+                const hasIdleUnits = units.some(u => u.player === currentPlayer && u.currentHealth > 0 && !u.hasMoved && !u.hasAttacked);
+                if (isMyTurn && hasIdleUnits) {
+                    this._domElements.floatingNextUnitBtn.style.display = 'flex';
+                } else {
+                    this._domElements.floatingNextUnitBtn.style.display = 'none';
+                }
+            }
+            
+            // El botón de Crear División NO debe verse en fase de juego normal (se gestiona vía hexágonos)
+            if (this._domElements.floatingCreateDivisionBtn) {
+                this._domElements.floatingCreateDivisionBtn.style.display = 'none';
+            }
+            
+            return;
+        }
+
+        // ==================================================================
+        // === CASO 3: FIN DE PARTIDA
+        // ==================================================================
+        if (currentPhase === "gameOver") {
+            ['floatingMenuBtn', 'floatingTechTreeBtn', 'floatingEndTurnBtn', 'floatingCreateDivisionBtn'].forEach(id => {
+                if (this._domElements[id]) this._domElements[id].style.display = 'none';
+            });
+            this.hideAllActionButtons();
+            this.hideContextualPanel();
         }
     },
 

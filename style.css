@@ -5396,3 +5396,48 @@ input[type="range"] {
     from { opacity: 0; transform: translateX(-10px); }
     to { opacity: 1; transform: translateX(0); }
 }
+
+
+/******************************************************************
+/* 1. Bloquear recarga por deslizamiento y selección de texto   */
+/******************************************************************/
+html, body {
+    overscroll-behavior: none; /* BLOQUEA PULL-TO-REFRESH */
+    touch-action: none;        /* BLOQUEA GESTOS NATIVOS DEL NAVEGADOR (Zoom, Pan) */
+    user-select: none;         /* BLOQUEA SELECCIÓN DE TEXTO ACCIDENTAL */
+    -webkit-user-select: none;
+    overflow: hidden;          /* Evita scroll de la página entera */
+}
+
+/* 2. Solución para la barra del navegador que ocupa espacio */
+body {
+    margin: 0;
+    width: 100vw;
+    /* Usar dvh se adapta a si la barra está visible o no */
+    height: 100dvh; 
+    min-height: 100dvh;
+    
+    /* Imagen de fondo fija */
+    background-image: url('images/IIBERION.png');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+}
+
+/* 3. Asegurar que el contenedor del juego respete el área segura (Notch/Isla dinámica) */
+#game-wrapper, .game-container {
+    width: 100%;
+    height: 100%;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* 4. Forzar que los botones de acción siempre estén encima y clicables */
+#tactical-ui-container {
+    z-index: 9999;
+    pointer-events: none; /* El contenedor es transparente a clics... */
+}
+#tactical-ui-container button, 
+.floating-btn {
+    pointer-events: auto !important; /* ...pero los botones SIEMPRE atrapan el clic */
+    touch-action: manipulation;      /* Optimiza para toques */
+}

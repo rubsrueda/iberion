@@ -27,6 +27,16 @@ const TUTORIAL_SCRIPTS = {
         },
 
         {
+            id: 'intro',
+            message: "Has llegado a un mundo vivo, cada territorio es una oportunidad, donde las rutas conectan imperios, cada ciudad un destino por conquistar, dirije tu ejército y deja tu huella.",
+            duration: 5000, // 4 segundos para que el jugador pruebe a girar el móvil
+            onStepStart: () => {
+                gameState.currentPhase = "play";
+                UIManager.updateActionButtonsBasedOnPhase();
+            }
+        },
+
+        {
             id: 'orientation_intro',
             message: "¡General! Para una mejor experiencia, puedes <strong>girar tu dispositivo</strong>. Prueba a jugar en horizontal o vertical según tu preferencia antes de empezar.",
             duration: 4000, // 4 segundos para que el jugador pruebe a girar el móvil
@@ -37,8 +47,25 @@ const TUTORIAL_SCRIPTS = {
         },
 
         {
+            id: 'mapa',
+            message: "El mapa está compuesto or hexágonos donde con distintos terrenos, algunos dan recursos específicos, se pueden conquistar al ocuparlos con tu ejército, y se pueden construir infraestructras como caminos, fortalezas y ciudades",
+            duration: 4000, // 4 segundos para que el jugador pruebe a girar el móvil
+            onStepStart: () => {
+                gameState.currentPhase = "play";
+                UIManager.updateActionButtonsBasedOnPhase();
+            }
+        },
+
+        {
             id: 'tutorial_menu_intro',
-            message: "Antes de marchar, fíjate arriba. El <strong>Menú (☰)</strong> oculta tus recursos detallados y opciones de guardado. ¡Púlsalo para verlo!",
+            message: "Antes de marchar, fíjate arriba. El <strong>Menú⚙️ </strong> despliega los botones principales de Estado",
+            highlightElementId: 'floatingMenuBtn',
+            actionCondition: () => document.getElementById('top-bar-menu').style.display === 'flex'
+        },
+
+        {
+            id: 'tutorial_info',
+            message: "Antes de marchar, fíjate en <strong>(☰)</strong> muestra tus recursos y opciones de guardado. ¡Púlsalo para verlo!",
             highlightElementId: 'floatingMenuBtn',
             actionCondition: () => document.getElementById('top-bar-menu').style.display === 'flex'
         },
@@ -67,13 +94,13 @@ const TUTORIAL_SCRIPTS = {
         },
         {
             id: 'tut_menu_mailbox',
-            message: "✉️ <strong>Mensajes:</strong> Manténgase al tanto de sus hazañas. Aquí recibirá recompensas por misiones completadas y comunicados de alto mando.",
+            message: "✉️ <strong>Mensajes:</strong> Manténgase al tanto de sus hazañas. Aquí recibirá mensajes y recompensas por misiones completadas.",
             highlightElementId: 'floatingInboxBtn',
             duration: 5000
         },
         {
             id: 'tut_menu_end',
-            message: "Excelente. Una vez familiarizado, puede cerrar el menú pulsando (☰) o clicando en el mapa para volver a la acción.",
+            message: "Excelente. Una vez familiarizado, puede cerrar el menú pulsando ⚙️ para centrarnos en el mapa y volver a la acción.",
             duration: 5000,
             onStepComplete: () => {
                 // Marcamos la transición a la siguiente parte de la batalla

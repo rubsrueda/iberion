@@ -6,6 +6,7 @@ const AudioManager = {
     musicVolume: 0.3, // Volumen por defecto para la música (más bajo)
     sfxVolume: 0.7,   // Volumen por defecto para los efectos (más alto)
 
+    
     // Lista de todos los archivos de audio que usará el juego
     // Añade aquí todas tus pistas de música y efectos de sonido
     _audioSources: {
@@ -20,7 +21,7 @@ const AudioManager = {
         'unit_destroyed': 'audio/sfx/swords.wav', // Reemplaza 'explosion.wav' con tu archivo
         'structure_built': 'audio/sfx/build.wav' // Reemplaza 'build.wav' con tu archivo
     },
-
+    
     /**
      * Precarga todos los sonidos definidos en _audioSources.
      * Se debe llamar al iniciar la aplicación.

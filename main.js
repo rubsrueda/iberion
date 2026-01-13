@@ -202,6 +202,19 @@ function initApp() {
         AudioManager.preload();
     }
 
+    //conexiones 
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+            console.log("[Sistema] Aplicación en primer plano. Verificando red...");
+            if (NetworkManager.conn && !NetworkManager.conn.open && NetworkManager.idRemoto && !NetworkManager.esAnfitrion) {
+                console.log("[Sistema] Conexión caída al despertar. Reconectando...");
+                NetworkManager.unirseAPartida(NetworkManager.idRemoto.replace(GAME_ID_PREFIX, ''));
+            }
+            // Forzar repintado de UI por si se quedó congelada
+            if(typeof UIManager !== 'undefined') UIManager.updateAllUIDisplays();
+        }
+    });
+
     console.log("main.js: DOMContentLoaded -> initApp INICIADO (Versión CORREGIDA con Cuentas).");
     // ======================================================================
     // 0. CORTAFUEGOS DE ESTADO DEL TUTORIAL

@@ -24,6 +24,9 @@ _onConexionAbierta: null,
 _onDatosRecibidos: null,
 _onConexionCerrada: null,
 
+ _heartbeatInterval: null,
+_lastHeartbeatReceived: 0,
+
 preparar: function(onConexionAbierta, onDatosRecibidos, onConexionCerrada) {
     this._onConexionAbierta = onConexionAbierta;
     this._onDatosRecibidos = onDatosRecibidos;
@@ -218,27 +221,87 @@ _configurarEventosDeConexion: function() {
     if (!this.conn) return;
 
     this.conn.on('open', () => {
-        console.log(`%c[Red] ¡Conexión establecida con ${this.conn.peer}!`, "background: blue; color: white;");
+        console.log(`%c[Red] Conexión establecida/restaurada.`, "color: green;");
         this._isConnecting = false;
+        
+        // INICIO DEL HEARTBEAT
+        this._startHeartbeat();
+
         if (this._onConexionAbierta) this._onConexionAbierta(this.idRemoto);
+        
+        // Si soy cliente y acabo de reconectar, pido el estado actual
+        if (!this.esAnfitrion) {
+            this.enviarDatos({ type: 'actionRequest', action: { type: 'syncGameState', payload: {} } }); // Petición dummy para forzar sync
+        }
     });
 
     this.conn.on('data', (datos) => {
-            //console.log(`[Red] Datos recibidos:`, datos.type);
+        // Si es un latido, actualizamos el timestamp y no hacemos nada más
+        if (datos.type === 'HEARTBEAT') {
+            this._lastHeartbeatReceived = Date.now();
+            return;
+        }
         if (this._onDatosRecibidos) this._onDatosRecibidos(datos);
     });
 
     this.conn.on('close', () => {
-        console.warn(`[Red] Conexión cerrada.`);
-        this._isConnecting = false;
-        if (this._onConexionCerrada) this._onConexionCerrada();
-        this.conn = null;
+        console.warn(`[Red] Conexión cerrada. Intentando reconectar...`);
+        this._stopHeartbeat();
+        // Intentar reconexión automática si tenemos el ID remoto
+        if (this.idRemoto && !this.esAnfitrion) {
+            setTimeout(() => this.unirseAPartida(this.idRemoto.replace(GAME_ID_PREFIX, '')), 1000);
+        } else if (this._onConexionCerrada) {
+            this._onConexionCerrada();
+        }
     });
 
+    // 4. MANEJO DE ERRORES (LO QUE FALTABA)
     this.conn.on('error', (err) => {
         console.error(`[Red] Error en canal de datos:`, err);
         this._isConnecting = false;
+        
+        // Errores específicos de PeerJS
+        switch (err.type) {
+            case 'connection-closed':
+                // La conexión se perdió, el evento 'close' manejará el reintento
+                break;
+            case 'peer-unavailable':
+                alert("El otro jugador ya no está disponible o ha cerrado el juego.");
+                this.desconectar();
+                break;
+            case 'network':
+                console.warn("Problema de red detectado. Esperando recuperación...");
+                break;
+            default:
+                // Para errores desconocidos, solo logueamos para no interrumpir el juego si es recuperable
+                console.warn("Error de conexión no crítico:", err.message);
+                break;
+        }
     });
+},
+
+_startHeartbeat: function() {
+    this._stopHeartbeat();
+    this._lastHeartbeatReceived = Date.now();
+    
+    this._heartbeatInterval = setInterval(() => {
+        if (this.conn && this.conn.open) {
+            this.conn.send({ type: 'HEARTBEAT' });
+            
+            // Si no hemos recibido latido en 10 segundos, asumimos desconexión
+            if (Date.now() - this._lastHeartbeatReceived > 10000) {
+                console.warn("[Red] Latido perdido. Reiniciando conexión...");
+                this.conn.close(); // Esto disparará el evento 'close' y la reconexión
+            }
+        }
+    }, 2000); // Enviar cada 2 segundos
+},
+
+_stopHeartbeat: function() {
+    if (this._heartbeatInterval) {
+        clearInterval(this._heartbeatInterval);
+        this._heartbeatInterval = null;
+    }
 },
 
 broadcastFullState: function() {
