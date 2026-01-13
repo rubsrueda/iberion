@@ -220,84 +220,75 @@ enviarDatos: function(datos) {
 _configurarEventosDeConexion: function() {
     if (!this.conn) return;
 
+    // 1. Conexión Abierta
     this.conn.on('open', () => {
-        console.log(`%c[Red] Conexión establecida/restaurada.`, "color: green;");
+        console.log(`%c[Red] ¡Conexión establecida!`, "background: green; color: white;");
         this._isConnecting = false;
-
-        // Inicializamos el reloj AHORA MISMO, para que no piense que es 0
-        this._lastHeartbeatReceived = Date.now(); 
         
-        // INICIO DEL HEARTBEAT
-        this._startHeartbeat();
+        // Iniciamos el latido SOLO para mantener despierto al móvil
+        this._startHeartbeat(); 
 
         if (this._onConexionAbierta) this._onConexionAbierta(this.idRemoto);
         
-        // Si soy cliente y acabo de reconectar, pido el estado actual
+        // Si soy cliente, pido el estado del juego para sincronizarme
         if (!this.esAnfitrion) {
-            this.enviarDatos({ type: 'actionRequest', action: { type: 'syncGameState', payload: {} } }); // Petición dummy para forzar sync
+            this.enviarDatos({ type: 'actionRequest', action: { type: 'syncGameState', payload: {} } });
         }
     });
 
+    // 2. Datos Recibidos
     this.conn.on('data', (datos) => {
-        // Si es un latido, actualizamos el timestamp y no hacemos nada más
+        // Si es un latido, no hacemos NADA. Solo sirve para mantener el flujo de datos activo.
         if (datos.type === 'HEARTBEAT') {
-            this._lastHeartbeatReceived = Date.now();
-            return;
+            return; 
         }
+        // Si es un dato real del juego, lo procesamos
         if (this._onDatosRecibidos) this._onDatosRecibidos(datos);
     });
 
+    // 3. Cierre REAL de Conexión
     this.conn.on('close', () => {
-        console.warn(`[Red] Conexión cerrada. Intentando reconectar...`);
+        console.warn(`[Red] El navegador ha cerrado la conexión.`);
         this._stopHeartbeat();
-        // Intentar reconexión automática si tenemos el ID remoto
+        
+        // Intentar reconexión automática suave
         if (this.idRemoto && !this.esAnfitrion) {
-            setTimeout(() => this.unirseAPartida(this.idRemoto.replace(GAME_ID_PREFIX, '')), 1000);
-        } else if (this._onConexionCerrada) {
-            this._onConexionCerrada();
+             console.log("Intentando reconectar...");
+             setTimeout(() => this.unirseAPartida(this.idRemoto.replace(GAME_ID_PREFIX, '')), 1000);
+        } else {
+             // Solo avisamos al usuario si el cierre es definitivo
+             if (this._onConexionCerrada) this._onConexionCerrada();
         }
     });
 
-    // 4. MANEJO DE ERRORES (LO QUE FALTABA)
+    // 4. Errores
     this.conn.on('error', (err) => {
-        console.error(`[Red] Error en canal de datos:`, err);
-        this._isConnecting = false;
-        
-        // Errores específicos de PeerJS
-        switch (err.type) {
-            case 'connection-closed':
-                // La conexión se perdió, el evento 'close' manejará el reintento
-                break;
-            case 'peer-unavailable':
-                alert("El otro jugador ya no está disponible o ha cerrado el juego.");
-                this.desconectar();
-                break;
-            case 'network':
-                console.warn("Problema de red detectado. Esperando recuperación...");
-                break;
-            default:
-                // Para errores desconocidos, solo logueamos para no interrumpir el juego si es recuperable
-                console.warn("Error de conexión no crítico:", err.message);
-                break;
+        console.error(`[Red] Error:`, err);
+        // No desconectamos proactivamente por errores menores
+        if (err.type === 'peer-unavailable') {
+            alert("El otro jugador no está disponible.");
+            this.desconectar();
         }
     });
 },
 
 _startHeartbeat: function() {
+    // Limpiamos cualquier intervalo anterior
     this._stopHeartbeat();
-    this._lastHeartbeatReceived = Date.now();
     
+    console.log("[Red] Iniciando sistema 'Keep-Alive' (Latido)...");
+
+    // Enviamos un 'ping' cada 3 segundos.
+    // Su ÚNICA función es evitar que el navegador del móvil "congele" la conexión.
     this._heartbeatInterval = setInterval(() => {
         if (this.conn && this.conn.open) {
-            this.conn.send({ type: 'HEARTBEAT' });
-            
-            // Si no hemos recibido latido en 10 segundos, asumimos desconexión
-            if (Date.now() - this._lastHeartbeatReceived > 10000) {
-                console.warn("[Red] Latido perdido. Reiniciando conexión...");
-                this.conn.close(); // Esto disparará el evento 'close' y la reconexión
+            try {
+                this.conn.send({ type: 'HEARTBEAT' });
+            } catch (e) {
+                console.warn("No se pudo enviar el latido (conexión inestable).");
             }
         }
-    }, 2000); // Enviar cada 2 segundos
+    }, 5000);
 },
 
 _stopHeartbeat: function() {
