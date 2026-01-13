@@ -126,7 +126,7 @@ iniciarAnfitrion: function(onIdGenerado) {
 },
 
 unirseAPartida: function(codigoUsuario) {
-    console.log("%c[Cliente] Iniciando conexión...", "color: cyan;");
+    console.log("%c[Cliente] Iniciando conexión/reconexión...", "color: cyan;");
     if (this._isConnecting) return;
     
     // 1. LIMPIEZA: Mayúsculas y quitar espacios
@@ -140,26 +140,33 @@ unirseAPartida: function(codigoUsuario) {
     // 3. CONSTRUCCIÓN: Añadimos el prefijo global obligatoriamente
     const anfitrionId = GAME_ID_PREFIX + cleanCode;
     
-    console.log(`[Cliente] Input: '${codigoUsuario}' -> Clean: '${cleanCode}' -> TARGET ID: '${anfitrionId}'`);
-
     this._isConnecting = true;
-    if (this.peer) {
-        this.peer.destroy();
-    }
-    this.peer = null;
-    this.esAnfitrion = false;
 
+    // --- LIMPIEZA AGRESIVA DE CONEXIONES ANTERIORES ---
+    if (this.conn) {
+        this.conn.close(); // Cierra la conexión vieja
+        this.conn = null;
+    }
+    if (this.peer) {
+        this.peer.destroy(); // Destruye la identidad vieja para renovar IPs
+        this.peer = null;
+    }
+    this.esAnfitrion = false;
+    // --------------------------------------------------
+
+    // Esperamos un poco para asegurar que el navegador liberó los puertos
     setTimeout(() => {
         try {
             this.peer = new Peer(undefined, PEER_SERVER_CONFIG);
 
             this.peer.on('open', (id) => {
-                console.log(`[Cliente] Mi ID temporal: ${id}`);
+                console.log(`[Cliente] Nueva identidad generada: ${id}`);
                 this.miId = id;
                 
-                // Conectamos usando el ID CON PREFIJO
-                console.log(`[Cliente] Ejecutando peer.connect('${anfitrionId}')...`);
-                this.conn = this.peer.connect(anfitrionId);
+                console.log(`[Cliente] Conectando con Host: '${anfitrionId}'...`);
+                this.conn = this.peer.connect(anfitrionId, {
+                    reliable: true // Forzar modo fiable si es posible
+                });
                 this.idRemoto = anfitrionId;
 
                 this._configurarEventosDeConexion(); 
@@ -168,19 +175,19 @@ unirseAPartida: function(codigoUsuario) {
             this.peer.on('error', (err) => {
                 console.error("[Cliente] Error de conexión:", err);
                 this._isConnecting = false;
+                
+                // Si el peer no existe, es que el Host también se cayó o cambió
                 if (err.type === 'peer-unavailable') {
-                    alert(`No se encontró la partida con código "${cleanCode}".\nAsegúrate de que el anfitrión está en la pantalla de "Esperando Jugador".`);
-                } else {
-                    alert(`Error de conexión: ${err.type}`);
+                    if (typeof showToast === 'function') showToast("El Anfitrión no responde. Inténtalo de nuevo.", "error");
                 }
-                this.desconectar();
+                // No llamamos a desconectar() aquí para permitir reintentos manuales
             });
 
         } catch(e) {
              console.error("[Cliente] Error catastrófico:", e);
              this._isConnecting = false;
         }
-    }, 200);
+    }, 500); // 500ms de espera para limpieza
 },
 
 desconectar: function() {

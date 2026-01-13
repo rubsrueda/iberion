@@ -2195,4 +2195,42 @@ function reconstruirJuegoDesdeDatos(datos) {
 }
 
 document.addEventListener('DOMContentLoaded', initApp);
+
+// En main.js (Al final del archivo, fuera de cualquier función)
+
+document.addEventListener("visibilitychange", async () => {
+    // Si el usuario vuelve a la pestaña (ej: cuelga el teléfono)
+    if (document.visibilityState === "visible") {
+        console.log("⚡ [Sistema] Regreso detectado (visibilitychange). Verificando estado...");
+        
+        // Verificamos si estábamos en una partida online como CLIENTE
+        if (typeof NetworkManager !== 'undefined' && NetworkManager.idRemoto && !NetworkManager.esAnfitrion) {
+            
+            // Comprobamos si la conexión está muerta o cerrada
+            if (!NetworkManager.conn || !NetworkManager.conn.open) {
+                console.warn("⚠️ [Sistema] La conexión se perdió durante la inactividad. RECONECTANDO...");
+                
+                // Le damos un pequeño respiro al navegador para que recupere el Wifi/Datos
+                setTimeout(() => {
+                    const cleanId = NetworkManager.idRemoto.replace(GAME_ID_PREFIX, '');
+                    NetworkManager.unirseAPartida(cleanId);
+                    
+                    // Notificamos al usuario visualmente
+                    if(typeof showToast === 'function') showToast("Recuperando conexión...", "warning");
+                }, 500);
+            } else {
+                // Si parece estar viva, enviamos un ping de prueba. Si falla, el sistema de error reconectará.
+                console.log("ℹ️ [Sistema] La conexión parece activa. Enviando Ping de verificación.");
+                try {
+                    NetworkManager.conn.send({ type: 'HEARTBEAT' });
+                } catch (e) {
+                    console.log("❌ [Sistema] Ping fallido. Forzando reconexión.");
+                    NetworkManager.unirseAPartida(NetworkManager.idRemoto.replace(GAME_ID_PREFIX, ''));
+                }
+            }
+        }
+    }
+});
+
 console.log("main.js: Archivo cargado y listo.");
+
