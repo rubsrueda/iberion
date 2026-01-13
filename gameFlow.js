@@ -1561,6 +1561,16 @@ async function handleEndTurn(isHostProcessing = false) {
              gameState.playerResources[1].researchPoints += BASE_INCOME.RESEARCH_POINTS_PER_TURN;
         }
         if (UIManager) UIManager.updateAllUIDisplays();
+
+        // --- AL FINAL DE LA FUNCIÓN, DENTRO DEL IF (no en game over) ---
+        if (gameState.currentPhase !== "gameOver") {
+            // Solo guardamos si estamos en una partida en red
+            if (typeof NetworkManager !== 'undefined' && NetworkManager.miId) {
+                // Cualquiera puede guardar, pero idealmente el que acaba de terminar el turno
+                NetworkManager.guardarPartidaEnNube();
+            }
+        }
+
         return; // Detenemos aquí para el tutorial
     }
 

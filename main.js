@@ -203,15 +203,33 @@ function initApp() {
     }
 
     //conexiones 
-    document.addEventListener("visibilitychange", () => {
+    document.addEventListener("visibilitychange", async () => {
         if (document.visibilityState === "visible") {
-            console.log("[Sistema] Aplicación en primer plano. Verificando red...");
-            if (NetworkManager.conn && !NetworkManager.conn.open && NetworkManager.idRemoto && !NetworkManager.esAnfitrion) {
-                console.log("[Sistema] Conexión caída al despertar. Reconectando...");
-                NetworkManager.unirseAPartida(NetworkManager.idRemoto.replace(GAME_ID_PREFIX, ''));
+            console.log("⚡ [Sistema] Regreso detectado. Verificando estado...");
+
+            // Verificamos si estábamos en una partida online (tenemos un ID remoto o propio)
+            const gameCode = NetworkManager.idRemoto?.replace(GAME_ID_PREFIX, '') || NetworkManager.miId?.replace(GAME_ID_PREFIX, '');
+            
+            if (gameCode) {
+                // 1. Intentamos reconexión rápida P2P
+                if (!NetworkManager.conn || !NetworkManager.conn.open) {
+                    console.warn("⚠️ [Sistema] Conexión P2P caída.");
+                    
+                    // --- CAMBIO CLAVE: RECUPERACIÓN HÍBRIDA ---
+                    // Intentamos bajar el último estado de la nube PRIMERO
+                    const exitoNube = await NetworkManager.cargarPartidaDeNube(gameCode);
+                    
+                    if (exitoNube) {
+                        if(typeof showToast === 'function') showToast("Partida recuperada de la nube.", "success");
+                    } 
+                    
+                    // Y LUEGO intentamos reconectar el P2P en segundo plano para seguir jugando
+                    console.log("🔄 Intentando restablecer enlace P2P...");
+                    if (!NetworkManager.esAnfitrion) {
+                        NetworkManager.unirseAPartida(gameCode);
+                    }
+                }
             }
-            // Forzar repintado de UI por si se quedó congelada
-            if(typeof UIManager !== 'undefined') UIManager.updateAllUIDisplays();
         }
     });
 

@@ -398,5 +398,63 @@ broadcastFullState: function() {
         
     
     this.enviarDatos(fullStatePacket);
-}
+}, 
+
+    guardarPartidaEnNube: async function() {
+        if (!this.miId) return;
+        
+        // Usamos el código corto como ID de la partida (quitando el prefijo si lo tiene)
+        const gameCode = this.miId.replace(GAME_ID_PREFIX, '');
+        console.log(`[Nube] Guardando estado del turno en partida: ${gameCode}...`);
+
+        const estadoSerializado = {
+            gameState: gameState,
+            board: board.map(row => row.map(hex => ({...hex, element: undefined}))), // Limpiar elementos DOM
+            units: units.map(u => ({...u, element: undefined})),
+            unitIdCounter: unitIdCounter,
+            timestamp: Date.now()
+        };
+
+        // Guardamos en la tabla 'active_matches' (o reutilizamos game_saves con un nombre especial)
+        // Aquí usaremos 'game_saves' que ya tienes configurada, usando el código como nombre especial
+        const { error } = await supabaseClient
+            .from('game_saves')
+            .upsert({
+                save_name: `AUTOSAVE_${gameCode}`, // Nombre único para esta partida
+                user_id: PlayerDataManager.currentPlayer?.auth_id || 'anon', // O el ID del host
+                game_state: estadoSerializado,
+                board_state: estadoSerializado.board, // Redundancia para tu estructura actual
+                created_at: new Date().toISOString()
+            }, { onConflict: 'save_name' }); // Esto sobreescribe si ya existe
+
+        if (error) console.error("[Nube] Error al guardar:", error);
+        else console.log("[Nube] Turno guardado exitosamente.");
+    },
+
+    cargarPartidaDeNube: async function(gameCode) {
+        console.log(`[Nube] Intentando recuperar partida: ${gameCode}...`);
+        
+        const { data, error } = await supabaseClient
+            .from('game_saves')
+            .select('*')
+            .eq('save_name', `AUTOSAVE_${gameCode}`)
+            .single();
+
+        if (error || !data) {
+            console.warn("[Nube] No se encontró partida guardada o error:", error);
+            return false;
+        }
+
+        console.log("[Nube] Datos recuperados. Sincronizando...");
+        
+        // Usamos la función de reconstrucción que ya tienes en main.js
+        if (typeof reconstruirJuegoDesdeDatos === 'function') {
+            // Adaptamos los datos de la DB al formato que espera tu función
+            const payload = data.game_state; 
+            reconstruirJuegoDesdeDatos(payload);
+            return true;
+        }
+        return false;
+    }
+
 };
