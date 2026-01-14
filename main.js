@@ -787,26 +787,30 @@ function initApp() {
     
     // 2. Botón para que el ANFITRIÓN se una a una partida
     if (domElements.createNetworkGameBtn) {
-        // Clonamos para limpiar listeners viejos
         const newBtn = domElements.createNetworkGameBtn.cloneNode(true);
         domElements.createNetworkGameBtn.parentNode.replaceChild(newBtn, domElements.createNetworkGameBtn);
         domElements.createNetworkGameBtn = newBtn;
 
         domElements.createNetworkGameBtn.addEventListener('click', async () => {
-            logMessage("Creando partida en la nube...");
+            logMessage("Creando sala en la nube...");
             
-            // 1. Inicializamos el tablero localmente primero (Setup)
+            // 1. Preparamos datos iniciales
             const settings = gameState.setupTempSettings || {};
-            // ... (Tu lógica de inicialización de variables de estado) ...
             initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize);
             
-            // 2. Creamos la partida en Supabase
+            // 2. Creamos la entrada en Supabase
+            // NOTA: Esta función ahora devuelve el código PERO NO inicia el juego visualmente
             const gameId = await NetworkManager.crearPartidaEnNube(settings);
             
             if (gameId) {
-                alert(`Partida Creada. Código: ${gameId}\n\nEl otro jugador puede unirse incluso si cierras el juego.`);
-                showScreen(domElements.gameContainer);
-                if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
+                // 3. MOSTRAR LOBBY (NO EL JUEGO)
+                if (domElements.shortGameCodeEl) domElements.shortGameCodeEl.textContent = gameId;
+                if (domElements.hostPlayerListEl) domElements.hostPlayerListEl.innerHTML = `<li>Esperando al oponente...</li>`;
+                
+                showScreen(domElements.hostLobbyScreen);
+                gameState.currentPhase = "hostLobby";
+                
+                logMessage("Esperando a que el jugador 2 se conecte...");
             }
         });
     }

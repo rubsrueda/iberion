@@ -460,12 +460,13 @@ broadcastFullState: function() {
     // ============================================================
     // === SISTEMA DE JUEGO ASÍNCRONO (SUPABASE AUTHORITY) ===
     // ============================================================
-
-    // 1. CREAR PARTIDA (El Host sube el tablero inicial)
+    
+    // 1. CREAR PARTIDA Y ESPERAR
     crearPartidaEnNube: async function(gameSettings) {
-        const matchId = this._generarCodigoCorto(); // Generamos código tipo "XY99"
+        const matchId = this._generarCodigoCorto();
+        this.miId = matchId;
+        this.esAnfitrion = true;
         
-        // Preparamos el estado inicial limpio
         const estadoInicial = {
             gameState: gameState,
             board: board.map(row => row.map(hex => ({...hex, element: undefined}))),
@@ -473,31 +474,64 @@ broadcastFullState: function() {
             unitIdCounter: unitIdCounter
         };
 
+        // Subimos la partida con guest_id VACÍO
         const { error } = await supabaseClient
             .from('active_matches')
             .insert({
                 match_id: matchId,
-                host_id: PlayerDataManager.currentPlayer?.auth_id,
+                host_id: PlayerDataManager.currentPlayer?.auth_id || 'anon_host',
                 game_state: estadoInicial,
-                current_turn_player: 1
+                current_turn_player: 1,
+                guest_id: null // Esperamos que esto cambie
             });
 
         if (error) {
             console.error("Error creando partida:", error);
+            alert("Error de conexión con la nube.");
             return null;
         }
 
-        this.miId = matchId; // Guardamos el ID de la partida
-        this.esAnfitrion = true;
+        // --- EL VIGILANTE ---
+        // Nos suscribimos para ver cuándo el campo 'guest_id' cambia
+        console.log(`📡 Esperando rival en sala: ${matchId}`);
         
-        // Nos suscribimos a cambios (por si el J2 se une o juega)
-        this.suscribirseAPartida(matchId);
+        this.subscription = supabaseClient
+            .channel(`lobby_${matchId}`)
+            .on('postgres_changes', { 
+                event: 'UPDATE', 
+                schema: 'public', 
+                table: 'active_matches', 
+                filter: `match_id=eq.${matchId}` 
+            }, (payload) => {
+                // Si alguien ha escrito su ID en guest_id... ¡EMPEZAMOS!
+                if (payload.new.guest_id && payload.new.guest_id !== payload.old.guest_id) {
+                    console.log("🔔 ¡JUGADOR 2 CONECTADO!");
+                    
+                    // Actualizamos UI del Lobby
+                    if (document.getElementById('host-player-list')) {
+                        document.getElementById('host-player-list').innerHTML = `<li>J1: Anfitrión</li><li>J2: Conectado</li>`;
+                    }
+                    
+                    // Iniciamos el juego automáticamente tras 1 segundo
+                    setTimeout(() => {
+                        showScreen(domElements.gameContainer);
+                        if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
+                        alert("¡Jugador conectado! La partida comienza.");
+                    }, 1000);
+                    
+                    // Cambiamos la suscripción al modo de juego normal (turnos)
+                    supabaseClient.removeChannel(this.subscription);
+                    this.suscribirseAPartida(matchId);
+                }
+            })
+            .subscribe();
         
         return matchId;
     },
 
-    // 2. UNIRSE A PARTIDA (El Cliente descarga el tablero)
+    // 2. UNIRSE Y AVISAR AL HOST
     unirsePartidaEnNube: async function(matchId) {
+        // 1. Descargar datos
         const { data, error } = await supabaseClient
             .from('active_matches')
             .select('*')
@@ -505,18 +539,26 @@ broadcastFullState: function() {
             .single();
 
         if (error || !data) {
-            alert("Partida no encontrada.");
+            alert("Partida no encontrada o código incorrecto.");
             return false;
         }
 
-        // Cargamos el juego inmediatamente
+        // 2. Avisar al Host de que estamos aquí (UPDATE guest_id)
+        const myAuthId = PlayerDataManager.currentPlayer?.auth_id || 'anon_guest_' + Date.now();
+        
+        await supabaseClient
+            .from('active_matches')
+            .update({ guest_id: myAuthId })
+            .eq('match_id', matchId);
+
+        // 3. Cargar juego localmente
         reconstruirJuegoDesdeDatos(data.game_state);
         
         this.miId = matchId;
         this.esAnfitrion = false;
-        gameState.myPlayerNumber = 2; // Soy el invitado
+        gameState.myPlayerNumber = 2;
 
-        // Nos suscribimos para saber cuándo el Host mueve
+        // 4. Suscribirse a los turnos
         this.suscribirseAPartida(matchId);
         
         return true;
