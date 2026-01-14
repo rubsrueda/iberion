@@ -2138,6 +2138,11 @@ function reconstruirJuegoDesdeDatos(datos) {
             // ... copia cualquier otra propiedad crítica que necesites ...
             // Opcional: Copiar todo lo demás
             Object.assign(gameState, datos.gameState);
+
+            // Lo restauramos para que tu reloj funcione como siempre.
+            if (gameState.turnDurationSeconds === null || gameState.turnDurationSeconds === undefined) {
+                gameState.turnDurationSeconds = Infinity;
+            }
         } else {
             console.error("CRÍTICO: datos.gameState venía vacío de la nube.");
         }
