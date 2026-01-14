@@ -180,42 +180,33 @@ const NetworkManager = {
 
     // Nueva función para recuperar estado de emergencia
     cargarPartidaDeNube: async function(gameCode) {
-        console.log(`[Nube] 🚑 RECUPERACIÓN DE EMERGENCIA para partida: ${gameCode}`);
+        console.log(`[Nube] ☁️ Buscando actualizaciones en partida ${gameCode}...`);
         
         // Buscamos en 'active_matches' que es donde guardas el estado vivo
         const { data, error } = await supabaseClient
-            .from('active_matches')
-            .select('game_state, current_turn_player')
+            .from('active_matches') // Asegúrate de leer active_matches, NO game_saves (que son backups)
+            .select('game_state')
             .eq('match_id', gameCode)
             .single();
 
-        if (error || !data) {
-            console.warn("[Nube] No se pudo recuperar partida de la nube:", error);
-            return false;
-        }
+        if (error || !data) return false;
 
-        const cloudTimestamp = data.game_state.timestamp || 0;
-        const localTimestamp = gameState.lastActionTimestamp || 0;
+        const cloudState = data.game_state;
+        const localTs = gameState.lastActionTimestamp || 0;
+        const cloudTs = cloudState.timestamp || 0;
 
-        console.log(`[Sync] Nube (${cloudTimestamp}) vs Local (${localTimestamp})`);
+        console.log(`[Sync Check] Local: ${localTs} | Nube: ${cloudTs}`);
 
-        // Si la nube tiene datos más nuevos (el otro jugó mientras yo estaba desconectado)
-        if (cloudTimestamp > localTimestamp) {
-            console.log("📥 ¡Datos nuevos encontrados en la nube! Sincronizando...");
+        // REGLA DE ORO: Solo cargamos si la nube es REALMENTE más nueva.
+        // Si son iguales, preferimos quedarnos como estamos para evitar parpadeos o reversiones.
+        if (cloudTs > localTs) { 
+            console.log("✅ ¡La nube tiene datos nuevos! Actualizando...");
             if (typeof reconstruirJuegoDesdeDatos === 'function') {
-                reconstruirJuegoDesdeDatos(data.game_state);
-                // Si ahora es mi turno, avisar
-                if (data.current_turn_player === gameState.myPlayerNumber) {
-                    if(typeof showToast === 'function') showToast("¡Es tu turno!", "success");
-                    // Reactivar temporizador si es necesario
-                    if (TurnTimerManager && TurnTimerManager.start) {
-                        TurnTimerManager.start(gameState.turnDurationSeconds);
-                    }
-                }
+                reconstruirJuegoDesdeDatos(cloudState);
                 return true;
             }
         } else {
-            console.log("✅ El estado local ya está actualizado.");
+            console.log("⏸️ Datos de nube antiguos o iguales. Ignorando.");
         }
         return false;
     },

@@ -2260,7 +2260,7 @@ async function RequestMergeUnits(mergingUnit, targetUnit) {
     }
     
     _isMergingUnits = true; // Bloquear nuevas solicitudes
-    
+
     try {
         // La confirmación debe ocurrir ANTES de enviar la acción al anfitrión
         // para que el modal aparezca en el cliente que inicia la fusión
@@ -2269,6 +2269,9 @@ async function RequestMergeUnits(mergingUnit, targetUnit) {
             logMessage("Fusión cancelada.", "info");
             return;
         }
+
+        // ¡ACTUALIZAMOS EL RELOJ! Esto es lo que permitirá sincronizar al volver de la llamada
+        gameState.lastActionTimestamp = Date.now();
 
         // Generar ID único para esta acción (para deduplicación en el anfitrión)
         const actionId = `merge_${mergingUnit.id}_${targetUnit.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

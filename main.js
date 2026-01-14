@@ -2146,6 +2146,9 @@ async function processActionRequest(action) {
 
     // Si CUALQUIER acción (incluida endTurn) se ejecutó y cambió el estado...
     if (actionExecuted) {
+        // Esto le dice al mundo: "Este estado es NUEVO y OFICIAL"
+        gameState.lastActionTimestamp = Date.now();
+
         console.log(`%c[HOST BROADCAST] Acción '${action.type}' ejecutada. Retransmitiendo y GUARDANDO.`, 'background: blue; color: white;');
         
         // Actualizar visualmente al Anfitrión
