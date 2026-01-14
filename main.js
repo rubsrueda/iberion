@@ -2073,37 +2073,33 @@ async function processActionRequest(action) {
 
 function reconstruirJuegoDesdeDatos(datos) {
     try {
-        // Guardamos nuestra identidad, que es lo único que nos pertenece
+        console.log("%c[Sincronización] Aplicando datos...", "color: #00FF00;");
+        
+        // 1. Guardamos nuestra identidad local (crucial para no perderla al sobrescribir gameState)
         const miIdentidadLocal = gameState.myPlayerNumber;
 
-        // Limpiar el estado y el tablero local
+        // 2. Limpieza visual
         if (domElements.gameBoard) domElements.gameBoard.innerHTML = '';
         board = [];
         units = [];
 
-        // Sincronizamos el estado principal (esto sobrescribe nuestra identidad temporalmente)
+        // 3. Inyectar los datos del gameState
         Object.assign(gameState, datos.gameState);
         unitIdCounter = datos.unitIdCounter;
-        
-        // ¡Restauramos nuestra verdadera identidad!
+
+        // 4. RESTAURAR IDENTIDAD (Esto arregla el bloqueo del cliente)
+        // Si teníamos una identidad asignada (1 o 2), la forzamos sobre los datos descargados
         if (miIdentidadLocal) {
             gameState.myPlayerNumber = miIdentidadLocal;
         }
 
-        // Si estamos en fase de despliegue, forzamos nuestro contador personal a 0.
-        // Esto evita que datos residuales del anfitrión nos quiten un hueco.
-        if (gameState.currentPhase === 'deployment') {
-            if (!gameState.unitsPlacedByPlayer) gameState.unitsPlacedByPlayer = {};
-            gameState.unitsPlacedByPlayer[gameState.myPlayerNumber] = 0;
-            console.log(`[CLIENTE SYNC] Contador de despliegue forzado a 0 para J${gameState.myPlayerNumber}.`);
-        }
-        // --------------------------------------
-        
-        // Reconstruir el tablero desde los datos del anfitrión
+        // 5. Reconstruir Tablero
         const boardData = datos.board;
         const boardSize = { rows: boardData.length, cols: boardData[0].length };
+        
         domElements.gameBoard.style.width = `${boardSize.cols * HEX_WIDTH + HEX_WIDTH / 2}px`;
         domElements.gameBoard.style.height = `${boardSize.rows * HEX_VERT_SPACING + HEX_HEIGHT * 0.25}px`;
+        
         board = Array(boardSize.rows).fill(null).map(() => Array(boardSize.cols).fill(null));
 
         for (let r = 0; r < boardSize.rows; r++) {
@@ -2114,54 +2110,28 @@ function reconstruirJuegoDesdeDatos(datos) {
             }
         }
         
-        // Reconstruir las unidades desde los datos del anfitrión
+        // 6. Reconstruir Unidades
         datos.units.forEach(unitData => {
             placeFinalizedDivision(unitData, unitData.r, unitData.c);
         });
 
-        // Refrescar toda la UI con el estado recién sincronizado
+        // 7. ACTUALIZACIÓN VISUAL MASIVA (Esto arregla los recursos y botones desaparecidos)
         renderFullBoardVisualState();
-        UIManager.updateAllUIDisplays();
-        UIManager.updateTurnIndicatorAndBlocker();
-
-        // Después de sincronizar todo, iniciamos el temporizador si es necesario.
+        if (typeof initializeBoardPanning === "function") initializeBoardPanning();
         
-        // 1. Detenemos cualquier temporizador anterior para evitar duplicados.
-        if (typeof TurnTimerManager !== 'undefined' && TurnTimerManager.stop) {
-            TurnTimerManager.stop();
+        if (UIManager) {
+            UIManager.updatePlayerAndPhaseInfo(); // Refresca texto de fase y recursos
+            UIManager.updateAllUIDisplays();      // Refresca general
+            UIManager.refreshActionButtons();     // Refresca botones (el +)
+            UIManager.updateTurnIndicatorAndBlocker(); // Bloquea/Desbloquea pantalla
         }
 
-        // 2. Comprobamos si el jugador actual en el NUEVO estado del juego es humano.
-        const isCurrentPlayerHuman = gameState.playerTypes[`player${gameState.currentPlayer}`] === 'human';
-
-        // 3. Si es humano y el temporizador está disponible, lo iniciamos.
-        if (isCurrentPlayerHuman && typeof TurnTimerManager !== 'undefined' && TurnTimerManager.start) {
-            TurnTimerManager.start(gameState.turnDurationSeconds);
-        }
-        
-        if (typeof initializeBoardPanning === "function") {
-            initializeBoardPanning();
-            // Comprobamos si alguna pantalla importante (como el árbol tecnológico) está abierta.
-            const techTreeScreen = document.getElementById('techTreeScreen');
-            if (techTreeScreen && techTreeScreen.style.display === 'flex') {
-                if (typeof refreshTechTreeContent === 'function') {
-                    refreshTechTreeContent();
-                }
-            }
-        }
-
-        // Deseleccionar la unidad para evitar referencias obsoletas
-        if (typeof deselectUnit === 'function') {
-            deselectUnit();
-        }
-
-        logMessage("¡Sincronización con el anfitrión completada!");
+        logMessage(`Sincronizado. Turno: J${gameState.currentPlayer}`);
 
     } catch (error) {
-        console.error("Error crítico al reconstruir el juego en el cliente:", error);
-        logMessage("Error: No se pudo sincronizar la partida con el anfitrión.", "error");
+        console.error("Error crítico al reconstruir:", error);
+        logMessage("Error de datos.", "error");
     }
-
 }
 
 document.addEventListener('DOMContentLoaded', initApp);

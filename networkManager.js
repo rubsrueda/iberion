@@ -1,5 +1,5 @@
-// networkManager.js - VERSIÓN CORREGIDA UUID
-console.log("networkManager.js CARGADO - Modo Base de Datos (UUID FIX)");
+// networkManager.js - VERSIÓN CORREGIDA (SERIALIZACIÓN SEGURA)
+console.log("networkManager.js CARGADO - v4.0");
 
 const NetworkManager = {
     miId: null,
@@ -7,14 +7,29 @@ const NetworkManager = {
     checkInterval: null,
     subscription: null,
 
-    // Generador de códigos de sala (4 letras)
     _generarCodigoCorto: function() {
         const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; 
         let result = "";
-        for (let i = 0; i < 4; i++) { 
-            result += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
+        for (let i = 0; i < 4; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
         return result;
+    },
+
+    // --- FUNCIÓN LIMPIADORA CLAVE ---
+    // Elimina elementos visuales (DOM) y referencias circulares antes de guardar
+    _prepararEstadoParaNube: function() {
+        const replacer = (key, value) => {
+            if (key === 'element') return undefined; // Borrar referencias al HTML
+            if (key === 'selectedUnit') return null; // La selección es local, no se guarda
+            return value;
+        };
+
+        return {
+            gameState: JSON.parse(JSON.stringify(gameState, replacer)),
+            board: JSON.parse(JSON.stringify(board, replacer)),
+            units: JSON.parse(JSON.stringify(units, replacer)),
+            unitIdCounter: unitIdCounter,
+            timestamp: Date.now()
+        };
     },
 
     // 1. CREAR PARTIDA (HOST)
@@ -22,27 +37,19 @@ const NetworkManager = {
         const matchId = this._generarCodigoCorto();
         this.miId = matchId;
         this.esAnfitrion = true;
+        gameState.myPlayerNumber = 1; // Aseguramos identidad
         
-        // Limpieza de estado
-        const estadoInicial = {
-            gameState: JSON.parse(JSON.stringify(gameState)),
-            board: board.map(row => row.map(hex => ({...hex, element: undefined}))),
-            units: units.map(u => ({...u, element: undefined})),
-            unitIdCounter: unitIdCounter,
-            timestamp: Date.now()
-        };
-
-        console.log(`[Host] Creando sala ${matchId}...`);
-
-        // --- CORRECCIÓN 1: UUID VÁLIDO PARA EL HOST ---
-        // Si no hay usuario logueado, generamos un UUID real al azar
+        // Usamos la función segura para preparar los datos
+        const estadoInicial = this._prepararEstadoParaNube();
         const hostUuid = PlayerDataManager.currentPlayer?.auth_id || crypto.randomUUID();
+
+        console.log(`[Host] Subiendo estado inicial... Recursos J1:`, estadoInicial.gameState.playerResources[1]);
 
         const { error } = await supabaseClient
             .from('active_matches')
             .upsert({
                 match_id: matchId,
-                host_id: hostUuid, // <--- AQUÍ ESTABA EL ERROR ANTES
+                host_id: hostUuid,
                 game_state: estadoInicial,
                 current_turn_player: 1,
                 guest_id: null 
@@ -50,32 +57,33 @@ const NetworkManager = {
 
         if (error) {
             console.error("Error Supabase:", error);
-            alert(`Error de base de datos: ${error.message}`);
+            alert("Error de conexión al crear partida.");
             return null;
         }
 
-        // Sistema de Polling (Comprobar si entra el J2)
+        // Polling para detectar al J2
         if (this.checkInterval) clearInterval(this.checkInterval);
-        
         this.checkInterval = setInterval(async () => {
-            const { data } = await supabaseClient
-                .from('active_matches')
-                .select('guest_id')
-                .eq('match_id', matchId)
-                .single();
-
+            const { data } = await supabaseClient.from('active_matches').select('guest_id').eq('match_id', matchId).single();
             if (data && data.guest_id) {
-                console.log("¡JUGADOR 2 DETECTADO!");
+                console.log("¡JUGADOR 2 CONECTADO!");
                 clearInterval(this.checkInterval);
-
+                
+                // Actualizar UI visualmente
                 if (document.getElementById('host-player-list')) {
-                    document.getElementById('host-player-list').innerHTML = `<li>J1: Anfitrión (Tú)</li><li>J2: CONECTADO</li>`;
+                    document.getElementById('host-player-list').innerHTML = `<li>J1: Tú</li><li>J2: CONECTADO</li>`;
                 }
                 
                 setTimeout(() => {
                     showScreen(domElements.gameContainer);
                     if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
                     this.activarEscuchaDeTurnos(matchId);
+                    
+                    // Refresco final para asegurar que se ven los botones correctos
+                    if(typeof UIManager !== 'undefined') {
+                        UIManager.updateAllUIDisplays();
+                        UIManager.refreshActionButtons();
+                    }
                 }, 1000);
             }
         }, 2000);
@@ -86,50 +94,32 @@ const NetworkManager = {
     // 2. UNIRSE (CLIENTE)
     unirsePartidaEnNube: async function(codigoInput) {
         const matchId = codigoInput.trim().toUpperCase();
-        console.log(`[Cliente] Buscando sala: ${matchId}...`);
+        console.log(`[Cliente] Buscando: ${matchId}...`);
 
-        // 1. Buscar la partida
-        const { data, error } = await supabaseClient
-            .from('active_matches')
-            .select('*')
-            .eq('match_id', matchId)
-            .single();
+        const { data, error } = await supabaseClient.from('active_matches').select('*').eq('match_id', matchId).single();
 
         if (error || !data) {
-            console.error("Error búsqueda:", error);
-            alert("Partida no encontrada. Verifica el código.");
+            alert("Partida no encontrada.");
             return false;
         }
 
-        // --- CORRECCIÓN 2: UUID VÁLIDO PARA EL GUEST ---
-        // Generamos un UUID real si no hay login, para que Supabase no se queje
         const guestUuid = PlayerDataManager.currentPlayer?.auth_id || crypto.randomUUID();
+        await supabaseClient.from('active_matches').update({ guest_id: guestUuid }).eq('match_id', matchId);
 
-        // 2. Escribir mi ID
-        const { error: updateError } = await supabaseClient
-            .from('active_matches')
-            .update({ guest_id: guestUuid }) // <--- AQUÍ ESTABA EL ERROR DEL CLIENTE
-            .eq('match_id', matchId);
+        console.log("[Cliente] Datos recibidos. Reconstruyendo...");
 
-        if (updateError) {
-            console.error("Error update:", updateError);
-            alert(`Error al unirse: ${updateError.message}`);
-            return false;
-        }
-
-        console.log("[Cliente] Conectado. Cargando...");
-
-        // 3. Cargar el juego
+        // --- ORDEN DE CARGA CORREGIDO ---
+        // 1. Establecer identidad ANTES de cargar datos para que la UI sepa quién soy
+        this.miId = matchId;
+        this.esAnfitrion = false;
         gameState.myPlayerNumber = 2; 
-        
+
+        // 2. Cargar los datos
         if (typeof reconstruirJuegoDesdeDatos === 'function') {
             reconstruirJuegoDesdeDatos(data.game_state);
         }
 
-        this.miId = matchId;
-        this.esAnfitrion = false;
-        
-        // 4. Activar escucha
+        // 3. Activar escucha
         this.activarEscuchaDeTurnos(matchId);
         
         return true;
@@ -138,15 +128,10 @@ const NetworkManager = {
     // 3. SUBIR TURNO
     subirTurnoANube: async function() {
         if (!this.miId) return;
-        console.log("☁️ Subiendo turno...");
+        console.log("☁️ Guardando turno...");
 
-        const estadoGuardar = {
-            gameState: gameState,
-            board: board.map(row => row.map(hex => ({...hex, element: undefined}))),
-            units: units.map(u => ({...u, element: undefined})),
-            unitIdCounter: unitIdCounter,
-            timestamp: Date.now()
-        };
+        // Usamos la función segura
+        const estadoGuardar = this._prepararEstadoParaNube();
 
         await supabaseClient
             .from('active_matches')
@@ -159,8 +144,6 @@ const NetworkManager = {
 
     // 4. ESCUCHAR TURNOS
     activarEscuchaDeTurnos: function(matchId) {
-        console.log("📡 Sincronización activada.");
-        
         if (this.subscription) supabaseClient.removeChannel(this.subscription);
 
         this.subscription = supabaseClient
@@ -172,9 +155,9 @@ const NetworkManager = {
                 filter: `match_id=eq.${matchId}` 
             }, (payload) => {
                 const nuevoEstado = payload.new.game_state;
-                // Si el timestamp es más nuevo que el mío, actualizo
+                // Si el timestamp es más nuevo, actualizamos
                 if (nuevoEstado.timestamp > (gameState.lastActionTimestamp || 0)) {
-                    console.log("📥 Nuevo turno recibido.");
+                    console.log("📥 Sincronizando estado remoto...");
                     reconstruirJuegoDesdeDatos(nuevoEstado);
                     gameState.lastActionTimestamp = nuevoEstado.timestamp;
                 }
