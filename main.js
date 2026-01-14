@@ -611,20 +611,6 @@ function initApp() {
         });
         domElements.joinNetworkGameBtn.hasListener = true;
     }
-   
-    // Botón para ir a la pantalla del Lobby LAN
-    if (domElements.startLanModeBtn) {
-        domElements.startLanModeBtn.addEventListener('click', () => {
-            showScreen(domElements.lanLobbyScreen);
-            NetworkManager.preparar(onConexionLANEstablecida, onDatosLANRecibidos, onConexionLANCerrada);
-            
-            // Iniciamos como anfitrión por defecto, esperando que alguien se una.
-            NetworkManager.iniciarAnfitrion((idGenerado) => {
-                if(domElements.lanRoomIdEl) domElements.lanRoomIdEl.textContent = idGenerado;
-                if(domElements.lanPlayerListEl) domElements.lanPlayerListEl.innerHTML = `<li>J1: Tú (${idGenerado})</li>`;
-            });
-        });
-    }
 
     // Botón para unirse a la sala de otro
     if (domElements.lanConnectBtn) {
@@ -746,16 +732,15 @@ function initApp() {
     // --- BOTÓN UNIRSE (CLIENTE) ---
     const btnUnirse = document.getElementById('joinNetworkGameBtn');
     if (btnUnirse) {
-        // Clonar para matar listeners viejos
         const nuevoBtn = btnUnirse.cloneNode(true);
         btnUnirse.parentNode.replaceChild(nuevoBtn, btnUnirse);
         
         nuevoBtn.addEventListener('click', async () => {
             console.log("BOTÓN UNIRSE PULSADO (SUPABASE)");
-            
             const codigo = prompt("Introduce el Código de 4 letras:");
             if (!codigo) return;
 
+            // LLAMADA DIRECTA A LA NUBE
             const exito = await NetworkManager.unirsePartidaEnNube(codigo);
             
             if (exito) {
