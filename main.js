@@ -2243,6 +2243,12 @@ function reconstruirJuegoDesdeDatos(datos) {
             UIManager.updateTurnIndicatorAndBlocker();
         }
 
+        // 8. Reactivar el reloj para que el jugador vea que el tiempo corre
+        if (typeof TurnTimerManager !== 'undefined') {
+            TurnTimerManager.stop(); // Reinicia para evitar dobles contadores
+            TurnTimerManager.start(gameState.turnDurationSeconds || 180);
+        }
+
         // --- RECONECTAR EL TEMPORIZADOR (VERSIÓN ROBUSTA) ---
         if (typeof TurnTimerManager !== 'undefined') {
             TurnTimerManager.stop(); 
