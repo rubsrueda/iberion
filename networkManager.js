@@ -176,5 +176,48 @@ const NetworkManager = {
                 }
             })
             .subscribe();
-    }
+    }, 
+
+    // Nueva función para recuperar estado de emergencia
+    cargarPartidaDeNube: async function(gameCode) {
+        console.log(`[Nube] 🚑 RECUPERACIÓN DE EMERGENCIA para partida: ${gameCode}`);
+        
+        // Buscamos en 'active_matches' que es donde guardas el estado vivo
+        const { data, error } = await supabaseClient
+            .from('active_matches')
+            .select('game_state, current_turn_player')
+            .eq('match_id', gameCode)
+            .single();
+
+        if (error || !data) {
+            console.warn("[Nube] No se pudo recuperar partida de la nube:", error);
+            return false;
+        }
+
+        const cloudTimestamp = data.game_state.timestamp || 0;
+        const localTimestamp = gameState.lastActionTimestamp || 0;
+
+        console.log(`[Sync] Nube (${cloudTimestamp}) vs Local (${localTimestamp})`);
+
+        // Si la nube tiene datos más nuevos (el otro jugó mientras yo estaba desconectado)
+        if (cloudTimestamp > localTimestamp) {
+            console.log("📥 ¡Datos nuevos encontrados en la nube! Sincronizando...");
+            if (typeof reconstruirJuegoDesdeDatos === 'function') {
+                reconstruirJuegoDesdeDatos(data.game_state);
+                // Si ahora es mi turno, avisar
+                if (data.current_turn_player === gameState.myPlayerNumber) {
+                    if(typeof showToast === 'function') showToast("¡Es tu turno!", "success");
+                    // Reactivar temporizador si es necesario
+                    if (TurnTimerManager && TurnTimerManager.start) {
+                        TurnTimerManager.start(gameState.turnDurationSeconds);
+                    }
+                }
+                return true;
+            }
+        } else {
+            console.log("✅ El estado local ya está actualizado.");
+        }
+        return false;
+    },
+
 };

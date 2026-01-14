@@ -528,4 +528,32 @@ function renderEquipIcon(iconValue, className = "item-icon") {
     return `<span class="${className}">${iconValue}</span>`;
 }
 
+//Audio
+    function enableMobileWakeLock() {
+        // 1. Intentar la API nativa de 'Wake Lock' (para que la pantalla no se apague sola)
+        if ('wakeLock' in navigator) {
+            try {
+                let wakeLock = null;
+                const requestWakeLock = async () => {
+                    try {
+                        wakeLock = await navigator.wakeLock.request('screen');
+                        console.log('💡 Wake Lock activo: Pantalla no se apagará.');
+                    } catch (err) {
+                        console.log(`Error Wake Lock: ${err.name}, ${err.message}`);
+                    }
+                };
+                requestWakeLock();
+                
+                // Re-activar si se minimiza y vuelve
+                document.addEventListener('visibilitychange', async () => {
+                    if (wakeLock !== null && document.visibilityState === 'visible') {
+                        await requestWakeLock();
+                    }
+                });
+            } catch (err) {
+                console.warn("Wake Lock no soportado.");
+            }
+        }
+    }
+
 console.log("utils.js se ha cargado.");

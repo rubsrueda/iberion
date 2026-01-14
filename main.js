@@ -184,6 +184,12 @@ const showLoginScreen = () => {
 
 function initApp() {
 
+    // --- 1. ACTIVAR WAKE LOCK (NUEVO) ---
+    // Esto evita que el móvil apague la pantalla y mate la conexión.
+    if (typeof enableMobileWakeLock === "function") {
+        enableMobileWakeLock(); 
+    }
+
     const googleBtn = document.getElementById('googleLoginBtn');
     if (googleBtn) {
         googleBtn.addEventListener('click', () => {
@@ -204,30 +210,58 @@ function initApp() {
 
     //conexiones 
     document.addEventListener("visibilitychange", async () => {
+        // Cuando el usuario vuelve a la pestaña o desbloquea el móvil
         if (document.visibilityState === "visible") {
-            console.log("⚡ [Sistema] Regreso detectado. Verificando estado...");
-
-            // Verificamos si estábamos en una partida online (tenemos un ID remoto o propio)
-            const gameCode = NetworkManager.idRemoto?.replace(GAME_ID_PREFIX, '') || NetworkManager.miId?.replace(GAME_ID_PREFIX, '');
+            console.log("⚡ [Sistema] Regreso detectado (Wake Up). Verificando integridad...");
             
-            if (gameCode) {
-                // 1. Intentamos reconexión rápida P2P
-                if (!NetworkManager.conn || !NetworkManager.conn.open) {
-                    console.warn("⚠️ [Sistema] Conexión P2P caída.");
-                    
-                    // --- CAMBIO CLAVE: RECUPERACIÓN HÍBRIDA ---
-                    // Intentamos bajar el último estado de la nube PRIMERO
-                    const exitoNube = await NetworkManager.cargarPartidaDeNube(gameCode);
-                    
-                    if (exitoNube) {
-                        if(typeof showToast === 'function') showToast("Partida recuperada de la nube.", "success");
-                    } 
-                    
-                    // Y LUEGO intentamos reconectar el P2P en segundo plano para seguir jugando
-                    console.log("🔄 Intentando restablecer enlace P2P...");
-                    if (!NetworkManager.esAnfitrion) {
-                        NetworkManager.unirseAPartida(gameCode);
+            // Habilitar Wake Lock de nuevo
+            if(typeof enableMobileWakeLock === 'function') enableMobileWakeLock();
+
+            // 1. ¿Estábamos en una partida Online?
+            // Obtenemos el ID limpio sin prefijo 'hge-'
+            const rawId = NetworkManager.miId || NetworkManager.idRemoto;
+            if (!rawId) return; // No hay partida activa
+
+            const gameCode = rawId.replace(GAME_ID_PREFIX, '');
+            
+            // 2. ¿Está el P2P muerto?
+            const isP2PDead = !NetworkManager.conn || !NetworkManager.conn.open;
+
+            if (isP2PDead) {
+                console.warn("⚠️ [Red] Conexión P2P caída. Iniciando recuperación híbrida...");
+                if(typeof showToast === 'function') showToast("Reconectando sesión...", "warning");
+
+                // ESTRATEGIA A: Intentar bajar el estado de la base de datos INMEDIATAMENTE
+                // Esto permite seguir jugando o ver qué pasó mientras el P2P se arregla
+                const recovered = await NetworkManager.cargarPartidaDeNube(gameCode);
+                
+                // ESTRATEGIA B: Reiniciar la conexión P2P silenciosamente en segundo plano
+                console.log("🔄 Re-iniciando enlace P2P...");
+                if (!NetworkManager.esAnfitrion) {
+                    // Cliente: Se vuelve a unir
+                    NetworkManager.unirseAPartida(gameCode);
+                } else {
+                    // Anfitrión: Es más complejo, generalmente espera a que el cliente vuelva, 
+                    // pero si el anfitrión se cayó, debe reiniciar su Peer.
+                    if (!NetworkManager.peer || NetworkManager.peer.destroyed) {
+                    // Lógica para revivir host si fuera necesario (opcional)
+                    // En peerjs reiniciar el mismo ID de host es difícil si no se destruyó bien,
+                    // pero normalmente el anfitrión se queda en la pantalla.
+                    console.log("El Anfitrión sigue activo localmente. Esperando reconexión del cliente.");
                     }
+                }
+
+            } else {
+                // Si el P2P parece vivo, mandamos un ping para asegurarnos
+                console.log("ℹ️ [Red] P2P parece activo. Enviando Ping de seguridad.");
+                try {
+                    NetworkManager.conn.send({ type: 'HEARTBEAT' });
+                    // Aprovechamos para chequear la nube por si acaso el P2P se quedó "zombie"
+                    // (conectado pero sin transmitir datos reales)
+                    await NetworkManager.cargarPartidaDeNube(gameCode);
+                } catch (e) {
+                    console.log("❌ Ping fallido. Forzando reconexión.");
+                    if (!NetworkManager.esAnfitrion) NetworkManager.unirseAPartida(gameCode);
                 }
             }
         }
@@ -2112,9 +2146,9 @@ async function processActionRequest(action) {
 
     // Si CUALQUIER acción (incluida endTurn) se ejecutó y cambió el estado...
     if (actionExecuted) {
-        console.log(`%c[HOST BROADCAST] Acción '${action.type}' ejecutada. Actualizando UI del Host y retransmitiendo.`, 'background: blue; color: white;');
+        console.log(`%c[HOST BROADCAST] Acción '${action.type}' ejecutada. Retransmitiendo y GUARDANDO.`, 'background: blue; color: white;');
         
-        // Forzamos la actualización visual COMPLETA del anfitrión.
+        // Actualizar visualmente al Anfitrión
         if (typeof renderFullBoardVisualState === 'function') {
             renderFullBoardVisualState();
         }
@@ -2122,8 +2156,14 @@ async function processActionRequest(action) {
             UIManager.updateAllUIDisplays();
         }
 
-        // Retransmitimos el estado
+        // 1. Enviar el cambio a los clientes conectados (P2P rápido)
         NetworkManager.broadcastFullState();
+        
+        // 2. [NUEVO] GUARDAR EN LA NUBE INMEDIATAMENTE (Respaldo)
+        // Esto es crucial para que si el móvil se desconecta, al volver descargue este estado exacto.
+        if (NetworkManager.miId) {
+             NetworkManager.subirTurnoANube(); 
+        }
     } else {
         console.warn(`[Red - Anfitrión] La acción ${action.type} fue recibida pero no se ejecutó.`);
     }
