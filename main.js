@@ -1569,19 +1569,33 @@ if (newTutorialBtn) {
     });
 }
 
-// Botón de Unirse a Partida en Red
-const newJoinNetworkBtn = document.getElementById('joinNetworkGameBtn_new');
-if (newJoinNetworkBtn) {
-    newJoinNetworkBtn.addEventListener('click', () => {
-        document.getElementById('gameModesModal').style.display = 'none';
-        const shortCode = prompt("Introduce el ID de la partida:");
-        if (shortCode && shortCode.trim() !== "") {
-            if (typeof logMessage === 'function') logMessage(`Intentando unirse a ${shortCode}...`);
-            NetworkManager.preparar(onConexionLANEstablecida, onDatosLANRecibidos, onConexionLANCerrada);
-            NetworkManager.unirseAPartida(shortCode.trim());
-        }
-    });
-}
+// Botón de Unirse a Partida en Red (Desde el Modal "Elige tu Batalla")
+    const newJoinNetworkBtn = document.getElementById('joinNetworkGameBtn_new');
+    if (newJoinNetworkBtn) {
+        // Clonamos para limpiar listeners viejos
+        const newBtn = newJoinNetworkBtn.cloneNode(true);
+        newJoinNetworkBtn.parentNode.replaceChild(newBtn, newJoinNetworkBtn);
+
+        newBtn.addEventListener('click', async () => {
+            document.getElementById('gameModesModal').style.display = 'none';
+            
+            const shortCode = prompt("Introduce el ID de la partida (4 letras):");
+            
+            if (shortCode && shortCode.trim() !== "") {
+                logMessage(`Buscando sala ${shortCode} en la nube...`);
+                
+                // --- CORRECCIÓN: Usar la nueva función de Nube, sin 'preparar' ---
+                const exito = await NetworkManager.unirsePartidaEnNube(shortCode.trim());
+                
+                if (exito) {
+                    showScreen(domElements.gameContainer);
+                    if (domElements.tacticalUiContainer) {
+                        domElements.tacticalUiContainer.style.display = 'block';
+                    }
+                }
+            }
+        });
+    }
 
 // -- Reconectar el botón de logout y el nombre del general --
 const newLogoutBtn = document.getElementById('logoutBtn_main');
