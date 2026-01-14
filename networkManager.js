@@ -461,12 +461,13 @@ broadcastFullState: function() {
     // === SISTEMA DE JUEGO ASÍNCRONO (SUPABASE AUTHORITY) ===
     // ============================================================
     
-    // 1. CREAR PARTIDA Y ESPERAR
+    // 1. CREAR PARTIDA (HOST) - ESTRATEGIA: POLLING (PREGUNTAR CADA 2s)
     crearPartidaEnNube: async function(gameSettings) {
         const matchId = this._generarCodigoCorto();
         this.miId = matchId;
         this.esAnfitrion = true;
         
+        // Estado inicial limpio
         const estadoInicial = {
             gameState: gameState,
             board: board.map(row => row.map(hex => ({...hex, element: undefined}))),
@@ -474,7 +475,7 @@ broadcastFullState: function() {
             unitIdCounter: unitIdCounter
         };
 
-        // Subimos la partida con guest_id VACÍO
+        // Crear la partida en la DB
         const { error } = await supabaseClient
             .from('active_matches')
             .insert({
@@ -482,56 +483,58 @@ broadcastFullState: function() {
                 host_id: PlayerDataManager.currentPlayer?.auth_id || 'anon_host',
                 game_state: estadoInicial,
                 current_turn_player: 1,
-                guest_id: null // Esperamos que esto cambie
+                guest_id: null 
             });
 
         if (error) {
-            console.error("Error creando partida:", error);
-            alert("Error de conexión con la nube.");
+            console.error(error);
+            alert("Error al crear sala. Revisa tu conexión.");
             return null;
         }
 
-        // --- EL VIGILANTE ---
-        // Nos suscribimos para ver cuándo el campo 'guest_id' cambia
-        console.log(`📡 Esperando rival en sala: ${matchId}`);
+        console.log(`Sala ${matchId} creada. Esperando oponente (Check cada 2s)...`);
+
+        // --- SISTEMA DE COMPROBACIÓN MANUAL (POLLING) ---
+        // Guardamos el intervalo para poder pararlo luego
+        if (this.checkInterval) clearInterval(this.checkInterval);
         
-        this.subscription = supabaseClient
-            .channel(`lobby_${matchId}`)
-            .on('postgres_changes', { 
-                event: 'UPDATE', 
-                schema: 'public', 
-                table: 'active_matches', 
-                filter: `match_id=eq.${matchId}` 
-            }, (payload) => {
-                // Si alguien ha escrito su ID en guest_id... ¡EMPEZAMOS!
-                if (payload.new.guest_id && payload.new.guest_id !== payload.old.guest_id) {
-                    console.log("🔔 ¡JUGADOR 2 CONECTADO!");
-                    
-                    // Actualizamos UI del Lobby
-                    if (document.getElementById('host-player-list')) {
-                        document.getElementById('host-player-list').innerHTML = `<li>J1: Anfitrión</li><li>J2: Conectado</li>`;
-                    }
-                    
-                    // Iniciamos el juego automáticamente tras 1 segundo
-                    setTimeout(() => {
-                        showScreen(domElements.gameContainer);
-                        if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
-                        alert("¡Jugador conectado! La partida comienza.");
-                    }, 1000);
-                    
-                    // Cambiamos la suscripción al modo de juego normal (turnos)
-                    supabaseClient.removeChannel(this.subscription);
-                    this.suscribirseAPartida(matchId);
+        this.checkInterval = setInterval(async () => {
+            // Preguntamos a la base de datos si ya hay guest_id
+            const { data, error } = await supabaseClient
+                .from('active_matches')
+                .select('guest_id')
+                .eq('match_id', matchId)
+                .single();
+
+            // Si hay un guest_id, es que alguien entró
+            if (data && data.guest_id) {
+                console.log("¡OPONENTE DETECTADO!");
+                clearInterval(this.checkInterval); // Dejamos de comprobar
+
+                // Actualizamos UI
+                if (document.getElementById('host-player-list')) {
+                    document.getElementById('host-player-list').innerHTML = `<li>J1: Anfitrión</li><li>J2: Conectado</li>`;
                 }
-            })
-            .subscribe();
+
+                // Iniciamos
+                setTimeout(() => {
+                    showScreen(domElements.gameContainer);
+                    if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
+                }, 500);
+
+                // Nos suscribimos a los turnos para el futuro
+                this.suscribirseAPartida(matchId);
+            }
+        }, 2000); // Preguntar cada 2 segundos
         
         return matchId;
     },
 
-    // 2. UNIRSE Y AVISAR AL HOST
+    // 2. UNIRSE (CLIENTE)
     unirsePartidaEnNube: async function(matchId) {
-        // 1. Descargar datos
+        console.log(`Intentando unirse a sala: ${matchId}`);
+
+        // 1. Verificar si la partida existe
         const { data, error } = await supabaseClient
             .from('active_matches')
             .select('*')
@@ -539,26 +542,34 @@ broadcastFullState: function() {
             .single();
 
         if (error || !data) {
-            alert("Partida no encontrada o código incorrecto.");
+            console.error("Error unirse:", error);
+            alert("No se encuentra la partida. Verifica el código.");
             return false;
         }
 
-        // 2. Avisar al Host de que estamos aquí (UPDATE guest_id)
-        const myAuthId = PlayerDataManager.currentPlayer?.auth_id || 'anon_guest_' + Date.now();
+        // 2. Escribir mi nombre en la partida (ESTO ES LO QUE FALLABA POR PERMISOS)
+        const myId = PlayerDataManager.currentPlayer?.auth_id || 'guest_' + Date.now();
         
-        await supabaseClient
+        const { error: updateError } = await supabaseClient
             .from('active_matches')
-            .update({ guest_id: myAuthId })
+            .update({ guest_id: myId })
             .eq('match_id', matchId);
 
-        // 3. Cargar juego localmente
+        if (updateError) {
+            console.error("Error al unirse (Update):", updateError);
+            alert("Error al entrar en la sala. Inténtalo de nuevo.");
+            return false;
+        }
+
+        // 3. Cargar el juego
+        console.log("Entrando en la partida...");
         reconstruirJuegoDesdeDatos(data.game_state);
         
         this.miId = matchId;
         this.esAnfitrion = false;
         gameState.myPlayerNumber = 2;
 
-        // 4. Suscribirse a los turnos
+        // 4. Activar escucha de turnos
         this.suscribirseAPartida(matchId);
         
         return true;
