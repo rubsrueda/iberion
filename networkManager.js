@@ -86,10 +86,12 @@ const NetworkManager = {
                     if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
                     this.activarEscuchaDeTurnos(matchId);
                     
-                    // Refresco final para asegurar que se ven los botones correctos
-                    if(typeof UIManager !== 'undefined') {
-                        UIManager.updateAllUIDisplays();
-                        UIManager.refreshActionButtons();
+                    // --- FORZADO DE UI PARA ANFITRIÓN ---
+                    if (typeof UIManager !== 'undefined') {
+                        UIManager.updatePlayerAndPhaseInfo(); // <--- AÑADIR: Actualiza textos fase/recursos
+                        UIManager.updateAllUIDisplays();      // <--- AÑADIR: Actualiza general
+                        UIManager.refreshActionButtons();     // <--- AÑADIR: Muestra botones (+)
+                        UIManager.updateTurnIndicatorAndBlocker(); // <--- AÑADIR: Bloqueo
                     }
                 }, 1000);
             }

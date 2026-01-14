@@ -2134,10 +2134,19 @@ function reconstruirJuegoDesdeDatos(datos) {
         if (typeof initializeBoardPanning === "function") initializeBoardPanning();
         
         if (UIManager) {
-            UIManager.updatePlayerAndPhaseInfo(); // Refresca texto de fase y recursos
-            UIManager.updateAllUIDisplays();      // Refresca general
-            UIManager.refreshActionButtons();     // Refresca botones (el +)
-            UIManager.updateTurnIndicatorAndBlocker(); // Bloquea/Desbloquea pantalla
+            console.log("Forzando actualización completa de UI..."); // <--- Log para verificar
+            
+            // 1. Textos (Fase, Turno, Recursos)
+            UIManager.updatePlayerAndPhaseInfo(); 
+            
+            // 2. Elementos del mapa y selección
+            UIManager.updateAllUIDisplays();
+            
+            // 3. Botones flotantes (+, Fin Turno)
+            UIManager.refreshActionButtons();
+            
+            // 4. Bloqueo de pantalla ("Esperando al Oponente")
+            UIManager.updateTurnIndicatorAndBlocker();
         }
 
         logMessage(`Sincronizado. Turno: J${gameState.currentPlayer}`);

@@ -652,8 +652,9 @@ const UIManager = {
         }
 
         const isMyTurn = gameState.currentPlayer === gameState.myPlayerNumber;
+        const isNetwork = (typeof NetworkManager !== 'undefined' && NetworkManager.miId);
 
-        if (isNetworkGame() && !isMyTurn) {
+        if (isNetwork && !isMyTurn) {
             turnBlocker.textContent = `Esperando al Jugador ${gameState.currentPlayer}...`;
             turnBlocker.style.display = 'flex';
         } else {
