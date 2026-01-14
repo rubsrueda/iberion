@@ -40,23 +40,18 @@ const NetworkManager = {
     },
 
     // 1. CREAR PARTIDA (HOST)
-    crearPartidaEnNube: async function(gameSettings) {
+    crearPartidaEnNube: async function() { // Ya no necesita argumentos, lee el global
         const matchId = this._generarCodigoCorto();
         this.miId = matchId;
         this.esAnfitrion = true;
         
-        // --- CORRECCIÓN VITAL: INICIALIZAR ESTADO LOCAL ---
-        // Aseguramos que el estado local del Host es correcto ANTES de subirlo
-        gameState.myPlayerNumber = 1;
-        gameState.currentPlayer = 1; // El turno empieza en el 1
-        gameState.currentPhase = "deployment";
-        if (!gameState.playerResources) gameState.playerResources = {};
+        // NO tocamos gameState aquí. Asumimos que main.js ya lo configuró (recursos, fase, etc).
         
-        // Usamos la función segura para preparar los datos
+        // Preparamos los datos limpios para subir
         const estadoInicial = this._prepararEstadoParaNube();
         const hostUuid = PlayerDataManager.currentPlayer?.auth_id || crypto.randomUUID();
 
-        console.log(`[Host] Subiendo estado inicial...`);
+        console.log(`[Host] Subiendo partida ${matchId}...`);
 
         const { error } = await supabaseClient
             .from('active_matches')
@@ -70,21 +65,26 @@ const NetworkManager = {
 
         if (error) {
             console.error("Error Supabase:", error);
-            alert("Error de conexión al crear partida.");
+            alert("Error al crear partida.");
             return null;
         }
 
-        // Polling para detectar al J2
+        // Sistema de Polling (Esperar al J2)
         if (this.checkInterval) clearInterval(this.checkInterval);
+        
         this.checkInterval = setInterval(async () => {
-            const { data } = await supabaseClient.from('active_matches').select('guest_id').eq('match_id', matchId).single();
+            const { data } = await supabaseClient
+                .from('active_matches')
+                .select('guest_id')
+                .eq('match_id', matchId)
+                .single();
+
             if (data && data.guest_id) {
                 console.log("¡JUGADOR 2 CONECTADO!");
                 clearInterval(this.checkInterval);
                 
-                // Actualizar UI visualmente
                 if (document.getElementById('host-player-list')) {
-                    document.getElementById('host-player-list').innerHTML = `<li>J1: Tú</li><li>J2: CONECTADO</li>`;
+                    document.getElementById('host-player-list').innerHTML = `<li>J1: Anfitrión</li><li>J2: CONECTADO</li>`;
                 }
                 
                 setTimeout(() => {
@@ -92,16 +92,10 @@ const NetworkManager = {
                     if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
                     this.activarEscuchaDeTurnos(matchId);
                     
-                    // --- CORRECCIÓN VITAL 2: REAFIRMAR ESTADO ---
-                    gameState.myPlayerNumber = 1; // Soy el Host
-                    gameState.currentPlayer = 1;  // Es mi turno
-                    
-                    // --- FORZADO DE UI PARA ANFITRIÓN ---
-                    if (typeof UIManager !== 'undefined') {
-                        UIManager.updatePlayerAndPhaseInfo(); // <--- AÑADIR: Actualiza textos fase/recursos
-                        UIManager.updateAllUIDisplays();      // <--- AÑADIR: Actualiza general
-                        UIManager.refreshActionButtons();     // <--- AÑADIR: Muestra botones (+)
-                        UIManager.updateTurnIndicatorAndBlocker(); // <--- AÑADIR: Bloqueo
+                    // Forzar refresco visual al entrar
+                    if(typeof UIManager !== 'undefined') {
+                        UIManager.updateAllUIDisplays();
+                        UIManager.refreshActionButtons();
                     }
                 }, 1000);
             }

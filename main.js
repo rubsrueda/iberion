@@ -2191,6 +2191,28 @@ function reconstruirJuegoDesdeDatos(datos) {
             UIManager.updateTurnIndicatorAndBlocker();
         }
 
+        // --- CORRECCIÓN: RECONECTAR EL TEMPORIZADOR ---
+        if (typeof TurnTimerManager !== 'undefined') {
+            TurnTimerManager.stop(); // Limpiar anteriores
+            
+            // Verificamos si hay tiempo configurado (si es Infinity o null, no arranca)
+            const duration = gameState.turnDurationSeconds;
+            
+            if (duration && duration !== Infinity && !isNaN(duration)) {
+                // Solo mostramos el reloj si es turno de un Humano (mío o del oponente)
+                const currentPlayerType = gameState.playerTypes[`player${gameState.currentPlayer}`];
+                if (currentPlayerType === 'human') {
+                    console.log(`[Timer] Restaurando reloj: ${duration} segundos.`);
+                    TurnTimerManager.start(duration);
+                }
+            } else {
+                // Si es infinito, aseguramos que el reloj se oculte
+                if(document.getElementById('turnTimerDisplay')) {
+                    document.getElementById('turnTimerDisplay').style.display = 'none';
+                }
+            }
+        }
+
         logMessage(`Sincronizado. Turno: J${gameState.currentPlayer}`);
 
     } catch (error) {

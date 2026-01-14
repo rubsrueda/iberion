@@ -1745,37 +1745,44 @@ async function handleEndTurn(isHostProcessing = false) {
         UIManager.updateTurnIndicatorAndBlocker();
     }
 
-    // 3. GESTIÓN DE LA IA (Si el siguiente es una IA)
+     // 3. GESTIÓN DEL SIGUIENTE TURNO (IA vs HUMANO vs RELOJ)
     const isNextPlayerAI = gameState.playerTypes[`player${gameState.currentPlayer}`]?.startsWith('ai_');
+    
     if (isNextPlayerAI && gameState.currentPhase !== "gameOver") {
+        // --- TURNO DE IA ---
         if (checkVictory && checkVictory()) return;
         
-        // Bloqueo visual para turno de IA
         const turnBlocker = document.getElementById('turnBlocker');
         if (turnBlocker) {
             turnBlocker.textContent = `Turno de la IA (Jugador ${gameState.currentPlayer})...`;
             turnBlocker.style.display = 'flex';
         }
-        // Damos un respiro a la UI para que se renderice
         setTimeout(async () => {
-            // Esta es la nueva línea. Guarda el número del jugador actual de forma segura.
             const playerNumberForAI = gameState.currentPlayer;
             if (gameState.currentPhase === 'deployment') await simpleAiDeploymentTurn(playerNumberForAI);
             else await simpleAiTurn(playerNumberForAI); 
         }, 700);
-    } 
-    // 4. GESTIÓN DE TEMPORIZADOR (Si el siguiente es Humano)
-    else {
-        // Si es partida en red, el temporizador local solo corre si es MI turno.
-        // Si es el turno del otro, esperamos.
-        if (!isNetworkGame() || gameState.currentPlayer === gameState.myPlayerNumber) {
-            console.log(`[Timer] Iniciando reloj para Jugador ${gameState.currentPlayer}.`);
-            TurnTimerManager.start(gameState.turnDurationSeconds); 
+
+    } else {
+        // --- TURNO HUMANO (CON RELOJ) ---
+        // Si el juego no ha terminado y hay un tiempo límite definido...
+        if (gameState.currentPhase !== "gameOver") {
+            const duration = gameState.turnDurationSeconds;
+            
+            // Si hay duración válida (no es infinito)
+            if (duration && duration !== Infinity && !isNaN(duration)) {
+                console.log(`[Timer] Iniciando nuevo turno: ${duration}s`);
+                TurnTimerManager.start(duration);
+            } else {
+                 // Si es infinito, ocultamos el reloj por si estaba activo
+                 TurnTimerManager.stop(); 
+            }
         }
         
-        if (checkVictory) checkVictory();
+        if (typeof checkVictory === 'function') checkVictory();
     }
 }
+
 
 /**
  * Motor de Logística v2.2: Recolecta en tierra/mar, llegada por adyacencia y reinicio fluido.
