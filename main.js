@@ -2176,7 +2176,7 @@ function reconstruirJuegoDesdeDatos(datos) {
     try {
         console.log("%c[Sincronización] Aplicando datos...", "color: #00FF00;");
         
-        // 1. Guardamos nuestra identidad local (crucial para no perderla al sobrescribir gameState)
+        // 1. Guardamos nuestra identidad local
         const miIdentidadLocal = gameState.myPlayerNumber;
 
         // 2. Limpieza visual
@@ -2240,16 +2240,10 @@ function reconstruirJuegoDesdeDatos(datos) {
             UIManager.updatePlayerAndPhaseInfo(); 
             UIManager.updateAllUIDisplays();
             UIManager.refreshActionButtons();
-            UIManager.updateTurnIndicatorAndBlocker();
+            // Eliminamos la llamada a updateTurnIndicatorAndBlocker aquí para no bloquear por error
+            // UIManager.updateTurnIndicatorAndBlocker(); 
         }
 
-        // 8. Reactivar el reloj para que el jugador vea que el tiempo corre
-        if (typeof TurnTimerManager !== 'undefined') {
-            TurnTimerManager.stop(); // Reinicia para evitar dobles contadores
-            TurnTimerManager.start(gameState.turnDurationSeconds || 180);
-        }
-
-        // --- RECONECTAR EL TEMPORIZADOR (VERSIÓN ROBUSTA) ---
         if (typeof TurnTimerManager !== 'undefined') {
             TurnTimerManager.stop(); 
             
@@ -2259,23 +2253,43 @@ function reconstruirJuegoDesdeDatos(datos) {
             const esMiTurno = gameState.currentPlayer === gameState.myPlayerNumber;
             const hayTiempoLimite = (duration !== Infinity && !isNaN(duration) && duration > 0);
 
-            if (esMiTurno && hayTiempoLimite) {
-                console.log(`[Timer] Es mi turno. Iniciando reloj: ${duration}s`);
-                TurnTimerManager.start(duration);
+            // A. SI ES MI TURNO: Arrancar Reloj Y QUITAR EL CARTEL GRIS A LA FUERZA
+            if (esMiTurno) {
+                console.log(`[Timer] Es mi turno recuperado. Iniciando reloj: ${duration}s y desbloqueando.`);
+                
+                // 1. ARRANCAR RELOJ
+                if (hayTiempoLimite) TurnTimerManager.start(duration);
+                
+                // 2. PARCHE VISUAL: FORZAR QUITAR EL CARTEL "ESPERANDO..."
+                // Esto es vital porque al reconectar el móvil, el estado de red puede ser "false"
+                // y el juego te bloquearía aunque sea tu turno.
+                const blocker = document.getElementById('turnBlocker');
+                if (blocker) blocker.style.display = 'none';
+
+                if (UIManager) UIManager.refreshActionButtons(); // Asegura botón "Fin de Turno"
+
             } else {
+                // B. NO ES MI TURNO: Ocultar reloj
                 if(document.getElementById('turnTimerDisplay')) {
                     document.getElementById('turnTimerDisplay').style.display = 'none';
                 }
+                // Si no es mi turno, sí podemos dejar que el blocker actúe normal o mostrarlo
+                const blocker = document.getElementById('turnBlocker');
+                if (blocker) {
+                    blocker.style.display = 'flex';
+                    blocker.textContent = `Turno del Jugador ${gameState.currentPlayer}...`;
+                }
             }
-        } // <--- SE AÑADIÓ ESTA LLAVE (Cierre de TurnTimerManager)
+        } 
+        // ================================================================
 
         logMessage(`Sincronizado. Turno: J${gameState.currentPlayer}`);
 
-    } catch (error) { // <--- SE RE-ALINEÓ EL CATCH
+    } catch (error) { 
         console.error("Error crítico al reconstruir:", error);
         logMessage("Error de datos.", "error");
     }
-} 
+}
 
 document.addEventListener('DOMContentLoaded', initApp);
 
