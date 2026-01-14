@@ -16,12 +16,19 @@ const NetworkManager = {
 
     // --- FUNCIÓN LIMPIADORA CLAVE ---
     // Elimina elementos visuales (DOM) y referencias circulares antes de guardar
+    // --- FUNCIÓN LIMPIADORA CLAVE ---
     _prepararEstadoParaNube: function() {
         const replacer = (key, value) => {
             if (key === 'element') return undefined; // Borrar referencias al HTML
-            if (key === 'selectedUnit') return null; // La selección es local, no se guarda
+            if (key === 'selectedUnit') return null; // La selección es local
             return value;
         };
+        
+        // --- SEGURIDAD: Inicializar recursos si faltan ---
+        // Esto evita el error "reading '1'" si se guarda muy rápido
+        if (!gameState.playerResources) gameState.playerResources = {};
+        if (!gameState.playerResources[1]) gameState.playerResources[1] = { oro: 0, comida: 0, madera: 0, piedra: 0, hierro: 0 };
+        if (!gameState.playerResources[2]) gameState.playerResources[2] = { oro: 0, comida: 0, madera: 0, piedra: 0, hierro: 0 };
 
         return {
             gameState: JSON.parse(JSON.stringify(gameState, replacer)),
@@ -43,7 +50,7 @@ const NetworkManager = {
         const estadoInicial = this._prepararEstadoParaNube();
         const hostUuid = PlayerDataManager.currentPlayer?.auth_id || crypto.randomUUID();
 
-        console.log(`[Host] Subiendo estado inicial... Recursos J1:`, estadoInicial.gameState.playerResources[1]);
+        console.log(`[Host] Subiendo estado inicial...`);
 
         const { error } = await supabaseClient
             .from('active_matches')
