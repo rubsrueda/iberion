@@ -95,6 +95,7 @@ function resetGameStateVariables(playerCount = 2, turnDuration = Infinity) {
     const initialGameStateObject = {
         numPlayers: playerCount, // <-- Usa el parámetro
         currentPlayer: 1,
+        turnDurationSeconds: turnDuration, 
         eliminatedPlayers: [],
         currentPhase: "deployment",
         turnNumber: 1,
@@ -106,6 +107,7 @@ function resetGameStateVariables(playerCount = 2, turnDuration = Infinity) {
         playerResources: {},
         unitsPlacedByPlayer: {},
         isCampaignBattle: false,
+        isTutorialActive: false, 
         cities: [],
         justPanned: false,
         selectedHexR: -1,

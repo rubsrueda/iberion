@@ -1765,22 +1765,22 @@ async function handleEndTurn(isHostProcessing = false) {
 
     } else {
         // --- TURNO HUMANO (CON RELOJ) ---
-        // Si el juego no ha terminado y hay un tiempo límite definido...
-        if (gameState.currentPhase !== "gameOver") {
-            const duration = gameState.turnDurationSeconds;
-            
-            // Si hay duración válida (no es infinito)
-            if (duration && duration !== Infinity && !isNaN(duration)) {
-                console.log(`[Timer] Iniciando nuevo turno: ${duration}s`);
-                TurnTimerManager.start(duration);
-            } else {
-                 // Si es infinito, ocultamos el reloj por si estaba activo
-                 TurnTimerManager.stop(); 
+            if (gameState.currentPhase !== "gameOver") {
+                // Asegúrate de leer la variable del gameState
+                const duration = gameState.turnDurationSeconds;
+                
+                // Validación estricta para evitar NaN o errores
+                if (duration && duration !== Infinity && typeof duration === 'number') {
+                    console.log(`[Timer] Iniciando nuevo turno: ${duration}s`);
+                    if(typeof TurnTimerManager !== 'undefined') TurnTimerManager.start(duration);
+                } else {
+                    // Si es infinito, aseguramos que se pare cualquier reloj previo
+                    if(typeof TurnTimerManager !== 'undefined') TurnTimerManager.stop(); 
+                }
             }
+            
+            if (typeof checkVictory === 'function') checkVictory();
         }
-        
-        if (typeof checkVictory === 'function') checkVictory();
-    }
 }
 
 

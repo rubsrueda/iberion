@@ -981,8 +981,24 @@ function initApp() {
             }
                 else console.warn("main.js: logMessage no definida.");
 
+            // 8. ARRANCAR EL RELOJ PARA EL PRIMER TURNO
+            if (gameState.currentPhase !== 'deployment' || (gameState.playerTypes && gameState.playerTypes['player1'] === 'human')) {
+                // Verificamos que sea un tiempo válido (no infinito y que sea un número)
+                if (typeof TurnTimerManager !== 'undefined' && turnDuration !== Infinity && !isNaN(turnDuration)) {
+                    console.log(`[main.js] Iniciando reloj inicial de: ${turnDuration}s`);
+                    TurnTimerManager.start(turnDuration);
+                } else {
+                    // Si es infinito, aseguramos que el reloj esté oculto
+                    if (typeof TurnTimerManager !== 'undefined') TurnTimerManager.stop();
+                }
+            }
+            
+            logMessage(`Partida iniciada. Tiempo por turno: ${turnDuration === Infinity ? "Sin límite" : turnDuration + "s"}`);
+        
+
                 // FINALLY: Ya no necesitamos los Mocks, pero el motor ya superó la barrera.
         });
+
         domElements.startLocalGameBtn.hasListener = true;
         } else { 
             console.warn("main.js: startLocalGameBtn no encontrado."); 
@@ -2126,7 +2142,6 @@ function reconstruirJuegoDesdeDatos(datos) {
         units = [];
 
         // 3. Inyectar los datos del gameState
-        // Forzamos la copia propiedad a propiedad para asegurar que no perdemos referencias
         if (datos.gameState) {
             gameState.currentPhase = datos.gameState.currentPhase || "deployment";
             gameState.currentPlayer = datos.gameState.currentPlayer || 1;
@@ -2135,11 +2150,9 @@ function reconstruirJuegoDesdeDatos(datos) {
             gameState.unitsPlacedByPlayer = datos.gameState.unitsPlacedByPlayer || {};
             gameState.playerTypes = datos.gameState.playerTypes || {};
             
-            // ... copia cualquier otra propiedad crítica que necesites ...
-            // Opcional: Copiar todo lo demás
             Object.assign(gameState, datos.gameState);
 
-            // Lo restauramos para que tu reloj funcione como siempre.
+            // Restaurar para que el reloj funcione
             if (gameState.turnDurationSeconds === null || gameState.turnDurationSeconds === undefined) {
                 gameState.turnDurationSeconds = Infinity;
             }
@@ -2148,8 +2161,7 @@ function reconstruirJuegoDesdeDatos(datos) {
         }
         unitIdCounter = datos.unitIdCounter;
 
-        // 4. RESTAURAR IDENTIDAD (Esto arregla el bloqueo del cliente)
-        // Si teníamos una identidad asignada (1 o 2), la forzamos sobre los datos descargados
+        // 4. RESTAURAR IDENTIDAD
         if (miIdentidadLocal) {
             gameState.myPlayerNumber = miIdentidadLocal;
         }
@@ -2176,55 +2188,45 @@ function reconstruirJuegoDesdeDatos(datos) {
             placeFinalizedDivision(unitData, unitData.r, unitData.c);
         });
 
-        // 7. ACTUALIZACIÓN VISUAL MASIVA (Esto arregla los recursos y botones desaparecidos)
+        // 7. ACTUALIZACIÓN VISUAL MASIVA
         renderFullBoardVisualState();
         if (typeof initializeBoardPanning === "function") initializeBoardPanning();
         
         if (UIManager) {
-            console.log("Forzando actualización completa de UI..."); // <--- Log para verificar
-            
-            // 1. Textos (Fase, Turno, Recursos)
+            console.log("Forzando actualización completa de UI...");
             UIManager.updatePlayerAndPhaseInfo(); 
-            
-            // 2. Elementos del mapa y selección
             UIManager.updateAllUIDisplays();
-            
-            // 3. Botones flotantes (+, Fin Turno)
             UIManager.refreshActionButtons();
-            
-            // 4. Bloqueo de pantalla ("Esperando al Oponente")
             UIManager.updateTurnIndicatorAndBlocker();
         }
 
-        // --- CORRECCIÓN: RECONECTAR EL TEMPORIZADOR ---
+        // --- RECONECTAR EL TEMPORIZADOR (VERSIÓN ROBUSTA) ---
         if (typeof TurnTimerManager !== 'undefined') {
-            TurnTimerManager.stop(); // Limpiar anteriores
+            TurnTimerManager.stop(); 
             
-            // Verificamos si hay tiempo configurado (si es Infinity o null, no arranca)
-            const duration = gameState.turnDurationSeconds;
+            let duration = gameState.turnDurationSeconds;
+            if (duration === null || duration === 'none') duration = Infinity;
             
-            if (duration && duration !== Infinity && !isNaN(duration)) {
-                // Solo mostramos el reloj si es turno de un Humano (mío o del oponente)
-                const currentPlayerType = gameState.playerTypes[`player${gameState.currentPlayer}`];
-                if (currentPlayerType === 'human') {
-                    console.log(`[Timer] Restaurando reloj: ${duration} segundos.`);
-                    TurnTimerManager.start(duration);
-                }
+            const esMiTurno = gameState.currentPlayer === gameState.myPlayerNumber;
+            const hayTiempoLimite = (duration !== Infinity && !isNaN(duration) && duration > 0);
+
+            if (esMiTurno && hayTiempoLimite) {
+                console.log(`[Timer] Es mi turno. Iniciando reloj: ${duration}s`);
+                TurnTimerManager.start(duration);
             } else {
-                // Si es infinito, aseguramos que el reloj se oculte
                 if(document.getElementById('turnTimerDisplay')) {
                     document.getElementById('turnTimerDisplay').style.display = 'none';
                 }
             }
-        }
+        } // <--- SE AÑADIÓ ESTA LLAVE (Cierre de TurnTimerManager)
 
         logMessage(`Sincronizado. Turno: J${gameState.currentPlayer}`);
 
-    } catch (error) {
+    } catch (error) { // <--- SE RE-ALINEÓ EL CATCH
         console.error("Error crítico al reconstruir:", error);
         logMessage("Error de datos.", "error");
     }
-}
+} 
 
 document.addEventListener('DOMContentLoaded', initApp);
 
@@ -2265,4 +2267,6 @@ document.addEventListener("visibilitychange", async () => {
 });
 
 console.log("main.js: Archivo cargado y listo.");
+
+
 
