@@ -2084,7 +2084,21 @@ function reconstruirJuegoDesdeDatos(datos) {
         units = [];
 
         // 3. Inyectar los datos del gameState
-        Object.assign(gameState, datos.gameState);
+        // Forzamos la copia propiedad a propiedad para asegurar que no perdemos referencias
+        if (datos.gameState) {
+            gameState.currentPhase = datos.gameState.currentPhase || "deployment";
+            gameState.currentPlayer = datos.gameState.currentPlayer || 1;
+            gameState.turnNumber = datos.gameState.turnNumber || 1;
+            gameState.playerResources = datos.gameState.playerResources || {};
+            gameState.unitsPlacedByPlayer = datos.gameState.unitsPlacedByPlayer || {};
+            gameState.playerTypes = datos.gameState.playerTypes || {};
+            
+            // ... copia cualquier otra propiedad crítica que necesites ...
+            // Opcional: Copiar todo lo demás
+            Object.assign(gameState, datos.gameState);
+        } else {
+            console.error("CRÍTICO: datos.gameState venía vacío de la nube.");
+        }
         unitIdCounter = datos.unitIdCounter;
 
         // 4. RESTAURAR IDENTIDAD (Esto arregla el bloqueo del cliente)

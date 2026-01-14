@@ -14,6 +14,7 @@ const HEX_HEIGHT = 57.73; // HEX_WIDTH * sqrt(3) / 2 * 2 (simplificado a HEX_WID
 const HEX_VERT_SPACING = HEX_HEIGHT * 0.75;
 const TRADE_INCOME_PER_ROUTE = 50;
 const MAX_REGIMENTS_PER_DIVISION = 20;
+const GAME_ID_PREFIX = 'hge-';
 
 const TURN_TIME_OPTIONS = {
     'none': { seconds: Infinity, label: 'Sin límite' },
