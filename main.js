@@ -696,27 +696,69 @@ function initApp() {
     }
     
     // --- BOTÓN CREAR PARTIDA (HOST) ---
-    const btnCrear = document.getElementById('createNetworkGameBtn');
+    const btnCrear = document.getElementById('createNetworkGameBtn');   
     if (btnCrear) {
-        // Clonar para matar listeners viejos de PeerJS
         const nuevoBtn = btnCrear.cloneNode(true);
         btnCrear.parentNode.replaceChild(nuevoBtn, btnCrear);
         
         nuevoBtn.addEventListener('click', async () => {
             console.log("BOTÓN CREAR PULSADO (SUPABASE)");
             
-            // Configuración por defecto si no se ha pasado por el setup
-            const settings = gameState.setupTempSettings || { resourceLevel: 'med', boardSize: 'small' };
+            // 1. RECUPERAR CONFIGURACIÓN REAL (De la memoria o del HTML)
+            let settings = gameState.setupTempSettings;
             
-            // Inicializar mapa localmente
+            // Si falló la memoria, leer de los selectores HTML
+            if (!settings) {
+                settings = {
+                    boardSize: document.getElementById('boardSizeSelect')?.value || 'small',
+                    resourceLevel: document.getElementById('resourceLevel')?.value || 'med',
+                    unitLimit: document.getElementById('initialUnitsCount')?.value || '5',
+                    turnTime: document.getElementById('turnTimeSelect')?.value || '180',
+                    numPlayers: parseInt(document.getElementById('num-players-slider')?.value) || 2
+                };
+            }
+
+            // 2. INICIALIZAR EL ESTADO DEL JUEGO (Aquí se cargan los recursos de constants.js)
+            if (typeof resetGameStateVariables === 'function') {
+                const turnTime = settings.turnTime === 'none' ? Infinity : parseInt(settings.turnTime);
+                
+                // ¡ESTA ES LA LÍNEA CLAVE QUE FALTABA!
+                resetGameStateVariables(settings.numPlayers, turnTime);
+                
+                // Configurar detalles específicos
+                gameState.deploymentUnitLimit = settings.unitLimit === "unlimited" ? Infinity : parseInt(settings.unitLimit);
+                gameState.myPlayerNumber = 1; 
+                gameState.currentPhase = "deployment"; // Asegurar fase
+                
+                // Leer Civilizaciones y Tipos de la Pantalla 2
+                const playerTypes = {};
+                const playerCivilizations = {};
+                for (let i = 1; i <= settings.numPlayers; i++) {
+                    const civEl = document.getElementById(`player${i}Civ`);
+                    const typeEl = document.getElementById(`player${i}TypeSelect`);
+                    if (civEl && typeEl) {
+                        playerCivilizations[i] = civEl.value;
+                        playerTypes[`player${i}`] = typeEl.value;
+                    }
+                }
+                gameState.playerCivilizations = playerCivilizations;
+                gameState.playerTypes = playerTypes;
+
+            } else {
+                console.error("CRÍTICO: resetGameStateVariables no está definida.");
+                return;
+            }
+            
+            // 3. GENERAR EL MAPA VISUAL Y DE DATOS
             if (typeof initializeNewGameBoardDOMAndData === 'function') {
                 initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize);
             }
 
-            // Crear en nube
-            const gameId = await NetworkManager.crearPartidaEnNube(settings);        
+            // 4. SUBIR A LA NUBE (Ahora subirá el estado perfecto que acabamos de crear)
+            const gameId = await NetworkManager.crearPartidaEnNube();
+            
             if (gameId) {
-                // Mostrar Lobby Manualmente
+                // Mostrar Lobby
                 const lobby = document.getElementById('hostLobbyScreen');
                 const codeSpan = document.getElementById('short-game-code');
                 const list = document.getElementById('host-player-list');
