@@ -455,6 +455,133 @@ broadcastFullState: function() {
             return true;
         }
         return false;
+    },
+
+    // ============================================================
+    // === SISTEMA DE JUEGO ASÍNCRONO (SUPABASE AUTHORITY) ===
+    // ============================================================
+
+    // 1. CREAR PARTIDA (El Host sube el tablero inicial)
+    crearPartidaEnNube: async function(gameSettings) {
+        const matchId = this._generarCodigoCorto(); // Generamos código tipo "XY99"
+        
+        // Preparamos el estado inicial limpio
+        const estadoInicial = {
+            gameState: gameState,
+            board: board.map(row => row.map(hex => ({...hex, element: undefined}))),
+            units: units.map(u => ({...u, element: undefined})),
+            unitIdCounter: unitIdCounter
+        };
+
+        const { error } = await supabaseClient
+            .from('active_matches')
+            .insert({
+                match_id: matchId,
+                host_id: PlayerDataManager.currentPlayer?.auth_id,
+                game_state: estadoInicial,
+                current_turn_player: 1
+            });
+
+        if (error) {
+            console.error("Error creando partida:", error);
+            return null;
+        }
+
+        this.miId = matchId; // Guardamos el ID de la partida
+        this.esAnfitrion = true;
+        
+        // Nos suscribimos a cambios (por si el J2 se une o juega)
+        this.suscribirseAPartida(matchId);
+        
+        return matchId;
+    },
+
+    // 2. UNIRSE A PARTIDA (El Cliente descarga el tablero)
+    unirsePartidaEnNube: async function(matchId) {
+        const { data, error } = await supabaseClient
+            .from('active_matches')
+            .select('*')
+            .eq('match_id', matchId)
+            .single();
+
+        if (error || !data) {
+            alert("Partida no encontrada.");
+            return false;
+        }
+
+        // Cargamos el juego inmediatamente
+        reconstruirJuegoDesdeDatos(data.game_state);
+        
+        this.miId = matchId;
+        this.esAnfitrion = false;
+        gameState.myPlayerNumber = 2; // Soy el invitado
+
+        // Nos suscribimos para saber cuándo el Host mueve
+        this.suscribirseAPartida(matchId);
+        
+        return true;
+    },
+
+    // 3. SUBIR TURNO (Guardar el estado en la nube al terminar)
+    subirTurnoANube: async function() {
+        if (!this.miId) return;
+        
+        console.log("☁️ Subiendo turno a la nube...");
+        
+        // Serializamos todo el juego
+        const estadoGuardar = {
+            gameState: gameState, // Incluye turnNumber, resources, etc.
+            board: board.map(row => row.map(hex => ({...hex, element: undefined}))),
+            units: units.map(u => ({...u, element: undefined})),
+            unitIdCounter: unitIdCounter
+        };
+
+        // Enviamos el UPDATE a Supabase
+        const { error } = await supabaseClient
+            .from('active_matches')
+            .update({ 
+                game_state: estadoGuardar,
+                current_turn_player: gameState.currentPlayer, // Actualizamos de quién es el turno
+                updated_at: new Date()
+            })
+            .eq('match_id', this.miId);
+
+        if (error) console.error("Error subiendo turno:", error);
+        else console.log("✅ Turno subido y guardado.");
+    },
+
+    // 4. ESCUCHAR CAMBIOS (El "Despertador")
+    suscribirseAPartida: function(matchId) {
+        console.log(`📡 Escuchando cambios en partida ${matchId}...`);
+        
+        supabaseClient
+            .channel(`partida_${matchId}`)
+            .on('postgres_changes', { 
+                event: 'UPDATE', 
+                schema: 'public', 
+                table: 'active_matches', 
+                filter: `match_id=eq.${matchId}` 
+            }, (payload) => {
+                console.log("🔔 ¡CAMBIO DETECTADO EN LA NUBE!", payload);
+                const nuevoEstado = payload.new.game_state;
+                
+                // Si el turno ha cambiado o los datos son más nuevos, actualizamos
+                // (Ignoramos si fui yo mismo el que subió el cambio)
+                if (nuevoEstado.gameState.currentPlayer !== gameState.currentPlayer || 
+                    payload.new.current_turn_player === gameState.myPlayerNumber) {
+                    
+                    console.log("📥 Descargando nuevo estado del tablero...");
+                    reconstruirJuegoDesdeDatos(nuevoEstado);
+                    
+                    if (typeof UIManager !== 'undefined') {
+                        UIManager.updateAllUIDisplays();
+                        if (payload.new.current_turn_player === gameState.myPlayerNumber) {
+                            alert("¡Es tu turno!");
+                        }
+                    }
+                }
+            })
+            .subscribe();
     }
 
 };

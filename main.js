@@ -765,78 +765,50 @@ function initApp() {
     }
     
     // 1. Botón para que el CLIENTE se una a una partida
-    if (domElements.joinNetworkGameBtn && !domElements.joinNetworkGameBtn.hasListener) {
-        domElements.joinNetworkGameBtn.addEventListener('click', () => {
-            const shortCode = prompt("Introduce el ID de la partida:");
-            if (shortCode && shortCode.trim() !== "") {
-                logMessage(`Intentando unirse a ${shortCode}...`);
-                NetworkManager.preparar(onConexionLANEstablecida, onDatosLANRecibidos, onConexionLANCerrada);
-                NetworkManager.unirseAPartida(shortCode.trim());
-            } else {
-                if (shortCode !== null) alert("Código inválido.");
+    if (domElements.joinNetworkGameBtn) {
+        const newBtn = domElements.joinNetworkGameBtn.cloneNode(true);
+        domElements.joinNetworkGameBtn.parentNode.replaceChild(newBtn, domElements.joinNetworkGameBtn);
+        domElements.joinNetworkGameBtn = newBtn;
+
+        domElements.joinNetworkGameBtn.addEventListener('click', async () => {
+            const codigo = prompt("Introduce el Código de Partida:");
+            if (!codigo) return;
+
+            logMessage("Buscando partida en la nube...");
+            const exito = await NetworkManager.unirsePartidaEnNube(codigo);
+            
+            if (exito) {
+                showScreen(domElements.gameContainer);
+                if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
+                logMessage("¡Conectado! Sincronizando estado...");
             }
         });
-        domElements.joinNetworkGameBtn.hasListener = true;
     }
     
-    // 2. Botón para que el ANFITRIÓN cree una partida en red
-    if (domElements.createNetworkGameBtn && !domElements.createNetworkGameBtn.hasListener) {
-        domElements.createNetworkGameBtn.addEventListener('click', () => {
-            console.log("[Anfitrión] Clic en 'Crear Partida en Red'. Preparando lobby...");
+    // 2. Botón para que el ANFITRIÓN se una a una partida
+    if (domElements.createNetworkGameBtn) {
+        // Clonamos para limpiar listeners viejos
+        const newBtn = domElements.createNetworkGameBtn.cloneNode(true);
+        domElements.createNetworkGameBtn.parentNode.replaceChild(newBtn, domElements.createNetworkGameBtn);
+        domElements.createNetworkGameBtn = newBtn;
 
-            // 1. Recuperamos la configuración básica guardada desde la pantalla 1.
+        domElements.createNetworkGameBtn.addEventListener('click', async () => {
+            logMessage("Creando partida en la nube...");
+            
+            // 1. Inicializamos el tablero localmente primero (Setup)
             const settings = gameState.setupTempSettings || {};
-            console.log("DEBUGGING TIMER | PASO 2: Recuperando configuración al iniciar partida. Objeto 'settings':", JSON.stringify(settings, null, 2));
+            // ... (Tu lógica de inicialización de variables de estado) ...
+            initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize);
             
-            const numPlayers = settings.numPlayers || 2;
+            // 2. Creamos la partida en Supabase
+            const gameId = await NetworkManager.crearPartidaEnNube(settings);
             
-            // 2. Leemos la configuración específica de los jugadores desde la pantalla 2.
-            const playerTypes = {};
-            const playerCivilizations = {};
-            
-            for (let i = 1; i <= numPlayers; i++) {
-                const playerKey = `player${i}`;
-                const civSelectEl = document.getElementById(`player${i}Civ`);
-                const typeSelectEl = document.getElementById(`player${i}TypeSelect`);
-
-                if (typeSelectEl && typeSelectEl.value !== 'closed') {
-                    if (civSelectEl) {
-                        playerTypes[playerKey] = typeSelectEl.value;
-                        playerCivilizations[i] = civSelectEl.value;
-                    } else {
-                        console.error(`Error: No se encontró el selector de civilización para el jugador ${i}`);
-                        return;
-                    }
-                }
+            if (gameId) {
+                alert(`Partida Creada. Código: ${gameId}\n\nEl otro jugador puede unirse incluso si cierras el juego.`);
+                showScreen(domElements.gameContainer);
+                if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
             }
-
-            // 3. Creamos el objeto final de configuración UNA SOLA VEZ.
-            const gameSettings = {
-                ...settings, // Copia boardSize, resourceLevel, etc.
-                playerTypes: playerTypes,
-                playerCivilizations: playerCivilizations,
-                deploymentUnitLimit: settings.unitLimit === "unlimited" ? Infinity : parseInt(settings.unitLimit),
-                // Añadimos el tiempo de turno aquí para que esté en un solo lugar.
-                turnDurationSeconds: settings.turnTime === 'none' ? Infinity : parseInt(settings.turnTime)
-            };
-            
-            // 4. Guardamos este objeto final en un lugar seguro para usarlo después.
-            gameState.networkGameSettings = gameSettings;
-
-            // --- FIN DE LA LÓGICA ÚNICA Y CORRECTA ---
-            
-            // 5. Procedemos a mostrar el lobby y a iniciar la red.
-            showScreen(domElements.hostLobbyScreen);
-            gameState.currentPhase = "hostLobby";
-
-            NetworkManager.preparar(onConexionLANEstablecida, onDatosLANRecibidos, onConexionLANCerrada);
-            NetworkManager.iniciarAnfitrion((idGenerado) => {
-                if(domElements.shortGameCodeEl) domElements.shortGameCodeEl.textContent = idGenerado;
-                if(domElements.hostPlayerListEl) domElements.hostPlayerListEl.innerHTML = `<li>J1: Tú (Anfitrión)</li>`;
-            });
         });
-        // Marcamos el botón para que no se le añada otro listener en el futuro.
-        domElements.createNetworkGameBtn.hasListener = true;
     }
 
     // 3. Botón para que el ANFITRIÓN cancele el lobby
