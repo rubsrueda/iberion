@@ -44,7 +44,13 @@ const NetworkManager = {
         const matchId = this._generarCodigoCorto();
         this.miId = matchId;
         this.esAnfitrion = true;
-        gameState.myPlayerNumber = 1; // Aseguramos identidad
+        
+        // --- CORRECCIÓN VITAL: INICIALIZAR ESTADO LOCAL ---
+        // Aseguramos que el estado local del Host es correcto ANTES de subirlo
+        gameState.myPlayerNumber = 1;
+        gameState.currentPlayer = 1; // El turno empieza en el 1
+        gameState.currentPhase = "deployment";
+        if (!gameState.playerResources) gameState.playerResources = {};
         
         // Usamos la función segura para preparar los datos
         const estadoInicial = this._prepararEstadoParaNube();
@@ -85,6 +91,10 @@ const NetworkManager = {
                     showScreen(domElements.gameContainer);
                     if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
                     this.activarEscuchaDeTurnos(matchId);
+                    
+                    // --- CORRECCIÓN VITAL 2: REAFIRMAR ESTADO ---
+                    gameState.myPlayerNumber = 1; // Soy el Host
+                    gameState.currentPlayer = 1;  // Es mi turno
                     
                     // --- FORZADO DE UI PARA ANFITRIÓN ---
                     if (typeof UIManager !== 'undefined') {
