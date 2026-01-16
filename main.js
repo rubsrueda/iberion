@@ -207,35 +207,82 @@ function initApp() {
 
     // 1. JUGADOR NUEVO (Va directo al Tutorial)
     const newPlayerBtn = document.getElementById('newPlayerDirectBtn');
+    
     if (newPlayerBtn) {
-        newPlayerBtn.addEventListener('click', async () => {
-            document.getElementById('loginScreen').style.display = 'none';
+        // Aseguramos que el botón no tenga listeners antiguos
+        const newBtn = newPlayerBtn.cloneNode(true);
+        newPlayerBtn.parentNode.replaceChild(newBtn, newPlayerBtn);
+        
+        newBtn.addEventListener('click', async (e) => {
+            e.preventDefault(); // Prevenir comportamientos por defecto
+            console.log("🟢 BOTÓN 'JUGADOR NUEVO' PRESIONADO.");
 
-            // Jugador
-            gameState.myPlayerNumber = 1; 
+            try {
+                // Ocultar Login inmediatamente
+                const loginScreen = document.getElementById('loginScreen');
+                if (loginScreen) loginScreen.style.display = 'none';
 
-            // Configurar entorno tutorial
-            if (typeof resetGameStateVariables === 'function') resetGameStateVariables(2);
-            gameState.playerCivilizations[2] = 'Roma';
-            gameState.playerCivilizations[1] = 'Iberia';
+                // --- GESTIÓN DE JUGADOR ---
+                // Si no hay jugador logueado, crear invitado
+                if (!PlayerDataManager.currentPlayer) {
+                    console.log("Creando perfil temporal de invitado...");
+                    PlayerDataManager.currentPlayer = PlayerDataManager.createNewPlayer("Recluta", "tutorial");
+                    // ID especial para que no guarde en DB real
+                    PlayerDataManager.currentPlayer.auth_id = "temp_guest_id";
+                }
+                gameState.myPlayerNumber = 1; // Asignar jugador local
 
-            // Cargar mapa y datos
-            const tutorialScenario = GAME_DATA_REGISTRY.scenarios["TUTORIAL_SCENARIO"];
-            const tutorialMap = GAME_DATA_REGISTRY.maps[tutorialScenario.mapFile];
-            
-            // Función auxiliar asíncrona necesaria
-            if(typeof resetAndSetupTacticalGame === 'function') {
-                await resetAndSetupTacticalGame(tutorialScenario, tutorialMap, "tutorial");
+                // --- RESET DE JUEGO ---
+                console.log("Reiniciando variables de juego...");
+                if (typeof resetGameStateVariables === 'function') {
+                    resetGameStateVariables(2);
+                } else {
+                    console.error("ERROR CRÍTICO: resetGameStateVariables no existe.");
+                }
+
+                // Configuración
+                gameState.playerCivilizations[2] = 'Roma';
+                gameState.playerCivilizations[1] = 'Iberia';
+
+                // --- CARGA DE MAPA Y DATOS ---
+                console.log("Cargando escenario...");
+                if (!GAME_DATA_REGISTRY || !GAME_DATA_REGISTRY.scenarios) {
+                    throw new Error("GAME_DATA_REGISTRY no está cargado.");
+                }
+
+                const tutorialScenario = GAME_DATA_REGISTRY.scenarios["TUTORIAL_SCENARIO"];
+                if (!tutorialScenario) throw new Error("Escenario Tutorial no encontrado en registro.");
+
+                const tutorialMap = GAME_DATA_REGISTRY.maps[tutorialScenario.mapFile];
+                
+                // Preparar Tablero
+                if(typeof resetAndSetupTacticalGame === 'function') {
+                    await resetAndSetupTacticalGame(tutorialScenario, tutorialMap, "tutorial");
+                }
+
+                // Iniciar Tutorial
+                if(typeof initializeTutorialState === 'function') initializeTutorialState();
+                
+                gameState.currentPhase = "deployment";
+                
+                // Mostrar pantalla de juego
+                console.log("Mostrando tablero de juego...");
+                showScreen(domElements.gameContainer); // Asegura que domElements esté cargado
+                if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
+
+                // ARRANCAR SCRIPT
+                console.log("Lanzando Script Tutorial...");
+                TutorialManager.start(TUTORIAL_SCRIPTS.completo);
+
+            } catch (err) {
+                console.error("❌ ERROR AL INICIAR TUTORIAL:", err);
+                alert("Error al iniciar tutorial: " + err.message);
+                // Si falla, volvemos a mostrar login para que no se quede pantalla negra
+                document.getElementById('loginScreen').style.display = 'flex';
             }
-            if(typeof initializeTutorialState === 'function') initializeTutorialState();
-            
-            gameState.currentPhase = "deployment";
-            
-            showScreen(domElements.gameContainer);
-            if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
-
-            TutorialManager.start(TUTORIAL_SCRIPTS.completo);
         });
+    } else {
+        console.error("⛔ Botón 'newPlayerDirectBtn' NO ENCONTRADO en el DOM.");
     }
 
     // 2. LOGIN GOOGLE

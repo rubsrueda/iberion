@@ -5451,3 +5451,11 @@ body {
         transform: translateX(-50%);
     }
 }
+
+#loginScreen {
+    z-index: 99999 !important; /* Capa extrema para asegurar clic */
+}
+#loginScreen button {
+    pointer-events: all !important; /* Forzar interactividad */
+    cursor: pointer !important;
+}

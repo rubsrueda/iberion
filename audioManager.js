@@ -17,9 +17,9 @@ const AudioManager = {
         // Efectos de Sonido (deben estar en la carpeta audio/sfx/)
         'ui_click': 'audio/sfx/click.wav',       // Reemplaza 'click.wav' con tu archivo
         'turn_start': 'audio/sfx/horn.wav',      // Reemplaza 'horn.wav' con tu archivo
-        'attack_swords': 'audio/sfx/explosion.wav',   // Reemplaza 'swords.wav' con tu archivo
-        'unit_destroyed': 'audio/sfx/swords.wav', // Reemplaza 'explosion.wav' con tu archivo
-        'structure_built': 'audio/sfx/build.wav' // Reemplaza 'build.wav' con tu archivo
+        'attack_swords': 'audio/sfx/explosion.WAV',   // Reemplaza 'swords.wav' con tu archivo
+        'unit_destroyed': 'audio/sfx/swords.WAV', // Reemplaza 'explosion.wav' con tu archivo
+        'structure_built': 'audio/sfx/build.WAV' // Reemplaza 'build.wav' con tu archivo
     },
     
     /**
