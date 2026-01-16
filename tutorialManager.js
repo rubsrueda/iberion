@@ -115,13 +115,35 @@ _startCompletionCheck: function(step) {
         window.TUTORIAL_MODE_ACTIVE = false;
         gameState.isTutorialActive = false;
 
-        if (typeof UIManager !== 'undefined') UIManager.updateAllUIDisplays();
+        // Limpiezas de UI normales
+        if (typeof UIManager !== 'undefined') {
+            UIManager.updateAllUIDisplays();
+            UIManager.hideTutorialMessage();
+            UIManager.clearHighlights();
+            UIManager.restoreEndTurnButton();
+            // Asegurarnos que se cierra cualquier panel contextual abierto
+            UIManager.hideContextualPanel();
+        }
 
-        UIManager.hideTutorialMessage();
-        UIManager.clearHighlights();
-        UIManager.restoreEndTurnButton();
         logMessage("¡Has completado el tutorial!");
-        showScreen(domElements.mainMenuScreenEl);
+
+        // --- SOLUCIÓN LIMPIEZA DE ESCENA ---
+        
+        // 1. Ocultar los contenedores de batalla explícitamente
+        if (domElements.gameContainer) domElements.gameContainer.style.display = 'none';
+        if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'none';
+
+        // 2. Borrar físicamente las fichas del tablero (limpieza de memoria visual)
+        // Esto evita que se vea "el fantasma" si algo falla en la ocultación CSS
+        if (domElements.gameBoard) domElements.gameBoard.innerHTML = '';
+
+        // 3. Volver al menú (esto también activará la música de menú)
+        if (typeof showMainMenu === 'function') {
+            showMainMenu();
+        } else {
+            // Fallback por seguridad
+            if (domElements.mainMenuScreenEl) domElements.mainMenuScreenEl.style.display = 'flex';
+        }
     },
 
     notifyActionCompleted: function(actionType) {

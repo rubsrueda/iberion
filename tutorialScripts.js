@@ -345,7 +345,7 @@ const TUTORIAL_SCRIPTS = {
         },
         {
             id: 'TUT_14_UNIT_DETAIL_INFO',
-            message: "Aquí puedes ver la salud de cada regimiento. Cierra esta ventana con la <strong>'X'</strong>.",
+            message: "Aquí puedes ver la salud de cada regimiento. Cierra la ventana de Gestión de la División, con la <strong>'X'</strong>.",
             actionCondition: () => domElements.unitDetailModal.style.display === 'none'
         },
         {
