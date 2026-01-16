@@ -16,11 +16,11 @@ const TUTORIAL_SCRIPTS = {
                 UIManager.updateActionButtonsBasedOnPhase();
                 UIManager.updateAllUIDisplays();
                 renderSingleHexVisuals(1, 1);
-                gameState.playerResources[1].oro += 1000;
+                gameState.playerResources[1].oro += 2000;
                 gameState.playerResources[1].piedra += 2100;
-                gameState.playerResources[1].madera += 300;
-                gameState.playerResources[1].hierro += 400;
-                gameState.playerResources[1].researchPoints = 160;
+                gameState.playerResources[1].madera += 500;
+                gameState.playerResources[1].hierro += 500;
+                gameState.playerResources[1].researchPoints = 180;
             },
             highlightHexCoords: [{r: 1, c: 1}]
             
@@ -28,39 +28,52 @@ const TUTORIAL_SCRIPTS = {
 
         {
             id: 'intro',
-            message: "Has llegado a un mundo vivo, cada territorio es una oportunidad, donde las rutas conectan imperios, cada ciudad un destino por conquistar, dirije tu ejército y deja tu huella.",
-            duration: 5000, // 4 segundos para que el jugador pruebe a girar el móvil
+            message: "Has llegado a un mundo vivo... Recuerda <strong>clic en el mapa</strong> para cada paso.",
+
             onStepStart: () => {
+                // 1. Resetear SIEMPRE la bandera al entrar en el paso
+                gameState.tutorial.map_clicked = false;
+                
                 gameState.currentPhase = "play";
                 UIManager.updateActionButtonsBasedOnPhase();
-            }
+            },
+            // 2. Esperar a que se ponga a true
+            actionCondition: () => gameState.tutorial.map_clicked === true
         },
 
         {
             id: 'orientation_intro',
             message: "¡General! Para una mejor experiencia, puedes <strong>girar tu dispositivo</strong>. Prueba a jugar en horizontal o vertical según tu preferencia antes de empezar.",
-            duration: 4000, // 4 segundos para que el jugador pruebe a girar el móvil
+            
+            // duration: 5000, <--- BORRAS ESTO
+
             onStepStart: () => {
+                gameState.tutorial.map_clicked = false; // Reset obligatorio
                 gameState.currentPhase = "play";
                 UIManager.updateActionButtonsBasedOnPhase();
-            }
+            },
+            actionCondition: () => gameState.tutorial.map_clicked === true
         },
 
         {
             id: 'mapa',
             message: "El mapa está compuesto or hexágonos donde con distintos terrenos, algunos dan recursos específicos, se pueden conquistar al ocuparlos con tu ejército, y se pueden construir infraestructras como caminos, fortalezas y ciudades",
-            duration: 4000, // 4 segundos para que el jugador pruebe a girar el móvil
+            // duration: 5000, <--- BORRAS ESTO
+
             onStepStart: () => {
-                gameState.currentPhase = "play";
-                UIManager.updateActionButtonsBasedOnPhase();
-            }
+                gameState.tutorial.map_clicked = false; // Reset obligatorio
+            },
+            actionCondition: () => gameState.tutorial.map_clicked === true
         },
 
         {
             id: 'tutorial_menu_intro',
-            message: "Antes de marchar, fíjate arriba. El <strong>Menú⚙️ </strong> despliega los botones principales de Estado",
-            highlightElementId: 'floatingMenuBtn',
-            actionCondition: () => document.getElementById('top-bar-menu').style.display === 'flex'
+            message: "Antes de marchar, fíjate a tu derecha. Pulsa la <strong>rueda (⚙️)</strong> para desplegar las opciones y ver el <strong>Menú (☰)</strong>.",
+            highlightElementId: 'toggle-right-menu-btn', // Apuntar al engranaje, no al menú directamente
+            actionCondition: () => {
+                const menuGroup = document.querySelector('.right-menu-group');
+                return menuGroup && menuGroup.classList.contains('is-open');
+            }
         },
 
         {
@@ -73,38 +86,86 @@ const TUTORIAL_SCRIPTS = {
         {
             id: 'tut_menu_forge',
             message: "⚔️ <strong>La Forja:</strong> Aquí transformará los planos y fragmentos recuperados en el campo de batalla en equipo real para sus Generales.",
-            highlightElementId: 'openForgeBtn', // Asegúrate que este ID existe en domElements.js
-            duration: 5000,
+            highlightElementId: 'openForgeBtn', 
+
             onStepStart: () => { 
-                // Forzamos que el menú superior/lateral esté visible si no lo está
-                document.getElementById('top-bar-menu').style.display = 'flex';
-            }
+                // 1. Resetear el sensor de clic (Obligatorio para que no salte solo)
+                gameState.tutorial.map_clicked = false; 
+
+                // 2. Asegurar que los menús necesarios estén visibles
+                // Barra superior (recursos)
+                const topMenu = document.getElementById('top-bar-menu');
+                if (topMenu) topMenu.style.display = 'flex';
+                
+                // Menú lateral derecho (donde suele estar el botón de forja)
+                const rightMenu = document.querySelector('.right-menu-group');
+                if (rightMenu) rightMenu.classList.add('is-open');
+            },
+
+            // Esperamos clic en el mapa (el fondo), NO en el botón
+            actionCondition: () => document.getElementById('forgeModal').style.display === 'flex'
         },
+
+        {
+            id: 'tut_menu_forge_close', // PASO INTERMEDIO NECESARIO
+            message: "¡Bien! Ahora <strong>cierra la ventana de la Forja (X)</strong> para continuar.",
+            highlightElementId: 'closeForgeBtn',
+            // La condición de éxito es que la ventana desaparezca
+            actionCondition: () => document.getElementById('forgeModal').style.display === 'none'
+        },
+        
         {
             id: 'tut_menu_bag',
             message: "🎒 <strong>La Bolsa:</strong> Su almacén personal. Aquí podrá supervisar sus libros de experiencia, equipo acumulado y materiales de construcción.",
             highlightElementId: 'openInventoryBtn',
-            duration: 5000
+            
+            onStepStart: () => {
+                // Reabrir menú lateral si se cerró accidentalmente
+                const rightMenu = document.querySelector('.right-menu-group');
+                if (rightMenu) rightMenu.classList.add('is-open');
+            },
+            actionCondition: () => document.getElementById('inventoryModal').style.display === 'flex'
         },
+
+        {
+            id: 'tut_menu_bag_close', // PASO INTERMEDIO NECESARIO
+            message: "Observa tus objetos y <strong>cierra el inventario (X)</strong>.",
+            highlightElementId: 'closeInventoryBtn',
+            actionCondition: () => document.getElementById('inventoryModal').style.display === 'none'
+        },
+
         {
             id: 'tut_menu_wiki',
             message: "ℹ️ <strong>La Wiki:</strong> El manual del General. Indispensable para entender la 🏦 <strong>Banca</strong>, el Comercio y cómo ganar por 🏆 <strong>Prestigio</strong>.",
             highlightElementId: 'floatingWikiBtn',
             duration: 5000
         },
+
+        {
+            id: 'tut_menu_wiki_close', // PASO INTERMEDIO NECESARIO
+            message: "Una vez leído, <strong>cierra la Wiki (X)</strong> para seguir.",
+            highlightElementId: 'closeWikiModalBtn',
+            actionCondition: () => document.getElementById('wikiModal').style.display === 'none'
+        },
+
         {
             id: 'tut_menu_mailbox',
             message: "✉️ <strong>Mensajes:</strong> Manténgase al tanto de sus hazañas. Aquí recibirá mensajes y recompensas por misiones completadas.",
             highlightElementId: 'floatingInboxBtn',
             duration: 5000
         },
+        
         {
             id: 'tut_menu_end',
-            message: "Excelente. Una vez familiarizado, puede cerrar el menú pulsando ⚙️ para centrarnos en el mapa y volver a la acción.",
-            duration: 5000,
-            onStepComplete: () => {
-                // Marcamos la transición a la siguiente parte de la batalla
-            }
+            message: "Excelente. El menú lateral <strong>(⚙️)</strong> es tu centro de gestión. Toca el mapa para volver a la batalla.",
+            onStepStart: () => {
+                gameState.tutorial.map_clicked = false;
+                // Opcional: Cerrar menú lateral automáticamente para limpiar visión
+                const rightMenu = document.querySelector('.right-menu-group');
+                if (rightMenu) rightMenu.classList.remove('is-open');
+            },
+            // Aquí sí volvemos a la lógica de clic en el mapa porque ya no hay botones bloqueando
+            actionCondition: () => gameState.tutorial.map_clicked === true
         },
 
         {
@@ -150,18 +211,39 @@ const TUTORIAL_SCRIPTS = {
             onStepStart: () => resetUnitsForNewTurn(1),
             actionCondition: () => units.some(u => u.player === 1 && u.r === 3 && u.c === 3)
         },
+        
         {
             id: 'TUT_7_ATTACK',
-            message: "¡Una emboscada! <strong>Ataca a la unidad enemiga</strong>.",
+            message: "¡Una emboscada! <strong>Ataca a la unidad enemiga</strong> (la roja).",
             highlightHexCoords: [{r: 4, c: 4}],
             onStepStart: () => {
-                const enemy = AiGameplayManager.createUnitObject({ name: "Explorador Hostil", regiments: [{...REGIMENT_TYPES["Infantería Ligera"], type: 'Infantería Ligera', health: 100 }]}, 2, {r: 4, c: 4});
+                // 1. Crear Enemigo
+                const enemy = AiGameplayManager.createUnitObject({ 
+                    name: "Explorador Hostil", 
+                    regiments: [{...REGIMENT_TYPES["Infantería Ligera"], type: 'Infantería Ligera', health: 100 }]
+                }, 2, {r: 4, c: 4}); // Jugador 2 en (4,4)
+                
                 placeFinalizedDivision(enemy, 4, 4);
-                if (typeof centerMapOn === 'function') centerMapOn(4, 4); // <--- CENTRA EN EL ENEMIGO
-                const playerUnit = units.find(u => u.player === 1);
 
-                if (playerUnit) playerUnit.hasAttacked = false;
+                // 2. Asegurar que NUESTRA unidad pueda atacar
+                const playerUnit = units.find(u => u.player === 1);
+                if (playerUnit) {
+                    playerUnit.hasAttacked = false; 
+                    playerUnit.hasMoved = false; // Permitimos movimiento por si acaso está lejos
+                    
+                    // Opcional: Acercarla para asegurar el rango
+                    // moveUnit(playerUnit, 3, 4); 
+                }
+
+                // 3. Resetear bandera de éxito del tutorial
                 gameState.tutorial.attack_completed = false;
+                
+                // 4. Mover Cámara y UI
+                if (typeof centerMapOn === 'function') setTimeout(() => centerMapOn(4, 4), 100);
+                
+                // CRÍTICO: Asegurar que el juego sepa que estamos en fase 'play'
+                gameState.currentPhase = "play";
+                UIManager.updateActionButtonsBasedOnPhase();
             },
             actionCondition: () => gameState.tutorial.attack_completed
         },

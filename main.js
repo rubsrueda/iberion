@@ -6,6 +6,10 @@ function onHexClick(r, c) {
     // Obtenemos los datos del hexágono en el que se hizo clic.
     const hexDataClicked = board[r]?.[c];
 
+    if (gameState.isTutorialActive) {
+        gameState.tutorial.map_clicked = true;
+    }
+
     // Si se hace clic en la ciudad de La Banca, abrir el modal de comercio y detener todo lo demás.
     if (hexDataClicked && hexDataClicked.owner === BankManager.PLAYER_ID) {
         if (typeof openBankModal === 'function') {
@@ -184,16 +188,73 @@ const showLoginScreen = () => {
 
 function initApp() {
 
+    // Aviso legal y cookies
+    const accepted = localStorage.getItem('terms_accepted');
+    if (!accepted) {
+        document.getElementById('legalModal').style.display = 'flex';
+        document.getElementById('acceptLegalBtn').onclick = () => {
+            localStorage.setItem('terms_accepted', 'true');
+            document.getElementById('legalModal').style.display = 'none';
+            // Aquí continuaríamos con la carga normal si estuviera pausada
+        };
+    }
+    
     // --- 1. ACTIVAR WAKE LOCK (NUEVO) ---
     // Esto evita que el móvil apague la pantalla y mate la conexión.
     if (typeof enableMobileWakeLock === "function") {
         enableMobileWakeLock(); 
     }
 
+    // 1. JUGADOR NUEVO (Va directo al Tutorial)
+    const newPlayerBtn = document.getElementById('newPlayerDirectBtn');
+    if (newPlayerBtn) {
+        newPlayerBtn.addEventListener('click', async () => {
+            document.getElementById('loginScreen').style.display = 'none';
+
+            // Jugador
+            gameState.myPlayerNumber = 1; 
+
+            // Configurar entorno tutorial
+            if (typeof resetGameStateVariables === 'function') resetGameStateVariables(2);
+            gameState.playerCivilizations[2] = 'Roma';
+            gameState.playerCivilizations[1] = 'Iberia';
+
+            // Cargar mapa y datos
+            const tutorialScenario = GAME_DATA_REGISTRY.scenarios["TUTORIAL_SCENARIO"];
+            const tutorialMap = GAME_DATA_REGISTRY.maps[tutorialScenario.mapFile];
+            
+            // Función auxiliar asíncrona necesaria
+            if(typeof resetAndSetupTacticalGame === 'function') {
+                await resetAndSetupTacticalGame(tutorialScenario, tutorialMap, "tutorial");
+            }
+            if(typeof initializeTutorialState === 'function') initializeTutorialState();
+            
+            gameState.currentPhase = "deployment";
+            
+            showScreen(domElements.gameContainer);
+            if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
+
+            TutorialManager.start(TUTORIAL_SCRIPTS.completo);
+        });
+    }
+
+    // 2. LOGIN GOOGLE
     const googleBtn = document.getElementById('googleLoginBtn');
     if (googleBtn) {
         googleBtn.addEventListener('click', () => {
             PlayerDataManager.loginWithGoogle();
+        });
+    }
+
+    // 3. LOGIN FACEBOOK (Nuevo)
+    const facebookBtn = document.getElementById('facebookLoginBtn');
+    if (facebookBtn) {
+        facebookBtn.addEventListener('click', async () => {
+            // Requiere que "Facebook" esté activado en el panel de Supabase Auth
+            await supabaseClient.auth.signInWithOAuth({
+                provider: 'facebook',
+                options: { redirectTo: window.location.origin }
+            });
         });
     }
 

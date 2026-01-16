@@ -2247,6 +2247,9 @@ async function RequestAttackUnit(attacker, defender) {
         if (isNetworkGame() && NetworkManager.esAnfitrion) {
             NetworkManager.broadcastFullState();
         }
+    } else {
+        // AÑADIR ESTE ELSE para saber si está fallando aquí
+        console.warn(`[RequestAttackUnit] BLOQUEADO. Atacante(J${attacker.player}) !== MiJugador(J${gameState.myPlayerNumber}). ¿Eres Anfitrión? ${NetworkManager.esAnfitrion}`);
     }
 }
 

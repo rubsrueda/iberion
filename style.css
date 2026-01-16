@@ -5441,3 +5441,13 @@ body {
     pointer-events: auto !important; /* ...pero los botones SIEMPRE atrapan el clic */
     touch-action: manipulation;      /* Optimiza para toques */
 }
+
+/*tutorial*/
+/* style.css - Asegurar que el panel se ve bien en horizontal */
+@media (max-height: 400px) { 
+    .tutorial-panel {
+        bottom: auto !important;
+        top: 10px !important; /* Mover arriba en apaisado para evitar teclados/barras */
+        transform: translateX(-50%);
+    }
+}
