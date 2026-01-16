@@ -212,11 +212,16 @@ const TUTORIAL_SCRIPTS = {
             actionCondition: () => units.some(u => u.player === 1 && u.r === 3 && u.c === 3)
         },
         
-        {
+         {
             id: 'TUT_7_ATTACK',
             message: "¡Una emboscada! <strong>Ataca a la unidad enemiga</strong> (la roja).",
             highlightHexCoords: [{r: 4, c: 4}],
             onStepStart: () => {
+                // >>> SOLUCIÓN DE IDENTIDAD <<<
+                // Forzamos que el juego sepa que eres el Jugador 1 justo ahora
+                gameState.myPlayerNumber = 1; 
+                // -----------------------------
+
                 // 1. Crear Enemigo
                 const enemy = AiGameplayManager.createUnitObject({ 
                     name: "Explorador Hostil", 
@@ -229,19 +234,14 @@ const TUTORIAL_SCRIPTS = {
                 const playerUnit = units.find(u => u.player === 1);
                 if (playerUnit) {
                     playerUnit.hasAttacked = false; 
-                    playerUnit.hasMoved = false; // Permitimos movimiento por si acaso está lejos
-                    
-                    // Opcional: Acercarla para asegurar el rango
-                    // moveUnit(playerUnit, 3, 4); 
+                    playerUnit.hasMoved = false; 
                 }
 
-                // 3. Resetear bandera de éxito del tutorial
+                // 3. Resetear bandera
                 gameState.tutorial.attack_completed = false;
                 
-                // 4. Mover Cámara y UI
+                // 4. Centrar y actualizar
                 if (typeof centerMapOn === 'function') setTimeout(() => centerMapOn(4, 4), 100);
-                
-                // CRÍTICO: Asegurar que el juego sepa que estamos en fase 'play'
                 gameState.currentPhase = "play";
                 UIManager.updateActionButtonsBasedOnPhase();
             },
