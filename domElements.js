@@ -14,6 +14,15 @@ domElements.panStartY = 0;
 domElements.currentBoardTranslateX = 0;
 domElements.currentBoardTranslateY = 0;
 
+domElements.settingsModal = null;
+domElements.closeSettingsBtn = null;
+domElements.saveSettingsBtn = null;
+domElements.settingMusicToggle = null;
+domElements.settingSfxToggle = null;
+domElements.settingGoldConfirm = null;
+domElements.settingHints = null;
+domElements.resetHintsBtn = null;
+
 domElements.domElementsInitialized = false; 
 
 // --- Inicializar todas las propiedades a null ---
@@ -72,6 +81,13 @@ domElements.importProfileInput = null;
 domElements.exportProfileBtn_float = null;
 domElements.startIberiaMagnaBtn = null;
 
+// Ranking general:
+domElements.rankingModal = null;
+domElements.rankingListContainer = null;
+domElements.closeRankingBtn = null;
+
+//pase de batalla: 
+domElements.battlePassModal = null;
 
 // Antiguo botón startGameBtn se renombra a startLocalGameBtn
 domElements.player1TypeSelect = null;
@@ -219,6 +235,24 @@ function initializeDomElements() {
     // <<== FIN DE LA MODIFICACIÓN ==>>
 
     domElements.domElementsInitialized = false;
+
+    //configuración del sistema
+    domElements.settingsModal = document.getElementById('settingsModal');
+    domElements.closeSettingsBtn = document.getElementById('closeSettingsBtn');
+    domElements.saveSettingsBtn = document.getElementById('saveSettingsBtn');
+    domElements.settingMusicToggle = document.getElementById('settingMusicToggle');
+    domElements.settingSfxToggle = document.getElementById('settingSfxToggle');
+    domElements.settingGoldConfirm = document.getElementById('settingGoldConfirm');
+    domElements.settingHints = document.getElementById('settingHints');
+    domElements.resetHintsBtn = document.getElementById('resetHintsBtn');    
+
+    // Ranking general:
+    domElements.rankingModal = document.getElementById('rankingModal');
+    domElements.rankingListContainer = document.getElementById('rankingListContainer');
+    domElements.closeRankingBtn = document.getElementById('closeRankingBtn');
+
+    //pase de batalla: 
+    domElements.battlePassModal = document.getElementById('battlePassModal');
 
     // --- Obtener referencias de elementos DOM ---
     domElements.setupScreen = document.getElementById('setupScreen'); 

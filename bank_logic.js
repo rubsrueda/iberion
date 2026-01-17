@@ -8,15 +8,85 @@ const BankManager = {
      * Gestiona las acciones de la IA de La Banca.
      */
     executeTurn: function() {
-        console.log("%c[Banca] Ejecutando turno de La Banca...", "color: olive; font-weight: bold;");
+        // Si estamos en red y NO soy el anfitrión, NO CALCULO NADA. 
+        // Espero a que el anfitrión me mande los resultados en el siguiente sync.
+        if (typeof NetworkManager !== 'undefined' && NetworkManager.conn && NetworkManager.conn.open && !NetworkManager.esAnfitrion) {
+            console.log("[Banca] Soy Cliente: Omitiendo lógica de Banca (Espero datos del Host).");
+            return;
+        }
+        // -----------------------------------------------------
+
+        console.log("%c[Banca] Ejecutando turno de La Banca (Autoridad)...", "color: olive; font-weight: bold;");
 
         // PASO 1: Mover y gestionar las caravanas que ya están en el mapa.
         this.manageExistingCaravans();
 
-        // PASO 2: Comprobar si se debe crear una nueva caravana y crearla.
+        // PASO 2: Comprobar si se debe crear una nueva caravana.
         this.createNewCaravanIfNeeded();
         
         console.log("[Banca] Turno de La Banca completado.");
+    },
+
+    /**
+     * Comprueba las condiciones y, si se cumplen, crea una nueva caravana.
+     */
+    createNewCaravanIfNeeded: function() {
+        // 1. Obtener la Ciudad Banco
+        const bankCity = gameState.cities.find(c => c.owner === this.PLAYER_ID);
+        if (!bankCity) return;
+        
+        // Comprobar bloqueo físico: Si hay alguien en la puerta, no salimos.
+        const unitAtBank = getUnitOnHex(bankCity.r, bankCity.c);
+        if (unitAtBank) return;
+        
+        // A. Listar hacia dónde van las caravanas actuales
+        const activeDestinations = new Set();
+        
+        // Filtramos todas las unidades de la banca
+        units.forEach(u => {
+            if (u.player === this.PLAYER_ID && u.tradeRoute && u.tradeRoute.destination) {
+                // Guardamos el NOMBRE del destino para evitar duplicados
+                activeDestinations.add(u.tradeRoute.destination.name);
+            }
+        });
+
+        // B. Filtrar ciudades objetivo válidas (Ciudades reales de jugadores)
+        const totalCities = gameState.cities.filter(c => c.owner > 0); 
+        
+        let availableTargets = totalCities.filter(targetCity => {
+            // Regla 1: Que no sea la propia banca (obvio)
+            if (targetCity.owner === this.PLAYER_ID) return false;
+
+            // Regla 2: Que NO HAYA YA una caravana yendo hacia allí
+            if (activeDestinations.has(targetCity.name)) return false;
+
+            // Regla 3: Que exista camino físico
+            const path = findInfrastructurePath(bankCity, targetCity);
+            if (!path) return false;
+
+            
+
+            return true;
+        });
+
+
+
+        if (availableTargets.length === 0) {
+            // No hay rutas libres
+            return;
+        }
+        
+        // Barajar objetivos disponibles para que sea aleatorio
+        for (let i = availableTargets.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [availableTargets[i], availableTargets[j]] = [availableTargets[j], availableTargets[i]];
+        }
+
+        // Crear SOLAMENTE UNA caravana por turno (el break detiene el bucle tras el éxito)
+        for (const targetCity of availableTargets) {
+            const success = this.buildAndDeployCaravan(bankCity, targetCity);
+            if (success) break; 
+        }
     },
 
     /**
@@ -26,73 +96,6 @@ const BankManager = {
         // La función global se encarga del movimiento, curación y recomposición.
         if (typeof updateTradeRoutes === 'function') {
             updateTradeRoutes(this.PLAYER_ID);
-        }
-    },
-
-    /**
-     * Comprueba las condiciones y, si se cumplen, crea una nueva caravana.
-     */
-    createNewCaravanIfNeeded: function() {
-        // 1. Get Bank City
-        const bankCity = gameState.cities.find(c => c.owner === this.PLAYER_ID);
-        if (!bankCity) return;
-        
-        // Check if spawn point is blocked. If Bank city has a unit, we can't spawn.
-        const unitAtBank = getUnitOnHex(bankCity.r, bankCity.c);
-        if (unitAtBank) {
-            // console.log("[Banca] La ciudad está bloqueada. No se puede desplegar caravana.");
-            return;
-        }
-
-        const bankCaravans = units.filter(u => u.player === this.PLAYER_ID && u.tradeRoute);
-        const totalCities = gameState.cities.filter(c => c.owner > 0); // Real player cities
-        
-        // Global Hard Limit
-        if (bankCaravans.length >= totalCities.length * 2) {
-            return;
-        }
-
-        // Count active caravans per destination
-        const activeDestinations = new Map(); 
-        bankCaravans.forEach(caravan => {
-            if (caravan.tradeRoute) {
-                const destName = caravan.tradeRoute.destination.name;
-                activeDestinations.set(destName, (activeDestinations.get(destName) || 0) + 1);
-            }
-        });
-
-        // Filter available targets
-        // Valid if: Path exists AND Route is not saturated.
-        let availableTargets = totalCities.filter(targetCity => {
-            // Check path existence silently first
-            const path = findInfrastructurePath(bankCity, targetCity);
-            if (!path) return false; // If no road connection, skip (prevents the console error)
-
-            const routeLength = path.length;
-            const caravansOnRoute = activeDestinations.get(targetCity.name) || 0;
-
-            // DENSITY RULE: Max 1 caravan per 3 hexes of road length.
-            // e.g., 6 hex road = max 2 caravans.
-            const maxCaravans = Math.max(1, Math.floor(routeLength / 3));
-
-            return caravansOnRoute < maxCaravans;
-        });
-
-        if (availableTargets.length === 0) {
-            // console.log("[Banca] Rutas saturadas o inexistentes. No se envían más caravanas.");
-            return;
-        }
-        
-        // Shuffle targets
-        for (let i = availableTargets.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [availableTargets[i], availableTargets[j]] = [availableTargets[j], availableTargets[i]];
-        }
-
-        // Attempt build
-        for (const targetCity of availableTargets) {
-            const success = this.buildAndDeployCaravan(bankCity, targetCity);
-            if (success) break; // Only one per turn
         }
     },
 

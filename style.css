@@ -5459,3 +5459,219 @@ body {
     pointer-events: all !important; /* Forzar interactividad */
     cursor: pointer !important;
 }
+
+/*configuración*/
+
+/* --- ESTILO DE INTERRUPTOR (SWITCH) --- */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+}
+
+.switch input { 
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  -webkit-transition: .4s;
+  transition: .4s;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  -webkit-transition: .4s;
+  transition: .4s;
+}
+
+input:checked + .slider {
+  background-color: #2196F3;
+}
+
+input:focus + .slider {
+  box-shadow: 0 0 1px #2196F3;
+}
+
+input:checked + .slider:before {
+  -webkit-transform: translateX(26px);
+  -ms-transform: translateX(26px);
+  transform: translateX(26px);
+}
+
+/* Rounded sliders */
+.slider.round {
+  border-radius: 34px;
+}
+
+.slider.round:before {
+  border-radius: 50%;
+}
+
+/* --- ESTILOS DE RANKING pantlla de clasificación --- */
+.ranking-tabs {
+    display: flex;
+    background-color: #212f3d;
+    border-bottom: 1px solid #7f8c8d;
+}
+
+.ranking-tab-btn {
+    flex: 1;
+    padding: 10px;
+    background: transparent;
+    border: none;
+    color: #95a5a6;
+    font-weight: bold;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+}
+.ranking-tab-btn.active {
+    color: #f1c40f;
+    border-bottom-color: #f1c40f;
+    background-color: rgba(241, 196, 15, 0.05);
+}
+
+.ranking-header-row, .ranking-row, .ranking-footer-row {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    font-size: 0.9em;
+}
+
+.ranking-header-row {
+    background-color: #2c3e50;
+    border-bottom: 1px solid #7f8c8d;
+    color: #f1c40f;
+    font-weight: bold;
+}
+
+.ranking-row {
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.ranking-row:nth-child(odd) { background-color: rgba(255,255,255,0.02); }
+
+/* Columnas */
+.rnk-num { width: 40px; text-align: center; font-weight: bold; font-size: 1.1em; }
+.rnk-name { flex-grow: 1; padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rnk-val { width: 80px; text-align: right; color: #2ecc71; font-weight: bold; }
+
+/* Top 3 colores */
+.rank-1 .rnk-num { color: #f1c40f; text-shadow: 0 0 5px gold; font-size: 1.3em; } /* Oro */
+.rank-2 .rnk-num { color: #c0c0c0; text-shadow: 0 0 5px silver; font-size: 1.2em; } /* Plata */
+.rank-3 .rnk-num { color: #cd7f32; text-shadow: 0 0 5px orange; font-size: 1.2em; } /* Bronce */
+
+/* Fila de mi usuario (anclada abajo) */
+.ranking-footer-row {
+    background-color: #1a252f;
+    border-top: 1px solid #f1c40f;
+    color: #fff;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.3);
+}
+
+/*---------------*/
+/*PASE DE BATALLA*/
+/*---------------*/
+
+/* Cabecera */
+.bp-header {
+    background: linear-gradient(to bottom, #1f1f1f, #121212);
+    padding: 15px;
+    border-bottom: 2px solid #ffd700;
+}
+
+.bp-levels-container {
+    overflow-y: auto;
+    flex-grow: 1;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* Fila de Nivel */
+.bp-level-row {
+    display: grid;
+    grid-template-columns: 50px 1fr 1fr;
+    gap: 10px;
+    background: #1e1e1e;
+    border: 1px solid #333;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+}
+.bp-level-row.locked {
+    opacity: 0.6;
+    filter: grayscale(0.8);
+}
+
+/* Indicador de Nivel (Izquierda) */
+.bp-level-indicator {
+    background: #333;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: white;
+    border-right: 1px solid #444;
+}
+
+/* Tarjetas de Recompensa */
+.bp-reward-card {
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.9em;
+}
+
+/* Estilo Gratis vs Premium */
+.bp-card-free {
+    background: rgba(255,255,255,0.05);
+}
+.bp-card-premium {
+    background: linear-gradient(90deg, rgba(103, 58, 183, 0.2), rgba(0,0,0,0));
+    border-left: 2px solid #9b59b6;
+    position: relative;
+}
+.bp-card-premium::after {
+    content: "PREMIUM";
+    position: absolute;
+    top: 2px; right: 5px;
+    font-size: 8px;
+    color: #ffd700;
+}
+
+/* Estado de Recompensa */
+.bp-reward-claimed {
+    opacity: 0.5;
+}
+.bp-claim-btn {
+    padding: 5px 10px;
+    font-size: 0.8em;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.bp-claim-btn:hover { background: #218838; }
+.bp-lock-icon { font-size: 1.5em; }
+
+/* Ocultar botón premium si ya lo tiene */
+.premium-active #buyPremiumBtn { display: none; }

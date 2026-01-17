@@ -161,6 +161,66 @@
         <input type="text" id="console-input" placeholder="Escribe un comando...">
     </div>  
 
+    <!-- ====================================================================== -->
+    <!-- ======================= MODAL DE CONFIGURACIÓN ======================= -->
+    <!-- ====================================================================== -->
+    <div id="settingsModal" class="modal modal-themed" style="display: none; z-index: 10010;">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h2>Configuración</h2>
+                <span class="close-button" id="closeSettingsBtn">×</span>
+            </div>
+            
+            <div class="modal-body" style="padding: 20px;">
+                
+                <!-- SECCIÓN DE AUDIO -->
+                <h4 style="color: #f1c40f; border-bottom: 1px solid #555; margin-bottom: 15px;">Audio</h4>
+                
+                <div class="setting-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <span>🎵 Música</span>
+                    <label class="switch">
+                        <input type="checkbox" id="settingMusicToggle" checked>
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+
+                <div class="setting-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <span>🔊 Efectos de Sonido</span>
+                    <label class="switch">
+                        <input type="checkbox" id="settingSfxToggle" checked>
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+
+                <!-- SECCIÓN DE JUEGO -->
+                <h4 style="color: #f1c40f; border-bottom: 1px solid #555; margin-bottom: 15px; margin-top: 25px;">Juego</h4>
+
+                <div class="setting-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <span>💰 Confirmar Gasto de Oro</span>
+                    <label class="switch">
+                        <input type="checkbox" id="settingGoldConfirm" checked>
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+
+                <div class="setting-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <span>💡 Mostrar Pistas (Tutorial)</span>
+                    <label class="switch">
+                        <input type="checkbox" id="settingHints" checked>
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+
+                <!-- Botones Extra -->
+                <button id="resetHintsBtn" style="width:100%; padding:10px; margin-top:15px; background-color:#6c757d; border:none; border-radius:5px; color:white;">Reiniciar Avisos de Ayuda</button>
+
+            </div>
+
+            <div class="modal-footer">
+                <button id="saveSettingsBtn" class="button-primary">Guardar Cambios</button>
+            </div>
+        </div>
+    </div>
 
     <!-- ====================================================================== -->
     <!-- ======================== PANTALLA DE LOGIN ========================= -->
@@ -301,7 +361,7 @@
                 <span onclick="showToast('Info')" style="font-size: 18px; cursor:pointer;">ℹ️</span>
                 <span onclick="showRanking()" style="font-size: 18px; cursor:pointer;">🏆</span>
                 <span onclick="document.getElementById('barracksModal').style.display='flex'" style="font-size: 18px; cursor:pointer;">🎖️</span>
-                <span onclick="showToast('Config')" style="font-size: 18px; cursor:pointer;">⚙️</span>
+                <span onclick="openSettingsModal()" style="font-size: 18px; cursor:pointer;">⚙️</span>
             </div>
 
             <!-- GRID DE LOS 5 VALORES (Cuerpo) -->
@@ -335,6 +395,82 @@
         </div>
     </div>
 
+    <!-- ====================================================================== -->
+    <!-- ======================= MODAL DE CLASIFICACIÓN ======================= -->
+    <!-- ====================================================================== -->
+    <div id="rankingModal" class="modal modal-themed" style="display: none; z-index: 10008;">
+        <div class="modal-content" style="max-width: 500px; height: 80vh;">
+            
+            <div class="modal-header">
+                <h2>Tabla de Líderes</h2>
+                <span class="close-button" id="closeRankingBtn">×</span>
+            </div>
+
+            <!-- Pestañas para filtrar -->
+            <div class="ranking-tabs">
+                <button class="ranking-tab-btn active" data-metric="xp">⭐ Experiencia</button>
+                <button class="ranking-tab-btn" data-metric="wins">🏆 Victorias</button>
+            </div>
+            
+            <!-- Cabecera de la lista -->
+            <div class="ranking-header-row">
+                <span class="rnk-num">#</span>
+                <span class="rnk-name">General</span>
+                <span class="rnk-val">Valor</span>
+            </div>
+
+            <!-- Cuerpo con Scroll -->
+            <div class="modal-body" id="rankingListContainer" style="padding: 0; background: rgba(0,0,0,0.2);">
+                <p style="text-align: center; color: #888; margin-top: 20px;">Cargando datos globales...</p>
+            </div>
+
+            <!-- Fila fija para MI usuario (siempre visible) -->
+            <div id="myRankingRow" class="ranking-footer-row">
+                <span class="rnk-num">?</span>
+                <span class="rnk-name">Tú</span>
+                <span class="rnk-val">-</span>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- ====================== MODAL DE PASE DE BATALLA ====================== -->
+    <!-- ====================================================================== -->
+    <!-- index.html -->
+    <div id="battlePassModal" class="modal modal-themed" style="display: none; z-index: 10020;">
+        <div class="modal-content" style="max-width: 800px; height: 90vh; background: #121212; border: 1px solid #ffd700;">
+            
+            <!-- Cabecera del Pase -->
+            <div class="bp-header">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h2 id="bpSeasonName" style="color:#f1c40f; text-transform: uppercase;">Temporada 1</h2>
+                    <button class="close-button" id="closeBattlePassBtn">×</button>
+                </div>
+                
+                <div class="bp-progress-area">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                        <span id="bpCurrentLevelDisplay">Nivel 1</span>
+                        <span id="bpXpDisplay" style="color:#aaa;">0 / 500 XP</span>
+                    </div>
+                    <div class="xp-bar-container" style="background:#333;">
+                        <div id="bpGlobalProgressBar" class="xp-bar" style="width: 0%; background: #9b59b6;"></div>
+                    </div>
+                    <button id="buyPremiumBtn" style="width:100%; margin-top:10px; background:linear-gradient(45deg, #ffd700, #ff8c00); border:none; padding:10px; font-weight:bold; color:black;">
+                        🔓 ACTIVAR PASE PREMIUM
+                    </button>
+                </div>
+            </div>
+
+            <!-- Lista de Niveles -->
+            <div id="bpLevelsList" class="bp-levels-container">
+                <!-- JS Rellenará esto -->
+                <p style="text-align:center; padding:20px; color:#888;">Cargando temporada...</p>
+            </div>
+
+        </div>
+    </div>
+    
     <!-- ====================================================================== -->
     <!-- ====== Modal del códice                                         ====== -->
     <!-- ====================================================================== -->

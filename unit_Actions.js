@@ -390,6 +390,13 @@ function selectUnit(unit) {
         return;
     }
 
+    // REGLA Bloqueo de Control
+    if (unit.isDisorganized && unit.player === gameState.currentPlayer) {
+        logMessage(`No puedes dar órdenes a "${unit.name}". ¡Está desorganizada! (Moral 0)`, "error");
+        if (typeof AudioManager !== 'undefined') AudioManager.playSound('ui_click'); 
+        return; 
+    }
+
     selectedUnit = unit;
     
     if (gameState.currentPhase === 'play' && unit.player !== gameState.currentPlayer) {
@@ -1099,6 +1106,31 @@ async function attackUnit(attackerDivision, defenderDivision) {
         // 3. Comprobar destrucciones
         const attackerDestroyed = finalHealthAttacker <= 0;
         const defenderDestroyed = finalHealthDefender <= 0;
+
+        // REGLA Rodeo Total en Combate + Derrota
+        // Condición: Defensor sobrevive al daño (HP > 0) PERO pierde (su moral probablemente baje a 0)
+        if (!defenderDestroyed && finalHealthDefender > 0) {
+            
+            // Verificamos si ha quedado con Moral 0 tras el combate
+            if (defenderDivision.morale <= 0) {
+                // Verificamos si está físicamente rodeada (6 lados)
+                const isDefenderSurrounded = checkSurroundStatus(defenderDivision);
+                
+                if (isDefenderSurrounded) {
+                    logMessage(`¡${defenderDivision.name} intenta huir pero está RODEADA!`, "important");
+                    // Ejecutar Regla 4: Muerte o Traición inmediata
+                    await attemptDefectionOrDestroy(defenderDivision, "aniquilación tras cerco en combate");
+                    
+                    // Si el defensor muere aquí, ya no procesamos nada más para él.
+                    // Pero sí debemos procesar al atacante si sobrevivió (XP, etc.)
+                    if (!attackerDestroyed) {
+                        // (Tu código de recompensa para el atacante aquí, si lo tienes separado)
+                        // Normalmente handleUnitDestroyed ya maneja la XP del vencedor si se le pasa.
+                    }
+                    return; // Salir de la función
+                }
+            }
+        }
 
         // 4. Aplicar resultados
         if (defenderDestroyed) {

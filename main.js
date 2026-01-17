@@ -656,6 +656,28 @@ function initApp() {
             exportProfile();
         });
     }
+
+
+    // Configuración de Audio
+    if (typeof AudioManager !== 'undefined' && AudioManager.preload) {
+        AudioManager.preload();
+        
+        // --- APLICAR SETTINGS GUARDADOS AL INICIO ---
+        const savedSettings = JSON.parse(localStorage.getItem('iberion_settings'));
+        
+        if (savedSettings) {
+            // Si hay ajustes guardados, los respetamos con TUS valores (0.3 y 0.7)
+            AudioManager.setVolume(
+                savedSettings.music ? 0.3 : 0, 
+                savedSettings.sfx ? 0.7 : 0
+            );
+        } else {
+            // Si NO hay ajustes (es la primera vez), el AudioManager ya tiene por defecto 0.3 y 0.7
+            // No hace falta hacer nada, o puedes forzarlo:
+            AudioManager.setVolume(0.3, 0.7);
+        }
+    }
+
     // ======================================================================    
     //Juego en red   
     // ====================================================================== 

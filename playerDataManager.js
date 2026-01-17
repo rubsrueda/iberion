@@ -367,25 +367,61 @@ const PlayerDataManager = {
      * Guarda los datos del jugador actual en localStorage y en Supabase.
      */
     saveCurrentPlayer: async function() {
-        if (!this.currentPlayer || !this.currentPlayer.auth_id) return;
+        // Validación de seguridad
+        if (!this.currentPlayer || !this.currentPlayer.auth_id) {
+            console.warn("[Save] No hay jugador activo o ID para guardar.");
+            return;
+        }
 
         try {
-            const { error } = await supabaseClient
+            const p = this.currentPlayer;
+            const uid = p.auth_id;
+
+            // DIAGNÓSTICO: ¿Qué vamos a enviar realmente?
+            console.log(`[Cloud Save] Intentando guardar ID: ${uid} | Nivel Local: ${p.level} | Wins: ${p.total_wins}`);
+
+            // Preparamos el paquete forzando tipos (asegurar que son números enteros)
+            const cleanPayload = {
+                id: uid,
+                username: p.username || "Jugador",
+                last_sync: new Date().toISOString(),
+                
+                // COLUMNAS EXTERNAS (Para el Ranking)
+                level: parseInt(p.level || 1),
+                xp: parseInt(p.xp || 0),
+                total_wins: parseInt(p.total_wins || 0),
+                total_kills: parseInt(p.total_kills || 0),
+                avatar_url: p.avatar_url || '🎖️',
+
+                // EL JSON COMPLETO (Para tu carga de juego)
+                // Lo guardamos tal cual está en memoria
+                profile_data: p 
+            };
+
+            // Ejecutamos la llamada a Supabase
+            const { data, error } = await supabaseClient
                 .from('profiles')
-                .upsert({
-                    id: this.currentPlayer.auth_id,
-                    username: this.currentPlayer.username,
-                    profile_data: this.currentPlayer, // JSON sin limpiar para mayor velocidad
-                    last_sync: new Date().toISOString()
-                }, { onConflict: 'id' });
+                .upsert(cleanPayload, { onConflict: 'id' })
+                .select(); // El select devuelve el dato guardado para verificar
 
             if (error) {
-                console.error("❌ Error de red Supabase:", error.message);
+                console.error("❌ ERROR CRÍTICO GUARDANDO EN NUBE:", error);
+                console.error("Detalle:", error.details, error.message);
+                logMessage("Error de sincronización con la nube.", "error");
             } else {
-                console.log("✅ Sincronizado con la nube (Nivel: " + (this.currentPlayer.heroes[0]?.level || 0) + ")");
+                // Confirmación visual
+                const savedLevel = data[0]?.level;
+                console.log(`✅ Nube Actualizada. Nivel en DB ahora es: ${savedLevel}`);
+                
+                if (savedLevel !== p.level) {
+                    console.warn(`⚠️ ALERTA DE DISCREPANCIA: Local=${p.level} vs DB=${savedLevel}`);
+                    // Intento de fuerza bruta: Update específico si Upsert falló
+                    await supabaseClient.from('profiles').update({ level: p.level }).eq('id', uid);
+                }
             }
+
         } catch (err) {
-            console.error("💥 Error crítico de conexión:", err);
+            console.error("💥 Excepción al guardar:", err);
         }
     },
 
@@ -632,7 +668,7 @@ const PlayerDataManager = {
         openProfileModal(); // Refrescar para cambiar estado del botón
     },
 
-    // Añadir al objeto PlayerDataManager en playerDataManager.js
+    // Progreso
     applyCareerProgression: async function(winningPlayerNumber) {
         if (!this.currentPlayer) return;
 
@@ -694,4 +730,43 @@ const PlayerDataManager = {
         if (maxJump > 500) return `Turno ${bestTurn}: El contraataque que cambió el destino.`;
         return "Mando constante y victoria estratégica.";
     },
+
+    /**
+     * Obtiene el Top 50 jugadores ordenados correctamente.
+     */
+    getLeaderboard: async function(metric = 'xp') {
+        try {
+            // Iniciamos la consulta base
+            let query = supabaseClient
+                .from('profiles')
+                .select('username, level, xp, total_wins, avatar_url');
+
+            // --- LÓGICA DE ORDENAMIENTO CORREGIDA ---
+            if (metric === 'xp') {
+                // Si buscamos los mejores generales, ordenamos:
+                // 1º Por NIVEL (Lo más importante)
+                // 2º Por XP (Desempate dentro del mismo nivel)
+                query = query
+                    .order('level', { ascending: false })
+                    .order('xp', { ascending: false });
+            } else {
+                // Para victorias (total_wins) u otras métricas simples
+                query = query.order(metric, { ascending: false });
+            }
+            // ----------------------------------------
+
+            const { data, error } = await query.limit(50);
+
+            if (error) {
+                console.error("Error al obtener ranking:", error);
+                return [];
+            }
+            return data;
+        } catch (err) {
+            console.error("Fallo de red en ranking:", err);
+            return [];
+        }
+    },
+
+
 };

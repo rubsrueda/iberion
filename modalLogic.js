@@ -114,11 +114,34 @@ function showCityContextualInfo(cityData) { // Modificar función existente o cr
 function addModalEventListeners() {
     console.log("modalLogic: addModalEventListeners INICIADO.");
 
+
     if (typeof domElements === 'undefined' || !domElements.domElementsInitialized) {
          console.error("modalLogic: CRÍTICO: domElements no está definido o no se ha inicializado completamente.");
          return;
     }
 
+    
+    // Listeners de Configuración
+    if (domElements.saveSettingsBtn) {
+        domElements.saveSettingsBtn.addEventListener('click', saveSettings);
+    }
+    if (domElements.closeSettingsBtn) {
+        domElements.closeSettingsBtn.addEventListener('click', () => {
+            domElements.settingsModal.style.display = 'none';
+        });
+    }
+    if (domElements.resetHintsBtn) {
+        domElements.resetHintsBtn.addEventListener('click', resetHints);
+    }
+
+    // Listeners de Ranking
+    if (domElements.closeRankingBtn) {
+        domElements.closeRankingBtn.addEventListener('click', () => {
+            domElements.rankingModal.style.display = 'none';
+        });
+    }
+
+    //tecnología
     if (domElements.closeTechTreeBtn) {
         domElements.closeTechTreeBtn.addEventListener('click', (event) => { 
             event.stopPropagation(); 
@@ -1709,8 +1732,6 @@ function populateWikiVictoria() {
 //== FUNCIONES DE RED EN modalLogic.js              ==
 //=======================================================================
 
-
-
 function RequestReinforceRegiment(division, regiment) {
     // La validación y el `confirm` se quedan aquí, porque son parte de la "intención" del jugador.
     const regData = REGIMENT_TYPES[regiment.type];
@@ -3178,7 +3199,6 @@ function renderPlayerSelectionSetup(numPlayers) {
     }
 }
 
-
 // Funciones de la Banca //
 
 // EN modalLogic.js (puedes añadirlas al final del archivo)
@@ -3375,6 +3395,9 @@ async function populateWikiAchievementsTab() {
 async function openProfileModal() {
     const player = PlayerDataManager.currentPlayer;
     if (!player) return;
+
+     //Sincronización
+     await PlayerDataManager.saveCurrentPlayer();
 
     // 1. Mostrar el modal inmediatamente
     const modal = document.getElementById('profileModal');
@@ -3582,6 +3605,199 @@ function showMatchDetails(index) {
         document.querySelectorAll('[id^="log-detail-"]').forEach(el => el.style.display = 'none');
         detailEl.style.display = isVisible ? 'none' : 'block';
     }
+}
+
+// --- SISTEMA DE CONFIGURACIÓN ---
+const DEFAULT_SETTINGS = {
+    music: true,
+    sfx: true,
+    goldConfirm: true,
+    hints: true
+};
+
+function openSettingsModal() {
+    if (!domElements.settingsModal) return;
+
+    // 1. Cargar configuración actual
+    // Intentamos leer de Supabase (si existe en currencies/meta) o LocalStorage
+    let currentSettings = JSON.parse(localStorage.getItem('iberion_settings'));
+    
+    // Si hay perfil cargado, intentamos usar sus settings (si estuvieran guardados ahí)
+    if (PlayerDataManager.currentPlayer && PlayerDataManager.currentPlayer.settings) {
+        currentSettings = PlayerDataManager.currentPlayer.settings;
+    }
+
+    // Fallback a defecto
+    if (!currentSettings) currentSettings = DEFAULT_SETTINGS;
+
+    // 2. Reflejar en la UI
+    domElements.settingMusicToggle.checked = currentSettings.music;
+    domElements.settingSfxToggle.checked = currentSettings.sfx;
+    domElements.settingGoldConfirm.checked = currentSettings.goldConfirm;
+    domElements.settingHints.checked = currentSettings.hints;
+
+    domElements.settingsModal.style.display = 'flex';
+}
+
+function saveSettings() {
+    // 1. Leer de la UI
+    const newSettings = {
+        music: domElements.settingMusicToggle.checked,
+        sfx: domElements.settingSfxToggle.checked,
+        goldConfirm: domElements.settingGoldConfirm.checked,
+        hints: domElements.settingHints.checked
+    };
+
+    // 2. APLICAR CAMBIOS (Inmediato)
+    
+    // Audio
+    if (typeof AudioManager !== 'undefined') {
+        AudioManager.setVolume(newSettings.music ? 0.3 : 0, newSettings.sfx ? 0.8 : 0);
+        if (newSettings.music) {
+            // Si la música estaba parada y ahora se activa, reiniciarla
+            if (!AudioManager.currentMusic && gameState.currentPhase !== 'play') AudioManager.playMusic('menu_theme');
+        }
+    }
+
+    // 3. PERSISTENCIA
+    // Guardar en LocalStorage (Siempre)
+    localStorage.setItem('iberion_settings', JSON.stringify(newSettings));
+
+    // Guardar en Perfil Nube (Si está logueado)
+    if (PlayerDataManager.currentPlayer) {
+        PlayerDataManager.currentPlayer.settings = newSettings;
+        PlayerDataManager.saveCurrentPlayer();
+    }
+
+    logMessage("Configuración guardada.", "success");
+    domElements.settingsModal.style.display = 'none';
+}
+
+function resetHints() {
+    localStorage.removeItem('hexEvolvedDoNotShowHelp'); // Borra la bandera de "no mostrar"
+    if (PlayerDataManager.currentPlayer) {
+        // Si tuvieras banderas específicas en el perfil, se resetearían aquí
+    }
+    alert("Las pistas y ayudas se han restablecido y volverán a aparecer.");
+}
+
+//---------------------------
+// --- SISTEMA DE RANKING ---
+//---------------------------
+
+// Shim de compatibilidad para el HTML existente
+window.showRanking = function() {
+    openRankingModal('xp');
+};
+
+let currentRankingMetric = 'xp';
+
+async function openRankingModal(metric = 'xp') {
+    if (!domElements.rankingModal) return;
+
+    if (PlayerDataManager.currentPlayer) {
+        console.log("Sincronizando mi puntuación antes de ver el ranking...");
+        await PlayerDataManager.saveCurrentPlayer(); 
+    }
+
+    currentRankingMetric = metric;
+
+    // 1. Mostrar modal (con mensaje de carga que ya está en el HTML)
+    domElements.rankingModal.style.display = 'flex';
+    
+    // 2. Gestionar estado de botones de pestaña
+    document.querySelectorAll('.ranking-tab-btn').forEach(btn => {
+        if(btn.dataset.metric === metric) btn.classList.add('active');
+        else btn.classList.remove('active');
+        
+        // Listener rápido para cambio de pestaña
+        btn.onclick = () => openRankingModal(btn.dataset.metric);
+    });
+
+    // 3. Obtener Datos
+    const data = await PlayerDataManager.getLeaderboard(metric === 'wins' ? 'total_wins' : 'xp');
+    
+    // 4. Renderizar
+    renderRankingList(data, metric);
+}
+
+function renderRankingList(data, metric) {
+    const list = domElements.rankingListContainer;
+    list.innerHTML = ''; // Limpiar carga
+
+    if (!data || data.length === 0) {
+        list.innerHTML = '<p style="text-align:center; padding:20px;">No se encontraron datos.</p>';
+        return;
+    }
+
+    const myUsername = PlayerDataManager.currentPlayer?.username;
+    let myRankFound = false;
+
+    data.forEach((player, index) => {
+        const rank = index + 1;
+        const isMe = (player.username === myUsername);
+        if (isMe) myRankFound = true;
+
+        // Decidir qué valor mostrar (Nivel+XP o Victorias)
+        let displayValue = '';
+        if (metric === 'wins') {
+            displayValue = `${player.total_wins || 0} Wins`;
+        } else {
+            // Nivel (Total XP en pequeño)
+            displayValue = `Lvl ${player.level || 1} <small style="opacity:0.6">(${Math.floor(player.xp||0)})</small>`;
+        }
+
+        const avatar = player.avatar_url || '🎖️';
+
+        const row = document.createElement('div');
+        row.className = `ranking-row rank-${rank} ${isMe ? 'highlight-me' : ''}`;
+        if(isMe) row.style.backgroundColor = "rgba(0, 243, 255, 0.15)";
+        
+        row.innerHTML = `
+            <span class="rnk-num">${rank}</span>
+            <div class="rnk-name" style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:1.2em;">${avatar}</span> 
+                ${player.username}
+            </div>
+            <span class="rnk-val">${displayValue}</span>
+        `;
+        list.appendChild(row);
+    });
+
+    // 5. Actualizar el "Footer" fijo de Mi Posición
+    updateMyFooterRow(myRankFound, metric, data);
+}
+
+function updateMyFooterRow(foundInTop50, metric, topData) {
+    const footer = document.getElementById('myRankingRow');
+    if(!footer || !PlayerDataManager.currentPlayer) {
+        if(footer) footer.style.display = 'none';
+        return;
+    }
+    
+    footer.style.display = 'flex';
+    const me = PlayerDataManager.currentPlayer;
+    
+    // Valor
+    let valStr = '';
+    if (metric === 'wins') valStr = `${me.total_wins || 0}`;
+    else valStr = `Lvl ${me.level || 1}`;
+
+    // Rango
+    // Si no estoy en el top 50 que hemos bajado, ponemos "50+"
+    let rankStr = foundInTop50 ? "" : "50+";
+    
+    // Si estoy en la lista, el footer podría ocultarse o mostrarse para resaltar,
+    // pero generalmente se deja para mostrar tu stat rápida.
+    // Buscamos el rango real si está en la data:
+    const myIndex = topData.findIndex(p => p.username === me.username);
+    if(myIndex !== -1) rankStr = (myIndex + 1).toString();
+
+    footer.innerHTML = `
+        <span class="rnk-num" style="font-size:0.9em; color:#888;">${rankStr}</span>
+        <span class="rnk-name" style="color:#f1c40f;">${me.username} (Tú)</span>
+        <span class="rnk-val" style="color:white;">${valStr}</span>
+    `;
 }
 
 // Asegurarse de que los listeners se configuran cuando el DOM está listo

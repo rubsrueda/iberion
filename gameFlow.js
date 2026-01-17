@@ -6,6 +6,115 @@ let tutorialScenarioData = null; // Almacena los datos del escenario de tutorial
 const MAX_STABILITY = 5; // Definimos la constante aquí para que la función la reconozca.
 const MAX_NACIONALIDAD = 5; // Valor máximo para la lealtad de un hexágono.
 
+/**
+ * Comprueba si una unidad está totalmente rodeada (6 hexágonos hostiles).
+ */
+function checkSurroundStatus(unit) {
+    const neighbors = getHexNeighbors(unit.r, unit.c);
+    if (neighbors.length < 6) return false; // Bordes del mapa no cuentan como rodeo total táctico usualmente, o sí. Asumimos 6 lados.
+    
+    // Está rodeada si TODOS los vecinos tienen un dueño diferente al jugador de la unidad
+    // O están ocupados por unidades enemigas. Simplificaremos a "Controlados por el enemigo" (Dueño del hex).
+    const enemyPlayer = unit.player === 1 ? 2 : 1; // Simplificación para 2 jugadores, ajustar para N.
+    
+    const surrounded = neighbors.every(n => {
+        const hex = board[n.r]?.[n.c];
+        // Es hostil si es del enemigo O si hay una unidad enemiga bloqueando
+        const unitOnHex = getUnitOnHex(n.r, n.c);
+        const isEnemyUnit = unitOnHex && unitOnHex.player !== unit.player;
+        const isEnemyTerritory = hex && hex.owner !== null && hex.owner !== unit.player;
+        
+        return isEnemyTerritory || isEnemyUnit || (hex && TERRAIN_TYPES[hex.terrain]?.isImpassableForLand);
+    });
+
+    return surrounded;
+}
+
+/**
+ * Calcula una ruta de escape campo a través (ignorando carreteras, solo terreno físico).
+ */
+function findEscapePath(unit, targetR, targetC) {
+    // Algoritmo A* simplificado para supervivencia
+    let openSet = [{ r: unit.r, c: unit.c, g: 0, f: 0, path: [] }];
+    let visited = new Set([`${unit.r},${unit.c}`]);
+
+    while (openSet.length > 0) {
+        // Ordenar por coste estimado (f)
+        openSet.sort((a, b) => a.f - b.f);
+        let current = openSet.shift();
+
+        // Si llegamos al destino (o adyacente si está ocupado por la propia ciudad)
+        if (current.r === targetR && current.c === targetC) {
+            return current.path;
+        }
+
+        // Limite de seguridad para no colgar el navegador en mapas gigantes
+        if (current.g > 20) continue; 
+
+        let neighbors = getHexNeighbors(current.r, current.c);
+        for (const n of neighbors) {
+            const key = `${n.r},${n.c}`;
+            if (visited.has(key)) continue;
+
+            const hex = board[n.r]?.[n.c];
+            // Regla de Oro punto 5: Solo terreno físico transitable. Ignoramos si hay carretera.
+            const isPassable = hex && !TERRAIN_TYPES[hex.terrain]?.isImpassableForLand;
+            const unitThere = getUnitOnHex(n.r, n.c);
+            
+            // No podemos atravesar unidades enemigas
+            const blockedByEnemy = unitThere && unitThere.player !== unit.player;
+
+            if (isPassable && !blockedByEnemy) {
+                visited.add(key);
+                // Coste del terreno (Bosque cuesta más que Llanura)
+                const moveCost = TERRAIN_TYPES[hex.terrain]?.movementCostMultiplier || 1;
+                const g = current.g + moveCost;
+                const h = hexDistance(n.r, n.c, targetR, targetC);
+                const newPath = [...current.path, {r: n.r, c: n.c}];
+                
+                openSet.push({ r: n.r, c: n.c, g: g, f: g + h, path: newPath });
+            }
+        }
+    }
+    return null; // No hay camino físico
+}
+
+/**
+ * Gestiona la destrucción por asedio o combate fallido con probabilidad de deserción.
+ */
+async function attemptDefectionOrDestroy(unit, cause) {
+    const chance = Math.random() * 100;
+    
+    // 25% de posibilidad de cambiar de bando
+    if (chance <= 25) {
+        const enemyPlayer = unit.player === 1 ? 2 : 1; // Calcular enemigo real
+        
+        // Cambiar de bando
+        unit.player = enemyPlayer;
+        unit.morale = 25; // Recupera un poco de moral por el cambio
+        unit.isDisorganized = false; // Recupera el control bajo nuevo dueño
+        unit.turnsSurrounded = 0;
+        
+        // Reducir efectivos al 50%
+        unit.regiments.forEach(r => r.health = Math.floor(r.health * 0.5));
+        recalculateUnitHealth(unit);
+        
+        // Actualizar visuales
+        if (unit.element) {
+            unit.element.classList.remove(`player${unit.player === 1 ? 2 : 1}`);
+            unit.element.classList.add(`player${unit.player}`);
+        }
+        
+        logMessage(`¡TRAICIÓN! La división "${unit.name}" ha desertado al bando enemigo debido a ${cause}.`, "important");
+        if (UIManager) UIManager.updateAllUIDisplays();
+        
+    } else {
+        // Destrucción normal
+        logMessage(`La división "${unit.name}" ha sido aniquilada por ${cause}.`, "error");
+        await handleUnitDestroyed(unit, null);
+    }
+}
+
 function checkAndProcessBrokenUnit(unit) {
     if (!unit || unit.morale > 0) {
         return false;
@@ -67,76 +176,224 @@ function checkAndProcessBrokenUnit(unit) {
     return true; 
 }
 
-function handleBrokenUnits(playerNum) {
-    // Obtenemos una copia para iterar de forma segura, ya que handleUnitDestroyed puede modificar 'units'.
-    const unitsToCheck = [...units.filter(u => u.player === playerNum && u.morale <= 0 && u.currentHealth > 0)];
+function handleUnitUpkeep(playerNum) {
+    if (!gameState.playerResources?.[playerNum] || !units) return;
 
-    if (unitsToCheck.length > 0) {
-        logMessage(`¡Tropas del Jugador ${playerNum} están desmoralizadas y huyen!`, "warning");
-    }
+    const playerUnits = units.filter(u => u.player === playerNum && u.currentHealth > 0);
+    if (playerUnits.length === 0) return;
 
-    unitsToCheck.forEach(unit => {
-        const originalUnit = units.find(u => u.id === unit.id);
-        if (!originalUnit) return; // Si ya fue destruida o eliminada por otra causa, no hacer nada
+    console.group(`%c[Upkeep] INICIO Fase de Mantenimiento para Jugador ${playerNum}`, "background: #444; color: #fff;");
 
-        // Marcamos la unidad para que el jugador no pueda usarla este turno.
-        originalUnit.hasMoved = true;
-        originalUnit.hasAttacked = true;
+    const playerRes = gameState.playerResources[playerNum];
+    let totalGoldUpkeep = 0;
+    
+    playerUnits.forEach(unit => {
+        console.groupCollapsed(`-> Procesando unidad: ${unit.name}`);
+        let maxMoraleBonus = 0;
+        let upkeepReductionPercent = 0;
 
-        // Buscar el refugio más cercano (capital/ciudad propia)
-        const safeHavens = gameState.cities
-            .filter(c => c.owner === playerNum)
-            .sort((a, b) => hexDistance(originalUnit.r, originalUnit.c, a.r, a.c) - hexDistance(originalUnit.r, originalUnit.c, b.r, b.c));
-        
-        const nearestSafeHaven = safeHavens.length > 0 ? safeHavens[0] : null;
+        // --- 1. CÁLCULO DE BONUS DE HABILIDADES ---
+        if (unit.commander) {
+            const commanderData = COMMANDERS[unit.commander];
+            const playerProfile = PlayerDataManager.getCurrentPlayer();
+            const heroInstance = playerProfile?.heroes.find(h => h.id === unit.commander);
 
-        let retreatHex = null;
-        if (nearestSafeHaven) {
-            const neighbors = getHexNeighbors(originalUnit.r, originalUnit.c);
-            let bestNeighbor = null;
-            let minDistance = hexDistance(originalUnit.r, originalUnit.c, nearestSafeHaven.r, nearestSafeHaven.c);
+            if (commanderData && heroInstance) {
+                commanderData.skills.forEach((skill, index) => {
+                    const skillDef = SKILL_DEFINITIONS[skill.skill_id];
+                    const starsRequired = index + 1;
 
-            for (const n of neighbors) {
-                const neighborHexData = board[n.r]?.[n.c];
-                // Puede huir a una casilla vacía, transitable y que lo acerque al refugio.
-                if (neighborHexData && !neighborHexData.unit && !TERRAIN_TYPES[neighborHexData.terrain]?.isImpassableForLand) {
-                    const dist = hexDistance(n.r, n.c, nearestSafeHaven.r, nearestSafeHaven.c);
-                    if (dist < minDistance) {
-                        minDistance = dist;
-                        bestNeighbor = n;
+                    if (heroInstance.stars >= starsRequired && skillDef?.scope === 'turno') {
+                        const skillLevel = heroInstance.skill_levels[index] || (index === 0 ? 1 : 0);
+                        if (skillLevel > 0 && skill.scaling_override) {
+                            const bonusValue = skill.scaling_override[skillLevel - 1];
+                            
+                            if (skillDef.effect.stat === 'morale') {
+                                maxMoraleBonus += bonusValue;
+                                console.log(`   [HABILIDAD] Comandante ${heroInstance.id} da +${bonusValue} a Moral Máxima por "${skillDef.name}".`);
+                            } else if (skillDef.effect.stat === 'upkeep') {
+                                upkeepReductionPercent += bonusValue;
+                                console.log(`   [HABILIDAD] Comandante ${heroInstance.id} da +${bonusValue}% de Reducción de Consumo por "${skillDef.name}".`);
+                            }
+                        }
                     }
-                }
+                });
             }
-            retreatHex = bestNeighbor;
+        } else {
+            console.log("   [INFO] Sin comandante.");
         }
 
-        if (retreatHex) {
-            logMessage(`¡${originalUnit.name} rompe filas y huye hacia (${retreatHex.r}, ${retreatHex.c})!`);
+        // --- 2. LÓGICA DE MORAL Y SUMINISTRO ---
+        const baseMaxMorale = unit.maxMorale || 125;
+        const finalMaxMorale = baseMaxMorale + maxMoraleBonus;
+        
+        // Aplicamos bonus de comandante a la moral actual
+        unit.morale = Math.max(0, unit.morale + maxMoraleBonus);
+        
+        console.log(`   [MORAL] Moral al inicio del upkeep: ${unit.morale || 50}/${finalMaxMorale}.`);
+
+        // Comprobación de Suministro (Regla 2: Incomunicación)
+        const isSupplied = isHexSupplied(unit.r, unit.c, unit.player);
+        
+        // Comprobar si está en territorio amigo para la regla de recuperación
+        const hexData = board[unit.r]?.[unit.c];
+        const inFriendlyTerritory = hexData && hexData.owner === unit.player;
+
+        if (isSupplied) {
+            // Regla 6: Recuperación de Moral en territorio amigo
+            if (inFriendlyTerritory) {
+                const moraleGain = 10; // Subimos un poco la recuperación si está en casa
+                unit.morale = Math.min(finalMaxMorale, (unit.morale || 50) + moraleGain);
+                console.log(`   [MORAL] En territorio amigo y suministrado. Recupera ${moraleGain}.`);
+
+                // Si recupera suficiente moral, deja de estar desorganizada
+                if (unit.isDisorganized && unit.morale > 30) {
+                    unit.isDisorganized = false;
+                    unit.turnsSurrounded = 0; // Resetear contador si se recupera
+                    logMessage(`¡${unit.name} se ha reorganizado y vuelve a estar bajo tu control!`, "success");
+                }
+            } else {
+                // Suministrada pero fuera de casa (Mantiene o sube poco)
+                const moraleGain = 5;
+                unit.morale = Math.min(finalMaxMorale, (unit.morale || 50) + moraleGain);
+            }
+        } else {
+            // Regla 2 y 5: Pérdida por incomunicación
+            const moraleLoss = 10;
             
-            // --- LA CORRECCIÓN CLAVE ESTÁ AQUÍ ---
-            // Creamos un objeto temporal para los parámetros de la función de movimiento, pero _executeMoveUnit
-            // modificará la unidad real (`originalUnit`) gracias a que se le pasa la referencia.
-            const moveData = {
-                fromR: originalUnit.r,
-                fromC: originalUnit.c,
-                toR: retreatHex.r,
-                toC: retreatHex.c,
-                unit: originalUnit,
-                isRetreat: true // Flag para que la función de movimiento sepa que es una huida
-            };
+            unit.morale = Math.max(0, (unit.morale || 50) - moraleLoss);
+            logMessage(`¡${unit.name} está incomunicada y pierde moral!`, 'warning');
+        }
+
+        // --- GESTIÓN DE ESTADOS: DESORGANIZADA Y ASEDIO ---
+        
+        if (unit.morale <= 0) {
+            // Estado Desorganizada (Regla 5)
+            if (!unit.isDisorganized) {
+                unit.isDisorganized = true;
+                logMessage(`¡${unit.name} ha perdido la moral y está DESORGANIZADA!`, "error");
+            }
+
+            // Regla 4: Asedio Prolongado
+            // Solo contamos turnos de asedio si está Desorganizada (Moral 0) Y Rodeada
+            const isSurrounded = checkSurroundStatus(unit);
+            if (isSurrounded) {
+                unit.turnsSurrounded = (unit.turnsSurrounded || 0) + 1;
+                logMessage(`${unit.name} está RODEADA y SIN MORAL (Turno ${unit.turnsSurrounded}/5).`);
+                
+                if (unit.turnsSurrounded >= 5) {
+                    // Ejecutar Regla 4: Muerte o Traición
+                    attemptDefectionOrDestroy(unit, "colapso por asedio prolongado");
+                    console.groupEnd();
+                    return; // IMPORTANTE: Detener proceso para esta unidad, ya no es nuestra o no existe
+                }
+            } else {
+                // Si no está rodeada, el contador no avanza (o se podría resetear según tu preferencia estricta)
+                // Según tu punto 4: "Si gana combate, moral sube". Aquí si no está rodeada, al menos no muere por esto.
+            }
+        } else {
+            // Si tiene moral > 0, reseteamos el contador de asedio porque sus hombres aún luchan
+            unit.turnsSurrounded = 0;
+        }
+        
+        // --- 3. LÓGICA DE MANTENIMIENTO---
+        let unitUpkeep = 0;
+        (unit.regiments || []).forEach(regiment => { unitUpkeep += REGIMENT_TYPES[regiment.type]?.cost?.upkeep || 0; });
+         // Aplicar la reducción de consumo
+        console.log(`   [CONSUMO] Coste base de la división: ${unitUpkeep} oro.`);
+        if (upkeepReductionPercent >= 100) {
+            unitUpkeep = 0;
+            console.log(`   [CONSUMO] Reducción >= 100%. Coste final: 0 oro.`);
+        } else if (upkeepReductionPercent > 0) {
+            const reductionAmount = unitUpkeep * (upkeepReductionPercent / 100);
+            unitUpkeep -= reductionAmount;
+            console.log(`   [CONSUMO] Reducción de ${upkeepReductionPercent}% (${reductionAmount.toFixed(2)} oro). Coste final: ${Math.max(0, unitUpkeep).toFixed(2)} oro.`);
+        }
+        const finalUnitUpkeep = Math.round(Math.max(0, unitUpkeep));
+        totalGoldUpkeep += finalUnitUpkeep;
+        console.log(`   [CONSUMO] Coste final redondeado de esta división a sumar al total: ${finalUnitUpkeep} oro.`);
+        console.groupEnd();
+    });
+
+    // --- 4. LÓGICA DE PAGO  ---
+    console.log(`[Upkeep] Coste TOTAL de mantenimiento para Jugador ${playerNum}: ${totalGoldUpkeep} oro.`);
+    if (playerRes.oro < totalGoldUpkeep) {
+        logMessage(`¡Jugador ${playerNum} no puede pagar el mantenimiento (${totalGoldUpkeep})! ¡Las tropas se desmoralizan!`, "error");
+        playerUnits.forEach(unit => {
+            // <<== La penalización ahora depende del número de regimientos ==>>
+            // Se calcula la pérdida de moral como -1 por cada regimiento en la división.
+            const moralePenalty = (unit.regiments || []).length;
+            unit.morale = Math.max(0, unit.morale - moralePenalty);
+            logMessage(`  -> ${unit.name} pierde ${moralePenalty} de moral por el impago.`);
             
-            // La función _executeMoveUnit será la que realmente mueva la unidad en los datos.
-            _executeMoveUnit(originalUnit, retreatHex.r, retreatHex.c);
+            // Si el impago baja la moral a 0, se desorganiza
+            if (unit.morale <= 0) unit.isDisorganized = true;
+        });
+    } else {
+        playerRes.oro -= totalGoldUpkeep;
+        // Si pagan, y NO están desorganizadas por otras causas (batalla/cerco), recuperan ánimo leve
+        logMessage(`Jugador ${playerNum} paga ${totalGoldUpkeep} de oro en mantenimiento.`);
+        playerUnits.forEach(unit => {
+            if (unit.isDemoralized) {
+                logMessage(`¡Las tropas de ${unit.name} reciben su paga y recuperan el ánimo!`);
+                unit.isDemoralized = false;
+            }
+        });
+    }
+    console.groupEnd();
+}
+
+async function handleBrokenUnits(playerNum) {
+    // Filtramos unidades del jugador que están desorganizadas y vivas
+    const disorganizedUnits = units.filter(u => u.player === playerNum && u.isDisorganized && u.currentHealth > 0);
+
+    if (disorganizedUnits.length > 0) {
+        logMessage(`Tropas desorganizadas del Jugador ${playerNum} intentan replegarse...`, "warning");
+    }
+
+    for (const unit of disorganizedUnits) {
+        const originalUnit = units.find(u => u.id === unit.id);
+        if (!originalUnit) continue; 
+
+        // Consumir acciones (el jugador no puede usarlas)
+        originalUnit.hasMoved = true; 
+        originalUnit.hasAttacked = true;
+
+        // Buscar refugio más cercano (Capital o Fortaleza propia)
+        const safeHavens = gameState.cities
+            .filter(c => c.owner === unit.player && (c.isCapital || c.structure === 'Fortaleza'))
+            .sort((a, b) => hexDistance(originalUnit.r, originalUnit.c, a.r, a.c) - hexDistance(originalUnit.r, originalUnit.c, b.r, b.c));
+        
+        const target = safeHavens[0];
+        let nextStepCoords = null;
+
+        // Usamos la nueva función de pathfinding de supervivencia
+        if (target) {
+            // Devuelve el camino completo
+            const path = findEscapePath(originalUnit, target.r, target.c);
             
+            if (path && path.length > 0) {
+                // El primer elemento del path es el siguiente paso
+                nextStepCoords = path[0];
+            }
+        }
+
+        if (nextStepCoords) {
+            logMessage(`La desorganizada "${originalUnit.name}" huye hacia ${target.name}.`);
+            
+            // Ejecutamos el movimiento real
+            await _executeMoveUnit(originalUnit, nextStepCoords.r, nextStepCoords.c);
             // Después del movimiento, el estado de 'hasMoved' de la unidad original SÍ habrá cambiado a 'true'
             // pero `resetUnitsForNewTurn` lo pondrá a 'false' al inicio del siguiente turno, permitiendo
             // que la unidad vuelva a huir si sigue desmoralizada.
 
         } else {
-            logMessage(`¡${originalUnit.name} está rodeada y sin moral! ¡La unidad se rinde!`, "error");
-            handleUnitDestroyed(originalUnit, null); // El atacante es nulo porque se rinde
+            // Si no hay ruta física (encerrada por agua, montañas o enemigos), se queda quieta.
+            // NO SE DESTRUYE AQUI.
+            // Esperará a handleUnitUpkeep para ver si se cumple el criterio de Asedio (5 turnos).
+            logMessage(`"${originalUnit.name}" está desorganizada y bloqueada. Permanece inmóvil.`);
         }
-    });
+    }
 }
 
 function resetUnitsForNewTurn(playerNumber) { 
@@ -205,118 +462,6 @@ function resetUnitsForNewTurn(playerNumber) {
     if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
         UIManager.updateAllUIDisplays();
     }
-}
-
-function handleUnitUpkeep(playerNum) {
-    if (!gameState.playerResources?.[playerNum] || !units) return;
-
-    const playerUnits = units.filter(u => u.player === playerNum && u.currentHealth > 0);
-    if (playerUnits.length === 0) return;
-
-    console.group(`%c[Upkeep] INICIO Fase de Mantenimiento para Jugador ${playerNum}`, "background: #444; color: #fff;");
-
-    const playerRes = gameState.playerResources[playerNum];
-    let totalGoldUpkeep = 0;
-    
-    playerUnits.forEach(unit => {
-        console.groupCollapsed(`-> Procesando unidad: ${unit.name}`);
-        let maxMoraleBonus = 0;
-        let upkeepReductionPercent = 0;
-
-        // --- 1. CÁLCULO DE BONUS DE HABILIDADES ---
-        if (unit.commander) {
-            const commanderData = COMMANDERS[unit.commander];
-            const playerProfile = PlayerDataManager.getCurrentPlayer();
-            const heroInstance = playerProfile?.heroes.find(h => h.id === unit.commander);
-
-            if (commanderData && heroInstance) {
-                commanderData.skills.forEach((skill, index) => {
-                    const skillDef = SKILL_DEFINITIONS[skill.skill_id];
-                    const starsRequired = index + 1;
-
-                    if (heroInstance.stars >= starsRequired && skillDef?.scope === 'turno') {
-                        const skillLevel = heroInstance.skill_levels[index] || (index === 0 ? 1 : 0);
-                        if (skillLevel > 0 && skill.scaling_override) {
-                            const bonusValue = skill.scaling_override[skillLevel - 1];
-                            
-                            if (skillDef.effect.stat === 'morale') {
-                                maxMoraleBonus += bonusValue;
-                                console.log(`   [HABILIDAD] Comandante ${heroInstance.id} da +${bonusValue} a Moral Máxima por "${skillDef.name}".`);
-                            } else if (skillDef.effect.stat === 'upkeep') {
-                                upkeepReductionPercent += bonusValue;
-                                console.log(`   [HABILIDAD] Comandante ${heroInstance.id} da +${bonusValue}% de Reducción de Consumo por "${skillDef.name}".`);
-                            }
-                        }
-                    }
-                });
-            }
-        } else {
-            console.log("   [INFO] Sin comandante.");
-        }
-
-        // --- 2. LÓGICA DE MORAL CORREGIDA ---
-        const baseMaxMorale = unit.maxMorale || 125;
-        const finalMaxMorale = baseMaxMorale + maxMoraleBonus;
-        unit.morale = Math.max(0, unit.morale + maxMoraleBonus);
-        
-        console.log(`   [MORAL] Moral al inicio del upkeep: ${unit.morale || 50}/${finalMaxMorale}.`);
-
-        const isSupplied = isHexSupplied(unit.r, unit.c, unit.player);
-        if (isSupplied) {
-            const moraleGain = 5;
-            unit.morale = Math.min(finalMaxMorale, (unit.morale || 50) + moraleGain);
-            console.log(`   [MORAL] Con suministro. Gana ${moraleGain}. Moral Final: ${unit.morale}/${finalMaxMorale}.`);
-        } else {
-            const moraleLoss = 10;
-            
-            unit.morale = Math.max(0, (unit.morale || 50) - moraleLoss);
-            logMessage(`¡${unit.name} está sin suministros y pierde ${moraleLoss} de moral!`, 'warning');
-            console.log(`   [MORAL] Sin suministro. Pierde ${moraleLoss}. Moral Final: ${unit.morale}/${finalMaxMorale}.`);
-        }
-        
-        // --- 3. LÓGICA DE MANTENIMIENTO---
-        let unitUpkeep = 0;
-        (unit.regiments || []).forEach(regiment => { unitUpkeep += REGIMENT_TYPES[regiment.type]?.cost?.upkeep || 0; });
-         // Aplicar la reducción de consumo
-        console.log(`   [CONSUMO] Coste base de la división: ${unitUpkeep} oro.`);
-        if (upkeepReductionPercent >= 100) {
-            unitUpkeep = 0;
-            console.log(`   [CONSUMO] Reducción >= 100%. Coste final: 0 oro.`);
-        } else if (upkeepReductionPercent > 0) {
-            const reductionAmount = unitUpkeep * (upkeepReductionPercent / 100);
-            unitUpkeep -= reductionAmount;
-            console.log(`   [CONSUMO] Reducción de ${upkeepReductionPercent}% (${reductionAmount.toFixed(2)} oro). Coste final: ${Math.max(0, unitUpkeep).toFixed(2)} oro.`);
-        }
-        const finalUnitUpkeep = Math.round(Math.max(0, unitUpkeep));
-        totalGoldUpkeep += finalUnitUpkeep;
-        console.log(`   [CONSUMO] Coste final redondeado de esta división a sumar al total: ${finalUnitUpkeep} oro.`);
-        console.groupEnd();
-    });
-
-    // --- 4. LÓGICA DE PAGO ---
-    console.log(`[Upkeep] Coste TOTAL de mantenimiento para Jugador ${playerNum}: ${totalGoldUpkeep} oro.`);
-    if (playerRes.oro < totalGoldUpkeep) {
-        logMessage(`¡Jugador ${playerNum} no puede pagar el mantenimiento (${totalGoldUpkeep})! ¡Las tropas se desmoralizan!`, "error");
-        playerUnits.forEach(unit => {
-            // <<== La penalización ahora depende del número de regimientos ==>>
-            // Se calcula la pérdida de moral como -1 por cada regimiento en la división.
-            const moralePenalty = (unit.regiments || []).length;
-            unit.morale = Math.max(0, unit.morale - moralePenalty);
-            logMessage(`  -> ${unit.name} pierde ${moralePenalty} de moral por el impago.`);
-            unit.isDemoralized = true;
-        });
-    } else {
-        playerRes.oro -= totalGoldUpkeep;
-        // Si pagan, se quita el estado desmoralizado
-        logMessage(`Jugador ${playerNum} paga ${totalGoldUpkeep} de oro en mantenimiento.`);
-        playerUnits.forEach(unit => {
-            if (unit.isDemoralized) {
-                logMessage(`¡Las tropas de ${unit.name} reciben su paga y recuperan el ánimo!`);
-                unit.isDemoralized = false;
-            }
-        });
-    }
-    console.groupEnd();
 }
 
 function handleHealingPhase(playerNum) {
