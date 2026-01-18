@@ -485,6 +485,30 @@ function initApp() {
     // 3. LISTENERS DE LA INTERFAZ
     // ======================================================================
     
+
+    
+    // 1. Abrir Pase de Batalla desde el Perfil
+    const bpBtnProfile = document.getElementById('openBattlePassProfileBtn');
+    if (bpBtnProfile) {
+        bpBtnProfile.addEventListener('click', () => {
+            if (typeof BattlePassManager !== 'undefined') {
+                // Cerramos perfil temporalmente para ver mejor el pase? 
+                // O mejor lo mostramos encima (el pase tiene z-index alto)
+                BattlePassManager.open();
+            } else {
+                console.error("BattlePassManager no está definido.");
+            }
+        });
+    }
+
+    // 2. Corrección del botón cerrar perfil (le puse ID en el HTML nuevo para ser más limpio)
+    const closeProfile = document.getElementById('closeProfileBtn');
+    if (closeProfile) {
+        closeProfile.addEventListener('click', () => {
+             document.getElementById('profileModal').style.display = 'none';
+        });
+    }
+    
     // Listener del Buzón
     if (domElements.floatingInboxBtn) {
         domElements.floatingInboxBtn.addEventListener('click', (event) => {
@@ -604,7 +628,6 @@ function initApp() {
     }
 
     // <<== "Forja" ==>>
-
     const openForgeBtn = document.getElementById('openForgeBtn');
     if (openForgeBtn) {
         openForgeBtn.addEventListener('click', () => {

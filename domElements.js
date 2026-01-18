@@ -88,6 +88,7 @@ domElements.closeRankingBtn = null;
 
 //pase de batalla: 
 domElements.battlePassModal = null;
+domElements.openBattlePassProfileBtn = null;
 
 // Antiguo botón startGameBtn se renombra a startLocalGameBtn
 domElements.player1TypeSelect = null;
@@ -253,6 +254,7 @@ function initializeDomElements() {
 
     //pase de batalla: 
     domElements.battlePassModal = document.getElementById('battlePassModal');
+    domElements.openBattlePassProfileBtn = document.getElementById('openBattlePassProfileBtn');
 
     // --- Obtener referencias de elementos DOM ---
     domElements.setupScreen = document.getElementById('setupScreen'); 

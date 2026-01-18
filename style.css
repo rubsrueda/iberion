@@ -5587,91 +5587,206 @@ input:checked + .slider:before {
 /*PASE DE BATALLA*/
 /*---------------*/
 
-/* Cabecera */
-.bp-header {
-    background: linear-gradient(to bottom, #1f1f1f, #121212);
-    padding: 15px;
-    border-bottom: 2px solid #ffd700;
-}
+/* --- ESTILOS DEL PASE DE BATALLA (Final & Bonito) --- */
 
-.bp-levels-container {
-    overflow-y: auto;
-    flex-grow: 1;
-    padding: 10px;
+/* 1. Contenedor Principal */
+.bp-main-container {
+    background: radial-gradient(circle at center, #2e1a47 0%, #1a0b2e 100%);
+    border: 2px solid #ffd700;
+    max-width: 900px;
+    height: 90vh !important;
+    padding: 0 !important;
     display: flex;
     flex-direction: column;
-    gap: 15px;
-}
-
-/* Fila de Nivel */
-.bp-level-row {
-    display: grid;
-    grid-template-columns: 50px 1fr 1fr;
-    gap: 10px;
-    background: #1e1e1e;
-    border: 1px solid #333;
-    border-radius: 8px;
+    color: white;
     overflow: hidden;
-    position: relative;
-}
-.bp-level-row.locked {
-    opacity: 0.6;
-    filter: grayscale(0.8);
 }
 
-/* Indicador de Nivel (Izquierda) */
-.bp-level-indicator {
-    background: #333;
+/* 2. Cabecera (Compacta y Funcional) */
+.bp-header-hero {
+    height: 75px;
+    background: rgba(0,0,0,0.6);
+    border-bottom: 1px solid #5a4a75;
+    display: grid;
+    grid-template-columns: 140px 1fr 150px;
+    align-items: center;
+    padding: 0 15px;
+    flex-shrink: 0;
+}
+
+.bp-header-col.info h2 {
+    font-size: 11px; margin: 0; color: #e2caff; text-transform: uppercase;
+}
+.bp-header-col.progress {
+    display: flex; flex-direction: column; align-items: center;
+}
+.bp-xp-track-header {
+    width: 80%; height: 8px; background: #000; border: 1px solid #555;
+    border-radius: 4px; overflow: hidden; margin-top: 4px;
+}
+#bpHeaderProgressBar {
+    height: 100%; width: 0%; background: linear-gradient(90deg, #9b59b6, #e056fd);
+}
+.bp-header-col.actions {
+    display: flex; justify-content: flex-end; gap: 10px; align-items: center;
+}
+.bp-gold-cta {
+    background: linear-gradient(180deg, #f1c40f, #ff8c00);
+    border: 1px solid white; border-radius: 6px;
+    color: #3e2723; padding: 5px 10px; font-weight: bold; font-size: 10px;
+    cursor: pointer;
+}
+.premium-active .bp-gold-cta {
+    background: #2ecc71; color: white; border-color: #27ae60; cursor: default;
+}
+.bp-close-x {
+    background: #c0392b; border: 1px solid white; color: white;
+    width: 24px; height: 24px; border-radius: 50%; font-size: 16px;
+    cursor: pointer;
+}
+
+
+/* 3. PARTE INFERIOR: DISEÑO DE CAMINO (Restaurado) */
+.bp-scroll-wrapper {
+    flex-grow: 1;
+    position: relative;
+    overflow: hidden;
+    background: #111; /* Fondo oscuro sólido */
+    background-image: 
+        radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 3px),
+        radial-gradient(white, rgba(255,255,255,.15) 1px, transparent 2px),
+        radial-gradient(white, rgba(255,255,255,.1) 2px, transparent 3px);
+    background-size: 550px 550px, 350px 350px, 250px 250px;
+    background-position: 0 0, 40px 60px, 130px 270px;
+}
+
+/* Etiquetas flotantes fijas a la izquierda */
+.bp-track-labels {
+    position: absolute; top: 0; left: 0; bottom: 0; width: 70px;
+    z-index: 5; background: linear-gradient(90deg, rgba(0,0,0,0.8), transparent);
+    pointer-events: none;
+}
+.label-track {
+    position: absolute; left: 10px; font-size: 10px; font-weight: bold; text-transform: uppercase;
+}
+.label-track.gold { top: 25%; color: #ffd700; text-shadow: 0 0 5px orange; }
+.label-track.free { bottom: 25%; color: #a0d3e8; text-shadow: 0 0 5px cyan; }
+
+
+/* El Carril Scrollable */
+.bp-items-track {
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    height: 100%;
+    padding-left: 80px; /* Espacio para etiquetas */
+    padding-right: 50px;
+    align-items: center;
+}
+
+/* --- ELEMENTOS DEL CARRIL (La parte que se veía mal antes) --- */
+
+.bp-col {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    font-weight: bold;
-    color: white;
-    border-right: 1px solid #444;
-}
-
-/* Tarjetas de Recompensa */
-.bp-reward-card {
-    padding: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 0.9em;
-}
-
-/* Estilo Gratis vs Premium */
-.bp-card-free {
-    background: rgba(255,255,255,0.05);
-}
-.bp-card-premium {
-    background: linear-gradient(90deg, rgba(103, 58, 183, 0.2), rgba(0,0,0,0));
-    border-left: 2px solid #9b59b6;
+    margin-right: 0px;
     position: relative;
+    min-width: 90px; /* Anchura de columna */
 }
-.bp-card-premium::after {
-    content: "PREMIUM";
+
+/* Línea conectora Horizontal */
+.bp-connector {
+    width: 90px; height: 4px;
+    background: #444;
     position: absolute;
-    top: 2px; right: 5px;
-    font-size: 8px;
-    color: #ffd700;
+    top: 50%; left: 50%;
+    transform: translateY(-50%);
+    z-index: 1;
+}
+.bp-col.reached .bp-connector {
+    background: #f1c40f;
+    box-shadow: 0 0 8px #f1c40f;
+}
+.bp-col:last-child .bp-connector { display: none; }
+
+/* Nodo Central Circular */
+.bp-ball {
+    width: 24px; height: 24px;
+    background: #222; border: 2px solid #555; border-radius: 50%;
+    color: #777; font-size: 11px; font-weight: bold;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 2; margin: 10px 0;
+}
+.bp-col.reached .bp-ball {
+    background: linear-gradient(180deg, #f1c40f, #e67e22);
+    color: #1a0b2e; border-color: white; box-shadow: 0 0 10px gold;
 }
 
-/* Estado de Recompensa */
-.bp-reward-claimed {
-    opacity: 0.5;
+/* CAJAS DE RECOMPENSA (Estilo "Card") */
+.bp-box {
+    width: 60px; height: 60px;
+    background: rgba(30, 30, 40, 0.9);
+    border-radius: 8px;
+    position: relative;
+    z-index: 2;
+    display: flex; flex-direction: column; 
+    align-items: center; justify-content: center;
+    box-shadow: 0 4px 5px rgba(0,0,0,0.5);
+    transition: transform 0.2s;
 }
-.bp-claim-btn {
-    padding: 5px 10px;
-    font-size: 0.8em;
-    background: #28a745;
-    color: white;
-    border: none;
-    border-radius: 4px;
+.bp-box:hover { transform: scale(1.05); }
+
+/* Colores específicos */
+.bp-box.prem { border: 2px solid #5d4037; margin-bottom: 5px; } /* Premium inactivo */
+.bp-box.free { border: 2px solid #3498db; margin-top: 5px; background: radial-gradient(rgba(52, 152, 219, 0.1), rgba(0,0,0,0));} 
+
+/* Premium ACTIVO */
+.premium-active .bp-box.prem {
+    border-color: #ffd700;
+    background: radial-gradient(rgba(255, 215, 0, 0.15), rgba(0,0,0,0.8));
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
+}
+
+/* Estado: Reclamable */
+.bp-claimable {
+    border-color: white !important;
     cursor: pointer;
+    animation: pulse-border 1.5s infinite;
 }
-.bp-claim-btn:hover { background: #218838; }
-.bp-lock-icon { font-size: 1.5em; }
+@keyframes pulse-border { 0% { box-shadow:0 0 0 white;} 50% {box-shadow:0 0 10px white;} 100% {box-shadow:0 0 0 white;} }
 
-/* Ocultar botón premium si ya lo tiene */
-.premium-active #buyPremiumBtn { display: none; }
+/* Estado: Candado y Check */
+.bp-lock {
+    position: absolute; font-size: 18px; top: -5px; right: -5px;
+    background: #222; border-radius: 50%; padding: 2px; border:1px solid #555;
+}
+/* EFECTO DE LUZ DORADA EN EL CONECTOR */
+.bp-col.reached .bp-connector {
+    background: linear-gradient(90deg, #f1c40f, #ffeb3b, #f1c40f);
+    background-size: 200% 100%;
+    box-shadow: 0 0 10px #f1c40f, 0 0 20px #b78a06;
+    animation: flow-gold 2s linear infinite;
+    height: 6px; /* Un poco más grueso para que se vea la luz */
+}
+
+@keyframes flow-gold {
+    0% { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+}
+
+/* CAJA DORADA CUANDO ESTÁ ACTIVA (PREMIUM) */
+.premium-active .bp-box.prem {
+    /* Eliminamos el borde simple y ponemos un resplandor interno */
+    border: 2px solid #ffd700;
+    box-shadow: inset 0 0 15px rgba(255, 215, 0, 0.2), 0 0 10px rgba(255, 215, 0, 0.4);
+    transition: all 0.3s ease;
+}
+
+/* Cuando pasas el mouse por una caja dorada activa */
+.premium-active .bp-box.prem:hover {
+    transform: translateY(-5px) scale(1.1);
+    box-shadow: 0 0 20px #ffd700;
+    z-index: 10;
+}

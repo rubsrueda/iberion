@@ -141,6 +141,33 @@ function addModalEventListeners() {
         });
     }
 
+    // --- LISTENER DEL PASE DE BATALLA (PERFIL) ---
+    if (domElements.openBattlePassProfileBtn) {
+        domElements.openBattlePassProfileBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            
+            // Verificamos si el Manager del Pase existe antes de llamar
+            if (typeof BattlePassManager !== 'undefined') {
+                console.log("Abriendo Pase de Batalla desde Perfil...");
+                BattlePassManager.open();
+            } else {
+                console.error("Error: BattlePassManager no está cargado.");
+            }
+        });
+    }
+
+    // --- ASEGURAR QUE EL BOTÓN CERRAR FUNCIONA CON EL NUEVO ID pase de batalla---
+    const closeProfile = document.getElementById('closeProfileBtn');
+    if (closeProfile) {
+        // Clonamos para eliminar listeners viejos
+        const newClose = closeProfile.cloneNode(true);
+        closeProfile.parentNode.replaceChild(newClose, closeProfile);
+        
+        newClose.addEventListener('click', () => {
+             document.getElementById('profileModal').style.display = 'none';
+        });
+    }
+
     //tecnología
     if (domElements.closeTechTreeBtn) {
         domElements.closeTechTreeBtn.addEventListener('click', (event) => { 

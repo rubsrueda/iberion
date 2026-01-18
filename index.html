@@ -339,58 +339,84 @@
     <!-- ====== Modal del perfil del jugador                             ====== -->
     <!-- ====================================================================== -->
 
-    <div id="profileModal" class="modal modal-themed" style="display: none;">
-        <div class="modal-content" style="max-width: 600px; width: 95vw; height: 310px; padding: 0; background: #2c2219; border: 2px solid #ffd700; overflow: hidden;">
+    <div id="profileModal" class="modal modal-themed" style="display: none; z-index: 10000;">
+        <div class="modal-content" style="max-width: 600px; width: 95vw; height: 350px; padding: 0; background: #2c2219; border: 2px solid #ffd700; overflow: hidden; display: flex; flex-direction: column;">
             
-            <!-- HEADER (Identidad + Reclamar) -->
-            <div style="height: 80px; background: linear-gradient(to right, #4e342e, #2c2219); display: flex; align-items: center; padding: 0 15px; position: relative;">
-                <div id="profileAvatar" onclick="changeAvatar()" style="width: 60px; height: 60px; border: 2px solid gold; border-radius: 10px; font-size: 2.5em; display: flex; align-items: center; justify-content: center; background: #111;">🎖️</div>
-                <div style="margin-left: 15px; flex-grow: 1;">
-                    <h2 id="profileUsername" style="margin: 0; font-size: 1.1em; color: white;">General</h2>
-                    <div style="font-size: 0.8em; color: #f1c40f;">Lvl <span id="profileLevelNum">1</span> | <span id="allianceName">Sin Alianza</span></div>
+            <!-- 1. HEADER: Identidad, Pase de Batalla y Reclamo -->
+            <div style="height: 85px; background: linear-gradient(to right, #4e342e, #2c2219); display: flex; align-items: center; padding: 0 10px; position: relative; border-bottom: 1px solid #5d4037; flex-shrink: 0;">
+                
+                <!-- A. Avatar -->
+                <div id="profileAvatar" onclick="changeAvatar()" style="width: 55px; height: 55px; border: 2px solid gold; border-radius: 10px; font-size: 2.2em; display: flex; align-items: center; justify-content: center; background: #111; cursor:pointer; flex-shrink: 0;">🎖️</div>
+                
+                <!-- B. Info Jugador (Nombre + Nivel + Barra) -->
+                <div style="margin-left: 10px; min-width: 100px;">
+                    <h2 id="profileUsername" style="margin: 0; font-size: 1em; color: white; white-space: nowrap;">General</h2>
+                    <div style="font-size: 0.7em; color: #f1c40f;">Lvl <span id="profileLevelNum">1</span> | <span id="allianceName">Sin Alianza</span></div>
                     <!-- Barra XP mini -->
-                    <div style="width: 120px; height: 5px; background: #000; border-radius: 3px; margin-top: 5px;"><div id="profileXpBar" style="width: 0%; height: 100%; background: #4caf50;"></div></div>
+                    <div style="width: 100%; max-width: 100px; height: 5px; background: #000; border-radius: 3px; margin-top: 5px;">
+                        <div id="profileXpBar" style="width: 0%; height: 100%; background: #4caf50;"></div>
+                    </div>
                 </div>
-                <!-- Botón Reclamar (Debajo de la X) -->
-                <button id="claimDailyBtn" style="position: absolute; right: 10px; top: 35px; padding: 5px 10px; font-size: 10px; background: #f1c40f; border: none; border-radius: 4px; font-weight: bold;">RECLAMAR 🎁</button>
-                <span class="close-button" onclick="document.getElementById('profileModal').style.display='none'" style="position: absolute; top: 5px; right: 10px;">×</span>
+
+                <!-- C. NUEVO BOTÓN: PASE DE BATALLA (Centro Flexible) -->
+                <div style="flex-grow: 1; display: flex; justify-content: center; padding-right: 55px;"> <!-- padding-right para compensar el botón de reclamo absoluto -->
+                    <button id="openBattlePassProfileBtn" style="
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                        border: 1px solid #a4b0be; 
+                        border-radius: 5px; 
+                        color: white; 
+                        padding: 4px 8px; 
+                        cursor: pointer; 
+                        box-shadow: 0 0 5px rgba(0,0,0,0.5);
+                        display: flex; flex-direction: column; align-items: center; line-height: 1.1;
+                    ">
+                        <span style="font-size: 0.6em; color: #ffd700; font-weight:bold;">TEMPORADA 1</span>
+                        <span style="font-size: 0.85em; font-weight: bold;">🎫 PASE</span>
+                    </button>
+                </div>
+
+                <!-- D. Botón Reclamar (Posición Absoluta Derecha) -->
+                <button id="claimDailyBtn" style="position: absolute; right: 10px; bottom: 10px; padding: 4px 8px; font-size: 9px; background: #f1c40f; border: none; border-radius: 4px; font-weight: bold; width: 65px; z-index: 5;">RECLAMAR 🎁</button>
+                
+                <!-- E. Botón Cerrar (Posición Absoluta Arriba) -->
+                <span class="close-button" id="closeProfileBtn" style="position: absolute; top: 5px; right: 8px; font-size: 24px; color: #ccc; cursor: pointer; z-index: 6;">×</span>
             </div>
 
-            <!-- NAV ICONS (Fondo Marrón) -->
-            <div style="height: 35px; background: #3e2723; display: flex; justify-content: space-around; align-items: center; border-bottom: 1px solid #5d4037;">
-                <span onclick="showToast('Info')" style="font-size: 18px; cursor:pointer;">ℹ️</span>
-                <span onclick="showRanking()" style="font-size: 18px; cursor:pointer;">🏆</span>
-                <span onclick="document.getElementById('barracksModal').style.display='flex'" style="font-size: 18px; cursor:pointer;">🎖️</span>
-                <span onclick="openSettingsModal()" style="font-size: 18px; cursor:pointer;">⚙️</span>
+            <!-- 2. NAV ICONS (Tus botones originales) -->
+            <div style="height: 40px; background: #3e2723; display: flex; justify-content: space-around; align-items: center; border-bottom: 1px solid #5d4037; flex-shrink: 0;">
+                <span onclick="showToast('Info')" title="Información" style="font-size: 20px; cursor:pointer; padding: 5px;">ℹ️</span>
+                <span onclick="openRankingModal()" title="Ranking" style="font-size: 20px; cursor:pointer; padding: 5px;">🏆</span>
+                <span onclick="document.getElementById('barracksModal').style.display='flex'" title="Cuartel" style="font-size: 20px; cursor:pointer; padding: 5px;">🎖️</span>
+                <span onclick="openSettingsModal()" title="Configuración" style="font-size: 20px; cursor:pointer; padding: 5px;">⚙️</span>
             </div>
 
-            <!-- GRID DE LOS 5 VALORES (Cuerpo) -->
-            <div style="padding: 10px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px;">
+            <!-- 3. GRID DE ESTADÍSTICAS (Tus stats originales) -->
+            <div style="padding: 10px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; overflow-y: auto;">
                 <div class="stat-box" style="padding: 5px; text-align: center; border-radius: 5px; background: rgba(0,0,0,0.3); border: 1px solid #5d4037;">
-                    <span style="font-size: 9px; display: block; color: #bcaaa4;">VICTORIAS</span>
-                    <strong id="statWins" style="font-size: 12px; color: #fff;">0</strong>
+                    <span style="font-size: 8px; display: block; color: #bcaaa4;">VICTORIAS</span>
+                    <strong id="statWins" style="font-size: 11px; color: #fff;">0</strong>
                 </div>
                 <div class="stat-box" style="padding: 5px; text-align: center; border-radius: 5px; background: rgba(0,0,0,0.3); border: 1px solid #5d4037;">
-                    <span style="font-size: 9px; display: block; color: #bcaaa4;">BAJAS</span>
-                    <strong id="statKills" style="font-size: 12px; color: #ff5252;">0</strong>
+                    <span style="font-size: 8px; display: block; color: #bcaaa4;">BAJAS</span>
+                    <strong id="statKills" style="font-size: 11px; color: #ff5252;">0</strong>
                 </div>
                 <div class="stat-box" style="padding: 5px; text-align: center; border-radius: 5px; background: rgba(0,0,0,0.3); border: 1px solid #5d4037;">
-                    <span style="font-size: 9px; display: block; color: #bcaaa4;">TROPAS</span>
-                    <strong id="statTroops" style="font-size: 12px; color: #4caf50;">0</strong>
+                    <span style="font-size: 8px; display: block; color: #bcaaa4;">TROPAS</span>
+                    <strong id="statTroops" style="font-size: 11px; color: #4caf50;">0</strong>
                 </div>
                 <div class="stat-box" style="padding: 5px; text-align: center; border-radius: 5px; background: rgba(0,0,0,0.3); border: 1px solid #5d4037;">
-                    <span style="font-size: 9px; display: block; color: #bcaaa4;">COMERCIO</span>
-                    <strong id="statTrades" style="font-size: 12px; color: #ffeb3b;">0</strong>
+                    <span style="font-size: 8px; display: block; color: #bcaaa4;">COMERCIO</span>
+                    <strong id="statTrades" style="font-size: 11px; color: #ffeb3b;">0</strong>
                 </div>
                 <div class="stat-box" style="padding: 5px; text-align: center; border-radius: 5px; background: rgba(0,0,0,0.3); border: 1px solid #5d4037;">
-                    <span style="font-size: 9px; display: block; color: #bcaaa4;">CIUDADES</span>
-                    <strong id="statCities" style="font-size: 12px; color: #00f3ff;">0</strong>
+                    <span style="font-size: 8px; display: block; color: #bcaaa4;">CIUDADES</span>
+                    <strong id="statCities" style="font-size: 11px; color: #00f3ff;">0</strong>
                 </div>
             </div>
 
-            <!-- ACCESO AL CÓDICE -->
-            <div style="padding: 0 15px;">
-                <button onclick="openFullCodex()" style="width: 100%; padding: 8px; background: #1b130c; color: #ffd700; border: 1px solid #ffd700; border-radius: 5px; font-size: 11px; font-weight: bold;">📖 ABRIR CÓDICE DE BATALLAS</button>
+            <!-- 4. FOOTER: Botón del Códice -->
+            <div style="padding: 10px; margin-top: auto; border-top: 1px solid #5d4037; text-align: center;">
+                <button onclick="openFullCodex()" style="width: 100%; padding: 8px; background: #1b130c; color: #ffd700; border: 1px solid #ffd700; border-radius: 5px; font-size: 11px; font-weight: bold; cursor: pointer;">📖 ABRIR CÓDICE DE BATALLAS</button>
             </div>
         </div>
     </div>
@@ -437,35 +463,52 @@
     <!-- ====================================================================== -->
     <!-- ====================== MODAL DE PASE DE BATALLA ====================== -->
     <!-- ====================================================================== -->
-    <!-- index.html -->
+    
     <div id="battlePassModal" class="modal modal-themed" style="display: none; z-index: 10020;">
-        <div class="modal-content" style="max-width: 800px; height: 90vh; background: #121212; border: 1px solid #ffd700;">
+        <div class="modal-content bp-main-container">
             
-            <!-- Cabecera del Pase -->
-            <div class="bp-header">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h2 id="bpSeasonName" style="color:#f1c40f; text-transform: uppercase;">Temporada 1</h2>
-                    <button class="close-button" id="closeBattlePassBtn">×</button>
+            <!-- CABECERA (Funcional y Compacta) -->
+            <div class="bp-header-hero">
+                <!-- Bloque Izquierdo: Info -->
+                <div class="bp-header-col info">
+                    <h2 id="bpSeasonName">CARGANDO...</h2>
+                    <div id="bpSeasonTimer" style="color:#ffd700; font-family:monospace;">--d --h</div>
                 </div>
-                
-                <div class="bp-progress-area">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                        <span id="bpCurrentLevelDisplay">Nivel 1</span>
-                        <span id="bpXpDisplay" style="color:#aaa;">0 / 500 XP</span>
+
+                <!-- Bloque Centro: Barra XP -->
+                <div class="bp-header-col progress">
+                    <div style="display:flex; justify-content:center; gap:10px; width:100%; font-weight:bold; font-size:0.9em;">
+                        <span id="bpLvlLeft">1</span>
+                        <span id="bpXpText" style="color:#aaa;">0 / 0</span>
+                        <span id="bpLvlRight">2</span>
                     </div>
-                    <div class="xp-bar-container" style="background:#333;">
-                        <div id="bpGlobalProgressBar" class="xp-bar" style="width: 0%; background: #9b59b6;"></div>
+                    <!-- Barra de Progreso Visual -->
+                    <div class="bp-xp-track-header">
+                        <div id="bpHeaderProgressBar"></div>
                     </div>
-                    <button id="buyPremiumBtn" style="width:100%; margin-top:10px; background:linear-gradient(45deg, #ffd700, #ff8c00); border:none; padding:10px; font-weight:bold; color:black;">
-                        🔓 ACTIVAR PASE PREMIUM
+                </div>
+
+                <!-- Bloque Derecha: Acciones -->
+                <div class="bp-header-col actions">
+                    <button id="buyPremiumBtn" class="bp-gold-cta">
+                        ACTIVAR DORADO
                     </button>
+                    <button id="closeBattlePassBtn" class="bp-close-x">×</button>
                 </div>
             </div>
 
-            <!-- Lista de Niveles -->
-            <div id="bpLevelsList" class="bp-levels-container">
-                <!-- JS Rellenará esto -->
-                <p style="text-align:center; padding:20px; color:#888;">Cargando temporada...</p>
+            <!-- CUERPO INFERIOR: El Diseño "Camino" Restaurado -->
+            <div class="bp-scroll-wrapper">
+                <!-- Etiquetas Flotantes (Izquierda) -->
+                <div class="bp-track-labels">
+                    <div class="label-track gold">Pase<br>Dorado</div>
+                    <div class="label-track free">Gratis</div>
+                </div>
+
+                <!-- Contenedor del Scroll -->
+                <div id="bpScrollContainer" class="bp-items-track">
+                    <!-- El JS rellenará esto con cajas bonitas -->
+                </div>
             </div>
 
         </div>
@@ -1328,6 +1371,8 @@
     <script src="playerDataManager.js"></script>
     <script src="gachaManager.js"></script>
     <script src="mailboxManager.js"></script> 
+    <script src="seasonsData.js"></script> 
+    <script src="battlePassManager.js"></script> 
     <script src="audioManager.js"></script>
     <script src="technologyTree.js"></script> 
     <script src="worldMapData.js"></script>

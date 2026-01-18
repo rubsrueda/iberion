@@ -941,6 +941,12 @@ async function attackUnit(attackerDivision, defenderDivision) {
 
         // Función auxiliar mejorada para calcular bonus y añadir acciones
         const addActions = (division, isAttacker) => {
+            // REGLA: Si la moral es <= 0, la unidad está en pánico y NO ataca.
+            if (division.morale <= 0) {
+                console.log(`[Combate] ${division.name} tiene Moral 0 y no devuelve el golpe.`);
+                return;
+            }
+
             if (!division.regiments) return;
 
             let commanderSkills = [];
@@ -953,8 +959,8 @@ async function attackUnit(attackerDivision, defenderDivision) {
                     commanderSkills = commanderData.skills;
                 }
             }
-
-            division.regiments.forEach(reg => {
+            
+             division.regiments.forEach(reg => {
                 const regData = REGIMENT_TYPES[reg.type];
                 if (!regData || reg.health <= 0) return;
 
@@ -1015,7 +1021,7 @@ async function attackUnit(attackerDivision, defenderDivision) {
                         });
                     }
                 }
-            });
+             });
         };
 
         addActions(attackerDivision, true);
@@ -1086,14 +1092,14 @@ async function attackUnit(attackerDivision, defenderDivision) {
 
         // === FASE DE RESOLUCIÓN FINAL =====
         console.group("--- RESULTADOS DEL COMBATE ---");
-
+        
         recalculateUnitHealth(attackerDivision);
         recalculateUnitHealth(defenderDivision);
-
+        
         const finalHealthAttacker = attackerDivision.currentHealth;
         const finalHealthDefender = defenderDivision.currentHealth;
 
-        // 1. Calcular daño y eficiencia (TU LÓGICA ORIGINAL RESTAURADA)
+         // 1. Calcular daño y eficiencia (TU LÓGICA ORIGINAL RESTAURADA)
         const damageDealtByAttacker = initialHealthDefender - finalHealthDefender;
         const damageDealtByDefender = initialHealthAttacker - finalHealthAttacker;
         const attackerEfficiency = damageDealtByAttacker / (damageDealtByDefender || 1);
@@ -1102,27 +1108,49 @@ async function attackUnit(attackerDivision, defenderDivision) {
         // 2. Calcular XP base por participar en el combate
         let attackerXP = 5 + Math.round(attackerEfficiency * 2);
         let defenderXP = 5 + Math.round(defenderEfficiency * 2);
-        
-        // 3. Comprobar destrucciones
-        const attackerDestroyed = finalHealthAttacker <= 0;
-        const defenderDestroyed = finalHealthDefender <= 0;
 
-        // REGLA Rodeo Total en Combate + Derrota
-        // Condición: Defensor sobrevive al daño (HP > 0) PERO pierde (su moral probablemente baje a 0)
-        if (!defenderDestroyed && finalHealthDefender > 0) {
-            
-            // Verificamos si ha quedado con Moral 0 tras el combate
-            if (defenderDivision.morale <= 0) {
-                // Verificamos si está físicamente rodeada (6 lados)
-                const isDefenderSurrounded = checkSurroundStatus(defenderDivision);
+        // Detectar muerte por daño directo
+        const defenderDestroyed = finalHealthDefender <= 0;
+        const attackerDestroyed = finalHealthAttacker <= 0;
+
+        // --- LÓGICA DE RETIRADA / DESTRUCCIÓN POR RODEO ---
+        
+        // CASO: Defensor sobrevive al daño, pero podría tener que huir
+        if (!defenderDestroyed) {
+            // Condición de Retirada Obligatoria:
+            // 1. Ya tenía moral 0 (estaba desorganizada)
+            // 2. O perdió tanta vida que entra en pánico (ej: perdió > 20% de su total)
+            const panicMoral = defenderDivision.morale <= 0;
+            // Cálculo simple de derrota táctica (perdió más vida que el atacante)
+            const damageTaken = defenderDivision.maxHealth - finalHealthDefender;
+            const damageDealt = attackerDivision.maxHealth - finalHealthAttacker;
+            const tacticalDefeat = damageTaken > damageDealt * 1.5; // Perdió por paliza
+
+            if (panicMoral || tacticalDefeat) {
+                logMessage(`${defenderDivision.name} intenta retirarse del combate...`);
                 
-                if (isDefenderSurrounded) {
-                    logMessage(`¡${defenderDivision.name} intenta huir pero está RODEADA!`, "important");
-                    // Ejecutar Regla 4: Muerte o Traición inmediata
+                // Buscamos salida física
+                const retreatHex = findSafeRetreatHex(defenderDivision, attackerDivision);
+
+                if (retreatHex) {
+                    // ESCENARIO A: Hay salida. Se retira.
+                    // Usamos _executeMoveUnit para moverla físicamente.
+                    // Nota: Si estaba desorganizada, sigue estándolo.
+                    logMessage(`... y logra huir hacia (${retreatHex.r}, ${retreatHex.c}).`);
+                    await _executeMoveUnit(defenderDivision, retreatHex.r, retreatHex.c);
+                    
+                    // Penalización extra de moral por la huida vergonzosa
+                    defenderDivision.morale = Math.max(0, defenderDivision.morale - 20);
+                    if(defenderDivision.morale <= 0) defenderDivision.isDisorganized = true;
+
+                } else {
+                    // ESCENARIO B: NO hay salida (Rodeada por enemigos o terreno).
+                    // Aquí se aplica la Regla 4: Destrucción por no poder retirarse.
+                    logMessage(`¡${defenderDivision.name} está RODEADA y no puede retirarse!`, "important");
                     await attemptDefectionOrDestroy(defenderDivision, "aniquilación tras cerco en combate");
                     
-                    // Si el defensor muere aquí, ya no procesamos nada más para él.
-                    // Pero sí debemos procesar al atacante si sobrevivió (XP, etc.)
+                    // Como el defensor ha desaparecido, salimos.
+                    // (Pero procesamos XP del atacante si quieres)
                     if (!attackerDestroyed) {
                         // (Tu código de recompensa para el atacante aquí, si lo tienes separado)
                         // Normalmente handleUnitDestroyed ya maneja la XP del vencedor si se le pasa.
@@ -1733,34 +1761,40 @@ function handleReinforceUnitAction(unitToReinforce) {
     }
 }
 
+/**
+ * Helper: Encuentra una casilla adyacente segura para retirarse (no agua, no montaña, no enemigo).
+ */
 function findSafeRetreatHex(unit, attacker) {
-    if (!unit) return null;
     const neighbors = getHexNeighbors(unit.r, unit.c);
-    const potentialRetreatHexes = [];
-
-    for (const n_coord of neighbors) {
-        const hexData = board[n_coord.r]?.[n_coord.c];
-        // Solo puede retirarse a hexágonos vacíos que no sean agua
-        if (hexData && !hexData.unit && !TERRAIN_TYPES[hexData.terrain]?.isImpassableForLand) { 
-            // Prioridad 1: Casilla propia
-            if (hexData.owner === unit.player) {
-                potentialRetreatHexes.push({ ...n_coord, priority: 1 });
-            }
-            // Prioridad 2: Casilla neutral
-            else if (hexData.owner === null) {
-                potentialRetreatHexes.push({ ...n_coord, priority: 2 });
-            }
-        }
-    }
-
-    potentialRetreatHexes.sort((a,b) => a.priority - b.priority);
-
-    if (potentialRetreatHexes.length > 0) {
-        return potentialRetreatHexes[0]; 
-    }
     
-    console.log(`[findSafeRetreatHex] ${unit.name} no encontró hex para retirarse.`);
-    return null;
+    // Filtramos las casillas válidas
+    const validRetreats = neighbors.filter(n => {
+        const hex = board[n.r]?.[n.c];
+        const unitOnHex = getUnitOnHex(n.r, n.c);
+        
+        // 1. Debe existir y ser terreno transitable
+        if (!hex || TERRAIN_TYPES[hex.terrain]?.isImpassableForLand) return false;
+        
+        // 2. No debe haber unidad (ni amiga ni enemiga, para evitar fusiones accidentales en pánico)
+        if (unitOnHex) return false;
+        
+        // 3. No debe ser territorio controlado por el enemigo (opcional, pero recomendado para huida segura)
+        // Si prefieres que puedan huir a territorio enemigo si está vacío, quita esta línea.
+        // if (hex.owner !== null && hex.owner !== unit.player) return false;
+
+        return true;
+    });
+
+    if (validRetreats.length === 0) return null;
+
+    // Estrategia: Elegir la casilla que más nos aleje del atacante
+    validRetreats.sort((a, b) => {
+        const distA = hexDistance(a.r, a.c, attacker.r, attacker.c);
+        const distB = hexDistance(b.r, b.c, attacker.r, attacker.c);
+        return distB - distA; // Mayor distancia primero
+    });
+
+    return validRetreats[0];
 }
 
 function handlePostBattleRetreat(unit, attacker) { 
