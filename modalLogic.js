@@ -3419,12 +3419,60 @@ async function populateWikiAchievementsTab() {
     }
 }
 
+// Landing Page
+function openLandingPage(isFromProfile = false) {
+    const modal = document.getElementById('landingPageModal');
+    const closeBtn = document.getElementById('closeLandingBtn');
+    const enterBtn = document.getElementById('landingEnterGameBtn');
+    
+    if (!modal) return;
+
+    if (isFromProfile) {
+        // Modo "Información": Muestra la X para cerrar y volver al perfil
+        closeBtn.style.display = 'block';
+        closeBtn.onclick = () => {
+            modal.style.display = 'none';
+        };
+        
+        // El botón grande también cierra el modal
+        enterBtn.textContent = "VOLVER AL JUEGO";
+        enterBtn.onclick = () => {
+            modal.style.display = 'none';
+        };
+    } else {
+        // Modo "Bienvenida": Sin X, el botón lleva al Login
+        closeBtn.style.display = 'none';
+        
+        enterBtn.textContent = "ENTRAR AL JUEGO";
+        enterBtn.onclick = () => {
+            modal.style.display = 'none';
+            showLoginScreen(); // Llama a tu función existente de login
+        };
+    }
+
+    modal.style.display = 'flex';
+}
+
 async function openProfileModal() {
     const player = PlayerDataManager.currentPlayer;
     if (!player) return;
 
      //Sincronización
      await PlayerDataManager.saveCurrentPlayer();
+
+    //Alianza
+     const alNameLabel = document.getElementById('allianceName');
+    if(alNameLabel) {
+        alNameLabel.style.cursor = "pointer";
+        alNameLabel.style.textDecoration = "underline";
+        // Añade listener (usando replace para evitar duplicados es lo más limpio, 
+        // o configuralo en setup global)
+        alNameLabel.onclick = () => {
+             // Cerramos perfil para enfocarnos en la alianza
+            document.getElementById('profileModal').style.display = 'none';
+            AllianceManager.open();
+        };
+    }
 
     // 1. Mostrar el modal inmediatamente
     const modal = document.getElementById('profileModal');

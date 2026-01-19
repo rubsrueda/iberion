@@ -1903,6 +1903,10 @@ async function handleUnitDestroyed(destroyedUnit, victorUnit) {
         _generateRuinAt(savedCoords.r, savedCoords.c);
     }
 
+    if (typeof BattlePassManager !== 'undefined') {
+        BattlePassManager.updateProgress('unit_kill', 1);
+    }
+
     // Actualización visual final
     if (UIManager) UIManager.updateAllUIDisplays();
     if (typeof checkVictory === 'function' && !gameState.isTutorialActive) checkVictory();

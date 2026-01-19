@@ -313,8 +313,10 @@
             <div id="hotspotAltar" class="main-menu-hotspot" data-action="openAltar"></div>
         <!-- Campaña: Edificio grande arriba -->
             <div id="hotspotCampaign" class="main-menu-hotspot" data-action="openProfile"></div>
+        <!-- NUEVO HOTSPOT: ALIANZA (Abajo a la derecha) -->
+        <!--<div id="hotspotAlliance" class="main-menu-hotspot" data-action="openAlliance"></div>-->
         <!-- Tronos de Iberia: Ruinas a la derecha -->
-            <div id="hotspotThrones" class="main-menu-hotspot" data-action="showComingSoon"></div>
+        <div id="hotspotThrones" class="main-menu-hotspot" data-action="openAlliance"></div>
         
         <!-- Información del General y Logout -->
             <div id="generalInfoPanel">
@@ -384,7 +386,7 @@
 
             <!-- 2. NAV ICONS (Tus botones originales) -->
             <div style="height: 40px; background: #3e2723; display: flex; justify-content: space-around; align-items: center; border-bottom: 1px solid #5d4037; flex-shrink: 0;">
-                <span onclick="showToast('Info')" title="Información" style="font-size: 20px; cursor:pointer; padding: 5px;">ℹ️</span>
+                <span onclick="openLandingPage(true)" title="Información del Juego" style="font-size: 20px; cursor:pointer; padding: 5px;">ℹ️</span>
                 <span onclick="openRankingModal()" title="Ranking" style="font-size: 20px; cursor:pointer; padding: 5px;">🏆</span>
                 <span onclick="document.getElementById('barracksModal').style.display='flex'" title="Cuartel" style="font-size: 20px; cursor:pointer; padding: 5px;">🎖️</span>
                 <span onclick="openSettingsModal()" title="Configuración" style="font-size: 20px; cursor:pointer; padding: 5px;">⚙️</span>
@@ -1354,6 +1356,207 @@
     <div id="gameLogContainer" class="game-log-container"></div>
 
     <!-- ====================================================================== -->
+    <!-- =============================== Alianza ============================== -->
+    <!-- ====================================================================== -->
+
+    <div id="allianceModal" class="modal modal-themed" style="display: none; z-index: 10030;">
+        <!-- Eliminamos clases antiguas, usamos estructura 'Hub' -->
+        <div class="modal-content ali-hub-window">
+            
+            <!-- HEADER COMPACTO -->
+            <div class="ali-hub-header">
+                <div class="ali-identity">
+                    <div id="hqFlag" class="ali-flag-small">🛡️</div>
+                    <div class="ali-titles">
+                        <h2 id="hqName">[TAG] Nombre Alianza</h2>
+                        <div class="ali-meta-row">
+                            <span class="badge-lvl">Nvl <span id="hqLevel">1</span></span>
+                            <span class="badge-lang">🌐 <span id="hqLanguage">Global</span></span>
+                            <span class="badge-power">⚔️ <span id="hqPower">0</span></span>
+                            <span class="badge-members">👥 <span id="hqMembers">0/50</span></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="ali-header-actions">
+                    <button id="aliLeaveBtn" class="btn-danger-icon" title="Abandonar">🚪</button>
+                    <button id="closeAllianceBtn" class="close-button">×</button>
+                </div>
+            </div>
+
+            <!-- CUERPO PRINCIPAL (LÓGICA DE PANTALLAS) -->
+            
+            <!-- PANTALLA 1: BUSCADOR (Si no tienes alianza) -->
+            <div id="aliView_Lobby" class="ali-lobby-layout" style="display:none;">
+                <div class="search-bar-row">
+                    <input type="text" id="aliSearchInput" placeholder="Buscar por nombre o etiqueta..." class="search-input">
+                    <button id="aliSearchBtn" class="btn-action">🔍</button>
+                    <button id="aliCreateModeBtn" class="btn-success">➕ Crear</button>
+                </div>
+                <!-- LISTA DE ALIANZAS: Densa y visual -->
+                <div id="aliSearchResults" class="ali-list-grid">
+                    <!-- Se rellena con JS -->
+                </div>
+                <!-- Formulario de creación (oculto por defecto) -->
+                <div id="aliCreateForm" class="create-form-overlay" style="display:none;">
+                    <h3>Fundar Alianza</h3>
+                    <div class="form-group">
+                        <label>Estandarte</label>
+                        <div class="emblem-selector" id="newAliEmblemSelector">
+                            <div class="emb-opt selected">🛡️</div><div class="emb-opt">🦁</div><div class="emb-opt">☠️</div>
+                            <div class="emb-opt">⚔️</div><div class="emb-opt">🦅</div><div class="emb-opt">👑</div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <input type="text" id="newAliName" placeholder="Nombre" maxlength="20">
+                        <input type="text" id="newAliTag" placeholder="TAG (3)" maxlength="3" style="text-transform:uppercase; width: 60px;">
+                    </div>
+                    <div class="form-row">
+                        <select id="newAliType"><option value="Open">Abierta</option><option value="Approval">Con Solicitud</option></select>
+                        <select id="newAliLang"><option value="ES">Español</option><option value="EN">English</option><option value="Global">Global</option></select>
+                    </div>
+                    <div class="form-actions">
+                        <button onclick="document.getElementById('aliCreateForm').style.display='none'" class="btn-cancel">Cancelar</button>
+                        <button id="aliCreateConfirmBtn" class="btn-confirm">Crear (500 💰)</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANTALLA 2: CUARTEL GENERAL (Si tienes alianza) -->
+            <div id="aliView_HQ" class="ali-hq-grid" style="display:none;">
+                
+                <!-- COLUMNA IZQUIERDA: OPERACIONES Y ESTADO -->
+                <div class="hq-col-left">
+                    <!-- La "Guerra" o Incursión activa (Estilo Hero Wars Raid) -->
+                    <div class="war-status-card">
+                        <div class="war-header">⚠️ INCURSIÓN ACTIVA</div>
+                        <div class="war-content">
+                            <div class="raid-target-icon">🐫</div>
+                            <div class="raid-info">
+                                <strong>Caravana Imperial</strong>
+                                <div class="hp-bar-container"><div class="hp-bar" style="width:75%"></div></div>
+                                <small>75% HP restante</small>
+                            </div>
+                            <button class="btn-attack">⚔️ ATACAR</button>
+                        </div>
+                    </div>
+
+                    <!-- Lista de Miembros Compacta -->
+                    <div class="members-card">
+                        <div class="card-header">
+                            <span>Miembros</span>
+                            <button class="btn-tiny">Gestionar</button>
+                        </div>
+                        <div id="membersListCompact" class="members-scroll-area">
+                            <!-- JS rellena esto -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- COLUMNA DERECHA: COMUNICACIÓN (CHAT GRANDE) -->
+                <div class="hq-col-right">
+                    <div class="chat-full-panel">
+                        <div id="fullChatMessages" class="chat-messages-area">
+                            <!-- Mensajes aquí -->
+                        </div>
+                        <div class="chat-input-row">
+                            <input type="text" id="fullChatInput" placeholder="Mensaje a la alianza...">
+                            <button id="fullChatSendBtn">ENVIAR</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- WIDGET DE COMUNICACIÓN EN EL MAPA (VERSIÓN BURBUJA CORREGIDA) -->
+    <!-- ====================================================================== -->
+    
+    <div id="globalChatWidget" class="chat-widget-container minimized" style="display:none;">
+        
+        <!-- ESTADO 1: BURBUJA -->
+        <div id="chatBubbleIcon">💬</div>
+        <div id="chatNotificationBadge" style="display:none;">!</div>
+
+        <!-- ESTADO 2: VENTANA EXPANDIDA -->
+        <div id="chatWindowContent" style="display:none;">
+            <div class="chat-header-mini">
+                <span>💬 Alianza</span>
+                <button id="minimizeChatBtn">▼</button>
+            </div>
+            
+            <div id="miniChatMessages" class="mini-chat-content">
+                <!-- Los mensajes recientes aparecen aquí -->
+                <div class="chat-msg system">Conectado al canal seguro.</div>
+            </div>
+            
+            <div class="mini-chat-input-area">
+                <input type="text" id="miniChatInput" placeholder="Mensaje...">
+                <button id="miniChatSendBtn">➤</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ====================================================================== -->
+    <!-- ======================= LANDING PAGE / WEB INFO ====================== -->
+    <!-- ====================================================================== -->
+    <div id="landingPageModal" class="modal" style="display: none; z-index: 20000; background: #0b0f19;">
+        <div class="landing-content">
+            
+            <!-- Botón cerrar (Solo visible si vienes desde el Perfil) -->
+            <button id="closeLandingBtn" class="close-button-landing">×</button>
+
+            <!-- HERO SECTION -->
+            <div class="landing-hero">
+                <h1 class="landing-title">IBERION</h1>
+                <p class="landing-subtitle">HEX GENERAL</p>
+                <div class="landing-separator"></div>
+                <p class="landing-slogan">"Donde la logística gana guerras"</p>
+                
+                <button id="landingEnterGameBtn" class="landing-cta-btn">ENTRAR AL JUEGO</button>
+            </div>
+
+            <!-- FEATURES GRID -->
+            <div class="landing-features">
+                <div class="feature-card">
+                    <div class="feat-icon">⛓️</div>
+                    <h3>Logística Brutal</h3>
+                    <p>Un ejército sin comida muere. Mantén tus líneas de suministro conectadas a la capital o tus tropas perderán moral y salud.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feat-icon">🧠</div>
+                    <h3>Asedio y Moral</h3>
+                    <p>No basta con golpear. Rodea al enemigo, corta su retirada y observa cómo su moral colapsa hasta la rendición.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feat-icon">🎖️</div>
+                    <h3>Héroes y Leyendas</h3>
+                    <p>Recluta comandantes históricos y forja equipo legendario. Cada general cambia las reglas del combate.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feat-icon">⚖️</div>
+                    <h3>Economía Viva</h3>
+                    <p>Comercia con La Banca, explora ruinas antiguas y gestiona la estabilidad de tus territorios conquistados.</p>
+                </div>
+            </div>
+
+            <!-- FOOTER -->
+            <div class="landing-footer">
+                <p>Estrategia Táctica por Turnos | v1.0</p>
+                <div class="social-links">
+                    <span>Discord</span> • <span>Twitter</span> • <span>Wiki</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
     <!-- ===================== CARGA DE SCRIPTS ===================== -->
     <!-- ====================================================================== -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
@@ -1372,6 +1575,7 @@
     <script src="gachaManager.js"></script>
     <script src="mailboxManager.js"></script> 
     <script src="seasonsData.js"></script> 
+    <script src="allianceManager.js"></script>
     <script src="battlePassManager.js"></script> 
     <script src="audioManager.js"></script>
     <script src="technologyTree.js"></script> 

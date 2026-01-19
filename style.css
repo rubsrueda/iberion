@@ -5790,3 +5790,355 @@ input:checked + .slider:before {
     box-shadow: 0 0 20px #ffd700;
     z-index: 10;
 }
+
+/*------------------------------*/
+/* --- ALIANZAS (ESTILO DASHBOARD) --- */
+/*------------------------------*/
+
+/* Ventana Principal */
+.ali-hub-window {
+    width: 95vw !important; height: 90vh !important; max-width: 900px;
+    background: #0f172a; border: 2px solid #3b82f6; 
+    border-radius: 8px; display: flex; flex-direction: column;
+    padding: 0 !important; color: #e2e8f0; overflow: hidden;
+}
+
+/* Header Rico en Datos */
+.ali-hub-header {
+    height: 60px; background: linear-gradient(to bottom, #1e293b, #0f172a);
+    border-bottom: 1px solid #334155; display: flex; align-items: center;
+    padding: 0 10px; justify-content: space-between; flex-shrink: 0;
+}
+.ali-identity { display: flex; align-items: center; gap: 10px; overflow: hidden; }
+.ali-flag-small { font-size: 32px; background: #1e293b; border-radius: 6px; padding: 2px 6px; border: 1px solid #475569; }
+.ali-titles h2 { margin: 0; font-size: 16px; color: #f1c40f; white-space: nowrap; }
+.ali-meta-row { display: flex; gap: 8px; font-size: 11px; margin-top: 2px; }
+.badge-lvl { color: #f1c40f; font-weight: bold; }
+.badge-power { color: #e53e3e; }
+.badge-members { color: #68d391; }
+
+/* Grid del Buscador (Tarjetas) */
+.ali-list-grid {
+    padding: 10px; overflow-y: auto; display: grid; gap: 8px;
+    /* En móvil 1 columna, en escritorio 2 */
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    background: #0f172a;
+}
+.ali-card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 6px;
+    padding: 10px; display: flex; align-items: center; gap: 10px;
+    transition: transform 0.1s;
+}
+.ali-card:hover { border-color: #f1c40f; background: #2d3748; }
+.ali-card-icon { font-size: 28px; width: 40px; text-align: center; }
+.ali-card-info { flex-grow: 1; min-width: 0; }
+.ali-card-name { font-weight: bold; color: white; display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ali-card-meta { font-size: 10px; color: #94a3b8; display: flex; gap: 8px; }
+.ali-card-btn {
+    background: #2563eb; color: white; border: none; padding: 6px 12px;
+    border-radius: 4px; font-weight: bold; font-size: 11px; cursor: pointer;
+}
+
+/* Grid del Cuartel General (HQ) */
+.ali-hq-grid {
+    display: flex; flex-grow: 1; overflow: hidden;
+}
+@media (max-width: 768px) {
+    .ali-hq-grid { flex-direction: column; } /* En móvil se apila */
+}
+
+/* Columna Izquierda (Operaciones) */
+.hq-col-left {
+    width: 35%; border-right: 1px solid #334155; display: flex; flex-direction: column;
+    background: #111827; padding: 10px; gap: 10px; overflow-y: auto;
+}
+@media (max-width: 768px) { .hq-col-left { width: 100%; height: 50%; border-right: none; border-bottom: 1px solid #334155; } }
+
+/* Tarjeta de Guerra */
+.war-status-card {
+    background: linear-gradient(135deg, #450a0a, #1a0505); border: 1px solid #ef4444;
+    border-radius: 6px; padding: 10px; position: relative; overflow: hidden;
+}
+.war-header { color: #fecaca; font-weight: bold; font-size: 10px; letter-spacing: 1px; margin-bottom: 5px; }
+.war-content { display: flex; align-items: center; gap: 10px; }
+.raid-target-icon { font-size: 30px; }
+.raid-info { flex-grow: 1; }
+.hp-bar-container { height: 6px; background: #000; border-radius: 3px; margin: 3px 0; overflow: hidden; }
+.hp-bar { height: 100%; background: #ef4444; }
+.btn-attack { background: #dc2626; color: white; border: 1px solid #f87171; font-weight: bold; cursor: pointer; padding: 5px 10px; border-radius: 4px; font-size: 11px; }
+
+/* Lista de Miembros Compacta */
+.members-card { flex-grow: 1; display: flex; flex-direction: column; min-height: 0; }
+.members-scroll-area { overflow-y: auto; flex-grow: 1; border: 1px solid #334155; background: #0f172a; border-radius: 4px; }
+.member-item {
+    display: flex; justify-content: space-between; padding: 6px 8px;
+    border-bottom: 1px solid #1e293b; font-size: 11px; align-items: center;
+}
+.member-item:nth-child(even) { background: #162032; }
+.role-badge { padding: 1px 4px; border-radius: 3px; font-size: 9px; }
+.role-Leader { background: #f1c40f; color: black; }
+.role-Member { background: #475569; color: white; }
+
+/* Columna Derecha (Chat) */
+.hq-col-right {
+    flex-grow: 1; background: #0b1120; display: flex; flex-direction: column;
+}
+.chat-full-panel { display: flex; flex-direction: column; height: 100%; }
+.chat-messages-area {
+    flex-grow: 1; padding: 10px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 6px;
+}
+.chat-msg { font-size: 12px; line-height: 1.4; padding: 5px 8px; border-radius: 4px; background: #1e293b; align-self: flex-start; max-width: 85%; word-wrap: break-word; }
+.chat-msg.mine { align-self: flex-end; background: #2563eb; color: white; }
+.chat-msg.system { align-self: center; background: transparent; color: #fbbf24; font-style: italic; font-size: 11px; }
+.chat-author { font-size: 9px; color: #94a3b8; display: block; margin-bottom: 2px; }
+
+.chat-input-row {
+    padding: 8px; background: #1e293b; display: flex; gap: 8px;
+}
+.chat-input-row input { flex-grow: 1; background: #0f172a; border: 1px solid #475569; color: white; padding: 8px; border-radius: 4px; }
+.chat-input-row button { background: #22c55e; color: black; font-weight: bold; border: none; padding: 0 15px; border-radius: 4px; cursor: pointer; }
+
+/* ========================================================== */
+/* ==   WIDGET DE CHAT (VERSIÓN MINIATURA SUPERIOR IZQ)    == */
+/* ========================================================== */
+
+/* CONTENEDOR PRINCIPAL */
+.chat-widget-container {
+    position: fixed;
+    /* Lo colocamos arriba, dejando espacio para la barra de recursos (aprox 50px) */
+    top: 60px; 
+    left: 10px;
+    bottom: auto; /* Anulamos cualquier posición inferior */
+    z-index: 20000 !important;
+    pointer-events: auto;
+    font-family: 'Segoe UI', sans-serif;
+    transition: all 0.2s ease-out;
+}
+
+/* --- ESTADO 1: MINIMIZADO (BURBUJA PEQUEÑA) --- */
+.chat-widget-container.minimized {
+    width: 32px;  /* Tamaño reducido (antes 50px) */
+    height: 32px;
+    background: rgba(0, 0, 0, 0.6); /* Fondo semitransparente oscuro */
+    border: 1px solid #3b82f6; /* Borde azul fino */
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+}
+
+.chat-widget-container.minimized:hover {
+    background: rgba(59, 130, 246, 0.4); /* Brillo azul al tocar */
+    transform: scale(1.1);
+}
+
+/* El Icono 💬 */
+#chatBubbleIcon {
+    font-size: 16px; /* Icono mucho más pequeño */
+    line-height: 1;
+    color: #f0f0f0;
+    /* El JS controla el display, pero por defecto debe verse si está minimizado */
+    display: block; 
+}
+
+/* Punto rojo de notificación (Ajustado al tamaño pequeño) */
+#chatNotificationBadge {
+    position: absolute;
+    top: -2px; right: -2px;
+    background: #e74c3c;
+    color: white;
+    font-size: 8px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid #1a1a1a;
+}
+
+/* --- ESTADO 2: EXPANDIDO (VENTANA) --- */
+.chat-widget-container:not(.minimized) {
+    width: 280px;
+    height: 220px;
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid #3b82f6;
+    border-radius: 8px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.7);
+    display: flex;
+    flex-direction: column;
+}
+
+/* El contenido interno (se muestra al expandir) */
+#chatWindowContent {
+    width: 100%;
+    height: 100%;
+    display: flex; 
+    flex-direction: column;
+}
+
+/* Ajustes visuales internos de la ventana */
+.chat-header-mini {
+    padding: 6px 10px;
+    background: rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85em;
+    font-weight: bold;
+    color: #f1c40f;
+}
+
+#minimizeChatBtn {
+    background: none; border: none; color: #aaa; cursor: pointer; font-size: 12px; padding: 5px;
+}
+#minimizeChatBtn:hover { color: white; }
+
+/* Ocultar el icono cuando la ventana está abierta */
+.chat-widget-container:not(.minimized) #chatBubbleIcon {
+    display: none !important;
+}
+
+/* ========================================================== */
+/* ==   ESTILOS DE LA LANDING PAGE (WEB DEL JUEGO)         == */
+/* ========================================================== */
+
+#landingPageModal .landing-content {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto; /* Scroll vertical */
+    background: radial-gradient(circle at top, #1a253a 0%, #05080c 100%);
+    color: #ecf0f1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Botón cerrar especial */
+.close-button-landing {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    font-size: 2rem;
+    color: #666;
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: none; /* Se activa por JS */
+}
+.close-button-landing:hover { color: #fff; }
+
+/* HERO SECTION */
+.landing-hero {
+    text-align: center;
+    margin-bottom: 40px;
+    margin-top: 40px;
+    animation: fadeIn 1s ease-out;
+}
+
+.landing-title {
+    font-size: 4rem;
+    margin: 0;
+    letter-spacing: 5px;
+    color: #f1c40f;
+    text-shadow: 0 0 20px rgba(241, 196, 15, 0.5);
+}
+
+.landing-subtitle {
+    font-size: 1.5rem;
+    color: #bdc3c7;
+    margin: 0;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+}
+
+.landing-separator {
+    width: 100px;
+    height: 3px;
+    background: #f1c40f;
+    margin: 20px auto;
+}
+
+.landing-slogan {
+    font-size: 1.2rem;
+    font-style: italic;
+    color: #aab7b8;
+    margin-bottom: 30px;
+}
+
+.landing-cta-btn {
+    padding: 15px 40px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #05080c;
+    background: linear-gradient(to bottom, #f1c40f, #d4ac0d);
+    border: 2px solid #fff;
+    border-radius: 5px;
+    cursor: pointer;
+    box-shadow: 0 0 15px rgba(241, 196, 15, 0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.landing-cta-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 25px rgba(241, 196, 15, 0.6);
+}
+
+/* FEATURES GRID */
+.landing-features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    max-width: 1000px;
+    width: 100%;
+    margin-bottom: 40px;
+}
+
+.feature-card {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 20px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: center;
+    transition: transform 0.3s;
+}
+
+.feature-card:hover {
+    transform: translateY(-5px);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: #f1c40f;
+}
+
+.feat-icon {
+    font-size: 3rem;
+    margin-bottom: 10px;
+}
+
+.feature-card h3 {
+    color: #f1c40f;
+    margin: 10px 0;
+}
+
+.feature-card p {
+    color: #bdc3c7;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+/* FOOTER */
+.landing-footer {
+    margin-top: auto;
+    text-align: center;
+    color: #555;
+    font-size: 0.8rem;
+    padding-bottom: 20px;
+}
+.social-links span {
+    color: #3498db;
+    cursor: pointer;
+    margin: 0 5px;
+}

@@ -1062,11 +1062,47 @@ async function endTacticalBattle(winningPlayerNumber) {
         }, 2000); // 2 segundos después de que termine la batalla
     }
 
+    // --- SISTEMA DE EXPERIENCIA DE PASE DE BATALLA ---
+    // Solo si el ganador soy yo (he ganado) o si perdí (he perdido, pero gané experiencia)
+    if (gameState.myPlayerNumber) { // Validamos que somos un jugador real
+        const amIWinner = (winningPlayerNumber === gameState.myPlayerNumber);
+        const myPKey = `player${gameState.myPlayerNumber}`;
+        const myKills = gameState.playerStats?.unitsDestroyed?.[myPKey] || 0;
+
+        // Fórmula de XP de Pase:
+        // +100 por Ganar, +30 por Jugar (Perder)
+        // +5 por cada regimiento enemigo destruido
+        let battlePassXp = amIWinner ? 100 : 30;
+        battlePassXp += (myKills * 5);
+
+        // Llamar al motor (Asíncrono, no bloquea el juego)
+        if (typeof BattlePassManager !== 'undefined' && BattlePassManager.addMatchXp) {
+            BattlePassManager.addMatchXp(battlePassXp).then(res => {
+                if (res) {
+                    let msg = `⭐ Pase de Batalla: +${res.xpAdded} XP.`;
+                    if (res.levelsGained > 0) {
+                        msg += ` ¡NIVEL SUBIDO A ${res.currentLevel}!`;
+                    }
+                    if (typeof showToast === 'function') {
+                        // Toast especial dorado
+                        showToast(msg, "warning", 4000); 
+                    }
+                }
+            });
+        }
+    }
+
     // Sincronización con la nube al terminar
     if (PlayerDataManager.currentPlayer) {
         console.log("Sincronizando progreso post-batalla...");
         PlayerDataManager.saveCurrentPlayer();
     }
+
+    if (playerWon && typeof BattlePassManager !== 'undefined') {
+        BattlePassManager.updateProgress('match_win', 1);
+    }
+    // Independientemente del resultado
+    BattlePassManager.updateProgress('turn_played', gameState.turnNumber);
 
 }
 

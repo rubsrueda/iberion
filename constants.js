@@ -9,6 +9,16 @@ const BOARD_SIZES = {
     'iberia_magna': { rows: 75, cols: 120 }
 };
 
+
+// --- CONSTANTES DE MISIONES DIARIAS ---
+const DAILY_MISSIONS_POOL = [
+    { id: 'win_1', desc: "Gana 1 Batalla", target: 1, xp_reward: 300, type: 'match_win' },
+    { id: 'kill_10', desc: "Elimina 10 Regimientos Enemigos", target: 10, xp_reward: 200, type: 'unit_kill' },
+    { id: 'play_3', desc: "Juega 3 Turnos completos", target: 3, xp_reward: 150, type: 'turn_played' },
+    { id: 'forge_1', desc: "Forja un objeto de equipo", target: 1, xp_reward: 500, type: 'forge_item' },
+    { id: 'earn_500g', desc: "Gana 500 de Oro en batallas", target: 500, xp_reward: 250, type: 'gold_earned' }
+];
+
 // CONFIGURACIÓN DE MARKETING Y TEMPORADAS para el pase de batalla
 const SEASON_CONFIG = {
     ACTIVE_SEASON_KEY: 'SEASON_1', // Cambia esto a 'SEASON_2', 'HALLOWEEN', etc.

@@ -1691,60 +1691,68 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
 
 
     // ======================================================================
-// 4. LÓGICA DEL NUEVO MENÚ PRINCIPAL INTERACTIVO
-// ======================================================================
-const interactiveBoard = document.getElementById('interactiveBoardContainer');
-if (interactiveBoard) {
-    interactiveBoard.addEventListener('click', (event) => {
-        const hotspot = event.target.closest('.main-menu-hotspot');
-        if (!hotspot) return;
+    // 4. LÓGICA DEL NUEVO MENÚ PRINCIPAL INTERACTIVO
+    // ======================================================================
+    const interactiveBoard = document.getElementById('interactiveBoardContainer');
+    if (interactiveBoard) {
+        interactiveBoard.addEventListener('click', (event) => {
+            const hotspot = event.target.closest('.main-menu-hotspot');
+            if (!hotspot) return;
 
-        // Prevenimos que el clic se propague a otros elementos
-        event.stopPropagation();
+            // Prevenimos que el clic se propague a otros elementos
+            event.stopPropagation();
 
-        const action = hotspot.dataset.action;
-        console.log("Hotspot presionado:", action);
+            const action = hotspot.dataset.action;
+            console.log("Hotspot presionado:", action);
 
-        switch(action) {
-            case 'openGameModes':
-                document.getElementById('gameModesModal').style.display = 'flex';
-                break;
+            switch(action) {
+                case 'openGameModes':
+                    document.getElementById('gameModesModal').style.display = 'flex';
+                    break;
 
-            case 'openProfile':
-                if (typeof openProfileModal === 'function') {
-                    openProfileModal();
+                case 'openProfile':
+                    if (typeof openProfileModal === 'function') {
+                        openProfileModal();
+                    }
+                    break;
+                        
+                case 'openAltar':
+                    if (typeof openDeseosModal === 'function') {
+                        openDeseosModal();
+                    }
+                    break;
+                case 'openBarracks':
+                    if (typeof openBarracksModal === 'function') {
+                        openBarracksModal(false); // false = modo vista, no asignación
+                    }
+                    break;
+                case 'openForge':
+                    if (typeof openForgeModal === 'function') {
+                        openForgeModal();
+                    }
+                    break;
+
+                case 'openAlliance':
+                    // Aquí llamamos al gestor de alianzas. 
+                    // Usamos una comprobación de seguridad por si aún no has cargado el script.
+                    if (typeof AllianceManager !== 'undefined') {
+                        AllianceManager.open();
+                    } else {
+                        console.error("AllianceManager no está definido. ¿Falta el script?");
+                    }
+                    break;
+                
+                case 'showComingSoon':
+                // Usamos la nueva función de notificación para el jugador
+                if (typeof showToast === 'function') {
+                    showToast("Esta función estará disponible próximamente.", "info");
+                } else {
+                    alert("Próximamente..."); // Fallback por si acaso
                 }
                 break;
-                    
-            case 'openAltar':
-                if (typeof openDeseosModal === 'function') {
-                    openDeseosModal();
-                }
-                break;
-            case 'openBarracks':
-                if (typeof openBarracksModal === 'function') {
-                    openBarracksModal(false); // false = modo vista, no asignación
-                }
-                break;
-            case 'openForge':
-                if (typeof openForgeModal === 'function') {
-                    openForgeModal();
-                }
-                break;
-
-            
-            
-            case 'showComingSoon':
-            // Usamos la nueva función de notificación para el jugador
-            if (typeof showToast === 'function') {
-                showToast("Esta función estará disponible próximamente.", "info");
-            } else {
-                alert("Próximamente..."); // Fallback por si acaso
             }
-            break;
-        }
-    });
-}
+        });
+    }
 
 // -- Listeners para el nuevo modal de modos de juego --
 
@@ -1843,11 +1851,13 @@ if (newGeneralNameDisplay && PlayerDataManager.currentPlayer) {
     // ======================================================================
     // 4. LÓGICA DE ARRANQUE
     // ======================================================================
-    const lastUser = localStorage.getItem('lastUser');
+    // Si ya hay usuario guardado, entra directo (Auto-login)
     if (lastUser && PlayerDataManager.autoLogin(lastUser)) {
         showMainMenu();
     } else {
-        showLoginScreen();
+        // SI NO HAY USUARIO -> Muestra la WEB (Landing Page) primero
+        openLandingPage(false); 
+        // showLoginScreen(); <--- Borra o comenta esto, ya no es lo primero
     }
     
      // Si en 2 segundos no se ha detectado sesión automática, mostramos el login
