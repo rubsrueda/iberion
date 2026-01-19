@@ -3486,8 +3486,40 @@ async function openProfileModal() {
     if (document.getElementById('statTopCiv')) 
         document.getElementById('statTopCiv').textContent = player.favorite_civ || "Iberia";
     
-    if (document.getElementById('allianceName')) 
-        document.getElementById('allianceName').textContent = player.alliance_name || "Sin Alianza";
+    // LÓGICA DE ALIANZA:
+    const allianceLabel = document.getElementById('allianceName');
+    if (allianceLabel) {
+        if (player.alliance_id) {
+            // Caso A: Tenemos ID, pero no el nombre guardado -> Lo buscamos
+            if (!player.alliance_name) {
+                allianceLabel.textContent = "Cargando..."; // Feedback visual inmediato
+                
+                // Petición silenciosa a Supabase
+                supabaseClient
+                    .from('alliances')
+                    .select('name, tag')
+                    .eq('id', player.alliance_id)
+                    .single()
+                    .then(({ data, error }) => {
+                        if (data) {
+                            player.alliance_name = `[${data.tag}] ${data.name}`;
+                            allianceLabel.textContent = player.alliance_name;
+                            // Guardamos para que la próxima vez sea instantáneo
+                            PlayerDataManager.saveCurrentPlayer(); 
+                        } else {
+                            allianceLabel.textContent = "Error de Datos";
+                        }
+                    });
+            } else {
+                // Caso B: Ya lo tenemos guardado -> Lo mostramos directo
+                allianceLabel.textContent = player.alliance_name;
+            }
+        } else {
+            // Caso C: No hay ID -> Realmente no tiene alianza
+            allianceLabel.textContent = "Sin Alianza";
+        }
+    }
+
     
     if (document.getElementById('profileLevelNum')) 
         document.getElementById('profileLevelNum').textContent = player.level || 1;
@@ -3874,6 +3906,358 @@ function updateMyFooterRow(foundInTop50, metric, topData) {
         <span class="rnk-val" style="color:white;">${valStr}</span>
     `;
 }
+
+
+//------------------------------------------
+// --- SISTEMA DE continuar partidas     ---
+//------------------------------------------
+
+// --- SISTEMA DE GESTIÓN DE PARTIDAS ---
+async function openMyGamesModal() {
+    const modal = document.getElementById('myGamesModal');
+    const list = document.getElementById('myGamesListPanel');
+    
+    if (!modal || !list) {
+        console.error("Error: No se encontró el modal o la lista (myGamesListPanel).");
+        return;
+    }
+    
+    // Preparar UI
+    modal.style.display = 'flex';
+    document.getElementById('myGamesListPanel').classList.add('active');
+    document.getElementById('publicGamesListPanel').classList.remove('active');
+    
+    // Resetear pestañas visualmente
+    document.querySelectorAll('.ranking-tab-btn').forEach(b => b.classList.remove('active'));
+    const myTab = document.getElementById('tabMyGames');
+    if (myTab) myTab.classList.add('active');
+    
+    list.innerHTML = '<p style="text-align:center; color:#ccc; font-size:0.9em; margin-top:20px;">Sincronizando con el servidor...</p>';
+
+    const uid = PlayerDataManager.currentPlayer?.auth_id;
+    if (!uid) {
+        list.innerHTML = '<p style="text-align:center; color:#e74c3c;">Debes iniciar sesión para ver tus partidas.</p>';
+        return;
+    }
+
+    // CONSULTA A SUPABASE
+    const { data, error } = await supabaseClient
+        .from('active_matches')
+        .select('*')
+        .or(`host_id.eq.${uid},guest_id.eq.${uid}`)
+        .order('updated_at', { ascending: false });
+
+    if (error) {
+        console.error("Error Supabase:", error);
+        list.innerHTML = '<p style="text-align:center; color:#e74c3c;">Error de conexión.</p>';
+        return;
+    }
+
+    if (!data || data.length === 0) {
+        list.innerHTML = '<p style="text-align:center; color:#888; font-size:0.9em;">No tienes partidas activas.</p>';
+        return;
+    }
+
+    // RENDERIZADO DE TARJETAS
+    list.innerHTML = '';
+    
+    data.forEach(match => {
+        const state = match.game_state?.gameState || {};
+        const turn = state.turnNumber || 1;
+        const myRole = (match.host_id === uid) ? 1 : 2; 
+        const isMyTurn = state.currentPlayer === myRole;
+        
+        // 1. CÁLCULO DE TIEMPO Y ABANDONO
+        const lastMoveTime = new Date(match.updated_at);
+        const now = new Date();
+        const hoursSinceLastMove = (now - lastMoveTime) / (1000 * 60 * 60);
+        
+        // Fecha corta (dd/mm hh:mm)
+        const dateStr = lastMoveTime.toLocaleDateString([], {day:'2-digit', month:'2-digit'}) + ' ' + lastMoveTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+        // Regla: Si NO es mi turno y han pasado >24h, el rival ha abandonado.
+        const rivalAbandoned = !isMyTurn && hoursSinceLastMove > 24;
+        
+        // 2. ESTADO VISUAL
+        let statusIcon = '⏳';
+        let statusColor = '#aaa'; 
+        let statusText = 'ESPERA';
+        
+        if (isMyTurn) {
+            statusIcon = '🟢'; 
+            statusColor = '#2ecc71'; 
+            statusText = 'JUEGA';
+        } else if (rivalAbandoned) {
+            statusIcon = '⚠️'; 
+            statusColor = '#e74c3c'; 
+            statusText = 'ABANDONO';
+        } else {
+            statusIcon = '⏳'; 
+            statusColor = '#f39c12';
+            statusText = 'ESPERA';
+        }
+
+        // 3. ICONO DE RIVAL (Sin texto largo)
+        const p2Type = state.playerTypes?.player2 || 'human';
+        // Si soy J1 y el J2 es humano -> Icono Humano. Si es IA -> Icono Robot.
+        // Si soy J2 (siempre humano), el rival J1 es humano.
+        const opponentIcon = (myRole === 1 && p2Type.includes('ai')) ? '🤖' : '👤';
+
+        const card = document.createElement('div');
+        card.className = 'save-slot-card'; 
+        
+        // 4. HTML DE LA TARJETA
+        card.innerHTML = `
+            <div style="font-size:14px;">${statusIcon}</div>
+            
+            <div style="overflow:hidden;">
+                <h4 style="color:#f1c40f; font-size:11px; margin:0;">#${match.match_id} 
+                    <span style="color:#666; font-weight:normal; font-size:9px;">(${myRole===1?'Host':'Guest'})</span>
+                </h4>
+            </div>
+
+            <div style="font-size:16px; text-align:center;" title="Tipo de Rival">${opponentIcon}</div>
+
+            <div class="match-status" style="color:${statusColor}; font-size:9px; text-align:center;">
+                ${statusText}
+            </div>
+            
+            <div style="font-size:10px; color:#aaa; text-align:center;">T${turn}</div>
+            
+            <div style="font-size:9px; color:#555; text-align:right;">${dateStr}</div>
+            
+            <button class="options-btn" style="width:100%; height:100%; border:none; background:transparent; color:#888; cursor:pointer;" 
+                onclick="event.stopPropagation(); showMatchContext(event, '${match.match_id}', ${rivalAbandoned})">⋮</button>
+        `;
+
+        // Acción al hacer clic en la tarjeta (Cargar)
+        card.onclick = () => {
+             modal.style.display = 'none';
+             if(typeof NetworkManager !== 'undefined') {
+                 NetworkManager.cargarPartidaDesdeLista(match);
+             }
+        };
+
+        list.appendChild(card);
+    });
+}
+
+// --- GESTIÓN DE PESTAÑAS ---
+window.switchGamesTab = function(tab) {
+    // 1. Gestión Visual de Botones
+    document.querySelectorAll('.ranking-tab-btn').forEach(b => b.classList.remove('active'));
+    
+    // 2. Gestión de Paneles (Fuerza bruta con display)
+    const myPanel = document.getElementById('myGamesListPanel');
+    const pubPanel = document.getElementById('publicGamesListPanel');
+
+    if (tab === 'my') {
+        document.getElementById('tabMyGames').classList.add('active');
+        myPanel.style.display = 'flex';   // MOSTRAR MÍOS
+        pubPanel.style.display = 'none';  // OCULTAR PÚBLICO
+        openMyGamesModal(); // Recargar datos
+    } else {
+        document.getElementById('tabPublicGames').classList.add('active');
+        myPanel.style.display = 'none';   // OCULTAR MÍOS
+        pubPanel.style.display = 'flex';  // MOSTRAR PÚBLICO
+        refreshPublicGames(); // Cargar datos del mercado
+    }
+};
+
+// --- GESTIÓN DE MENÚ CONTEXTUAL ---
+window.showMatchContext = function(event, matchId, rivalIsAbandoned) {
+    const menu = document.getElementById('matchContextMenu');
+    
+    // Posición
+    menu.style.display = 'block';
+    // Ajuste para que no se salga de la pantalla en móvil
+    let left = event.clientX - 120;
+    if (left < 10) left = 10;
+    menu.style.top = `${event.clientY + 10}px`;
+    menu.style.left = `${left}px`;
+    
+    // Referencias a botones
+    const btnAbandon = document.getElementById('ctxAbandon');
+    const btnAI = document.getElementById('ctxConvertToAI');
+    const btnShare = document.getElementById('ctxShare'); // Usado para "Publicar en Mercado"
+
+    // CONFIGURACIÓN DE VISIBILIDAD
+    // 1. Abandonar: Siempre puedo abandonar mi propia partida
+    btnAbandon.style.display = 'block';
+    btnAbandon.onclick = () => abandonMatch(matchId);
+
+    // 2. Opciones de Rival: Solo si el rival ha abandonado (>24h sin jugar)
+    if (rivalIsAbandoned) {
+        btnAI.style.display = 'block';
+        btnAI.textContent = "🤖 Convertir Rival a IA";
+        btnAI.onclick = () => convertToAI(matchId);
+
+        btnShare.style.display = 'block';
+        btnShare.textContent = "🌍 Ofrecer en Mercado";
+        btnShare.onclick = () => publishToMarket(matchId);
+    } else {
+        btnAI.style.display = 'none';
+        btnShare.style.display = 'none';
+    }
+};
+
+
+// Cerrar menú al hacer clic fuera
+window.addEventListener('click', () => {
+    const menu = document.getElementById('matchContextMenu');
+    if(menu) menu.style.display = 'none';
+});
+
+// --- ACCIONES DE RECUPERACIÓN ---
+
+// 1. Convertir Rival a IA
+window.convertToAI = async function(matchId) {
+    if (!confirm("¿Convertir al rival en IA? Podrás seguir jugando inmediatamente, pero ya no será multijugador.")) return;
+
+    // Recuperar estado actual
+    const { data: match } = await supabaseClient.from('active_matches').select('game_state').eq('match_id', matchId).single();
+    if (!match) return;
+
+    const newState = match.game_state;
+    // Cambiar tipo de jugador 2 a IA
+    newState.gameState.playerTypes['player2'] = 'ai_normal';
+    
+    // Guardar cambio
+    await supabaseClient.from('active_matches').update({ 
+        game_state: newState,
+        status: 'VS_AI' // Nueva marca de estado
+    }).eq('match_id', matchId);
+
+    alert("Rival convertido a IA. ¡A la batalla!");
+    openMyGamesModal(); // Recargar lista
+};
+
+// 2. Publicar en Mercado
+window.publishToMarket = async function(matchId) {
+    if (!confirm("¿Ofrecer esta partida al público? Otro jugador podrá tomar el control del rival.")) return;
+
+    await supabaseClient.from('active_matches').update({ 
+        status: 'OPEN_MARKET',
+        updated_at: new Date() // Refrescar tiempo para que salga arriba
+    }).eq('match_id', matchId);
+
+    alert("Partida publicada en el Mercado de Guerra.");
+    openMyGamesModal();
+};
+
+// 3. Menú Contextual (Lógica visual)
+window.showMatchContext = function(event, matchId, isAbandoned) {
+    const menu = document.getElementById('matchContextMenu');
+    menu.style.display = 'block';
+    menu.style.top = `${event.clientY}px`;
+    menu.style.left = `${event.clientX - 100}px`;
+    
+    // Configurar acciones de los botones del menú
+    document.getElementById('ctxConvertToAI').onclick = () => convertToAI(matchId);
+    
+    // Solo permitir publicar si está abandonada
+    const shareBtn = document.getElementById('ctxShare'); // Reutilizamos el botón "Invitar" para "Publicar"
+    shareBtn.textContent = "🌍 Publicar en Mercado";
+    shareBtn.onclick = () => publishToMarket(matchId);
+    shareBtn.style.display = isAbandoned ? 'block' : 'none';
+};
+
+// --- CORRECCIÓN MERCADO PÚBLICO ---
+window.refreshPublicGames = async function() {
+    const list = document.getElementById('publicGamesList');
+    const myId = PlayerDataManager.currentPlayer?.auth_id;
+    list.innerHTML = '<p style="text-align:center; color:#ccc; font-size:10px;">Escaneando...</p>';
+
+    // Consulta Blindada: Solo partidas OPEN y que NO sean mías
+    let query = supabaseClient
+        .from('active_matches')
+        .select('*')
+        .eq('status', 'OPEN_MARKET')
+        .neq('host_id', myId)  // No soy el host
+        .is('guest_id', null); // El hueco de invitado está libre
+
+    const { data, error } = await query;
+
+    if (error) { console.error(error); return; }
+
+    list.innerHTML = '';
+    if (!data || data.length === 0) {
+        list.innerHTML = '<p style="text-align:center; color:#888; font-size:10px;">Nada en el mercado.</p>';
+        return;
+    }
+
+    // Renderizado (Usando el mismo HTML compacto de una línea)
+    data.forEach(match => {
+        const turn = match.game_state?.gameState?.turnNumber || 1;
+        const card = document.createElement('div');
+        card.className = 'save-slot-card'; // Usa el nuevo CSS de línea única
+        
+        // Estructura adaptada al Grid de 1 línea:
+        // [Icon] [Nombre] [Vacio] [Turno] [Botón]
+        card.innerHTML = `
+            <div style="font-size:14px;">🌍</div>
+            <h4 style="color:#00f3ff;">#${match.match_id}</h4>
+            <div></div> <!-- Espaciador -->
+            <span style="font-size:10px; color:#aaa;">T${turn}</span>
+            <span style="font-size:9px; color:#666;">Abandonada</span>
+            <button onclick="takeOverMatch('${match.match_id}')" style="background:#27ae60; color:white; border:none; padding:2px 6px; font-size:10px; border-radius:3px;">TOMAR</button>
+        `;
+        list.appendChild(card);
+    });
+};
+
+// --- CORRECCIÓN ABANDONAR ---
+window.abandonMatch = async function(matchId) {
+    if(!confirm("¿Borrar esta partida de tu lista?")) return;
+    
+    const myId = PlayerDataManager.currentPlayer.auth_id;
+    
+    // Intentamos las dos vías: Si soy host, la borro. Si soy guest, me salgo.
+    // Usamos Promise.all para intentar ambas cosas y no fallar si no sé qué soy.
+    
+    // 1. Intentar borrar como Host
+    const deleteOp = supabaseClient.from('active_matches').delete().eq('match_id', matchId).eq('host_id', myId);
+    
+    // 2. Intentar salir como Guest
+    const leaveOp = supabaseClient.from('active_matches').update({ guest_id: null }).eq('match_id', matchId).eq('guest_id', myId);
+
+    await Promise.all([deleteOp, leaveOp]);
+
+    // Refresco manual de la lista visual (truco sucio pero efectivo)
+    // Buscamos la tarjeta en el DOM y la matamos
+    const cards = document.querySelectorAll('.save-slot-card');
+    cards.forEach(c => {
+        if(c.innerHTML.includes(matchId)) c.remove();
+    });
+    
+    // O recargamos todo
+    // openMyGamesModal(); 
+};
+
+// Función para unirse como sustituto
+window.takeOverMatch = async function(matchId) {
+    if (!confirm("¿Asumir el mando de esta facción?")) return;
+    
+    const myId = PlayerDataManager.currentPlayer.auth_id;
+    
+    // Nos ponemos como el 'guest_id' (o host si estaba vacío, pero asumimos guest para simplificar)
+    // Y quitamos el estado de mercado
+    await supabaseClient.from('active_matches').update({ 
+        guest_id: myId,
+        status: 'ACTIVE'
+    }).eq('match_id', matchId);
+
+    alert("¡Mando transferido! Cargando situación...");
+    // Cargar inmediatamente
+    const { data } = await supabaseClient.from('active_matches').select('*').eq('match_id', matchId).single();
+    if(data && typeof NetworkManager !== 'undefined') {
+        document.getElementById('myGamesModal').style.display = 'none';
+        NetworkManager.cargarPartidaDesdeLista(data);
+    }
+};
+
+// Exponer la función globalmente para que main.js la encuentre
+window.openMyGamesModal = openMyGamesModal;
 
 // Asegurarse de que los listeners se configuran cuando el DOM está listo
 document.addEventListener('DOMContentLoaded', setupGachaModalListeners);

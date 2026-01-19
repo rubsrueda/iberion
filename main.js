@@ -1835,6 +1835,41 @@ if (newTutorialBtn) {
         });
     }
 
+// --- BOTÓN CONTINUAR PARTIDA ---
+    const btnResume = document.getElementById('resumeGameBtn');
+    if (btnResume) {
+        // Clonar para limpiar listeners viejos y asegurar frescura
+        const newBtn = btnResume.cloneNode(true);
+        btnResume.parentNode.replaceChild(newBtn, btnResume);
+        
+        newBtn.addEventListener('click', () => {
+            console.log("Botón Cargar pulsado");
+            
+            // 1. Cerrar el menú de modos
+            const modesModal = document.getElementById('gameModesModal');
+            if(modesModal) modesModal.style.display = 'none';
+
+            // 2. Abrir la lista (usando la función global)
+            if (typeof window.openMyGamesModal === 'function') {
+                window.openMyGamesModal();
+            } else {
+                console.error("Error Crítico: openMyGamesModal no encontrada. ¿modalLogic.js cargado?");
+                alert("Error de sistema: Función de carga no disponible.");
+            }
+        });
+    }
+
+    // --- BOTÓN CERRAR LISTA DE PARTIDAS ---
+    const btnCloseMyGames = document.getElementById('closeMyGamesBtn');
+    if (btnCloseMyGames) {
+        btnCloseMyGames.addEventListener('click', () => {
+            document.getElementById('myGamesModal').style.display = 'none';
+            // Opcional: Volver a abrir el menú de modos si quieres volver atrás
+            document.getElementById('gameModesModal').style.display = 'flex';
+        });
+    }
+    
+
 // -- Reconectar el botón de logout y el nombre del general --
 const newLogoutBtn = document.getElementById('logoutBtn_main');
 if (newLogoutBtn) {
@@ -1852,6 +1887,8 @@ if (newGeneralNameDisplay && PlayerDataManager.currentPlayer) {
     // 4. LÓGICA DE ARRANQUE
     // ======================================================================
     // Si ya hay usuario guardado, entra directo (Auto-login)
+    const lastUser = localStorage.getItem('lastUser');
+    
     if (lastUser && PlayerDataManager.autoLogin(lastUser)) {
         showMainMenu();
     } else {

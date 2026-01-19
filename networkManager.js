@@ -211,4 +211,39 @@ const NetworkManager = {
         return false;
     },
 
+    // Nueva función para cargar desde la lista
+    cargarPartidaDesdeLista: function(matchData) {
+        console.log("Cargando partida seleccionada:", matchData.match_id);
+        
+        // 1. Configurar Identidad
+        this.miId = matchData.match_id;
+        const uid = PlayerDataManager.currentPlayer?.auth_id;
+        this.esAnfitrion = (matchData.host_id === uid);
+        
+        // 2. Establecer el jugador local
+        gameState.myPlayerNumber = this.esAnfitrion ? 1 : 2;
+        
+        // 3. Reconstruir el juego con los datos descargados
+        if (typeof reconstruirJuegoDesdeDatos === 'function') {
+            // Nota: game_state en la DB contiene { gameState, board, units... }
+            // reconstruirJuegoDesdeDatos espera ese objeto completo.
+            reconstruirJuegoDesdeDatos(matchData.game_state);
+        }
+        
+        // 4. Activar la escucha en tiempo real
+        this.activarEscuchaDeTurnos(matchData.match_id);
+        
+        // 5. Mostrar la pantalla de juego
+        showScreen(domElements.gameContainer);
+        if(domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
+        
+        // 6. Actualizar UI
+        if(typeof UIManager !== 'undefined') {
+            UIManager.updateAllUIDisplays();
+            UIManager.refreshActionButtons();
+        }
+        
+        logMessage(`Partida ${matchData.match_id} reanudada.`);
+    },
+
 };

@@ -197,9 +197,20 @@ const AllianceManager = {
     },
 
     sendMessage: async function(text) {
-        if(!text.trim() || !this.currentAlliance) return;
+        if(!text.trim()) return;
+
+        // Si no hay alianza, intenta recuperar del perfil o sale
+        if (!this.currentAlliance && PlayerDataManager.currentPlayer?.alliance_id) {
+            this.currentAlliance = { id: PlayerDataManager.currentPlayer.alliance_id };
+        }
+        if (!this.currentAlliance) return;
+        
         const user = PlayerDataManager.currentPlayer;
         
+        // --- CORRECCIÓN: NO PINTAR AQUÍ (Evita duplicados) ---
+        // this.displayMessage(...)  <-- ¡ESTA LINEA BORRALA!
+        
+        // Solo enviamos a la nube. Cuando la nube responda, el "listener" pintará el mensaje.
         await supabaseClient.from('alliance_chat').insert({
             alliance_id: this.currentAlliance.id,
             user_id: user.auth_id,
@@ -228,29 +239,24 @@ const AllianceManager = {
         
         // HTML del mensaje
         const msgHtml = `
-            <span class="chat-author">${isMe ? 'Tú' : msg.username}</span>
-            ${msg.message}
+            <span class="chat-author" style="font-size:0.7em; color:#aaa;">${isMe ? 'Tú' : msg.username}</span>
+            <div style="color:${isMe ? '#fff' : '#ccc'};">${msg.message}</div>
         `;
 
-        // 1. Añadir al Chat Grande (HQ)
-        const fullChat = document.getElementById('fullChatMessages');
-        if(fullChat) {
-            const div = document.createElement('div');
-            div.className = `chat-msg ${isMe ? 'mine' : ''}`;
-            div.innerHTML = msgHtml;
-            fullChat.appendChild(div);
-            fullChat.scrollTop = fullChat.scrollHeight;
-        }
-
-        // 2. Añadir al Widget Mini
+        // Añadir al Widget Mini (El que ves en el mapa)
         const miniChat = document.getElementById('miniChatMessages');
         if(miniChat) {
             const div = document.createElement('div');
             div.className = `chat-msg ${isMe ? 'mine' : ''}`;
+            div.style.textAlign = isMe ? 'right' : 'left'; // Alinear el texto
             div.innerHTML = msgHtml;
             miniChat.appendChild(div);
+            // Auto-scroll al fondo
             miniChat.scrollTop = miniChat.scrollHeight;
         }
+        
+        // (Opcional) Añadir también al chat grande del modal si está abierto
+        // ...
     },
 
     // --- UTILIDADES ---
@@ -284,92 +290,69 @@ const AllianceManager = {
 
 // --- Lógica del Widget de Chat (Burbuja vs Ventana) ---
 
-// Función para alternar el estado
+// Función para alternar el estado del widget
 function toggleChatWidget() {
     const widget = document.getElementById('globalChatWidget');
-    const content = document.getElementById('chatWindowContent');
-    const bubble = document.getElementById('chatBubbleIcon');
-    
-    // Si tiene la clase 'minimized', lo abrimos
+    if (!widget) return;
+
+    // Si tiene la clase minimized, se la quitamos (Abrir)
     if (widget.classList.contains('minimized')) {
         widget.classList.remove('minimized');
-        bubble.style.display = 'none';
-        content.style.display = 'flex'; // Usamos flex para mantener la estructura vertical
         
-        // Ocultar notificación al abrir
-        const badge = document.getElementById('chatNotificationBadge');
-        if(badge) badge.style.display = 'none';
+        // Auto-foco al input para escribir rápido
+        setTimeout(() => {
+            const input = document.getElementById('miniChatInput');
+            if(input) input.focus();
+        }, 100);
         
-        // Auto-foco al input
-        setTimeout(() => document.getElementById('miniChatInput').focus(), 100);
-    } 
-    // Si está abierto, lo minimizamos
-    else {
+        // Bajar scroll al fondo
+        const content = document.getElementById('miniChatMessages');
+        if(content) content.scrollTop = content.scrollHeight;
+
+    } else {
+        // Si está abierto, lo minimizamos
         widget.classList.add('minimized');
-        content.style.display = 'none';
-        bubble.style.display = 'block';
     }
 }
 
-// LISTENERS
+// Inicialización de Listeners del Chat (Llamar en init())
+// Asegúrate de que esto no se duplique
 document.addEventListener('click', (e) => {
     const t = e.target;
-    // Abrir modal
-    if(t.dataset.action === 'openAlliance') AllianceManager.open();
     
-    // Navegación interna
-    if(t.id === 'aliCreateModeBtn') document.getElementById('aliCreateForm').style.display = 'flex';
-    if(t.id === 'aliCreateConfirmBtn') AllianceManager.createAlliance();
-    if(t.id === 'aliSearchBtn') AllianceManager.searchAlliances(document.getElementById('aliSearchInput').value);
-    if(t.id === 'closeAllianceBtn') document.getElementById('allianceModal').style.display='none';
-    if(t.id === 'aliLeaveBtn') AllianceManager.leaveAlliance();
-
-    // 1. Clic en la Burbuja para ABRIR
-    // Usamos closest porque el icono (💬) está dentro del div
-    if (t.id === 'globalChatWidget' || t.closest('#chatBubbleIcon')) {
-        // Solo si está minimizado
-        const widget = document.getElementById('globalChatWidget');
-        if (widget && widget.classList.contains('minimized')) {
-            toggleChatWidget();
-        }
+    // 1. ABRIR/CERRAR: Detectar clic en la burbuja o en el botón de minimizar
+    // Usamos .closest para detectar si se hizo clic en el icono 💬 o en el contenedor
+    if (t.id === 'chatBubbleIcon' || t.closest('#chatBubbleIcon') || (t.id === 'globalChatWidget' && t.classList.contains('minimized'))) {
+        e.stopPropagation();
+        toggleChatWidget();
     }
-
-    // 2. Clic en la flecha ▼ para MINIMIZAR
+    
     if (t.id === 'minimizeChatBtn') {
-        e.stopPropagation(); // Evitar rebote
+        e.stopPropagation();
         toggleChatWidget();
     }
 
-    const chatWidget = document.getElementById('globalChatWidget');
-    if (chatWidget) {
-        // Esto evita que los clics dentro del chat activen cosas detrás (como moverse en el mapa)
-        chatWidget.addEventListener('click', (e) => {
-            e.stopPropagation();
-        });
-        
-        // También prevenimos que se active el movimiento del mapa al arrastrar dentro del chat
-        chatWidget.addEventListener('mousedown', (e) => e.stopPropagation());
-        chatWidget.addEventListener('touchstart', (e) => e.stopPropagation());
-    }
-
-    // Chat
-    if(t.id === 'fullChatSendBtn') {
-        const inp = document.getElementById('fullChatInput');
-        AllianceManager.sendMessage(inp.value);
-        inp.value = '';
-    }
-    if(t.id === 'miniChatSendBtn') {
+    // 2. ENVIAR MENSAJE (Mini Chat)
+    if (t.id === 'miniChatSendBtn') {
         const inp = document.getElementById('miniChatInput');
-        AllianceManager.sendMessage(inp.value);
-        inp.value = '';
-    }
-    if(t.id === 'toggleChatSizeBtn') {
-        document.getElementById('globalChatWidget').classList.toggle('collapsed');
-        t.textContent = t.textContent === '▲' ? '▼' : '▲';
+        if (inp && inp.value.trim() !== "") {
+            AllianceManager.sendMessage(inp.value);
+            inp.value = ''; // Limpiar input
+        }
     }
 });
 
-
+// Permitir enviar con ENTER en el input
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        const miniInp = document.getElementById('miniChatInput');
+        // Si el foco está en el input del chat mini
+        if (document.activeElement === miniInp && miniInp.value.trim() !== "") {
+            AllianceManager.sendMessage(miniInp.value);
+            miniInp.value = '';
+        }
+    }
+});
 
 // Inicializar al cargar si ya hay jugador
 document.addEventListener('DOMContentLoaded', () => {

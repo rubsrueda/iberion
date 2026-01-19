@@ -106,4 +106,4 @@ function generateFillerLevels(baseLevels, maxLevel) {
 
 // AUTO-RELLENO: Si tu lista manual es corta, esto la completa hasta el día 41
 // Así no tienes que escribir 41 líneas si no quieres.
-BATTLE_PASS_SEASONS["SEASON_1"].levels = generateFillerLevels(BATTLE_PASS_SEASONS["SEASON_1"].levels, 41);
+BATTLE_PASS_SEASONS["SEASON_2"].levels = generateFillerLevels(BATTLE_PASS_SEASONS["SEASON_2"].levels, 41);

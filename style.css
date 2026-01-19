@@ -5879,125 +5879,162 @@ input:checked + .slider:before {
 .role-Leader { background: #f1c40f; color: black; }
 .role-Member { background: #475569; color: white; }
 
-/* Columna Derecha (Chat) */
-.hq-col-right {
-    flex-grow: 1; background: #0b1120; display: flex; flex-direction: column;
-}
-.chat-full-panel { display: flex; flex-direction: column; height: 100%; }
-.chat-messages-area {
-    flex-grow: 1; padding: 10px; overflow-y: auto;
-    display: flex; flex-direction: column; gap: 6px;
-}
-.chat-msg { font-size: 12px; line-height: 1.4; padding: 5px 8px; border-radius: 4px; background: #1e293b; align-self: flex-start; max-width: 85%; word-wrap: break-word; }
-.chat-msg.mine { align-self: flex-end; background: #2563eb; color: white; }
-.chat-msg.system { align-self: center; background: transparent; color: #fbbf24; font-style: italic; font-size: 11px; }
-.chat-author { font-size: 9px; color: #94a3b8; display: block; margin-bottom: 2px; }
+/* ================================================================= */
+/* === CHAT LIMPIO Y MINIMALISTA (Corrección Final) === */
+/* ================================================================= */
 
-.chat-input-row {
-    padding: 8px; background: #1e293b; display: flex; gap: 8px;
-}
-.chat-input-row input { flex-grow: 1; background: #0f172a; border: 1px solid #475569; color: white; padding: 8px; border-radius: 4px; }
-.chat-input-row button { background: #22c55e; color: black; font-weight: bold; border: none; padding: 0 15px; border-radius: 4px; cursor: pointer; }
-
-/* ========================================================== */
-/* ==   WIDGET DE CHAT (VERSIÓN MINIATURA SUPERIOR IZQ)    == */
-/* ========================================================== */
-
-/* CONTENEDOR PRINCIPAL */
+/* 1. EL CONTENEDOR (Invisible, solo posiciona) */
 .chat-widget-container {
     position: fixed;
-    /* Lo colocamos arriba, dejando espacio para la barra de recursos (aprox 50px) */
-    top: 60px; 
-    left: 10px;
-    bottom: auto; /* Anulamos cualquier posición inferior */
+    /* Ubicación: Arriba Izquierda, justo debajo de los recursos */
+    top: 55px !important;
+    left: 5px !important;
+    bottom: auto !important;
+    
     z-index: 20000 !important;
-    pointer-events: auto;
-    font-family: 'Segoe UI', sans-serif;
-    transition: all 0.2s ease-out;
+    pointer-events: auto !important;
+    
+    /* Reseteo total de estilos heredados */
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    width: auto !important;
+    height: auto !important;
+    padding: 0 !important;
 }
 
-/* --- ESTADO 1: MINIMIZADO (BURBUJA PEQUEÑA) --- */
-.chat-widget-container.minimized {
-    width: 32px;  /* Tamaño reducido (antes 50px) */
-    height: 32px;
-    background: rgba(0, 0, 0, 0.6); /* Fondo semitransparente oscuro */
-    border: 1px solid #3b82f6; /* Borde azul fino */
-    border-radius: 50%;
-    cursor: pointer;
-    display: flex;
+/* 2. EL BOTÓN BURBUJA (Lo único visible al inicio) */
+/* Solo se muestra si el contenedor tiene la clase .minimized */
+.chat-widget-container.minimized #chatBubbleIcon {
+    display: flex !important;
+    width: 32px !important;
+    height: 32px !important;
+    
+    /* Estilo botón oscuro y discreto */
+    background-color: rgba(20, 20, 30, 0.9) !important;
+    border: 1px solid #444 !important;
+    border-radius: 50% !important;
+    color: #f1c40f !important; /* Icono dorado */
+    
     align-items: center;
     justify-content: center;
-    backdrop-filter: blur(2px);
+    font-size: 16px !important;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5) !important;
 }
 
-.chat-widget-container.minimized:hover {
-    background: rgba(59, 130, 246, 0.4); /* Brillo azul al tocar */
-    transform: scale(1.1);
+/* Ocultar el contenido si está minimizado */
+.chat-widget-container.minimized #chatWindowContent {
+    display: none !important;
 }
 
-/* El Icono 💬 */
-#chatBubbleIcon {
-    font-size: 16px; /* Icono mucho más pequeño */
-    line-height: 1;
-    color: #f0f0f0;
-    /* El JS controla el display, pero por defecto debe verse si está minimizado */
-    display: block; 
+/* 3. LA VENTANA ABIERTA */
+/* Solo se muestra si NO tiene la clase .minimized */
+.chat-widget-container:not(.minimized) #chatWindowContent {
+    display: flex !important;
+    flex-direction: column !important;
+    
+    /* Dimensiones para móvil pequeño */
+    width: 200px !important;
+    height: 180px !important;
+    
+    background-color: rgba(15, 20, 25, 0.98) !important;
+    border: 1px solid #f1c40f !important; /* Borde dorado fino */
+    border-radius: 6px !important;
+    overflow: hidden !important;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.8) !important;
 }
 
-/* Punto rojo de notificación (Ajustado al tamaño pequeño) */
-#chatNotificationBadge {
-    position: absolute;
-    top: -2px; right: -2px;
-    background: #e74c3c;
-    color: white;
-    font-size: 8px;
-    width: 12px; height: 12px;
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    border: 1px solid #1a1a1a;
+/* Ocultar el botón burbuja si la ventana está abierta */
+.chat-widget-container:not(.minimized) #chatBubbleIcon {
+    display: none !important;
 }
 
-/* --- ESTADO 2: EXPANDIDO (VENTANA) --- */
-.chat-widget-container:not(.minimized) {
-    width: 280px;
-    height: 220px;
-    background: rgba(15, 23, 42, 0.95);
-    border: 1px solid #3b82f6;
-    border-radius: 8px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.7);
-    display: flex;
-    flex-direction: column;
-}
-
-/* El contenido interno (se muestra al expandir) */
-#chatWindowContent {
-    width: 100%;
-    height: 100%;
-    display: flex; 
-    flex-direction: column;
-}
-
-/* Ajustes visuales internos de la ventana */
+/* 4. ELEMENTOS INTERNOS DEL CHAT */
 .chat-header-mini {
-    padding: 6px 10px;
-    background: rgba(255,255,255,0.05);
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.85em;
+    height: 25px !important;
+    background: #2c2219 !important; /* Tono marrón oscuro */
+    border-bottom: 1px solid #444 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 0 8px !important;
+}
+
+.chat-header-mini span {
+    font-size: 10px !important;
+    color: #f1c40f !important;
     font-weight: bold;
-    color: #f1c40f;
+    text-transform: uppercase;
 }
 
 #minimizeChatBtn {
-    background: none; border: none; color: #aaa; cursor: pointer; font-size: 12px; padding: 5px;
+    background: none !important;
+    border: none !important;
+    color: #ccc !important;
+    font-size: 10px !important;
+    padding: 5px !important;
+    cursor: pointer;
 }
-#minimizeChatBtn:hover { color: white; }
 
-/* Ocultar el icono cuando la ventana está abierta */
-.chat-widget-container:not(.minimized) #chatBubbleIcon {
-    display: none !important;
+#miniChatMessages {
+    flex-grow: 1 !important;
+    overflow-y: auto !important;
+    padding: 5px !important;
+    background: #111 !important;
+}
+
+/* Mensajes individuales (Limpieza de azules gigantes) */
+.chat-msg {
+    margin-bottom: 4px !important;
+    padding: 3px 6px !important;
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+    border-radius: 3px !important;
+    max-width: 90% !important;
+}
+
+.chat-msg.mine {
+    background-color: #3e4a59 !important; /* Azul grisáceo oscuro */
+    color: white !important;
+    align-self: flex-end !important;
+    margin-left: auto !important; /* Forza alineación derecha */
+    text-align: right !important;
+    border: 1px solid #555 !important;
+}
+
+.chat-msg:not(.mine) {
+    background-color: #222 !important;
+    color: #ccc !important;
+    align-self: flex-start !important;
+    border: 1px solid #333 !important;
+}
+
+/* Input Area */
+.mini-chat-input-area {
+    height: 28px !important;
+    display: flex !important;
+    border-top: 1px solid #444 !important;
+    background: #1a1a1a !important;
+}
+
+#miniChatInput {
+    flex-grow: 1 !important;
+    background: transparent !important;
+    border: none !important;
+    color: white !important;
+    font-size: 10px !important;
+    padding: 0 5px !important;
+}
+
+#miniChatSendBtn {
+    width: 30px !important;
+    background: #f1c40f !important; /* Botón dorado */
+    color: #000 !important;
+    border: none !important;
+    font-weight: bold !important;
+    cursor: pointer;
+    font-size: 12px !important;
 }
 
 /* ========================================================== */
@@ -6141,4 +6178,93 @@ input:checked + .slider:before {
     color: #3498db;
     cursor: pointer;
     margin: 0 5px;
+}
+
+/* ESTILOS DEL carga de partidas */
+/* ESTILOS DEL carga de partidas */
+/* ESTILOS DEL carga de partidas */
+
+/* Contenedor de lista más denso */
+/* --- CABECERA Y PESTAÑAS (Adelgazamiento extremo) --- */
+#myGamesModal .modal-header {
+    min-height: 25px !important;
+    padding: 4px 10px !important;
+    background: #0f151f; /* Fondo muy oscuro para contraste */
+}
+#myGamesModal h2 {
+    font-size: 11px !important; /* Título minúsculo */
+    letter-spacing: 1px;
+}
+#myGamesModal .ranking-tabs {
+    height: 25px !important;
+    border-bottom: 1px solid #333;
+}
+#myGamesModal .ranking-tab-btn {
+    padding: 2px 10px !important;
+    font-size: 10px !important;
+    height: 100%;
+    line-height: 20px;
+}
+
+/* --- TARJETA DE PARTIDA (UNA SOLA LÍNEA) --- */
+.save-slot-card {
+    display: grid !important;
+    /* Grid: Icono | Nombre(Flexible) | Estado | Turno | Fecha | Menú */
+    grid-template-columns: 20px 1fr auto auto auto 20px !important;
+    align-items: center !important;
+    gap: 8px !important;
+    
+    height: 35px !important; /* Altura fija muy baja */
+    min-height: 0 !important;
+    
+    background: #1a252f;
+    border-bottom: 1px solid #333; /* Solo línea abajo, no caja completa */
+    border-radius: 0 !important; /* Rectangular para apilar mejor */
+    padding: 0 5px !important;
+    margin: 0 !important;
+}
+
+/* Ajustes de Texto Interno */
+.save-slot-card h4 {
+    font-size: 11px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* Cortar si es largo */
+}
+.save-details span { font-size: 10px !important; color: #aaa; }
+.match-status { 
+    font-size: 9px !important; 
+    padding: 1px 4px; 
+    border-radius: 2px;
+}
+.match-date {
+    position: static !important; /* Ya no es absoluta, es parte del grid */
+    font-size: 9px !important;
+    color: #555;
+    text-align: right;
+}
+.options-btn {
+    font-size: 14px !important;
+    padding: 0 !important;
+    text-align: center;
+}
+
+/* TARJETA OPTIMIZADA (Más ancha, más datos) */
+.save-slot-card {
+    display: grid !important;
+    /* Icono | Nombre | Rival | Estado | Turno | Fecha | Accion (Menu o Boton) */
+    grid-template-columns: 20px 1.5fr 30px auto 30px auto 40px !important;
+    align-items: center !important;
+    gap: 4px !important;
+    padding: 0 5px !important;
+    height: 40px !important;
+}
+
+/* Ajustes de texto para que quepan */
+.match-vs-info {
+    font-size: 10px !important;
+    color: #ccc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }

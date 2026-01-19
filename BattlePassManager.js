@@ -12,20 +12,45 @@ const BattlePassManager = {
         
         modal.style.display = 'flex';
         
-        // Cargar Temporada (Estatica por ahora o DB)
-        if (typeof SEASON_CONFIG !== 'undefined' && typeof BATTLE_PASS_SEASONS !== 'undefined') {
-            this.currentSeason = BATTLE_PASS_SEASONS[SEASON_CONFIG.ACTIVE_SEASON_KEY];
+        // --- CORRECCIÓN DE CARGA DE CONFIGURACIÓN ---
+        // Verificamos explícitamente si las constantes existen antes de leerlas
+        let activeKey = 'SEASON_1'; // Valor por defecto seguro
+        
+        if (typeof SEASON_CONFIG !== 'undefined' && SEASON_CONFIG.ACTIVE_SEASON_KEY) {
+            activeKey = SEASON_CONFIG.ACTIVE_SEASON_KEY;
         } else {
-            // Fallback de emergencia
-            this.initMockSeason(); 
+            console.warn("BattlePassManager: SEASON_CONFIG no encontrado. Usando 'SEASON_1' por defecto.");
         }
 
-        // Cargar Usuario + Misiones
+        // Cargamos los datos de la temporada
+        if (typeof BATTLE_PASS_SEASONS !== 'undefined' && BATTLE_PASS_SEASONS[activeKey]) {
+            this.currentSeason = BATTLE_PASS_SEASONS[activeKey];
+        } else {
+            console.error(`BattlePassManager CRÍTICO: No se encontraron datos para la temporada '${activeKey}' en seasonsData.js`);
+            // Detenemos aquí para no pintar sobre vacío
+            return;
+        }
+
+        // Cargar Usuario + Misiones (Tu lógica original)
         if (!this.userProgress || !this.dailyMissions.length) {
             await this.loadAllData();
         }
         
-        this.switchTab('rewards'); // Abrir en recompensas por defecto
+        // --- PARCHE DE SEGURIDAD VISUAL ---
+        // Si la carga de datos falló (ej: red lenta), inicializamos un objeto vacío
+        // para que la ventana se dibuje aunque sea con datos a cero.
+        if (!this.userProgress) {
+            this.userProgress = { 
+                current_level: 1, 
+                current_xp: 0, 
+                is_premium: false, 
+                claimed_rewards: [] 
+            };
+        }
+
+        // Renderizado
+        this.renderHeader();
+        this.switchTab('rewards'); 
     },
 
     loadAllData: async function() {
@@ -101,114 +126,131 @@ const BattlePassManager = {
         }));
     },
 
-    // --- SISTEMA DE RENDERIZADO ---
-
     switchTab: function(tabName) {
         this.currentTab = tabName;
         
-        // UI Botones
-        document.querySelectorAll('.bp-mini-tab').forEach(btn => {
-            if (btn.innerText.includes('Recomp') && tabName === 'rewards') btn.classList.add('active');
-            else if (btn.innerText.includes('Hazañas') && tabName === 'missions') btn.classList.add('active');
-            else btn.classList.remove('active');
-        });
-
-        // Contenedor principal
-        const wrapper = document.getElementById('bpScrollWrapper');
-        wrapper.innerHTML = ''; // Limpiar
-
-        if (tabName === 'rewards') {
-            // Recrear estructura de camino horizontal (la función que ya tenías)
-            this.renderRewardsView(wrapper);
-        } else {
-            // Renderizar lista de misiones vertical
-            this.renderMissionsView(wrapper);
+        // 1. Obtener el contenedor del carril (Scroll)
+        const trackContainer = document.getElementById('bpScrollContainer');
+        
+        if (!trackContainer) { 
+            console.error("Error: No se encontró #bpScrollContainer en el HTML"); 
+            return; 
         }
 
-        // Renderizar siempre la cabecera (Datos fijos)
-        this.renderHeader();
+        trackContainer.innerHTML = ''; // Limpiar lo que hubiera antes
+
+        if (tabName === 'rewards') {
+            // Dibujar el camino
+            this.renderRewardsView(trackContainer);
+        } else {
+            // Placeholder para misiones
+            trackContainer.innerHTML = "<div style='color:white; padding:20px; width:100%; text-align:center;'>Misiones disponibles próximamente.</div>";
+        }
     },
 
     renderHeader: function() {
         if (!this.userProgress || !this.currentSeason) return;
         const currentLvl = this.userProgress.current_level;
-        const isPremium = this.userProgress.is_premium;
-
+        
+        // Textos
         if(document.getElementById('bpSeasonName')) document.getElementById('bpSeasonName').textContent = this.currentSeason.name;
-        document.getElementById('bpLvlLeft').textContent = currentLvl;
-        document.getElementById('bpLvlRight').textContent = currentLvl + 1;
-        document.getElementById('bpXpText').textContent = `${this.userProgress.current_xp} XP`;
-        document.getElementById('bpHeaderProgressBar').style.width = '30%'; // Simplificado visual
-
-        // Botón Premium
-        const btnPrem = document.getElementById('buyPremiumBtn'); 
-        if (btnPrem) {
-            if (isPremium) {
-                btnPrem.style.background = "#2ecc71";
-                btnPrem.innerHTML = `<span style="font-size:0.7em">ESTADO</span><span>ACTIVO</span>`;
-                btnPrem.disabled = true;
-            } else {
-                btnPrem.innerHTML = `<span style="font-size:0.7em">ACTIVAR</span><span>DORADO</span>`;
-                btnPrem.disabled = false;
-            }
+        if(document.getElementById('bpLvlLeft')) document.getElementById('bpLvlLeft').textContent = currentLvl;
+        if(document.getElementById('bpLvlRight')) document.getElementById('bpLvlRight').textContent = currentLvl + 1;
+        if(document.getElementById('bpXpText')) document.getElementById('bpXpText').textContent = `${this.userProgress.current_xp} XP`;
+        
+        // Timer (Cálculo real de días restantes)
+        if (this.currentSeason.endDate) {
+            const end = new Date(this.currentSeason.endDate);
+            const now = new Date();
+            const diff = end - now;
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            if(document.getElementById('bpSeasonTimer')) document.getElementById('bpSeasonTimer').textContent = `${days} días restantes`;
         }
     },
 
     // VISTA 1: CAMINO (Lo que arreglamos antes)
-    renderRewardsView: function(wrapper) {
-        // Estructura necesaria para el scroll
-        wrapper.innerHTML = `
-            <div class="bp-track-labels">
-                <div class="label-track gold">Pase<br>Dorado</div>
-                <div class="label-track free">Gratis</div>
-            </div>
-            <div id="bpScrollContainer" class="bp-items-track"></div>
-        `;
-        
-        const container = document.getElementById('bpScrollContainer');
+    renderRewardsView: function(container) {
+        if (!this.currentSeason || !this.currentSeason.levels) return;
+
         const currentLvl = this.userProgress.current_level;
         const isPremium = this.userProgress.is_premium;
 
+        // Iterar sobre los niveles cargados desde seasonsData.js
         this.currentSeason.levels.forEach(lvl => {
             const isReached = currentLvl >= lvl.lvl;
+            
+            // Crear la columna vertical
             const col = document.createElement('div');
             col.className = `bp-col ${isReached ? 'reached' : ''}`;
 
+            // --- FILA SUPERIOR (Premium) ---
+            // Nota: Pasamos el objeto 'lvl.prem' que contiene {icon: '...', qty: ...}
             const topBox = this.createBox(lvl.lvl, 'prem', lvl.prem, isReached, !isPremium);
             topBox.classList.add('prem');
             
-            const node = document.createElement('div'); node.className = "bp-ball"; node.textContent = lvl.lvl;
-            const conn = document.createElement('div'); conn.className = "bp-connector";
+            // --- CENTRO (Conector y Bola) ---
+            const node = document.createElement('div'); 
+            node.className = "bp-ball"; 
+            node.textContent = lvl.lvl;
             
+            const conn = document.createElement('div'); 
+            conn.className = "bp-connector";
+            
+            // --- FILA INFERIOR (Gratis) ---
             const botBox = this.createBox(lvl.lvl, 'free', lvl.free, isReached, false);
             botBox.classList.add('free');
 
+            // Ensamblar
             col.append(topBox, conn, node, botBox);
             container.appendChild(col);
         });
 
+        // Auto-scroll al final (o al nivel actual)
         setTimeout(() => {
-            const nodes = container.querySelectorAll('.reached');
-            if(nodes.length > 0) nodes[nodes.length-1].scrollIntoView({ inline: 'center', behavior: 'smooth' });
-        }, 50);
+            // Intentar buscar el último alcanzado
+            const reachedNodes = container.querySelectorAll('.reached');
+            if(reachedNodes.length > 0) {
+                reachedNodes[reachedNodes.length-1].scrollIntoView({ inline: 'center', behavior: 'smooth' });
+            }
+        }, 100);
     },
 
     createBox: function(lvlNum, trackType, reward, isLevelReached, isLocked) {
         const box = document.createElement('div');
         box.className = "bp-box";
+        
+        // Clave única para saber si ya se reclamó (ej: "1_free")
         const claimKey = `${lvlNum}_${trackType}`;
-        const isClaimed = this.userProgress.claimed_rewards.includes(claimKey);
+        const isClaimed = this.userProgress.claimed_rewards && this.userProgress.claimed_rewards.includes(claimKey);
+
+        // Icono: Usar el del JSON o un interrogante por defecto
+        const iconDisplay = reward.icon || '📦';
 
         if (isClaimed) {
+            // Estado: Reclamado
             box.style.opacity = "0.5";
             box.innerHTML = `<div style="font-size:20px">✅</div>`;
+            
         } else if (isLocked) {
-            box.innerHTML = `<div style="font-size:24px; opacity:0.3">${reward.icon}</div><div class="bp-lock">🔒</div>`;
+            // Estado: Bloqueado (Solo Premium sin comprar)
+            box.innerHTML = `
+                <div style="font-size:24px; opacity:0.3">${iconDisplay}</div>
+                <div class="bp-lock">🔒</div>`;
+                
         } else if (!isLevelReached) {
-            box.innerHTML = `<div style="font-size:24px; opacity:0.5; filter:grayscale(1);">${reward.icon}</div><div style="font-size:10px; opacity:0.7">${reward.qty}</div>`;
+            // Estado: Aún no alcanzado (Gris)
+            box.innerHTML = `
+                <div style="font-size:24px; opacity:0.5; filter:grayscale(1);">${iconDisplay}</div>
+                <div style="font-size:10px; opacity:0.7; color:#aaa;">${reward.qty}</div>`;
+                
         } else {
-            box.innerHTML = `<div style="font-size:28px; animation: pulse-gold 1s infinite">${reward.icon}</div><div style="font-size:11px; font-weight:bold; color:#fff;">${reward.qty}</div>`;
-            box.classList.add('bp-claimable');
+            // Estado: ¡LISTO PARA RECLAMAR! (Brillante)
+            box.classList.add('bp-claimable'); // Activa la animación CSS
+            box.innerHTML = `
+                <div style="font-size:28px;">${iconDisplay}</div>
+                <div style="font-size:11px; font-weight:bold; color:#fff;">${reward.qty}</div>`;
+            
+            // Añadir evento de clic
             box.onclick = () => this.claimReward(claimKey, reward);
         }
         return box;
