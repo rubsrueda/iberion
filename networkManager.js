@@ -215,29 +215,57 @@ const NetworkManager = {
     cargarPartidaDesdeLista: function(matchData) {
         console.log("Cargando partida seleccionada:", matchData.match_id);
         
-        // 1. Configurar Identidad
         this.miId = matchData.match_id;
         const uid = PlayerDataManager.currentPlayer?.auth_id;
         this.esAnfitrion = (matchData.host_id === uid);
         
-        // 2. Establecer el jugador local
-        gameState.myPlayerNumber = this.esAnfitrion ? 1 : 2;
-        
-        // 3. Reconstruir el juego con los datos descargados
+        // 1. Cargar el estado
         if (typeof reconstruirJuegoDesdeDatos === 'function') {
-            // Nota: game_state en la DB contiene { gameState, board, units... }
-            // reconstruirJuegoDesdeDatos espera ese objeto completo.
             reconstruirJuegoDesdeDatos(matchData.game_state);
         }
         
-        // 4. Activar la escucha en tiempo real
-        this.activarEscuchaDeTurnos(matchData.match_id);
-        
-        // 5. Mostrar la pantalla de juego
+        // 2. Establecer identidad local
+        gameState.myPlayerNumber = this.esAnfitrion ? 1 : 2;
+
+        // 3. MOSTRAR PANTALLA
         showScreen(domElements.gameContainer);
         if(domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
+
+        // --- CORRECCIÓN IA: Detectar si es Vs IA ---
+        const isModeAI = matchData.status === 'VS_AI' || gameState.playerTypes['player2'].includes('ai');
         
-        // 6. Actualizar UI
+        if (isModeAI) {
+            console.log("[Carga] Modo VS IA detectado. Desactivando espera de red.");
+            
+            // Si es el turno de la IA (J2), forzar su ejecución
+            if (gameState.currentPlayer === 2) {
+                // Mostrar bloqueo visual brevemente
+                const blocker = document.getElementById('turnBlocker');
+                if (blocker) {
+                    blocker.textContent = "IA Calculando...";
+                    blocker.style.display = 'flex';
+                }
+                
+                // Ejecutar turno IA
+                setTimeout(() => {
+                    simpleAiTurn(); // O la función de IA que uses
+                    if(blocker) blocker.style.display = 'none';
+                }, 1000);
+            } else {
+                // Si es mi turno, asegurarme de que no haya bloqueo
+                const blocker = document.getElementById('turnBlocker');
+                if (blocker) blocker.style.display = 'none';
+            }
+
+            // NO activamos la escucha de red en tiempo real si es contra la IA
+            // porque no hay otro humano enviando datos.
+            
+        } else {
+            // Modo Humano: Activar escucha normal
+            this.activarEscuchaDeTurnos(matchData.match_id);
+        }
+        
+        // 4. Actualizar UI
         if(typeof UIManager !== 'undefined') {
             UIManager.updateAllUIDisplays();
             UIManager.refreshActionButtons();
