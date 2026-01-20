@@ -4112,24 +4112,27 @@ window.addEventListener('click', () => {
 
 // 1. Convertir Rival a IA
 window.convertToAI = async function(matchId) {
-    if (!confirm("¿Convertir al rival en IA? Podrás seguir jugando inmediatamente, pero ya no será multijugador.")) return;
+    if (!confirm("¿Reemplazar al rival humano por una IA? Esta acción es irreversible.")) return;
 
-    // Recuperar estado actual
+    // Obtener estado actual
     const { data: match } = await supabaseClient.from('active_matches').select('game_state').eq('match_id', matchId).single();
-    if (!match) return;
-
-    const newState = match.game_state;
-    // Cambiar tipo de jugador 2 a IA
-    newState.gameState.playerTypes['player2'] = 'ai_normal';
     
-    // Guardar cambio
-    await supabaseClient.from('active_matches').update({ 
-        game_state: newState,
-        status: 'VS_AI' // Nueva marca de estado
-    }).eq('match_id', matchId);
+    if (match) {
+        const newState = match.game_state;
+        
+        // Asignar IA al hueco del rival (Jugador 2 por defecto, o el que no seas tú)
+        // Simplificación: Si soy Host (J1), pongo IA en J2.
+        newState.gameState.playerTypes['player2'] = 'ai_normal'; 
+        
+        await supabaseClient.from('active_matches').update({ 
+            game_state: newState,
+            status: 'VS_AI',
+            guest_id: null // Expulsamos al humano fantasma si lo hubiera
+        }).eq('match_id', matchId);
 
-    alert("Rival convertido a IA. ¡A la batalla!");
-    openMyGamesModal(); // Recargar lista
+        alert("Rival convertido. Ahora juegas contra la IA.");
+        openMyGamesModal();
+    }
 };
 
 // 2. Publicar en Mercado
@@ -4165,73 +4168,67 @@ window.showMatchContext = function(event, matchId, isAbandoned) {
 // --- CORRECCIÓN MERCADO PÚBLICO ---
 window.refreshPublicGames = async function() {
     const list = document.getElementById('publicGamesList');
-    const myId = PlayerDataManager.currentPlayer?.auth_id;
-    list.innerHTML = '<p style="text-align:center; color:#ccc; font-size:10px;">Escaneando...</p>';
+    list.innerHTML = '<p style="text-align:center; color:#ccc; font-size:10px;">Escaneando mercado...</p>';
 
-    // Consulta Blindada: Solo partidas OPEN y que NO sean mías
+    const myId = PlayerDataManager.currentPlayer?.auth_id;
+
+    // Buscamos partidas en estado MERCADO y que tengan hueco libre
     let query = supabaseClient
         .from('active_matches')
         .select('*')
         .eq('status', 'OPEN_MARKET')
-        .neq('host_id', myId)  // No soy el host
-        .is('guest_id', null); // El hueco de invitado está libre
+        .is('guest_id', null)  // IMPORTANTE: Solo las que buscan jugador
+        .neq('host_id', myId)  // No mostrar las mías propias (opcional, quítalo si quieres verlas)
+        .order('updated_at', { ascending: false });
 
     const { data, error } = await query;
 
-    if (error) { console.error(error); return; }
+    if (error) { console.error(error); list.innerHTML = "Error."; return; }
 
     list.innerHTML = '';
     if (!data || data.length === 0) {
-        list.innerHTML = '<p style="text-align:center; color:#888; font-size:10px;">Nada en el mercado.</p>';
+        list.innerHTML = '<p style="text-align:center; color:#888; font-size:10px;">No hay partidas disponibles.</p>';
         return;
     }
 
-    // Renderizado (Usando el mismo HTML compacto de una línea)
+    // Renderizado (Tu código de tarjeta de mercado...)
     data.forEach(match => {
-        const turn = match.game_state?.gameState?.turnNumber || 1;
+        // ... (Usa el mismo código de tarjeta que ya tenías para el mercado) ...
+        // ... Asegúrate de que el botón llame a takeOverMatch ...
         const card = document.createElement('div');
-        card.className = 'save-slot-card'; // Usa el nuevo CSS de línea única
-        
-        // Estructura adaptada al Grid de 1 línea:
-        // [Icon] [Nombre] [Vacio] [Turno] [Botón]
+        card.className = 'save-slot-card';
         card.innerHTML = `
             <div style="font-size:14px;">🌍</div>
             <h4 style="color:#00f3ff;">#${match.match_id}</h4>
-            <div></div> <!-- Espaciador -->
-            <span style="font-size:10px; color:#aaa;">T${turn}</span>
+            <div style="flex-grow:1"></div>
             <span style="font-size:9px; color:#666;">Abandonada</span>
-            <button onclick="takeOverMatch('${match.match_id}')" style="background:#27ae60; color:white; border:none; padding:2px 6px; font-size:10px; border-radius:3px;">TOMAR</button>
+            <button onclick="takeOverMatch('${match.match_id}')" style="background:#27ae60; color:white; border:none; padding:4px 8px; font-size:10px; border-radius:3px;">TOMAR</button>
         `;
         list.appendChild(card);
     });
 };
 
-// --- CORRECCIÓN ABANDONAR ---
+// --- ABANDONAR ---
 window.abandonMatch = async function(matchId) {
-    if(!confirm("¿Borrar esta partida de tu lista?")) return;
+    if(!confirm("¿Abandonar esta batalla? No podrás volver.")) return;
     
     const myId = PlayerDataManager.currentPlayer.auth_id;
     
-    // Intentamos las dos vías: Si soy host, la borro. Si soy guest, me salgo.
-    // Usamos Promise.all para intentar ambas cosas y no fallar si no sé qué soy.
+    // Averiguar si soy Host o Guest
+    const { data } = await supabaseClient.from('active_matches').select('host_id, guest_id').eq('match_id', matchId).single();
     
-    // 1. Intentar borrar como Host
-    const deleteOp = supabaseClient.from('active_matches').delete().eq('match_id', matchId).eq('host_id', myId);
+    if (data) {
+        if (data.host_id === myId) {
+            // Soy Host: La borro para todos (es lo más limpio para evitar partidas zombies)
+            await supabaseClient.from('active_matches').delete().eq('match_id', matchId);
+        } else {
+            // Soy Guest: Me borro a mí mismo. El Host verá que el hueco se liberó.
+            await supabaseClient.from('active_matches').update({ guest_id: null }).eq('match_id', matchId);
+        }
+    }
     
-    // 2. Intentar salir como Guest
-    const leaveOp = supabaseClient.from('active_matches').update({ guest_id: null }).eq('match_id', matchId).eq('guest_id', myId);
-
-    await Promise.all([deleteOp, leaveOp]);
-
-    // Refresco manual de la lista visual (truco sucio pero efectivo)
-    // Buscamos la tarjeta en el DOM y la matamos
-    const cards = document.querySelectorAll('.save-slot-card');
-    cards.forEach(c => {
-        if(c.innerHTML.includes(matchId)) c.remove();
-    });
-    
-    // O recargamos todo
-    // openMyGamesModal(); 
+    // Refrescar lista visualmente
+    openMyGamesModal(); 
 };
 
 // Función para unirse como sustituto
