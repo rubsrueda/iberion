@@ -3702,28 +3702,46 @@ async function openFullCodex() {
     listContainer.innerHTML = '<p style="text-align:center; color:#ffd700; font-size:12px;">Abriendo archivos del reino...</p>';
 
     try {
-        // Consulta a Supabase
-        const { data: matches, error } = await supabaseClient
+        // Consulta a Supabase (Igual que antes)
+        const { data: matchesRaw, error } = await supabaseClient
             .from('match_history')
             .select('*')
             .eq('player_id', player.auth_id)
             .order('created_at', { ascending: false })
-            .limit(20);
+            .limit(50); // Traemos un poco más por si filtramos
 
         if (error) throw error;
 
-        if (!matches || matches.length === 0) {
+        if (!matchesRaw || matchesRaw.length === 0) {
             listContainer.innerHTML = '<p style="text-align:center; opacity:0.5; font-size:12px;">No hay gestas registradas aún.</p>';
             return;
         }
 
-        // Dibujar la lista de batallas
+        // --- FILTRO DE DUPLICADOS (NUEVO) ---
+        // Filtramos partidas que sean idénticas en resultado y ocurrieran casi al mismo tiempo (error de triple clic)
+        const matches = matchesRaw.filter((match, index, self) => {
+            if (index === 0) return true; // El primero siempre pasa
+            
+            const prevMatch = self[index - 1];
+            
+            // Calculamos diferencia de tiempo
+            const timeDiff = new Date(prevMatch.created_at) - new Date(match.created_at);
+            
+            // Si pasó menos de 5 segundos y el resultado es el mismo, es un duplicado del bug
+            const isDuplicate = (timeDiff < 5000) && (prevMatch.outcome === match.outcome) && (prevMatch.turns_played === match.turns_played);
+            
+            return !isDuplicate; // Solo devolvemos los que NO son duplicados
+        });
+        // ------------------------------------
+
+        // Dibujar la lista de batallas (Usando la lista filtrada 'matches')
         listContainer.innerHTML = matches.map((m, index) => {
+            // ... (Tu código de HTML de la tarjeta se mantiene igual) ...
             const color = m.outcome === 'victoria' ? '#4caf50' : '#ff5252';
             return `
             <div onclick="showMatchDetails(${index})" style="background: rgba(255,255,255,0.05); margin-bottom: 8px; padding: 10px; border-radius: 6px; border-left: 4px solid ${color}; cursor: pointer;">
                 <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                    <strong>Día ${new Date(m.created_at).toLocaleDateString()}</strong>
+                    <strong>Día ${new Date(m.created_at).toLocaleDateString()} ${new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</strong>
                     <span style="color: ${color}; font-weight: bold;">${m.outcome.toUpperCase()}</span>
                 </div>
                 <div style="font-size: 10px; color: #bcaaa4; margin-top: 3px;">${m.kills} bajas | ${m.turns_played} turnos. (Toca para leer)</div>

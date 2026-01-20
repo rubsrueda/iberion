@@ -74,6 +74,10 @@ const BattlePassManager = {
         }
         this.userProgress = passData;
 
+        if (this.userProgress && !this.userProgress.claimed_rewards) {
+            this.userProgress.claimed_rewards = [];
+        }
+
         // 2. CARGAR O GENERAR MISIONES DIARIAS
         await this.checkDailyMissionsGen(uid);
     },
@@ -147,18 +151,42 @@ const BattlePassManager = {
             trackContainer.innerHTML = "<div style='color:white; padding:20px; width:100%; text-align:center;'>Misiones disponibles próximamente.</div>";
         }
     },
-
+    
     renderHeader: function() {
+        // Aseguramos que existan los datos mínimos para pintar, si no, salimos
         if (!this.userProgress || !this.currentSeason) return;
+
         const currentLvl = this.userProgress.current_level;
+        const isPremium = this.userProgress.is_premium;
         
-        // Textos
+        // 1. Textos Generales
         if(document.getElementById('bpSeasonName')) document.getElementById('bpSeasonName').textContent = this.currentSeason.name;
         if(document.getElementById('bpLvlLeft')) document.getElementById('bpLvlLeft').textContent = currentLvl;
         if(document.getElementById('bpLvlRight')) document.getElementById('bpLvlRight').textContent = currentLvl + 1;
-        if(document.getElementById('bpXpText')) document.getElementById('bpXpText').textContent = `${this.userProgress.current_xp} XP`;
         
-        // Timer (Cálculo real de días restantes)
+        // 2. Barra de XP y Botón de Compra de Niveles (+)
+        const xpTextEl = document.getElementById('bpXpText');
+        if(xpTextEl) {
+            xpTextEl.innerHTML = `${this.userProgress.current_xp} XP <button id="btnBuyXP" class="bp-buy-xp-btn">+</button>`;
+            // Listener para comprar niveles
+            document.getElementById('btnBuyXP').onclick = (e) => {
+                e.stopPropagation();
+                this.showXpPurchaseOptions();
+            };
+        }
+
+        // 3. Barra de Progreso Visual (Header)
+        // Calculamos cuánto falta para el siguiente nivel
+        // Nota: Asumimos saltos de 500xp para la visualización rápida, o leemos del seasonData
+        const nextLvlReq = 500 * currentLvl; 
+        const prevLvlReq = 500 * (currentLvl - 1);
+        const progressInLevel = this.userProgress.current_xp - prevLvlReq;
+        const percent = Math.min(100, Math.max(0, (progressInLevel / 500) * 100));
+        
+        const progressBar = document.getElementById('bpHeaderProgressBar');
+        if (progressBar) progressBar.style.width = `${percent}%`;
+
+        // 4. Timer
         if (this.currentSeason.endDate) {
             const end = new Date(this.currentSeason.endDate);
             const now = new Date();
@@ -166,6 +194,111 @@ const BattlePassManager = {
             const days = Math.floor(diff / (1000 * 60 * 60 * 24));
             if(document.getElementById('bpSeasonTimer')) document.getElementById('bpSeasonTimer').textContent = `${days} días restantes`;
         }
+
+        // 5. >>> CORRECCIÓN: BOTÓN "ACTIVAR DORADO" <<<
+        const premiumBtn = document.getElementById('buyPremiumBtn');
+        if (premiumBtn) {
+            if (isPremium) {
+                // Si ya lo tiene, cambiamos el estilo
+                premiumBtn.textContent = "✓ PASE ACTIVO";
+                premiumBtn.classList.add('active-pass-btn'); // (Estilo opcional)
+                premiumBtn.style.background = "#2ecc71";
+                premiumBtn.style.cursor = "default";
+                premiumBtn.onclick = null; // Quitar click
+            } else {
+                // Si no lo tiene, conectamos a la Tienda
+                premiumBtn.textContent = "ACTIVAR DORADO";
+                premiumBtn.style.background = "linear-gradient(180deg, #f1c40f, #ff8c00)";
+                premiumBtn.style.cursor = "pointer";
+                
+                premiumBtn.onclick = () => {
+                    // Cierra el modal del pase para que no estorbe
+                    document.getElementById('battlePassModal').style.display = 'none';
+                    // Abre la simulación de compra directa del item 'battle_pass_s1'
+                    if (typeof StoreManager !== 'undefined') {
+                        StoreManager.buyWithRealMoney('battle_pass_s1');
+                    } else {
+                        console.error("StoreManager no encontrado.");
+                    }
+                };
+            }
+        }
+    },
+
+    // --- Mostrar opciones de compra ---
+    showXpPurchaseOptions: function() {
+        // Creamos un modal flotante rápido con JS (para no ensuciar el HTML)
+        const overlay = document.createElement('div');
+        overlay.id = 'xpPurchaseOverlay';
+        overlay.style.cssText = `
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 20050;
+            display: flex; align-items: center; justify-content: center;
+        `;
+        
+        overlay.innerHTML = `
+            <div style="background: #2c3e50; padding: 20px; border: 2px solid #f1c40f; border-radius: 10px; text-align: center; color: white; min-width: 300px;">
+                <h3 style="color: #f1c40f; margin-top: 0;">COMPRAR 1 NIVEL (500 XP)</h3>
+                <p>Acelera tu progreso en la temporada.</p>
+                
+                <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
+                    <button id="buyXpGems" style="background: #3498db; border: 1px solid #2980b9; color: white; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                        150 💎
+                    </button>
+                    <button id="buyXpGold" style="background: #f1c40f; border: 1px solid #d4ac0d; color: #3e2723; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                        3,000 💰
+                    </button>
+                </div>
+                <button id="cancelXpBuy" style="margin-top: 15px; background: transparent; border: none; color: #aaa; cursor: pointer; text-decoration: underline;">Cancelar</button>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        // Listeners del modal temporal
+        document.getElementById('buyXpGems').onclick = () => { this.processXpPurchase('gems'); document.body.removeChild(overlay); };
+        document.getElementById('buyXpGold').onclick = () => { this.processXpPurchase('gold'); document.body.removeChild(overlay); };
+        document.getElementById('cancelXpBuy').onclick = () => document.body.removeChild(overlay);
+    },
+
+    // --- Procesar la compra ---
+    processXpPurchase: async function(currency) {
+        const COST_GEMS = 150;
+        const COST_GOLD = 3000;
+        const XP_AMOUNT = 500; // Cantidad estándar para subir 1 nivel aprox
+
+        const player = PlayerDataManager.currentPlayer;
+        
+        if (currency === 'gems') {
+            if (player.currencies.gems >= COST_GEMS) {
+                player.currencies.gems -= COST_GEMS;
+                this.executeXpAdd(XP_AMOUNT, "💎");
+            } else {
+                if(typeof showToast === 'function') showToast("Gemas insuficientes.", "error");
+            }
+        } else if (currency === 'gold') {
+            if (player.currencies.gold >= COST_GOLD) {
+                player.currencies.gold -= COST_GOLD;
+                this.executeXpAdd(XP_AMOUNT, "💰");
+            } else {
+                if(typeof showToast === 'function') showToast("Oro insuficiente.", "error");
+            }
+        }
+    },
+
+    executeXpAdd: async function(amount, icon) {
+        // Guardar el gasto de moneda
+        await PlayerDataManager.saveCurrentPlayer();
+        
+        // Sumar la XP (esto también recalcula nivel y guarda el pase)
+        const result = await this.addMatchXp(amount);
+        
+        if (typeof showToast === 'function') showToast(`Compra exitosa: +${amount} XP ${icon}`, "success");
+        if (typeof AudioManager !== 'undefined') AudioManager.playSound('ui_click');
+        
+        // Refrescar la UI
+        this.renderHeader();
+        this.render(); // Refrescar el camino visual
     },
 
     // VISTA 1: CAMINO (Lo que arreglamos antes)
@@ -257,16 +390,28 @@ const BattlePassManager = {
     },
 
     claimReward: function(key, reward) {
+        // Entregar recursos
         if(reward.type === 'oro' && PlayerDataManager?.currentPlayer) PlayerDataManager.currentPlayer.currencies.gold += reward.qty;
         if(reward.type === 'sellos' && PlayerDataManager?.currentPlayer) PlayerDataManager.addWarSeals(reward.qty);
-        // ... otros tipos ...
+        if(reward.type === 'madera' && gameState.playerResources[1]) gameState.playerResources[1].madera += reward.qty; // Ejemplo recursos blandos
+        // ... (resto de lógica de entrega) ...
 
+        // --- CORRECCIÓN AQUÍ (BLINDAJE DE ARRAY) ---
+        // Si la lista no existe (es null), la creamos como vacía antes de empujar nada.
+        if (!this.userProgress.claimed_rewards) {
+            this.userProgress.claimed_rewards = [];
+        }
+        
         this.userProgress.claimed_rewards.push(key);
+        // -------------------------------------------
+
         // Guardar progreso completo
         this.saveUserProgress(); 
         
         if(typeof showToast === 'function') showToast(`Recogido: ${reward.qty} ${reward.type}`, "success");
-        this.render(); // Refresca vista actual
+        
+        // Refrescar vista actual usando switchTab para asegurar redibujado
+        this.switchTab('rewards'); 
     },
 
     // VISTA 2: LISTA DE MISIONES (Nueva UI)
@@ -399,7 +544,21 @@ const BattlePassManager = {
          
          await this.saveUserProgress();
          return { xpAdded: xpAmount, levelsGained: this.userProgress.current_level - oldLvl };
-    }
+    },
+
+    //Activar el Premium
+    activatePremium: async function() {
+        if (!this.userProgress) return;
+        
+        this.userProgress.is_premium = true;
+        await this.saveUserProgress();
+        
+        this.renderHeader();      // Actualiza la cabecera
+        this.switchTab('rewards');// Redibuja el camino de premios
+        // -----------------------
+        
+        if(typeof showToast === 'function') showToast("¡Pase Premium Desbloqueado!", "success");
+    },
 };
 
 // LISTENERS UNIFICADOS (Importante actualizar para los Tabs)

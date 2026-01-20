@@ -1521,53 +1521,37 @@
                 </div>
             </div>
 
-            <!-- PANTALLA 2: CUARTEL GENERAL (Si tienes alianza) -->
-            <div id="aliView_HQ" class="ali-hq-grid" style="display:none;">
+            <!-- PANTALLA 2: CUARTEL GENERAL (Diseño de Columna Única) -->
+            <div id="aliView_HQ" class="ali-hq-grid" style="display:none; flex-direction: column; height: 100%;">
                 
-                <!-- COLUMNA IZQUIERDA: OPERACIONES Y ESTADO -->
-                <div class="hq-col-left">
-                    <!-- La "Guerra" o Incursión activa (Estilo Hero Wars Raid) -->
-                    <div class="war-status-card">
-                        <div class="war-header">⚠️ INCURSIÓN ACTIVA</div>
-                        <div class="war-content">
-                            <div class="raid-target-icon">🐫</div>
-                            <div class="raid-info">
-                                <strong>Caravana Imperial</strong>
-                                <div class="hp-bar-container"><div class="hp-bar" style="width:75%"></div></div>
-                                <small>75% HP restante</small>
-                            </div>
-                            <button class="btn-attack">⚔️ ATACAR</button>
+                <!-- PANEL SUPERIOR: ESTADO DE GUERRA (Caravana) -->
+                <div class="war-status-card" style="margin: 10px; flex-shrink: 0;">
+                    <div class="war-header">⚠️ INCURSIÓN ACTIVA</div>
+                    <div class="war-content">
+                        <div class="raid-target-icon">🐫</div>
+                        <div class="raid-info">
+                            <strong>Caravana Imperial</strong>
+                            <!-- Barra de vida visual -->
+                            <div class="hp-bar-container"><div id="raidBossHpBar" class="hp-bar" style="width:100%"></div></div>
+                            <small id="raidBossHpText">10,000 / 10,000 HP</small>
                         </div>
-                    </div>
-
-                    <!-- Lista de Miembros Compacta -->
-                    <div class="members-card">
-                        <div class="card-header">
-                            <span>Miembros</span>
-                            <button class="btn-tiny">Gestionar</button>
-                        </div>
-                        <div id="membersListCompact" class="members-scroll-area">
-                            <!-- JS rellena esto -->
-                        </div>
+                        <button id="btnAttackRaid" class="btn-attack">⚔️ ATACAR</button>
                     </div>
                 </div>
 
-                <!-- COLUMNA DERECHA: COMUNICACIÓN (CHAT GRANDE) -->
-                <div class="hq-col-right">
-                    <div class="chat-full-panel">
-                        <div id="fullChatMessages" class="chat-messages-area">
-                            <!-- Mensajes aquí -->
-                        </div>
-                        <div class="chat-input-row">
-                            <input type="text" id="fullChatInput" placeholder="Mensaje a la alianza...">
-                            <button id="fullChatSendBtn">ENVIAR</button>
-                        </div>
+                <!-- PANEL INFERIOR: LISTA DE MIEMBROS (Ocupa el resto) -->
+                <div class="members-card" style="flex-grow: 1; padding: 0 10px 10px 10px; display: flex; flex-direction: column; min-height: 0;">
+                    <div class="card-header" style="padding: 5px 0; border-bottom: 1px solid #334155; margin-bottom: 5px; display: flex; justify-content: space-between;">
+                        <span style="color: #94a3b8; font-weight: bold;">MIEMBROS DEL CLAN</span>
+                        <span id="memberCountDisplay" style="color: #f1c40f;">0/50</span>
+                    </div>
+                    <div id="membersListCompact" class="members-scroll-area" style="flex-grow: 1; overflow-y: auto;">
+                        <!-- JS rellenará esto -->
+                        <p style="text-align: center; color: #666;">Cargando efectivos...</p>
                     </div>
                 </div>
 
             </div>
-
-        </div>
     </div>
 
     <!-- ====================================================================== -->

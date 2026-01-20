@@ -132,50 +132,105 @@ const AllianceManager = {
 
     // --- LÓGICA DEL CUARTEL GENERAL (HQ) ---
 
+    // En allianceManager.js
+
     loadHQ: async function(aliId) {
         this.showScreen('HQ');
-        
-        // Carga paralela de datos y miembros
-        const [aliRes, membersRes] = await Promise.all([
-            supabaseClient.from('alliances').select('*').eq('id', aliId).single(),
-            supabaseClient.from('alliance_members')
-                .select('user_id, role, profiles(username, level, avatar_url)')
-                .eq('alliance_id', aliId)
-        ]);
+        const listContainer = document.getElementById('membersListCompact');
+        listContainer.innerHTML = '<div style="text-align:center; padding:20px; color:#aaa;">Contactando con el Cuartel General...</div>';
 
-        if(aliRes.error) return; // Manejar error
-        
-        const ali = aliRes.data;
-        this.currentAlliance = ali;
+        try {
+            // 1. CARGA PARALELA: Datos de la Alianza + Lista de Miembros (con perfiles unidos)
+            const [aliRes, membersRes] = await Promise.all([
+                // A. Datos de la Alianza
+                supabaseClient
+                    .from('alliances')
+                    .select('*')
+                    .eq('id', aliId)
+                    .single(),
 
-        // Render Header
-        let icon = "🛡️";
-        try { icon = JSON.parse(ali.description).icon || icon; } catch(e){}
-        document.getElementById('hqFlag').textContent = icon;
-        document.getElementById('hqName').textContent = `[${ali.tag}] ${ali.name}`;
-        document.getElementById('hqLevel').textContent = ali.level;
-        document.getElementById('hqLanguage').textContent = ali.language || 'Global';
-        document.getElementById('hqPower').textContent = ali.total_power || 0;
-        document.getElementById('hqMembers').textContent = `${membersRes.data.length}/50`;
+                // B. Miembros + Datos de Perfil (JOIN)
+                supabaseClient
+                    .from('alliance_members')
+                    .select(`
+                        role,
+                        user_id,
+                        profiles (
+                            username,
+                            level,
+                            avatar_url,
+                            total_wins
+                        )
+                    `)
+                    .eq('alliance_id', aliId)
+            ]);
 
-        // Render Members
-        const mList = document.getElementById('membersListCompact');
-        mList.innerHTML = '';
-        membersRes.data.forEach(m => {
-            const div = document.createElement('div');
-            div.className = 'member-item';
-            // Fallback si profiles es null (integridad referencial)
-            const uname = m.profiles?.username || 'Usuario';
-            const lvl = m.profiles?.level || 1;
-            div.innerHTML = `
-                <span>${m.profiles?.avatar_url || '👤'} ${uname} <span style="color:#aaa; font-size:9px;">(Lvl ${lvl})</span></span>
-                <span class="role-badge role-${m.role}">${m.role}</span>
-            `;
-            mList.appendChild(div);
-        });
+            if (aliRes.error) throw aliRes.error;
+            if (membersRes.error) throw membersRes.error;
 
-        // Cargar historial de chat reciente
-        this.loadChatHistory(aliId);
+            const ali = aliRes.data;
+            const members = membersRes.data;
+            this.currentAlliance = ali;
+
+            // 2. CALCULAR PODER TOTAL (Suma de Niveles * 100 + Victorias * 10)
+            let totalPower = 0;
+            members.forEach(m => {
+                const p = m.profiles;
+                if (p) {
+                    totalPower += (p.level || 1) * 100 + (p.total_wins || 0) * 10;
+                }
+            });
+
+            // 3. RENDERIZAR CABECERA (HEADER)
+            let icon = "🛡️";
+            try { icon = JSON.parse(ali.description).icon || icon; } catch(e){}
+            
+            if(document.getElementById('hqFlag')) document.getElementById('hqFlag').textContent = icon;
+            if(document.getElementById('hqName')) document.getElementById('hqName').textContent = `[${ali.tag}] ${ali.name}`;
+            if(document.getElementById('hqLevel')) document.getElementById('hqLevel').textContent = Math.floor(totalPower / 1000) + 1; // Nivel basado en poder
+            if(document.getElementById('hqPower')) document.getElementById('hqPower').textContent = totalPower.toLocaleString();
+            if(document.getElementById('memberCountDisplay')) document.getElementById('memberCountDisplay').textContent = `${members.length}/50`;
+
+            // 4. RENDERIZAR LISTA DE MIEMBROS
+            listContainer.innerHTML = '';
+            
+            // Ordenar: Líder primero, luego por nivel
+            members.sort((a, b) => {
+                if (a.role === 'Leader') return -1;
+                if (b.role === 'Leader') return 1;
+                return (b.profiles?.level || 0) - (a.profiles?.level || 0);
+            });
+
+            members.forEach(m => {
+                const p = m.profiles || { username: 'Desconocido', level: 1, avatar_url: '👤' };
+                
+                const div = document.createElement('div');
+                div.className = 'member-item';
+                div.style.cssText = "display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid #334155; align-items: center; background: rgba(255,255,255,0.02);";
+                
+                // Color del rol
+                const roleColor = m.role === 'Leader' ? '#f1c40f' : '#94a3b8';
+                const roleText = m.role === 'Leader' ? 'LÍDER' : 'MIEMBRO';
+
+                div.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span style="font-size:1.5em;">${p.avatar_url}</span>
+                        <div style="display:flex; flex-direction:column;">
+                            <span style="font-weight:bold; color:#e2e8f0; font-size:0.95em;">${p.username}</span>
+                            <span style="font-size:0.75em; color:#64748b;">Nivel ${p.level} • ${p.total_wins || 0} Wins</span>
+                        </div>
+                    </div>
+                    <span style="font-size:0.7em; font-weight:bold; padding:2px 6px; border-radius:4px; border:1px solid ${roleColor}; color:${roleColor};">
+                        ${roleText}
+                    </span>
+                `;
+                listContainer.appendChild(div);
+            });
+
+        } catch (err) {
+            console.error("Error cargando HQ:", err);
+            listContainer.innerHTML = '<p style="text-align:center; color:#ef4444;">Error al cargar los datos de la alianza.</p>';
+        }
     },
 
     // --- SISTEMA DE CHAT ---

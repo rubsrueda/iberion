@@ -1058,42 +1058,20 @@ async function endTacticalBattle(winningPlayerNumber) {
     }
 
     // --- XP Pase de Batalla ---
-    if (PlayerDataManager.currentPlayer && PlayerDataManager.currentPlayer.username) {
-        // Usamos un timeout para que la pregunta no aparezca instantáneamente
-        setTimeout(() => {
-            if (confirm(`¿Quieres guardar una copia de seguridad de tu perfil '${PlayerDataManager.currentPlayer.username}' en tu ordenador?`)) {
-                exportProfile();
-            }
-        }, 2000); // 2 segundos después de que termine la batalla
-    }
-
-    // --- SISTEMA DE EXPERIENCIA DE PASE DE BATALLA ---
-    // Solo si el ganador soy yo (he ganado) o si perdí (he perdido, pero gané experiencia)
-    if (gameState.myPlayerNumber) { // Validamos que somos un jugador real
-        const amIWinner = (winningPlayerNumber === gameState.myPlayerNumber);
-        const myPKey = `player${gameState.myPlayerNumber}`;
-        const myKills = gameState.playerStats?.unitsDestroyed?.[myPKey] || 0;
-
-        // Fórmula de XP de Pase:
-        // +100 por Ganar, +30 por Jugar (Perder)
-        // +5 por cada regimiento enemigo destruido
-        let battlePassXp = amIWinner ? 100 : 30;
-        battlePassXp += (myKills * 5);
-
-        // Llamar al motor (Asíncrono, no bloquea el juego)
-        if (typeof BattlePassManager !== 'undefined' && BattlePassManager.addMatchXp) {
-            BattlePassManager.addMatchXp(battlePassXp).then(res => {
-                if (res) {
-                    let msg = `⭐ Pase de Batalla: +${res.xpAdded} XP.`;
-                    if (res.levelsGained > 0) {
-                        msg += ` ¡NIVEL SUBIDO A ${res.currentLevel}!`;
-                    }
-                    if (typeof showToast === 'function') {
-                        // Toast especial dorado
-                        showToast(msg, "warning", 4000); 
-                    }
-                }
+    if (gameState.myPlayerNumber && typeof BattlePassManager !== 'undefined') { 
+        
+        // PASO CLAVE: Asegurar que los datos del pase están cargados antes de sumar
+        // Si no hacemos esto, userProgress es null y la XP se pierde.
+        if (!BattlePassManager.userProgress) {
+            console.log("[XP Fix] Cargando datos del Pase de Batalla en segundo plano...");
+            // Nota: loadAllData es async, pero no podemos detener endTacticalBattle demasiado tiempo.
+            // Usamos .then() para procesar la recompensa cuando los datos lleguen.
+            BattlePassManager.loadAllData().then(() => {
+                _processBattlePassRewards(playerWon);
             });
+        } else {
+            // Si ya están cargados, procesamos directo
+            _processBattlePassRewards(playerWon);
         }
     }
 
@@ -1109,6 +1087,38 @@ async function endTacticalBattle(winningPlayerNumber) {
     // Independientemente del resultado
     BattlePassManager.updateProgress('turn_played', gameState.turnNumber);
 
+}
+
+// --- Nueva función auxiliar interna para no repetir código ---
+function _processBattlePassRewards(isWinner) {
+    // 1. Calcular XP
+    const myPKey = `player${gameState.myPlayerNumber}`;
+    const myKills = gameState.playerStats?.unitsDestroyed?.[myPKey] || 0;
+    
+    // Base: 100 si ganas, 30 si pierdes
+    let battlePassXp = isWinner ? 100 : 30;
+    // Bonus: +5 por kill
+    battlePassXp += (myKills * 5);
+
+    console.log(`[BP Reward] Otorgando ${battlePassXp} XP al Pase (Winner: ${isWinner}, Kills: ${myKills})`);
+
+    // 2. Sumar XP
+    BattlePassManager.addMatchXp(battlePassXp).then(res => {
+        if (res && typeof showToast === 'function') {
+            let msg = `⭐ Pase de Batalla: +${res.xpAdded} XP.`;
+            if (res.levelsGained > 0) {
+                msg += ` ¡NIVEL SUBIDO A ${res.currentLevel}!`;
+                // Sonido extra de celebración
+                if(typeof AudioManager !== 'undefined') AudioManager.playSound('structure_built');
+            }
+            showToast(msg, "warning", 4000); 
+        }
+    });
+
+    // 3. Actualizar Misiones
+    if (isWinner) BattlePassManager.updateProgress('match_win', 1);
+    BattlePassManager.updateProgress('turn_played', gameState.turnNumber || 1);
+    if (myKills > 0) BattlePassManager.updateProgress('unit_kill', myKills);
 }
 
 /**

@@ -6,10 +6,21 @@ const STRIPE_PUBLIC_KEY = 'pk_test_51SrUqM2KsNopK2NTFPJRU7gZGxTGLJ2wh5ZTjaRvMSCI
 let stripe = null;
 
 const STORE_ITEMS = [
+
+    { 
+        id: 'battle_pass_s1', 
+        name: 'Pase de Batalla (T1)', 
+        cost: 4.99, 
+        currency: 'USD', 
+        icon: '🎫', 
+        type: 'battle_pass', 
+        premium: true 
+    },
+    
     // --- SECCIÓN 1: DINERO REAL (Gemas) ---
     { id: 'gems_pouch', name: 'Bolsa de Gemas', cost: 0.99, currency: 'USD', amount: 100, icon: '💎', type: 'gems' },
     { id: 'gems_chest', name: 'Cofre de Gemas', cost: 4.99, currency: 'USD', amount: 550, icon: '💎💎', type: 'gems' },
-    { id: 'gems_vault', name: 'Bóveda Real', cost: 0.99, currency: 'USD', amount: 2500, icon: '💰', type: 'gems', premium: true },
+    { id: 'gems_vault', name: 'Bóveda Real', cost: 0.99, currency: 'USD', amount: 2000, icon: '💰', type: 'gems', premium: true },
     
     // --- SECCIÓN 2: GASTO DE GEMAS (Premium) ---
     { id: 'war_seals_1', name: 'Sello de Guerra', costGems: 50, amount: 1, icon: '🎟️', type: 'item' },
@@ -17,8 +28,10 @@ const STORE_ITEMS = [
     { id: 'xp_book_pack', name: 'Pack Sabiduría', costGems: 100, amount: 5, icon: '📖', type: 'item_xp' },
 
     // --- SECCIÓN 3: MERCADO DEL PUEBLO (Gasto de Oro de Perfil) ---
-    { id: 'war_seal_gold', name: 'Sello (Mercado)', costGold: 2500, amount: 1, icon: '🎟️', type: 'item' },
-    { id: 'xp_book_gold', name: 'Libro (Mercado)', costGold: 1000, amount: 1, icon: '📘', type: 'item_xp' }
+    { id: 'war_seal_gold', name: 'Sello (Mercado)', costGold: 1000, amount: 1, icon: '🎟️', type: 'item' },
+    { id: 'war_seals_10', name: '10 Sellos', costGold: 9000, amount: 10, icon: '🎟️🎟️', type: 'item' },
+    { id: 'xp_book_gold', name: 'Libro (Mercado)', costGold: 500, amount: 1, icon: '📘', type: 'item_xp' },
+    { id: 'xp_book_pack', name: 'Pack Sabiduría', costGold: 2000, amount: 5, icon: '📖', type: 'item_xp' },
 ];
 
 const StoreManager = {
@@ -121,24 +134,46 @@ const StoreManager = {
     // --- DINERO REAL (Simulación) ---
     buyWithRealMoney: async function(itemId) {
         const item = STORE_ITEMS.find(i => i.id === itemId);
-        // Simulación segura para frontend
+        if (!item) {
+            console.error("Item no encontrado: " + itemId);
+            return;
+        }
+
         const btn = event.target;
         const originalText = btn.textContent;
         btn.textContent = "Procesando...";
         btn.disabled = true;
 
         setTimeout(async () => {
-            if (confirm(`[STRIPE SIMULADO]\nCobrar $${item.cost} a tarjeta terminada en 4242.\n¿Confirmar pago?`)) {
-                PlayerDataManager.currentPlayer.currencies.gems += item.amount;
-                if (!PlayerDataManager.currentPlayer.is_premium) {
-                    PlayerDataManager.currentPlayer.is_premium = true;
-                    AdManager.isPremium = true;
-                    alert("¡Gracias! Eres PREMIUM (No Ads).");
+            if (confirm(`[STRIPE SIMULADO] Pagar $${item.cost} por ${item.name}?`)) {
+                
+                // CASO ESPECIAL: PASE DE BATALLA
+                if (item.type === 'battle_pass') {
+                    if (typeof BattlePassManager !== 'undefined') {
+                        await BattlePassManager.activatePremium();
+                        alert("¡Pase de Batalla Activado! Disfruta tus recompensas.");
+                    } else {
+                        console.error("BattlePassManager no está disponible.");
+                    }
+                } 
+                // CASO NORMAL: GEMAS
+                else {
+                    PlayerDataManager.currentPlayer.currencies.gems += item.amount;
+                    // Bonus: Primera compra quita ads
+                    if (!PlayerDataManager.currentPlayer.is_premium) {
+                        PlayerDataManager.currentPlayer.is_premium = true;
+                        if(typeof AdManager !== 'undefined') AdManager.isPremium = true;
+                        alert("¡Gracias! Eres PREMIUM (No Ads).");
+                    }
+                    await PlayerDataManager.saveCurrentPlayer();
+                    if(typeof showToast === 'function') showToast(`¡Compra exitosa! +${item.amount} Gemas`, "success");
                 }
-                await PlayerDataManager.saveCurrentPlayer();
+                
                 this.updateHeader();
-                showToast(`¡Compra exitosa! +${item.amount} Gemas`, "success");
+            } else {
+                if(typeof showToast === 'function') showToast("Compra cancelada.", "info");
             }
+            
             btn.textContent = originalText;
             btn.disabled = false;
         }, 1000);
