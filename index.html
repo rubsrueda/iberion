@@ -18,6 +18,25 @@
     }
     </script>
 
+    <!-- 1. Google AdSense for Games (H5) API -->
+    <!-- Reemplaza el data-ad-client con tu ID real de Google -->
+    <script async
+        data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
+        data-ad-frequency-hint="30s"
+        src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"
+        crossorigin="anonymous">
+    </script>
+
+    <!-- 2. Stripe.js (Para procesar pagos reales de forma segura) -->
+    <script src="https://js.stripe.com/v3/"></script>
+
+    <!-- EN EL BODY, ANTES DE TUS SCRIPTS -->
+    <script>
+        // Inicialización temprana de la API de Google
+        window.adsbygoogle = window.adsbygoogle || [];
+        window.adConfig = function(o) { window.adsbygoogle.push(o); };
+    </script>
+
 </head>
 <body>
 
@@ -27,6 +46,26 @@
         <span id="victory-points-summary"></span>
         <div id="victory-points-tooltip" class="tooltip">
             <!-- El contenido se generará con JS -->
+        </div>
+    </div>
+
+    <!-- ================================================== -->
+    <!-- MODAL DE LA TESORERÍA (TIENDA) -->
+    <!-- ================================================== -->
+
+    <div id="storeModal" class="modal" style="display: none; z-index: 20000;">
+        <div class="modal-content">
+            <div class="store-header">
+                <h2>Tesorería Real</h2>
+                <div class="currency-display">
+                    <div class="curr-item">💎 <span id="storeGemCount">0</span></div>
+                    <div class="curr-item">💰 <span id="storeGoldCount">0</span></div>
+                </div>
+                <span class="close-button" onclick="StoreManager.close()">×</span>
+            </div>
+            <div id="storeGrid">
+                <!-- JS Rellenará esto -->
+            </div>
         </div>
     </div>
 
@@ -317,6 +356,10 @@
         <!--<div id="hotspotAlliance" class="main-menu-hotspot" data-action="openAlliance"></div>-->
         <!-- Tronos de Iberia: Ruinas a la derecha -->
         <div id="hotspotThrones" class="main-menu-hotspot" data-action="openAlliance"></div>
+        <!-- Tienda: Cofre a la derecha abajo -->
+        <div id="hotspotStore" class="main-menu-hotspot" data-action="openStore" 
+            style="top: 70%; left: 80%; width: 15%; height: 20%;">
+        </div>
         
         <!-- Información del General y Logout -->
             <div id="generalInfoPanel">
@@ -1670,6 +1713,8 @@
     <script src="scenarios/test_C1_MergeToAttack_scenario.js"></script>
     
     <!-- === LÓGICA PRINCIPAL DEL JUEGO (orden existente) === -->
+    <script src="adManager.js"></script>
+    <script src="storeManager.js"></script>
     <script src="domElements.js"></script> 
     <script src="chronicle.js"></script> 
     <script src="cheats.js"></script> 

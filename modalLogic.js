@@ -2018,9 +2018,27 @@ function openHeroDetailModal(heroInstance) {
     
     // --- LÓGICA DE BOTONES (Nivel y Evolución) ---
     const levelUpBtn = document.getElementById('heroLevelUpBtn');
-    levelUpBtn.disabled = (playerData.inventory.xp_books || 0) <= 0 || xpForNextLevel === 'Max';
+    
+    // NUEVO: El botón siempre está habilitado si no es nivel Max, para permitir el clic de comprobación
+    levelUpBtn.disabled = xpForNextLevel === 'Max';
+    
     levelUpBtn.onclick = () => {
+        const booksOwned = playerData.inventory.xp_books || 0;
+        
+        if (booksOwned <= 0) {
+            // LÓGICA DE REDIRECCIÓN A LA TIENDA
+            if (confirm("¡No te quedan Libros de Experiencia!\n\n¿Quieres ir a la Tesorería para conseguir más usando tu Oro o Gemas?")) {
+                document.getElementById('heroDetailModal').style.display = 'none'; // Cerrar héroe
+                document.getElementById('barracksModal').style.display = 'none';   // Cerrar cuartel
+                
+                if (typeof StoreManager !== 'undefined') StoreManager.open();
+            }
+            return;
+        }
+
+        // Si tiene libros, procede normal
         PlayerDataManager.useXpBook(heroInstance.id);
+        // Refrescar datos...
         const updatedHero = PlayerDataManager.currentPlayer.heroes.find(h => h.id === heroInstance.id);
         if (updatedHero) openHeroDetailModal(updatedHero);
     };
@@ -2582,6 +2600,21 @@ function startGachaAnimation(results) {
     document.getElementById('gacha-sellos-count').textContent = PlayerDataManager.currentPlayer.currencies.sellos_guerra || 0;
 }
 
+function handleGachaPullAttempt(type, cost) {
+    const currentSeals = PlayerDataManager.currentPlayer.currencies.sellos_guerra || 0;
+    
+    if (currentSeals < cost) {
+        if (confirm(`No tienes suficientes Sellos de Guerra (Tienes ${currentSeals}, necesitas ${cost}).\n\n¿Quieres ir a la Tesorería para comprar más?`)) {
+            document.getElementById('deseosModal').style.display = 'none'; // Cerrar Altar
+            if (typeof StoreManager !== 'undefined') StoreManager.open();
+        }
+        return;
+    }
+    
+    // Si tiene fondos, ejecuta el deseo
+    GachaManager.executeWish(type, cost);
+}
+
 /**
  * Escucha eventos del DOM relacionados con el modal del gacha.
  * Se debe llamar una vez al iniciar la aplicación.
@@ -2600,6 +2633,10 @@ function setupGachaModalListeners() {
     const wishOnceBtn = document.getElementById('gacha-pull-1');
     const wishTenTimesBtn = document.getElementById('gacha-pull-10');
 
+    if (wishOnceBtn) wishOnceBtn.onclick = () => handleGachaPullAttempt('common', 1);
+    if (wishTenTimesBtn) wishTenTimesBtn.onclick = () => handleGachaPullAttempt('common', 10);
+
+    /*
     if (wishOnceBtn) wishOnceBtn.addEventListener('click', () => {
         GachaManager.executeWish('common', 1);
     });
@@ -2607,6 +2644,7 @@ function setupGachaModalListeners() {
     if (wishTenTimesBtn) wishTenTimesBtn.addEventListener('click', () => {
         GachaManager.executeWish('common', 10);
     });
+    */
 
     // Cambiamos `showGachaResults` por `startGachaAnimation` en la lógica de GachaManager
     // ASUMO que tienes una línea como esta en GachaManager.js, debes cambiarla:
@@ -4064,44 +4102,6 @@ window.switchGamesTab = function(tab) {
     }
 };
 
-// --- GESTIÓN DE MENÚ CONTEXTUAL ---
-window.showMatchContext = function(event, matchId, rivalIsAbandoned) {
-    const menu = document.getElementById('matchContextMenu');
-    
-    // Posición
-    menu.style.display = 'block';
-    // Ajuste para que no se salga de la pantalla en móvil
-    let left = event.clientX - 120;
-    if (left < 10) left = 10;
-    menu.style.top = `${event.clientY + 10}px`;
-    menu.style.left = `${left}px`;
-    
-    // Referencias a botones
-    const btnAbandon = document.getElementById('ctxAbandon');
-    const btnAI = document.getElementById('ctxConvertToAI');
-    const btnShare = document.getElementById('ctxShare'); // Usado para "Publicar en Mercado"
-
-    // CONFIGURACIÓN DE VISIBILIDAD
-    // 1. Abandonar: Siempre puedo abandonar mi propia partida
-    btnAbandon.style.display = 'block';
-    btnAbandon.onclick = () => abandonMatch(matchId);
-
-    // 2. Opciones de Rival: Solo si el rival ha abandonado (>24h sin jugar)
-    if (rivalIsAbandoned) {
-        btnAI.style.display = 'block';
-        btnAI.textContent = "🤖 Convertir Rival a IA";
-        btnAI.onclick = () => convertToAI(matchId);
-
-        btnShare.style.display = 'block';
-        btnShare.textContent = "🌍 Ofrecer en Mercado";
-        btnShare.onclick = () => publishToMarket(matchId);
-    } else {
-        btnAI.style.display = 'none';
-        btnShare.style.display = 'none';
-    }
-};
-
-
 // Cerrar menú al hacer clic fuera
 window.addEventListener('click', () => {
     const menu = document.getElementById('matchContextMenu');
@@ -4139,30 +4139,66 @@ window.convertToAI = async function(matchId) {
 window.publishToMarket = async function(matchId) {
     if (!confirm("¿Ofrecer esta partida al público? Otro jugador podrá tomar el control del rival.")) return;
 
-    await supabaseClient.from('active_matches').update({ 
+    // ALERTA: La clave es poner guest_id en null para que aparezca en las búsquedas
+    const { error } = await supabaseClient.from('active_matches').update({ 
         status: 'OPEN_MARKET',
-        updated_at: new Date() // Refrescar tiempo para que salga arriba
+        guest_id: null, // <--- ESTA ES LA LÍNEA MÁGICA QUE FALTABA
+        updated_at: new Date() 
     }).eq('match_id', matchId);
 
-    alert("Partida publicada en el Mercado de Guerra.");
-    openMyGamesModal();
+    if (error) {
+        console.error("Error publicando:", error);
+        alert("Error al publicar en el mercado.");
+    } else {
+        alert("Partida publicada en el Mercado de Guerra. Esperando nuevo general...");
+        openMyGamesModal(); // Refrescar la lista para ver el cambio de estado
+    }
 };
 
 // 3. Menú Contextual (Lógica visual)
-window.showMatchContext = function(event, matchId, isAbandoned) {
+window.showMatchContext = function(event, matchId, rivalIsAbandoned) {
     const menu = document.getElementById('matchContextMenu');
+    
+    // 1. Posicionamiento del menú (evitando que se salga de la pantalla en móviles)
     menu.style.display = 'block';
-    menu.style.top = `${event.clientY}px`;
-    menu.style.left = `${event.clientX - 100}px`;
+    let left = event.clientX - 120;
+    if (left < 10) left = 10;
+    menu.style.top = `${event.clientY + 10}px`;
+    menu.style.left = `${left}px`;
     
-    // Configurar acciones de los botones del menú
-    document.getElementById('ctxConvertToAI').onclick = () => convertToAI(matchId);
+    // 2. Referencias a los botones del menú
+    const btnAbandon = document.getElementById('ctxAbandon');
+    const btnAI = document.getElementById('ctxConvertToAI');
+    const btnShare = document.getElementById('ctxShare'); // Usado para "Publicar en Mercado"
+
+    // 3. CONFIGURACIÓN DE ACCIONES (Sobrescribimos onclick para asegurar el ID correcto)
     
-    // Solo permitir publicar si está abandonada
-    const shareBtn = document.getElementById('ctxShare'); // Reutilizamos el botón "Invitar" para "Publicar"
-    shareBtn.textContent = "🌍 Publicar en Mercado";
-    shareBtn.onclick = () => publishToMarket(matchId);
-    shareBtn.style.display = isAbandoned ? 'block' : 'none';
+    // Botón ABANDONAR: Siempre visible (puedes rendirte cuando quieras)
+    btnAbandon.style.display = 'block';
+    btnAbandon.onclick = () => {
+        document.getElementById('matchContextMenu').style.display = 'none'; // Cerrar menú
+        abandonMatch(matchId);
+    };
+
+    // Botones de GESTIÓN DE RIVAL: Solo si el rival ha abandonado (>24h sin jugar)
+    if (rivalIsAbandoned) {
+        btnAI.style.display = 'block';
+        btnAI.textContent = "🤖 Convertir Rival a IA";
+        btnAI.onclick = () => {
+            document.getElementById('matchContextMenu').style.display = 'none';
+            convertToAI(matchId);
+        };
+
+        btnShare.style.display = 'block';
+        btnShare.textContent = "🌍 Ofrecer en Mercado";
+        btnShare.onclick = () => {
+            document.getElementById('matchContextMenu').style.display = 'none';
+            publishToMarket(matchId);
+        };
+    } else {
+        btnAI.style.display = 'none';
+        btnShare.style.display = 'none';
+    }
 };
 
 // --- CORRECCIÓN MERCADO PÚBLICO ---

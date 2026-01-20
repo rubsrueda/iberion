@@ -1741,6 +1741,15 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
                         console.error("AllianceManager no está definido. ¿Falta el script?");
                     }
                     break;
+
+                case 'openStore':
+                    // Verificación de seguridad (opcional, pero buena práctica)
+                    if (typeof StoreManager !== 'undefined') {
+                        StoreManager.open();
+                    } else {
+                        console.error("StoreManager no se ha cargado correctamente.");
+                    }
+                    break;
                 
                 case 'showComingSoon':
                 // Usamos la nueva función de notificación para el jugador

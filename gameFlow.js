@@ -959,7 +959,7 @@ async function endTacticalBattle(winningPlayerNumber) {
     // PUNTO DE CONTROL C: Inicio del cierre
     console.log(`%c[AUDITORÍA] >>> ENTRANDO EN endTacticalBattle con ganador: J${winningPlayerNumber}`, "background: #fff; color: #000; font-weight: bold;");
 
-    // --- LINEA ADICIONAL PARA EL PROGRESO ---
+    // --- PROGRESO ---
     PlayerDataManager.processEndGameProgression(winningPlayerNumber);
 
     TurnTimerManager.stop(); 
@@ -968,13 +968,29 @@ async function endTacticalBattle(winningPlayerNumber) {
     gameState.currentPhase = "gameOver";
     gameState.winner = winningPlayerNumber;
 
+    // --- LIMPIEZA DE PARTIDA ONLINE (CORRECCIÓN ZOMBIS) ---
+    // Si la partida tiene ID de red, la borramos de la lista de activas al terminar
+    if (typeof NetworkManager !== 'undefined' && NetworkManager.miId) {
+        console.log(`[Fin Partida] Eliminando partida ${NetworkManager.miId} de la lista de activas...`);
+        // Usamos replace para quitar el prefijo si lo tiene y limpiar la DB
+        const cleanId = NetworkManager.miId.replace('hge-', ''); 
+        const { error } = await supabaseClient
+            .from('active_matches')
+            .delete()
+            .eq('match_id', cleanId);
+            
+        if(error) console.error("Error al limpiar partida de la nube:", error);
+        else console.log("Partida limpiada de la nube correctamente.");
+    }
+    // -----------------------------------------------------
+
     // --- Registrar el progreso de carrera ---
     if (PlayerDataManager.applyCareerProgression) {
         PlayerDataManager.applyCareerProgression(winningPlayerNumber)
             .catch(err => console.error("Error en progresión:", err));
     }
 
-    // --- AÑADIR LÓGICA DE BONUS DE ORO POR VICTORIA ---
+    // --- BONUS DE ORO POR VICTORIA ---
     let goldBonus = 0;
     let victoryMessage = `¡Jugador ${winningPlayerNumber} ha ganado la batalla!`;
 
@@ -997,19 +1013,18 @@ async function endTacticalBattle(winningPlayerNumber) {
     if (typeof logMessage === "function") {
         logMessage(victoryMessage);
     }
-    // --- FIN LÓGICA DE BONUS DE ORO ---
 
+    // Actualización visual final
     if (typeof UIManager !== 'undefined' && typeof UIManager.updateAllUIDisplays === 'function') {
         UIManager.updateAllUIDisplays();
-    } else { /* ... fallback ... */ }
-
+    }
     if (typeof UIManager !== 'undefined' && typeof UIManager.hideContextualPanel === 'function'){
         UIManager.hideContextualPanel();
     }
 
     const playerWon = (winningPlayerNumber === gameState.myPlayerNumber);
 
-    // --- Captura de métricas de progreso ---
+    // --- Captura de métricas ---
     const matchMetrics = {
         outcome: playerWon ? 'victoria' : 'derrota',
         turns: gameState.turnNumber,
@@ -1028,31 +1043,21 @@ async function endTacticalBattle(winningPlayerNumber) {
         UIManager.showPostMatchSummary(playerWon, xpGained, progress, matchMetrics);
     }
 
-    // Mostrar un resumen de la partida (Tarea B10) - Lo dejamos pendiente por ahora
-    // if (typeof UIManager !== 'undefined' && UIManager.showGameSummaryModal) { 
-    //     UIManager.showGameSummaryModal(winningPlayerNumber, goldBonus);
-    // } else {
-         // alert(victoryMessage); // Movido el alert para que no se repita si hay modal
-    // }
-
-    if (!gameState.isCampaignBattle) { // Solo mostrar alert para escaramuza si no hay un flujo de campaña que lo maneje
-         setTimeout(() => alert(victoryMessage), 100); // Pequeño delay para que los logs se asienten
+    if (!gameState.isCampaignBattle) { 
+         setTimeout(() => alert(victoryMessage), 100); 
     }
-
 
     if (gameState.isCampaignBattle) {
         if (typeof campaignManager !== 'undefined' && typeof campaignManager.handleTacticalBattleResult === 'function') {
             const playerHumanWon = (winningPlayerNumber === 1);
             logMessage("Preparando para volver al mapa de campaña...");
             setTimeout(() => {
-                campaignManager.handleTacticalBattleResult(playerHumanWon, gameState.currentCampaignTerritoryId, { goldEarnedFromBattle: goldBonus }); // Pasar oro como parte de los resultados
-            }, 2000); // Reducido un poco el delay
-        } else { /* ... error ... */ }
-    } else { 
-        // Para escaramuza, podrías tener un botón "Volver al Menú" en un modal de resumen
-        // o simplemente dejar que el jugador cierre el alert y luego use el menú flotante.
+                campaignManager.handleTacticalBattleResult(playerHumanWon, gameState.currentCampaignTerritoryId, { goldEarnedFromBattle: goldBonus });
+            }, 2000);
+        }
     }
 
+    // --- XP Pase de Batalla ---
     if (PlayerDataManager.currentPlayer && PlayerDataManager.currentPlayer.username) {
         // Usamos un timeout para que la pregunta no aparezca instantáneamente
         setTimeout(() => {
