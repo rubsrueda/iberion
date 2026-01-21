@@ -489,6 +489,24 @@ function selectUnit(unit) {
     // --- FIN DEL DIAGNÓSTICO DEFINITIVO ---
     
     if (gameState.isTutorialActive) TutorialManager.notifyActionCompleted('unit_selected_by_objective');
+    // --- NUEVO: ABRIR MENÚ RADIAL ---
+    // Solo si es mi unidad, es fase de juego y no está "zombi"
+    if (unit.player === gameState.currentPlayer && gameState.currentPhase === 'play' && !unit.isDisorganized) {
+        
+        // Calcular posición en pantalla
+        // Necesitamos el elemento DOM de la unidad para saber dónde está
+        if (unit.element) {
+            const rect = unit.element.getBoundingClientRect();
+            // Centro de la unidad
+            const screenX = rect.left + rect.width / 2;
+            const screenY = rect.top + rect.height / 2;
+            
+            // Llamar al UIManager
+            if (UIManager && UIManager.showRadialMenu) {
+                UIManager.showRadialMenu(unit, screenX, screenY);
+            }
+        }
+    }
 }
 
 function deselectUnit() {
@@ -500,6 +518,9 @@ function deselectUnit() {
     // Si deseleccionas una unidad, cualquier acción que estuvieras preparando
     // con ella debe ser cancelada.
     cancelPreparingAction(); 
+
+    // ... radial táctico ...
+    if (UIManager && UIManager.hideRadialMenu) UIManager.hideRadialMenu();
 }
 
 /**
@@ -2679,7 +2700,7 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
     if (targetHexData) {
         targetHexData.unit = unit;
         
-        // Captura de territorio neutral
+        // A. Captura de territorio NEUTRAL (Lógica original)
         if (targetHexData.owner === null) {
             targetHexData.owner = unit.player;
             targetHexData.estabilidad = 1;
@@ -2689,6 +2710,66 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
             if (city?.owner === null) { city.owner = unit.player; }
             renderSingleHexVisuals(toR, toC);
         }
+        // B. Captura de Ciudad BÁRBARA/INDEPENDIENTE (NUEVO - BOOST EXPLOSIVO)
+        // Usamos la constante BARBARIAN_PLAYER_ID (o el número 9 directamente si no definiste la constante)
+        else if (targetHexData.owner === 9 && targetHexData.isCity) {
+            
+            // 1. Transferencia de Propiedad
+            targetHexData.owner = unit.player;
+            targetHexData.estabilidad = 2; // Un poco de inestabilidad inicial, pero controlada
+            
+            // Reseteamos nacionalidad y asignamos lealtad alta al conquistador (¡Libertadores!)
+            targetHexData.nacionalidad = { 1: 0, 2: 0 }; 
+            targetHexData.nacionalidad[unit.player] = 5; 
+
+            // Actualizar array global de ciudades
+            const city = gameState.cities.find(ci => ci.r === toR && ci.c === toC);
+            if (city) {
+                city.owner = unit.player;
+                logMessage(`¡La ciudad independiente de ${city.name} ha sido anexionada!`, "success");
+            }
+
+            // 2. EL BOOST EXPLOSIVO (Recompensas)
+            const lootGold = 1000;      // Mucho oro para construir rápido
+            const lootResearch = 200;   // Un empujón tecnológico
+            const lootRecruit = 500;    // Puntos para reponer tropas inmediatamente
+
+            if (gameState.playerResources[unit.player]) {
+                gameState.playerResources[unit.player].oro += lootGold;
+                gameState.playerResources[unit.player].researchPoints += lootResearch;
+                // Si usas puntos de reclutamiento en tu economía:
+                if (gameState.playerResources[unit.player].puntosReclutamiento !== undefined) {
+                    gameState.playerResources[unit.player].puntosReclutamiento += lootRecruit;
+                }
+            }
+
+            // 3. Recuperación de la Unidad (Momentum de Victoria)
+            // Se cura 250 HP (simbolizando reclutamiento local o moral alta)
+            unit.currentHealth = Math.min(unit.maxHealth, unit.currentHealth + 250);
+            // Moral al máximo por la victoria épica
+            unit.morale = unit.maxMorale || 125;
+
+            // 4. Feedback Visual
+            if (typeof showFloatingDamage === 'function') {
+                // Usamos la función de daño flotante para mostrar texto positivo
+                showFloatingDamage(unit, "¡CONQUISTA!", "heal"); 
+            }
+            logMessage(`Botín de guerra: ${lootGold} Oro, ${lootResearch} Ciencia.`, "success");
+
+            renderSingleHexVisuals(toR, toC);
+        }
+        // C. Captura de territorio de otro jugador Humano/IA (Opcional, si quieres lógica estándar aquí)
+        else if (targetHexData.owner !== null && targetHexData.owner !== unit.player) {
+            // Aquí iría la lógica de ocupación normal (bajar nacionalidad poco a poco),
+            // pero como acabas de moverte encima (y asumimos que ganaste el combate),
+            // la lógica de `updateTerritoryMetrics` (en gameFlow.js) se encargará de bajar la nacionalidad turno a turno.
+            // O puedes forzar la captura inmediata si es una ciudad indefensa:
+             if (targetHexData.isCity && !targetHexData.unit) {
+                 // Lógica de captura inmediata si entras en ciudad enemiga vacía
+                 // (Omitida para no alterar tu balance actual, pero es una opción)
+             }
+        }
+
     } else {
         // Fallback de seguridad (restaurado del original)
         console.error(`[_executeMoveUnit] Error crítico: Hex destino (${toR},${toC}) no encontrado.`);

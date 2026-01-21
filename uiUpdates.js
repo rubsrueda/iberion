@@ -113,17 +113,7 @@ const UIManager = {
         }
     },
 
-    clearHighlights: function() {
-        // Tu lógica de limpiar highlights de movimiento, ataque, etc.
-        if (board && board.length > 0) {
-             document.querySelectorAll('.hex.highlight-move, .hex.highlight-attack, .hex.highlight-build, .hex.highlight-place').forEach(h => {
-                 h.classList.remove('highlight-move', 'highlight-attack', 'highlight-build', 'highlight-place');
-             });
-        }
-        
-        // NO TOCAMOS los highlights del tutorial. Dejamos que el UIManager los gestione.
-        // Se elimina la limpieza de 'tutorial-highlight' y 'tutorial-highlight-hex' de aquí.
-    },
+
     
     showCombatPrediction: function(outcome, targetUnit, event) {
         if (!this._combatPredictionPanel) return;
@@ -196,43 +186,62 @@ const UIManager = {
         }
     },
     
+    // En uiUpdates.js
+
     highlightPossibleActions: function(unit) {
-        // Llama al método centralizado de limpieza para empezar de cero.
+        // Llama al método centralizado de limpieza.
         this.clearHighlights(); 
-    
-        // Guarda de seguridad: si no hay unidad o tablero, no hacemos nada.
-        if (!unit || !board || board.length === 0) {
-            return;
-        }
-    
-        // Recorre cada hexágono del tablero para evaluarlo.
+
+        if (!unit || !board || board.length === 0) return;
+
+        // Recorre el tablero
         for (let r_idx = 0; r_idx < board.length; r_idx++) {
             for (let c_idx = 0; c_idx < board[0].length; c_idx++) {
                 const hexData = board[r_idx]?.[c_idx];
-                // Si el hexágono no existe o no tiene un elemento DOM, lo saltamos.
-                if (!hexData || !hexData.element) {
-                    continue;
-                }
-    
-                // No mostrar resaltados en hexágonos ocultos por la niebla de guerra.
+                if (!hexData || !hexData.element) continue;
+
+                // Ignorar niebla de guerra
                 if (gameState.currentPhase === "play" && hexData.visibility?.[`player${gameState.currentPlayer}`] === 'hidden') {
                     continue;
                 }
-    
-                // Llama a la lógica de `unit_Actions.js` (`isValidMove`) para saber si el movimiento es válido.
-                // Si lo es, aplica la clase CSS visual 'highlight-move'.
-                if (gameState.currentPhase === 'play' && !unit.hasMoved && unit.currentMovement > 0 && isValidMove(unit, r_idx, c_idx)) {
-                    hexData.element.classList.add('highlight-move');
+
+                // 1. MOVIMIENTO
+                if (gameState.currentPhase === 'play' && !unit.hasMoved && unit.currentMovement > 0) {
+                    if (isValidMove(unit, r_idx, c_idx)) {
+                        
+                        // --- NUEVA LÓGICA: PREDICCIÓN DE SUMINISTRO ---
+                        // Comprobamos si la casilla destino tendría suministro si nos movemos allí.
+                        // Pasamos el ID del jugador de la unidad.
+                        const hasSupply = isHexSupplied(r_idx, c_idx, unit.player);
+
+                        if (hasSupply) {
+                            // Movimiento seguro (Verde)
+                            hexData.element.classList.add('highlight-move');
+                        } else {
+                            // Movimiento peligroso (Rojo - Sin Suministro)
+                            hexData.element.classList.add('highlight-danger');
+                            // Opcional: Añadir un tooltip o título para explicar por qué es rojo
+                            // hexData.element.title = "¡PELIGRO! Sin Suministro"; 
+                        }
+                    }
                 }
-    
-                // Comprueba si hay un enemigo en el hexágono.
+
+                // 2. ATAQUE (Sin cambios)
                 const targetUnitOnHex = getUnitOnHex(r_idx, c_idx);
-                // Llama a la lógica de `unit_Actions.js` (`isValidAttack`) para saber si el ataque es válido.
-                // Si lo es, aplica la clase CSS visual 'highlight-attack'.
                 if (gameState.currentPhase === 'play' && !unit.hasAttacked && targetUnitOnHex && targetUnitOnHex.player !== unit.player && isValidAttack(unit, targetUnitOnHex)) {
                     hexData.element.classList.add('highlight-attack');
                 }
             }
+        }
+    },
+
+    // Y TAMBIÉN NECESITAMOS ACTUALIZAR `clearHighlights` PARA LIMPIAR LA NUEVA CLASE
+    clearHighlights: function() {
+        if (board && board.length > 0) {
+            // Añadimos .highlight-danger a la lista de limpieza
+            document.querySelectorAll('.hex.highlight-move, .hex.highlight-attack, .hex.highlight-build, .hex.highlight-place, .hex.highlight-danger').forEach(h => {
+                h.classList.remove('highlight-move', 'highlight-attack', 'highlight-build', 'highlight-place', 'highlight-danger');
+            });
         }
     },
      
@@ -727,7 +736,43 @@ const UIManager = {
                 
                 mainContent.appendChild(commanderBanner);
             }
-            // <<== FIN DE LA CORRECCIÓN ==>>
+
+            /// 1. Calculamos los estados
+            const isUnsupplied = (gameState.turnNumber > 1 && !isHexSupplied(unit.r, unit.c, unit.player));
+            const isLowMorale = (unit.morale <= 25 && unit.morale > 0); // Baja, pero no 0
+            const isLostControl = (unit.isDisorganized || unit.morale <= 0); // Zombie
+
+            let statusIconHTML = '';
+            let statusClass = '';
+            let statusTitle = '';
+
+            // PRIORIDAD 1: PÉRDIDA DE CONTROL (La más grave)
+            if (isLostControl) {
+                statusIconHTML = '💀'; 
+                statusClass = 'status-doomed'; // Usamos el estilo rojo/negro que creamos
+                statusTitle = "DESORGANIZADA: Unidad fuera de control. Huirá o se rendirá.";
+            }
+            // PRIORIDAD 2: MORAL CRÍTICA (Prevalece sobre el suministro)
+            else if (isLowMorale) {
+                statusIconHTML = '🏳️';
+                statusClass = 'status-low-morale';
+                statusTitle = `Moral Crítica (${unit.morale}). Defensa muy reducida.`;
+            }
+            // PRIORIDAD 3: SIN SUMINISTRO (Solo si tiene moral para aguantarlo)
+            else if (isUnsupplied) {
+                statusIconHTML = '⚡';
+                statusClass = 'status-no-supply';
+                statusTitle = "Sin Suministros. Perderá salud y moral al final del turno.";
+            }
+
+            // 3. Renderizar
+            if (statusClass) {
+                const statusDiv = document.createElement('div');
+                statusDiv.className = `unit-status-icon ${statusClass}`;
+                statusDiv.innerHTML = statusIconHTML;
+                statusDiv.title = statusTitle;
+                unitElement.appendChild(statusDiv);
+            }
 
             // Añadir el indicador de salud
             const strengthDisplay = document.createElement('div');
@@ -1162,6 +1207,58 @@ const UIManager = {
                 el.textContent = resourcesData[resKey] >= 1000 ? `${(resourcesData[resKey] / 1000).toFixed(1)}k` : resourcesData[resKey];
             }
         }
+
+        // --- NUEVO: ALERTA DE MANTENIMIENTO ---
+        const playerUnits = units.filter(u => u.player === gameState.currentPlayer);
+        let totalGoldUpkeep = 0;
+        let totalFoodUpkeep = 0;
+
+        // Calcular mantenimiento previsto
+        playerUnits.forEach(u => {
+            (u.regiments || []).forEach(r => {
+                const cost = REGIMENT_TYPES[r.type]?.cost || {};
+                totalGoldUpkeep += cost.upkeep || 0;
+                // Asumimos un consumo base de 1 comida por regimiento si no está definido
+                totalFoodUpkeep += REGIMENT_TYPES[r.type]?.foodConsumption || 1; 
+            });
+        });
+
+        const currentGold = gameState.playerResources[gameState.currentPlayer].oro || 0;
+        const currentFood = gameState.playerResources[gameState.currentPlayer].comida || 0;
+
+        // Elementos del DOM (Asegúrate de que tus spans tengan IDs o data-attributes accesibles)
+        // En tu HTML actual usas: <strong data-resource="oro">
+        
+        const goldEl = document.querySelector('strong[data-resource="oro"]');
+        const foodEl = document.querySelector('strong[data-resource="comida"]');
+
+        // Comprobación Oro
+        if (goldEl) {
+            if (currentGold < totalGoldUpkeep) {
+                goldEl.style.color = "#ff4444"; // Rojo Alerta
+                goldEl.parentElement.title = `¡Déficit! Mantenimiento: ${totalGoldUpkeep}`;
+                // Animación opcional
+                goldEl.style.animation = "pulseWarning 1s infinite"; 
+            } else {
+                goldEl.style.color = ""; // Restaurar (o el color que use tu CSS, el amarillo de .resource-item strong)
+                goldEl.style.animation = "";
+                goldEl.parentElement.title = "";
+            }
+        }
+
+        // Comprobación Comida
+        if (foodEl) {
+            if (currentFood < totalFoodUpkeep) {
+                foodEl.style.color = "#ff4444";
+                foodEl.parentElement.title = `¡Hambre! Consumo: ${totalFoodUpkeep}`;
+                foodEl.style.animation = "pulseWarning 1s infinite";
+            } else {
+                foodEl.style.color = "";
+                foodEl.style.animation = "";
+                foodEl.parentElement.title = "";
+            }
+        }
+
     },
 
     // =============================================================
@@ -1338,6 +1435,102 @@ const UIManager = {
                 xpBar.style.width = percentage + '%';
             }
         }, 500);
+    },
+
+    // =============================================================
+    // ... Radial Táctico ...
+    // =============================================================
+
+    // 1. Función para mostrar el menú
+    showRadialMenu: function(unit, screenX, screenY) {
+        const container = document.getElementById('radialMenuContainer');
+        if (!container) return;
+
+        // Limpiar menú anterior
+        container.innerHTML = '';
+        
+        // Posicionar el centro del menú sobre la unidad
+        container.style.left = `${screenX}px`;
+        container.style.top = `${screenY}px`;
+        container.style.display = 'block';
+
+        // Definir acciones posibles según el estado de la unidad
+        const actions = [];
+
+        // Acción: Construir (Si es Ingeniero o tiene la habilidad)
+        const isBuilder = unit.regiments.some(r => REGIMENT_TYPES[r.type]?.abilities?.includes("build_road"));
+        const hex = board[unit.r]?.[unit.c];
+        
+        if (isBuilder && hex && hex.owner === unit.player) {
+            actions.push({ icon: '🏗️', title: 'Construir', onClick: () => { 
+                hexToBuildOn = { r: unit.r, c: unit.c };
+                if (typeof openBuildStructureModal === "function") openBuildStructureModal(); 
+            }});
+        }
+
+        // Acción: Dividir (Si tiene más de 1 regimiento)
+        if (unit.regiments.length > 1) {
+            actions.push({ icon: '✂️', title: 'Dividir', onClick: () => { 
+                if (typeof openAdvancedSplitUnitModal === "function") openAdvancedSplitUnitModal(unit); 
+            }});
+        }
+
+        // Acción: Saquear (Si está en territorio enemigo)
+        if (hex && hex.owner !== null && hex.owner !== unit.player) {
+            actions.push({ icon: '💰', title: 'Saquear', onClick: () => { 
+                if (typeof RequestPillageAction === "function") RequestPillageAction(); 
+            }});
+        }
+        
+        // Acción: Explorar Ruinas
+        if (hex && hex.feature === 'ruins') {
+             actions.push({ icon: '🧭', title: 'Explorar', onClick: () => { 
+                if (typeof requestExploreRuins === "function") requestExploreRuins(); 
+            }});
+        }
+
+        // Acción: Gestionar/Info (Siempre)
+        actions.push({ icon: 'ℹ️', title: 'Detalles', onClick: () => { 
+             if (typeof openUnitDetailModal === "function") openUnitDetailModal(unit);
+        }});
+
+        // --- DISTRIBUCIÓN CIRCULAR ---
+        const radius = 60; // Distancia del centro en píxeles
+        const total = actions.length;
+        const angleStep = (2 * Math.PI) / total;
+
+        actions.forEach((action, index) => {
+            const angle = index * angleStep - (Math.PI / 2); // Empezar arriba (-90 grados)
+            const x = Math.cos(angle) * radius;
+            const y = Math.sin(angle) * radius;
+
+            const btn = document.createElement('div');
+            btn.className = 'radial-btn';
+            btn.innerHTML = action.icon;
+            btn.setAttribute('data-title', action.title);
+            btn.style.zIndex = "20001"; // Forzar z-index individual
+            
+            // Posición final
+            btn.style.left = `${x}px`;
+            btn.style.top = `${y}px`;
+
+            // Listener
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Evitar clics en el mapa
+                this.hideRadialMenu(); // Cerrar menú al pulsar
+                action.onClick();
+            });
+
+            container.appendChild(btn);
+        });
+    },
+
+    hideRadialMenu: function() {
+        const container = document.getElementById('radialMenuContainer');
+        if (container) {
+            container.style.display = 'none';
+            container.innerHTML = '';
+        }
     },
 
 };

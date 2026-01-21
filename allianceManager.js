@@ -137,100 +137,70 @@ const AllianceManager = {
     loadHQ: async function(aliId) {
         this.showScreen('HQ');
         const listContainer = document.getElementById('membersListCompact');
-        listContainer.innerHTML = '<div style="text-align:center; padding:20px; color:#aaa;">Contactando con el Cuartel General...</div>';
+        listContainer.innerHTML = 'Cargando...';
 
-        try {
-            // 1. CARGA PARALELA: Datos de la Alianza + Lista de Miembros (con perfiles unidos)
-            const [aliRes, membersRes] = await Promise.all([
-                // A. Datos de la Alianza
-                supabaseClient
-                    .from('alliances')
-                    .select('*')
-                    .eq('id', aliId)
-                    .single(),
+        // 1. Obtener la Alianza
+        const { data: ali } = await supabaseClient
+            .from('alliances')
+            .select('*')
+            .eq('id', aliId)
+            .single();
 
-                // B. Miembros + Datos de Perfil (JOIN)
-                supabaseClient
-                    .from('alliance_members')
-                    .select(`
-                        role,
-                        user_id,
-                        profiles (
-                            username,
-                            level,
-                            avatar_url,
-                            total_wins
-                        )
-                    `)
-                    .eq('alliance_id', aliId)
-            ]);
-
-            if (aliRes.error) throw aliRes.error;
-            if (membersRes.error) throw membersRes.error;
-
-            const ali = aliRes.data;
-            const members = membersRes.data;
-            this.currentAlliance = ali;
-
-            // 2. CALCULAR PODER TOTAL (Suma de Niveles * 100 + Victorias * 10)
-            let totalPower = 0;
-            members.forEach(m => {
-                const p = m.profiles;
-                if (p) {
-                    totalPower += (p.level || 1) * 100 + (p.total_wins || 0) * 10;
-                }
-            });
-
-            // 3. RENDERIZAR CABECERA (HEADER)
-            let icon = "🛡️";
-            try { icon = JSON.parse(ali.description).icon || icon; } catch(e){}
-            
-            if(document.getElementById('hqFlag')) document.getElementById('hqFlag').textContent = icon;
-            if(document.getElementById('hqName')) document.getElementById('hqName').textContent = `[${ali.tag}] ${ali.name}`;
-            if(document.getElementById('hqLevel')) document.getElementById('hqLevel').textContent = Math.floor(totalPower / 1000) + 1; // Nivel basado en poder
-            if(document.getElementById('hqPower')) document.getElementById('hqPower').textContent = totalPower.toLocaleString();
-            if(document.getElementById('memberCountDisplay')) document.getElementById('memberCountDisplay').textContent = `${members.length}/50`;
-
-            // 4. RENDERIZAR LISTA DE MIEMBROS
-            listContainer.innerHTML = '';
-            
-            // Ordenar: Líder primero, luego por nivel
-            members.sort((a, b) => {
-                if (a.role === 'Leader') return -1;
-                if (b.role === 'Leader') return 1;
-                return (b.profiles?.level || 0) - (a.profiles?.level || 0);
-            });
-
-            members.forEach(m => {
-                const p = m.profiles || { username: 'Desconocido', level: 1, avatar_url: '👤' };
-                
-                const div = document.createElement('div');
-                div.className = 'member-item';
-                div.style.cssText = "display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid #334155; align-items: center; background: rgba(255,255,255,0.02);";
-                
-                // Color del rol
-                const roleColor = m.role === 'Leader' ? '#f1c40f' : '#94a3b8';
-                const roleText = m.role === 'Leader' ? 'LÍDER' : 'MIEMBRO';
-
-                div.innerHTML = `
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <span style="font-size:1.5em;">${p.avatar_url}</span>
-                        <div style="display:flex; flex-direction:column;">
-                            <span style="font-weight:bold; color:#e2e8f0; font-size:0.95em;">${p.username}</span>
-                            <span style="font-size:0.75em; color:#64748b;">Nivel ${p.level} • ${p.total_wins || 0} Wins</span>
-                        </div>
-                    </div>
-                    <span style="font-size:0.7em; font-weight:bold; padding:2px 6px; border-radius:4px; border:1px solid ${roleColor}; color:${roleColor};">
-                        ${roleText}
-                    </span>
-                `;
-                listContainer.appendChild(div);
-            });
-
-        } catch (err) {
-            console.error("Error cargando HQ:", err);
-            listContainer.innerHTML = '<p style="text-align:center; color:#ef4444;">Error al cargar los datos de la alianza.</p>';
+        this.currentAlliance = ali;
+        
+        // Pintar Cabecera básica
+        if(ali) {
+             document.getElementById('hqName').textContent = `[${ali.tag}] ${ali.name}`;
+             let icon = "🛡️";
+             try { icon = JSON.parse(ali.description).icon || icon; } catch(e){}
+             document.getElementById('hqFlag').textContent = icon;
         }
+
+        // 2. Obtener Miembros (Con Perfil)
+        const { data: members, error } = await supabaseClient
+            .from('alliance_members')
+            .select('role, user_id, profiles(username, avatar_url, level, total_wins)')
+            .eq('alliance_id', aliId);
+
+        if (error) {
+            console.error("Error miembros:", error);
+            return;
+        }
+
+        // Actualizar contador
+        if(document.getElementById('memberCountDisplay')) {
+            document.getElementById('memberCountDisplay').textContent = `${members.length}/50`;
+        }
+
+        // 3. Pintar Lista
+        listContainer.innerHTML = '';
+        
+        // Ordenar: Líder primero
+        members.sort((a, b) => (a.role === 'Leader' ? -1 : 1));
+
+        members.forEach(m => {
+            // Protección contra perfiles nulos (si un usuario se borró pero sigue en la alianza)
+            const p = m.profiles || { username: 'Usuario Desconocido', avatar_url: '❓', level: 0 };
+            
+            const div = document.createElement('div');
+            div.style.cssText = "display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #333; align-items: center; background: rgba(0,0,0,0.2);";
+            
+            const roleColor = m.role === 'Leader' ? '#f1c40f' : '#aaa';
+
+            div.innerHTML = `
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:1.5em;">${p.avatar_url}</span>
+                    <div>
+                        <div style="color:#eee; font-weight:bold;">${p.username}</div>
+                        <div style="font-size:0.8em; color:#777;">Nivel ${p.level}</div>
+                    </div>
+                </div>
+                <div style="color:${roleColor}; font-size:0.8em; font-weight:bold; border:1px solid ${roleColor}; padding:2px 6px; border-radius:4px;">
+                    ${m.role === 'Leader' ? 'LÍDER' : 'MIEMBRO'}
+                </div>
+            `;
+            listContainer.appendChild(div);
+        });
     },
 
     // --- SISTEMA DE CHAT ---

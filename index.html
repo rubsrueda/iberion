@@ -642,70 +642,80 @@
     <!-- ====================================================================== -->
 
     <div id="setupScreen" class="modal-overlay">
-    <div class="modal-container">
-        <header class="modal-header">
-            <h2>Configuración de Partida</h2>
-            <button class="modal-close-btn" data-target="mainMenuScreenEl">×</button>
-        </header>
-        <main class="modal-body setup-screen-themed">
-            <div class="setup-grid">
-                <!-- Columna Izquierda: Mapa -->
-                <div class="setup-column">
-                    <h4>MAPA</h4>
-                    <div class="setup-option">
-                        <label for="boardSizeSelect">Tamaño</label>
-                        <select id="boardSizeSelect">
-                            <option value="small" selected>Pequeño</option>
-                            <option value="medium">Mediano</option>
-                            <option value="large">Grande</option>
-                        </select>
+        <div class="modal-container">
+            <header class="modal-header">
+                <h2>Configuración de Partida</h2>
+                <button class="modal-close-btn" data-target="mainMenuScreenEl">×</button>
+            </header>
+            <main class="modal-body setup-screen-themed">
+                <div class="setup-grid">
+                    <!-- Columna Izquierda: Mapa -->
+                    <div class="setup-column">
+                        <h4>MAPA</h4>
+                        <div class="setup-option">
+                            <label for="boardSizeSelect">Tamaño</label>
+                            <select id="boardSizeSelect">
+                                <option value="small" selected>Pequeño</option>
+                                <option value="medium">Mediano</option>
+                                <option value="large">Grande</option>
+                            </select>
+                        </div>
+                        <div class="setup-option">
+                            <label for="resourceLevel">Recursos</label>
+                            <select id="resourceLevel">
+                                <option value="min" selected>Mínimos</option>
+                                <option value="med">Medios</option>
+                                <option value="max">Muchos</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="setup-option">
-                        <label for="resourceLevel">Recursos</label>
-                        <select id="resourceLevel">
-                            <option value="min" selected>Mínimos</option>
-                            <option value="med">Medios</option>
-                            <option value="max">Muchos</option>
-                        </select>
+                    <!-- Columna Derecha: Partida -->
+                    <div class="setup-column">
+                        <h4>PARTIDA</h4>
+                        <div class="setup-option">
+                            <label for="initialUnitsCount">Unidades</label>
+                            <select id="initialUnitsCount">
+                                <option value="1">1</option>
+                                <option value="3" selected>3</option>
+                                <option value="5">5</option>
+                                <option value="unlimited">Max</option>
+                            </select>
+                        </div>
+                        <div class="setup-option">
+                            <label for="turnTimeSelect">Tiempo</label>
+                            <select id="turnTimeSelect">
+                                <option value="90">90 seg</option>
+                                <option value="180" selected>3 min</option>
+                                <option value="300">5 min</option>
+                                <option value="600">10 min</option>
+                                <option value="none">Sin límite</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
-                <!-- Columna Derecha: Partida -->
-                <div class="setup-column">
-                    <h4>PARTIDA</h4>
-                    <div class="setup-option">
-                        <label for="initialUnitsCount">Unidades</label>
-                        <select id="initialUnitsCount">
-                            <option value="1">1</option>
-                            <option value="3" selected>3</option>
-                            <option value="5">5</option>
-                            <option value="unlimited">Max</option>
-                        </select>
-                    </div>
-                    <div class="setup-option">
-                        <label for="turnTimeSelect">Tiempo</label>
-                        <select id="turnTimeSelect">
-                            <option value="90">90 seg</option>
-                            <option value="180" selected>3 min</option>
-                            <option value="300">5 min</option>
-                            <option value="600">10 min</option>
-                            <option value="none">Sin límite</option>
-                        </select>
-                    </div>
+                <!-- Barbaros -->
+                <div class="setup-option">
+                    <label for="barbarianDensity">Ciudades Indep.</label>
+                    <select id="barbarianDensity">
+                        <option value="none">Ninguna</option>
+                        <option value="low">Pocas</option>
+                        <option value="med" selected>Normal</option>
+                        <option value="high">Muchas</option>
+                    </select>
                 </div>
-            </div>
-            <!-- Slider -->
-            <div class="players-row">
-                <label for="num-players-slider">Jugadores: <span id="num-players-display">2</span></label>
-                <input type="range" id="num-players-slider" min="2" max="8" value="2" step="1">
-                <select id="new-num-players" style="display: none;"></select>
-            </div>
-        </main>
-        <footer class="modal-footer">
-            <button id="backToMainMenuBtn_fromSetup" class="button-secondary">Volver</button>
-            <button id="next-to-player-setup-btn" class="button-primary">Siguiente</button> 
-        </footer>
+                <!-- Slider -->
+                <div class="players-row">
+                    <label for="num-players-slider">Jugadores: <span id="num-players-display">2</span></label>
+                    <input type="range" id="num-players-slider" min="2" max="8" value="2" step="1">
+                    <select id="new-num-players" style="display: none;"></select>
+                </div>
+            </main>
+            <footer class="modal-footer">
+                <button id="backToMainMenuBtn_fromSetup" class="button-secondary">Volver</button>
+                <button id="next-to-player-setup-btn" class="button-primary">Siguiente</button> 
+            </footer>
+        </div>
     </div>
-</div>
 
     <!-- ========================================================================= -->
     <!-- === NUEVO MODAL: CONFIGURACIÓN DE PARTIDA - PANTALLA 2 (JUGADORES)    === -->
@@ -1722,6 +1732,9 @@
     <script src="inventoryLogic.js"></script>
     <script src="main.js"></script>
     <script src="techScreenUI.js"></script>
+    
+    <!-- Menú Radial Dinámico -->
+    <div id="radialMenuContainer"></div>
     
 </body>
 </html>

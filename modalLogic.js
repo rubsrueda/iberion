@@ -1164,7 +1164,6 @@ function handleFinalizeSplit() {
 
 }
 
-
 // ========================================================================
 //Abre el modal de detalles de la división y lo rellena con la información de los regimientos.
 // @param {object} unit - La unidad seleccionada para mostrar.
@@ -3974,128 +3973,311 @@ async function openMyGamesModal() {
     const list = document.getElementById('myGamesListPanel');
     
     if (!modal || !list) {
-        console.error("Error: No se encontró el modal o la lista (myGamesListPanel).");
+        console.error("Error: No se encontró el modal o la lista.");
         return;
     }
     
-    // Preparar UI
+    // UI Setup (Mantiene tu lógica de pestañas)
     modal.style.display = 'flex';
     document.getElementById('myGamesListPanel').classList.add('active');
     document.getElementById('publicGamesListPanel').classList.remove('active');
     
-    // Resetear pestañas visualmente
     document.querySelectorAll('.ranking-tab-btn').forEach(b => b.classList.remove('active'));
     const myTab = document.getElementById('tabMyGames');
     if (myTab) myTab.classList.add('active');
     
-    list.innerHTML = '<p style="text-align:center; color:#ccc; font-size:0.9em; margin-top:20px;">Sincronizando con el servidor...</p>';
+    list.innerHTML = '<p style="text-align:center; color:#ccc; font-size:0.9em; margin-top:20px;">Sincronizando operaciones...</p>';
 
     const uid = PlayerDataManager.currentPlayer?.auth_id;
     if (!uid) {
-        list.innerHTML = '<p style="text-align:center; color:#e74c3c;">Debes iniciar sesión para ver tus partidas.</p>';
+        list.innerHTML = '<p style="text-align:center; color:#e74c3c;">Debes iniciar sesión.</p>';
         return;
     }
 
-    // CONSULTA A SUPABASE
-    const { data, error } = await supabaseClient
-        .from('active_matches')
-        .select('*')
-        .or(`host_id.eq.${uid},guest_id.eq.${uid}`)
-        .order('updated_at', { ascending: false });
+    try {
+        // --- MODIFICACIÓN: CONSULTA PARALELA A AMBAS TABLAS ---
+        const [activeRes, savedRes] = await Promise.all([
+            // 1. Partidas Online (Lo que ya tenías)
+            supabaseClient
+                .from('active_matches')
+                .select('*')
+                .or(`host_id.eq.${uid},guest_id.eq.${uid}`)
+                .order('updated_at', { ascending: false }),
+            
+            // 2. Partidas Guardadas Manualmente / Vs IA (LO NUEVO)
+            supabaseClient
+                .from('game_saves')
+                .select('*')
+                .eq('user_id', uid)
+                .order('created_at', { ascending: false })
+        ]);
 
-    if (error) {
-        console.error("Error Supabase:", error);
-        list.innerHTML = '<p style="text-align:center; color:#e74c3c;">Error de conexión.</p>';
-        return;
+        if (activeRes.error) throw activeRes.error;
+        // Ignoramos error en saves por si la tabla está vacía o hay problemas menores
+
+        const activeData = activeRes.data || [];
+        const savedData = savedRes.data || [];
+
+        list.innerHTML = ''; // Limpiar mensaje de carga
+
+        if (activeData.length === 0 && savedData.length === 0) {
+            list.innerHTML = '<p style="text-align:center; color:#888; font-size:0.9em;">No tienes partidas registradas.</p>';
+            return;
+        }
+
+        // --- RENDERIZADO: PARTIDAS ONLINE---
+        activeData.forEach(match => {
+            const state = match.game_state?.gameState || {};
+            const turn = state.turnNumber || 1;
+            const myRole = (match.host_id === uid) ? 1 : 2; 
+            const isMyTurn = state.currentPlayer === myRole;
+            
+            // Lógica de abandono
+            const lastMoveTime = new Date(match.updated_at);
+            const hoursSinceLastMove = (new Date() - lastMoveTime) / (1000 * 60 * 60);
+            const rivalAbandoned = !isMyTurn && hoursSinceLastMove > 24;
+            
+            let statusIcon = isMyTurn ? '🟢' : (rivalAbandoned ? '⚠️' : '⏳');
+            let statusColor = isMyTurn ? '#2ecc71' : (rivalAbandoned ? '#e74c3c' : '#f39c12');
+            let statusText = isMyTurn ? 'JUEGA' : (rivalAbandoned ? 'ABANDONO' : 'ESPERA');
+            
+            // Icono de rival
+            const p2Type = state.playerTypes?.player2 || 'human';
+            const opponentIcon = (myRole === 1 && p2Type.includes('ai')) ? '🤖' : '👤';
+
+            const card = document.createElement('div');
+            card.className = 'save-slot-card';
+            // Usamos tu estructura HTML exacta
+            card.innerHTML = `
+                <div style="font-size:14px;">${statusIcon}</div>
+                <div style="overflow:hidden;">
+                    <h4 style="color:#f1c40f; font-size:11px; margin:0;">#${match.match_id} 
+                        <span style="color:#666; font-weight:normal; font-size:9px;">(Red)</span>
+                    </h4>
+                </div>
+                <div style="font-size:16px; text-align:center;">${opponentIcon}</div>
+                <div class="match-status" style="color:${statusColor}; font-size:9px; text-align:center;">${statusText}</div>
+                <div style="font-size:10px; color:#aaa; text-align:center;">T${turn}</div>
+                <button class="options-btn" style="width:100%; border:none; background:transparent; color:#888; cursor:pointer;" onclick="event.stopPropagation(); showMatchContext(event, '${match.match_id}', ${rivalAbandoned})">⋮</button>
+            `;
+            
+            card.onclick = () => {
+                 document.getElementById('myGamesModal').style.display = 'none';
+                 if(typeof NetworkManager !== 'undefined') NetworkManager.cargarPartidaDesdeLista(match);
+            };
+            list.appendChild(card);
+        });
+
+        // --- RENDERIZADO: PARTIDAS GUARDADAS / IA LOCAL ---
+        if (savedData.length > 0) {
+            // Separador visual
+            const separator = document.createElement('div');
+            separator.innerHTML = "<small style='color:#555; display:block; margin:10px 0; border-bottom:1px solid #333;'>GUARDADAS / IA</small>";
+            list.appendChild(separator);
+
+            savedData.forEach(save => {
+                const state = save.game_state?.gameState || {};
+                const turn = state.turnNumber || 1;
+                const dateStr = new Date(save.created_at).toLocaleDateString();
+
+                const card = document.createElement('div');
+                card.className = 'save-slot-card';
+                // Usamos un estilo similar pero distintivo (icono de disco)
+                card.innerHTML = `
+                    <div style="font-size:14px;">💾</div>
+                    <div style="overflow:hidden;">
+                        <h4 style="color:#3498db; font-size:11px; margin:0;">${save.save_name}</h4>
+                    </div>
+                    <div style="font-size:16px; text-align:center;">🤖</div>
+                    <div class="match-status" style="color:#3498db; font-size:9px; text-align:center;">LOCAL</div>
+                    <div style="font-size:10px; color:#aaa; text-align:center;">T${turn}</div>
+                    <div style="font-size:9px; color:#555; text-align:right;">${dateStr}</div>
+                `;
+
+                card.onclick = () => {
+                    document.getElementById('myGamesModal').style.display = 'none';
+                    // Carga directa local sin pasar por NetworkManager
+                    if (typeof reconstruirJuegoDesdeDatos === 'function') {
+                        reconstruirJuegoDesdeDatos(save.game_state);
+                        // Asegurar que si era vs IA, la IA esté lista
+                        gameState.isCampaignBattle = false; // Asumimos escaramuza
+                        logMessage(`Partida guardada "${save.save_name}" cargada.`);
+                        
+                        // Mostrar pantalla
+                        showScreen(domElements.gameContainer);
+                        if(domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
+                    }
+                };
+                list.appendChild(card);
+            });
+        }
+
+    } catch (error) {
+        console.error("Error al cargar lista:", error);
+        list.innerHTML = '<p style="text-align:center; color:#e74c3c;">Error recuperando datos.</p>';
     }
+}
 
-    if (!data || data.length === 0) {
-        list.innerHTML = '<p style="text-align:center; color:#888; font-size:0.9em;">No tienes partidas activas.</p>';
-        return;
-    }
+// En modalLogic.js (reemplaza tu renderMatchCard actual por esta)
+// EN modalLogic.js -> Sustituye la función renderMatchCard completa por esta:
 
-    // RENDERIZADO DE TARJETAS
-    list.innerHTML = '';
+function renderMatchCard(match, container, uid, type) {
+    const isLocal = (type === 'save');
     
-    data.forEach(match => {
-        const state = match.game_state?.gameState || {};
-        const turn = state.turnNumber || 1;
+    // --- 1. DATOS ---
+    const rawState = isLocal ? match.game_state : match.game_state;
+    const state = rawState?.gameState || rawState || {};
+    const turn = state.turnNumber || 1;
+    
+    // Nombre
+    let matchName = isLocal ? match.save_name : `Partida #${match.match_id}`;
+    if (isLocal) matchName = matchName.replace("Partida Guardada", "").trim() || "Escaramuza";
+
+    // Fecha (DD/MM/YYYY)
+    const dateSource = match.updated_at || match.created_at || new Date();
+    const d = new Date(dateSource);
+    const dateStr = `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`; 
+
+    // --- 2. ESTADO Y COLORES ---
+    let icon = '⚔️';
+    let statusText = 'ONLINE';
+    let statusColor = '#aaa'; // Color base más neutro
+    let rowOpacity = '1';
+    let isAbandoned = false;
+
+    if (isLocal) {
+        icon = '💾';
+        statusText = 'LOCAL';
+        statusColor = '#f1c40f'; // Dorado
+    } else {
         const myRole = (match.host_id === uid) ? 1 : 2; 
         const isMyTurn = state.currentPlayer === myRole;
         
-        // 1. CÁLCULO DE TIEMPO Y ABANDONO
-        const lastMoveTime = new Date(match.updated_at);
-        const now = new Date();
-        const hoursSinceLastMove = (now - lastMoveTime) / (1000 * 60 * 60);
-        
-        // Fecha corta (dd/mm hh:mm)
-        const dateStr = lastMoveTime.toLocaleDateString([], {day:'2-digit', month:'2-digit'}) + ' ' + lastMoveTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        // Abandono (>24h)
+        const lastMove = new Date(dateSource);
+        const hours = (new Date() - lastMove) / 36e5;
+        isAbandoned = !isMyTurn && hours > 24;
 
-        // Regla: Si NO es mi turno y han pasado >24h, el rival ha abandonado.
-        const rivalAbandoned = !isMyTurn && hoursSinceLastMove > 24;
-        
-        // 2. ESTADO VISUAL
-        let statusIcon = '⏳';
-        let statusColor = '#aaa'; 
-        let statusText = 'ESPERA';
-        
         if (isMyTurn) {
-            statusIcon = '🟢'; 
-            statusColor = '#2ecc71'; 
-            statusText = 'JUEGA';
-        } else if (rivalAbandoned) {
-            statusIcon = '⚠️'; 
-            statusColor = '#e74c3c'; 
-            statusText = 'ABANDONO';
+            statusText = 'TU TURNO'; 
+            statusColor = '#2ecc71'; // Verde brillante
+        } else if (isAbandoned) {
+            statusText = 'ABANDONO'; 
+            statusColor = '#e74c3c'; // Rojo
+            rowOpacity = '0.7';
         } else {
-            statusIcon = '⏳'; 
-            statusColor = '#f39c12';
-            statusText = 'ESPERA';
+            statusText = 'ESPERA'; 
+            statusColor = '#f39c12'; // Naranja
         }
+    }
 
-        // 3. ICONO DE RIVAL (Sin texto largo)
-        const p2Type = state.playerTypes?.player2 || 'human';
-        // Si soy J1 y el J2 es humano -> Icono Humano. Si es IA -> Icono Robot.
-        // Si soy J2 (siempre humano), el rival J1 es humano.
-        const opponentIcon = (myRole === 1 && p2Type.includes('ai')) ? '🤖' : '👤';
+    // --- 3. MAQUETACIÓN (GRID 5 COLUMNAS) ---
+    const card = document.createElement('div');
+    card.className = 'save-slot-card';
+    
+    // COLUMNAS:
+    // 1. Icono (30px)
+    // 2. Nombre (35%)
+    // 3. Fecha (Flexible - Llena el hueco central)
+    // 4. Estado (Auto - Se ajusta al texto)
+    // 5. Menú (30px)
+    card.style.cssText = `
+        display: grid;
+        grid-template-columns: 30px 35% 1fr auto 30px;
+        align-items: center;
+        gap: 10px;
+        background: #1a252f;
+        border-left: 3px solid ${statusColor};
+        padding: 8px 5px;
+        margin-bottom: 5px;
+        cursor: pointer;
+        opacity: ${rowOpacity};
+        font-size: 0.9em;
+    `;
+    
+    card.onmouseover = () => card.style.background = '#253342';
+    card.onmouseout = () => card.style.background = '#1a252f';
 
-        const card = document.createElement('div');
-        card.className = 'save-slot-card'; 
+    // ACCIÓN CARGAR
+    card.onclick = () => {
+        document.getElementById('myGamesModal').style.display = 'none';
+        if (isLocal) {
+            let dataToLoad = match.game_state; 
+            if (!dataToLoad.board && match.board_state) dataToLoad.board = match.board_state;
+            if (dataToLoad.gameState && dataToLoad.gameState.gameState) dataToLoad = dataToLoad.gameState;
+
+            if (typeof reconstruirJuegoDesdeDatos === 'function') {
+                logMessage(`Cargando local...`);
+                gameState.isCampaignBattle = false; 
+                reconstruirJuegoDesdeDatos(dataToLoad);
+            }
+        } else {
+            if(typeof NetworkManager !== 'undefined') NetworkManager.cargarPartidaDesdeLista(match);
+        }
+    };
+
+    // ACCIÓN MENÚ
+    const menuAction = (e) => {
+        e.stopPropagation();
+        const idParaAccion = isLocal ? match.id : match.match_id;
+        if (typeof window.showMatchContext === 'function') {
+            window.showMatchContext(e, idParaAccion, isAbandoned, isLocal);
+        }
+    };
+
+    // --- 4. HTML ---
+    card.innerHTML = `
+        <!-- 1. ICONO -->
+        <div style="font-size:18px; text-align:center;">${icon}</div>
         
-        // 4. HTML DE LA TARJETA
-        card.innerHTML = `
-            <div style="font-size:14px;">${statusIcon}</div>
-            
-            <div style="overflow:hidden;">
-                <h4 style="color:#f1c40f; font-size:11px; margin:0;">#${match.match_id} 
-                    <span style="color:#666; font-weight:normal; font-size:9px;">(${myRole===1?'Host':'Guest'})</span>
-                </h4>
-            </div>
+        <!-- 2. NOMBRE E ID -->
+        <div style="overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-weight:bold; color:#fff;">
+            ${matchName}
+        </div>
 
-            <div style="font-size:16px; text-align:center;" title="Tipo de Rival">${opponentIcon}</div>
+        <!-- 3. FECHA (CENTRO) -->
+        <div style="color:#888; font-size:0.85em; text-align:center;">
+            ${dateStr}
+        </div>
 
-            <div class="match-status" style="color:${statusColor}; font-size:9px; text-align:center;">
-                ${statusText}
-            </div>
-            
-            <div style="font-size:10px; color:#aaa; text-align:center;">T${turn}</div>
-            
-            <div style="font-size:9px; color:#555; text-align:right;">${dateStr}</div>
-            
-            <button class="options-btn" style="width:100%; height:100%; border:none; background:transparent; color:#888; cursor:pointer;" 
-                onclick="event.stopPropagation(); showMatchContext(event, '${match.match_id}', ${rivalAbandoned})">⋮</button>
-        `;
+        <!-- 4. ESTADO Y TURNO -->
+        <div style="text-align:right; font-weight:bold; font-size:0.85em; color:${statusColor}; white-space:nowrap;">
+            ${statusText} <span style="color:#666; font-weight:normal;">| T${turn}</span>
+        </div>
 
-        // Acción al hacer clic en la tarjeta (Cargar)
-        card.onclick = () => {
-             modal.style.display = 'none';
-             if(typeof NetworkManager !== 'undefined') {
-                 NetworkManager.cargarPartidaDesdeLista(match);
-             }
-        };
+        <!-- 5. BOTÓN (Siempre visible) -->
+        <div style="text-align:center;">
+            <span class="options-btn" style="color:#bbb; font-weight:bold; font-size:18px; cursor:pointer;">⋮</span>
+        </div>
+    `;
 
-        list.appendChild(card);
-    });
+    // Listener al botón (el span dentro del último div)
+    const btnSpan = card.lastElementChild.querySelector('span');
+    btnSpan.onclick = menuAction;
+    btnSpan.onmouseover = () => btnSpan.style.color = '#fff';
+    btnSpan.onmouseout = () => btnSpan.style.color = '#bbb';
+
+    container.appendChild(card);
+}
+
+// --- NUEVA FUNCIÓN PARA BORRAR PARTIDAS GUARDADAS ---
+async function deleteSavedGame(saveId) {
+    if (!saveId) return;
+
+    if (confirm("¿Estás seguro de que quieres borrar esta partida guardada? Esta acción es irreversible.")) {
+        const { error } = await supabaseClient
+            .from('game_saves')
+            .delete()
+            .eq('id', saveId);
+
+        if (error) {
+            console.error("Error al borrar:", error);
+            alert("No se pudo borrar la partida.");
+        } else {
+            // Refrescar la lista de partidas para que desaparezca la borrada
+            openMyGamesModal();
+        }
+    }
 }
 
 // --- GESTIÓN DE PESTAÑAS ---
@@ -4174,48 +4356,64 @@ window.publishToMarket = async function(matchId) {
 };
 
 // 3. Menú Contextual (Lógica visual)
-window.showMatchContext = function(event, matchId, rivalIsAbandoned) {
+// --- GESTIÓN DE MENÚ CONTEXTUAL (Adaptada para Local y Online) ---
+window.showMatchContext = function(event, matchId, rivalIsAbandoned, isLocal = false) {
     const menu = document.getElementById('matchContextMenu');
     
-    // 1. Posicionamiento del menú (evitando que se salga de la pantalla en móviles)
+    // 1. Posicionamiento
     menu.style.display = 'block';
-    let left = event.clientX - 120;
+    let left = event.clientX - 140;
     if (left < 10) left = 10;
-    menu.style.top = `${event.clientY + 10}px`;
+    menu.style.top = `${event.clientY}px`;
     menu.style.left = `${left}px`;
     
-    // 2. Referencias a los botones del menú
-    const btnAbandon = document.getElementById('ctxAbandon');
+    // 2. Referencias a botones
+    const btnMainAction = document.getElementById('ctxAbandon'); // Reusamos este botón
     const btnAI = document.getElementById('ctxConvertToAI');
-    const btnShare = document.getElementById('ctxShare'); // Usado para "Publicar en Mercado"
+    const btnShare = document.getElementById('ctxShare');
 
-    // 3. CONFIGURACIÓN DE ACCIONES (Sobrescribimos onclick para asegurar el ID correcto)
-    
-    // Botón ABANDONAR: Siempre visible (puedes rendirte cuando quieras)
-    btnAbandon.style.display = 'block';
-    btnAbandon.onclick = () => {
-        document.getElementById('matchContextMenu').style.display = 'none'; // Cerrar menú
-        abandonMatch(matchId);
-    };
-
-    // Botones de GESTIÓN DE RIVAL: Solo si el rival ha abandonado (>24h sin jugar)
-    if (rivalIsAbandoned) {
-        btnAI.style.display = 'block';
-        btnAI.textContent = "🤖 Convertir Rival a IA";
-        btnAI.onclick = () => {
+    // 3. Configuración según tipo
+    if (isLocal) {
+        // --- MODO LOCAL ---
+        btnMainAction.style.display = 'block';
+        btnMainAction.textContent = "🗑️ Borrar Partida";
+        btnMainAction.onclick = () => {
             document.getElementById('matchContextMenu').style.display = 'none';
-            convertToAI(matchId);
+            deleteSavedGame(matchId); // Llama a la función de borrado de DB
         };
-
-        btnShare.style.display = 'block';
-        btnShare.textContent = "🌍 Ofrecer en Mercado";
-        btnShare.onclick = () => {
-            document.getElementById('matchContextMenu').style.display = 'none';
-            publishToMarket(matchId);
-        };
-    } else {
+        
+        // Ocultar opciones de red
         btnAI.style.display = 'none';
         btnShare.style.display = 'none';
+
+    } else {
+        // --- MODO ONLINE ---
+        btnMainAction.style.display = 'block';
+        btnMainAction.textContent = "❌ Abandonar";
+        btnMainAction.onclick = () => {
+            document.getElementById('matchContextMenu').style.display = 'none';
+            abandonMatch(matchId);
+        };
+
+        // Opciones Extra (Solo si rival abandonó)
+        if (rivalIsAbandoned) {
+            btnAI.style.display = 'block';
+            btnAI.textContent = "🤖 Convertir Rival a IA";
+            btnAI.onclick = () => {
+                document.getElementById('matchContextMenu').style.display = 'none';
+                convertToAI(matchId);
+            };
+
+            btnShare.style.display = 'block';
+            btnShare.textContent = "🌍 Ofrecer en Mercado";
+            btnShare.onclick = () => {
+                document.getElementById('matchContextMenu').style.display = 'none';
+                publishToMarket(matchId);
+            };
+        } else {
+            btnAI.style.display = 'none';
+            btnShare.style.display = 'none';
+        }
     }
 };
 

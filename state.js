@@ -123,8 +123,27 @@ function resetGameStateVariables(playerCount = 2, turnDuration = Infinity) {
         initialGameStateObject.activeCommanders[i] = [];
         initialGameStateObject.capitalCityId[i] = null;
         initialGameStateObject.unitsPlacedByPlayer[i] = 0;
+        
     }
 
+    // Esto evita que salga "null" o errores al interactuar con ellos
+    // 1. Inicializar Recursos para J9
+    initialGameStateObject.playerResources[9] = { 
+        oro: 0, comida: 0, madera: 0, piedra: 0, hierro: 0, 
+        researchPoints: 0, puntosReclutamiento: 0 
+    };
+
+    // 2. Inicializar Civilización y Tipo
+    initialGameStateObject.playerCivilizations[9] = 'Bárbaros'; 
+    
+    // Aseguramos que el objeto playerTypes existe antes de asignar
+    if (!initialGameStateObject.playerTypes) initialGameStateObject.playerTypes = {};
+    initialGameStateObject.playerTypes['player9'] = 'ai_passive'; 
+
+    // 3. Inicializar Comandantes
+    if (!initialGameStateObject.activeCommanders) initialGameStateObject.activeCommanders = {};
+    initialGameStateObject.activeCommanders[9] = [];
+        
     gameState = initialGameStateObject;
 
     // Reseteo de variables globales

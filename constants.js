@@ -109,7 +109,7 @@ const REGIMENT_TYPES = {
         movement: 3, // Rápido
         sprite: 'images/sprites/explorador.png',
         //sprite: '👁️', // Un ojo, para representar la visión/exploración
-        visionRange: 2, // Su visión base
+        visionRange: 3, // Su visión base
         attackRange: 0,
         initiative: 12, // Alta iniciativa para actuar rápido
         goldValueOnDestroy: 50,
@@ -123,6 +123,7 @@ const REGIMENT_TYPES = {
 
 // Define el número máximo de jugadores para esta modalidad
 const MAX_PLAYERS_MAGNA = 8;
+const BARBARIAN_PLAYER_ID = 9;
 
 // (MODIFICADO) Expande los recursos iniciales
 const INITIAL_PLAYER_RESOURCES_MAGNA = [
@@ -367,7 +368,13 @@ const CIVILIZATIONS = {
             },
             globalBonus: { moraleLossModifier: -0.25 }
         }
-    }
+    },
+    "Bárbaros": {
+        name: "Reinos Independientes",
+        description: "Ciudades libres que se resisten a la conquista.",
+        factionImage: "", // Puedes poner una ruta si tienes imagen, o dejarlo vacío
+        bonuses: {}
+    },
 };
 
 const HERO_PROGRESSION_CONFIG = {
@@ -462,7 +469,25 @@ const STRUCTURE_TYPES = {
         isCity: true, 
         nextUpgrade: null,
         buildOrder: 6
-    }
+    },
+    
+    "Atalaya": {
+        name: "Atalaya", 
+        cost: { madera: 300, oro: 100 }, // Barata
+        sprite: '🔭', 
+        defenseBonus: 0, // No protege
+        integrity: 50,   // Fácil de destruir
+        movementCost: 1.0, 
+        allowsRecruitment: false, 
+        upkeep: { oro: 5 }, 
+        buildableOn: ['plains', 'hills', 'forest'], // Se puede construir en casi cualquier lado
+        requiredTech: "RECONNAISSANCE", // Requiere tecnología de Reconocimiento
+        visionBonus: 4, // <--- PROPIEDAD CLAVE: RANGO DE VISIÓN
+        canBeUpgraded: false,
+        isCity: false,
+        nextUpgrade: null,
+        buildOrder: 99
+    },
 };
 
 const IBERIAN_CITY_NAMES = [

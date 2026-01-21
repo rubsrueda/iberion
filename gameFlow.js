@@ -665,108 +665,133 @@ function collectPlayerResources(playerNum) {
 }
 
 function updateFogOfWar() {
-        if (!board || board.length === 0) return;
-        if (gameState.isTutorialActive) return;
-        // Usar las dimensiones del tablero actual
-        const currentRows = board.length;
-        const currentCol = board[0] ? board[0].length : 0;
-        const playerKey = `player${gameState.currentPlayer}`;
+    if (!board || board.length === 0) return;
+    if (gameState.isTutorialActive) return; 
 
+    const currentRows = board.length;
+    // --- CORRECCIÓN AQUÍ: Añadida la 's' al final para que coincida con el uso abajo ---
+    const currentCols = board[0] ? board[0].length : 0; 
+    
+    const playerKey = `player${gameState.currentPlayer}`;
+
+    // 1. SI EL MAPA ESTÁ REVELADO (TRUCO), SALIR
+    if (gameState.isMapRevealed) {
         for (let r = 0; r < currentRows; r++) {
-            for (let c = 0; c < currentCol; c++) {
+            for (let c = 0; c < currentCols; c++) {
                 const hexData = board[r]?.[c];
-                if (!hexData || !hexData.element) continue;
-                
-                const hexElement = hexData.element;
-                const unitOnThisHex = getUnitOnHex(r, c);
-
-                // Reseteo visual básico
-                hexElement.classList.remove('fog-hidden', 'fog-partial');
-                if (unitOnThisHex?.element) {
-                    unitOnThisHex.element.style.display = 'none';
-                    unitOnThisHex.element.classList.remove('player-controlled-visible');
-                }
-                
-                // ==========================================================
-                // === CAMBIO CLAVE: Lógica para el mapa revelado ========
-                // ==========================================================
-                if (gameState.isMapRevealed) {
-                    // Si el mapa está revelado, forzamos todo a ser visible y saltamos el resto.
+                if (hexData) {
                     hexData.visibility[playerKey] = 'visible';
-                    if (unitOnThisHex?.element) {
-                        unitOnThisHex.element.style.display = 'flex';
-                    }
-                    continue; // <-- Saltamos al siguiente hexágono del bucle.
-                }
-                // ==========================================================
-
-                // El resto de la lógica de Niebla de Guerra normal
-                if (gameState.currentPhase === "deployment" || gameState.currentPhase === "setup" || gameState.currentPhase === "tutorial_setup") {
-                    hexData.visibility.player1 = 'visible';
-                    hexData.visibility.player2 = 'visible';
-                } else if (gameState.currentPhase === "play") {
-                    if (hexData.visibility[playerKey] === 'visible') {
-                        hexData.visibility[playerKey] = 'partial';
-                    }
+                    // Mostrar unidades ocultas
+                    const u = getUnitOnHex(r, c);
+                    if (u && u.element) u.element.style.display = 'flex';
+                    // Limpiar clases de niebla
+                    if (hexData.element) hexData.element.classList.remove('fog-hidden', 'fog-partial');
                 }
             }
         }
+        return;
+    }
 
-        // Si el mapa está revelado, ya hemos hecho todo lo necesario, así que salimos.
-        if (gameState.isMapRevealed) return;
+    // 2. RESETEAR VISIBILIDAD (A PARTIAL SI YA FUE VISITADO)
+    for (let r = 0; r < currentRows; r++) {
+        for (let c = 0; c < currentCols; c++) {
+            const hexData = board[r]?.[c];
+            if (!hexData || !hexData.element) continue;
 
-        // Lógica normal de cálculo de visión
-        if (gameState.currentPhase === "play") {
-            const visionSources = [];
-            units.forEach(unit => {
-                if (unit.player === gameState.currentPlayer && unit.currentHealth > 0 && unit.r !== -1) {
-                    visionSources.push({r: unit.r, c: unit.c, range: unit.visionRange});
+            const unitOnThisHex = getUnitOnHex(r, c);
+
+            // Si estaba visible, pasa a partial (memoria de mapa). Si estaba hidden, se queda hidden.
+            if (hexData.visibility[playerKey] === 'visible') {
+                hexData.visibility[playerKey] = 'partial';
+            }
+            
+            // Ocultar unidades por defecto (se revelarán abajo si están en rango)
+            if (unitOnThisHex && unitOnThisHex.element && unitOnThisHex.player !== gameState.currentPlayer) {
+                unitOnThisHex.element.style.display = 'none';
+            }
+        }
+    }
+
+    // 3. CALCULAR FUENTES DE VISIÓN
+    const visionSources = [];
+
+    // A) UNIDADES PROPIAS
+    units.forEach(unit => {
+        if (unit.player === gameState.currentPlayer && unit.currentHealth > 0 && unit.r !== -1) {
+            visionSources.push({r: unit.r, c: unit.c, range: unit.visionRange || 1});
+        }
+    });
+
+    // B) ESTRUCTURAS PROPIAS
+    for (let r = 0; r < currentRows; r++) {
+        for (let c = 0; c < currentCols; c++) {
+            const hex = board[r][c];
+            if (hex && hex.owner === gameState.currentPlayer && hex.structure) {
+                let range = 1; // Visión base
+                
+                const structDef = STRUCTURE_TYPES[hex.structure];
+                if (structDef) {
+                    if (structDef.visionBonus) {
+                        range = structDef.visionBonus;
+                    } 
+                    else if (hex.isCapital) range = 3;
+                    else if (hex.isCity) range = 2;
+                    else if (hex.structure === 'Fortaleza') range = 2;
+                    else if (hex.structure === 'Fortaleza con Muralla') range = 3;
                 }
-            });
-            gameState.cities.forEach(city => {
-                if (city.owner === gameState.currentPlayer && board[city.r]?.[city.c]) {
-                    let range = board[city.r][city.c].isCapital ? 2 : 1;
-                    if (board[city.r][city.c].structure === 'Fortaleza') range = Math.max(range, 3);
-                    visionSources.push({r: city.r, c: city.c, range: range });
-                }
-            });
+                
+                visionSources.push({r: r, c: c, range: range});
+            }
+        }
+    }
 
-            visionSources.forEach(source => {
-                for (let r_scan = 0; r_scan < currentRows; r_scan++) {
-                    for (let c_scan = 0; c_scan < currentCol; c_scan++) {
-                        if (hexDistance(source.r, source.c, r_scan, c_scan) <= source.range) {
-                            if(board[r_scan]?.[c_scan]) board[r_scan][c_scan].visibility[playerKey] = 'visible';
-                        }
-                    }
-                }
-            });
+    // 4. APLICAR VISIÓN
+    visionSources.forEach(source => {
+        // Optimización: Solo iterar un cuadrado alrededor de la fuente
+        const rMin = Math.max(0, source.r - source.range);
+        const rMax = Math.min(currentRows - 1, source.r + source.range);
+        const cMin = Math.max(0, source.c - source.range);
+        // --- AQUÍ ESTABA EL ERROR: Ahora currentCols existe y funciona ---
+        const cMax = Math.min(currentCols - 1, source.c + source.range);
 
-            for (let r = 0; r < currentRows; r++) {
-                for (let c = 0; c < currentCol; c++) {
-                    const hexData = board[r]?.[c];
-                    if (!hexData || !hexData.element) continue;
-                    const hexVisStatus = hexData.visibility[playerKey];
-                    const unitOnThisHex = getUnitOnHex(r,c);
-
-                    if (hexVisStatus === 'hidden') {
-                        hexData.element.classList.add('fog-hidden');
-                    } else if (hexVisStatus === 'partial') {
-                        hexData.element.classList.add('fog-partial');
-                        if (unitOnThisHex?.player === gameState.currentPlayer && unitOnThisHex.element) {
-                            unitOnThisHex.element.style.display = 'flex';
-                            unitOnThisHex.element.classList.add('player-controlled-visible');
-                        }
-                    } else { // 'visible'
-                        if (unitOnThisHex?.element) {
-                            unitOnThisHex.element.style.display = 'flex';
-                            if (unitOnThisHex.player === gameState.currentPlayer) {
-                                unitOnThisHex.element.classList.add('player-controlled-visible');
+        for (let r = rMin; r <= rMax; r++) {
+            for (let c = cMin; c <= cMax; c++) {
+                if (hexDistance(source.r, source.c, r, c) <= source.range) {
+                    const targetHex = board[r]?.[c];
+                    if (targetHex) {
+                        targetHex.visibility[playerKey] = 'visible';
+                        
+                        // Revelar unidad enemiga si la hay
+                        const unitThere = getUnitOnHex(r, c);
+                        if (unitThere && unitThere.element) {
+                            unitThere.element.style.display = 'flex';
+                            if (unitThere.player === gameState.currentPlayer) {
+                                unitThere.element.classList.add('player-controlled-visible');
                             }
                         }
                     }
                 }
             }
         }
+    });
+
+    // 5. ACTUALIZAR CLASES CSS
+    for (let r = 0; r < currentRows; r++) {
+        for (let c = 0; c < currentCols; c++) {
+            const hexData = board[r][c];
+            if (!hexData || !hexData.element) continue;
+
+            const status = hexData.visibility[playerKey];
+            
+            hexData.element.classList.remove('fog-hidden', 'fog-partial');
+
+            if (status === 'hidden' || !status) {
+                hexData.element.classList.add('fog-hidden');
+            } else if (status === 'partial') {
+                hexData.element.classList.add('fog-partial');
+            }
+        }
+    }
 }
 
 function checkVictory() {
@@ -1075,6 +1100,36 @@ async function endTacticalBattle(winningPlayerNumber) {
         }
     }
 
+    // Si NO es una partida de red (no tiene miId), es local.
+    // Guardamos automáticamente en 'game_saves' para no perder el progreso si se cierra el navegador.
+    if ((typeof NetworkManager === 'undefined' || !NetworkManager.miId) && PlayerDataManager.currentPlayer) {
+        console.log("[Autosave] Guardando partida local contra la IA...");
+        
+        const saveName = `AUTOSAVE_LOCAL_VS_AI`;
+        const estadoGuardar = {
+            gameState: gameState,
+            board: board.map(row => row.map(hex => ({...hex, element: undefined}))),
+            units: units.map(u => ({...u, element: undefined})),
+            unitIdCounter: unitIdCounter,
+            timestamp: Date.now()
+        };
+
+        // Guardamos sin await para no bloquear la UI
+        supabaseClient
+            .from('game_saves')
+            .upsert({
+                save_name: saveName,
+                user_id: PlayerDataManager.currentPlayer.auth_id,
+                game_state: estadoGuardar,
+                board_state: estadoGuardar.board,
+                created_at: new Date().toISOString()
+            }, { onConflict: 'save_name, user_id' }) // Asegúrate de tener una restricción única o usa el ID si lo tienes
+            .then(({ error }) => {
+                if(error) console.error("Error en autosave local:", error);
+                else console.log("Autosave local completado.");
+            });
+    }
+    
     // Sincronización con la nube al terminar
     if (PlayerDataManager.currentPlayer) {
         console.log("Sincronizando progreso post-batalla...");

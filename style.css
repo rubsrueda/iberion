@@ -6393,3 +6393,199 @@ input:checked + .slider:before {
     border: 1px solid #334155; 
     border-radius: 4px; 
 }
+
+/* --- Estilos para los Bárbaros (Jugador 9) --- */
+/* --- Estilos para los Bárbaros (Jugador 9) --- */
+/* --- Estilos para los Bárbaros (Jugador 9) --- */
+
+/* Territorio: Un marrón oscuro/óxido */
+.hex.player9-owner:not(.capital-city)::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    z-index: -1;
+    opacity: 0.4;
+    background-color: #5d4037; /* Marrón óxido */
+}
+
+/* Borde de propiedad */
+.hex.player9-owner {
+    box-shadow: inset 0 0 0 3px rgba(93, 64, 55, 0.8);
+    --owner-color: rgba(93, 64, 55, 0.8);
+}
+
+/* Unidades Bárbaras */
+.unit.player9 {
+    background-color: #8d6e63; /* Marrón claro */
+    border-color: #3e2723;     /* Marrón muy oscuro */
+}
+
+/* --- ALERTAS VISUALES --- */
+/* --- ALERTAS VISUALES --- */
+/* --- ALERTAS VISUALES --- */
+
+/* Casilla peligrosa (Sin suministro) durante el movimiento */
+.hex.highlight-danger {
+    background-color: rgba(255, 0, 0, 0.3) !important;
+    box-shadow: inset 0 0 10px #ff0000;
+    border: 1px solid red;
+}
+
+/* Iconos de estado sobre la unidad */
+.unit-status-icon {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    width: 16px;
+    height: 16px;
+    background-color: #222;
+    border-radius: 50%;
+    border: 1px solid white;
+    font-size: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 20;
+    animation: bounce 1s infinite;
+}
+
+/* Animación de rebote para llamar la atención */
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+}
+
+/* Colores de estado */
+.status-no-supply { background-color: #e74c3c; border-color: #c0392b; color: white; } /* Rojo */
+.status-low-morale { background-color: #f1c40f; border-color: #d35400; color: black; } /* Amarillo */
+
+/* Estado: CONDENADA (Ambos problemas) */
+.status-doomed {
+    background-color: #000;    /* Fondo negro luto */
+    border-color: #ff0000;     /* Borde rojo sangre */
+    color: #ff0000;            /* Icono rojo */
+    box-shadow: 0 0 6px #ff0000; /* Resplandor rojo */
+    font-size: 11px;           /* Un pelín más grande */
+    animation: panicPulse 0.5s infinite alternate; /* Late rápido */
+    z-index: 25;               /* Por encima de todo */
+}
+
+@keyframes panicPulse {
+    from { transform: scale(1); }
+    to { transform: scale(1.2); }
+}
+
+/* --- MENÚ RADIAL TÁCTICO --- */
+/* --- MENÚ RADIAL TÁCTICO --- */
+/* --- MENÚ RADIAL TÁCTICO --- */
+
+#radialMenuContainer {
+    position: absolute;
+    width: 0; height: 0;
+    z-index: 15000; /* Por encima de las unidades */
+    display: none;
+    pointer-events: none; /* El contenedor no bloquea, los botones sí */
+}
+
+.radial-btn {
+    position: absolute;
+    width: 40px; 
+    height: 40px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #2c3e50, #000);
+    border: 2px solid #f1c40f;
+    color: white;
+    font-size: 20px;
+    display: flex; 
+    justify-content: center; 
+    align-items: center;
+    cursor: pointer;
+    pointer-events: auto;
+    box-shadow: 0 0 10px rgba(0,0,0,0.8);
+    transition: transform 0.1s, background-color 0.2s;
+    
+    /* Centrado absoluto inicial */
+    transform: translate(-50%, -50%) scale(0); 
+    animation: popOut 0.2s forwards;
+}
+
+.radial-btn:active {
+    transform: translate(-50%, -50%) scale(0.9);
+    background: #f1c40f;
+    color: black;
+}
+
+@keyframes popOut {
+    to { transform: translate(-50%, -50%) scale(1); }
+}
+
+/* Tooltip simple para saber qué hace el botón */
+.radial-btn::after {
+    content: attr(data-title);
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    background: rgba(0,0,0,0.8);
+    padding: 2px 4px;
+    border-radius: 4px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+}
+
+.radial-btn:hover::after {
+    opacity: 1;
+}
+
+/* --- MENÚ RADIAL TÁCTICO (CORREGIDO) --- */
+#radialMenuContainer {
+    position: fixed; /* <--- CAMBIO CLAVE: Fixed, no Absolute */
+    top: 0; 
+    left: 0;
+    width: 100%;       /* Ocupa toda la pantalla para que las coords X/Y sean correctas */
+    height: 100%;
+    z-index: 20000;    /* Muy alto, por encima de todo */
+    display: none;
+    pointer-events: none; 
+}
+
+.radial-btn {
+    position: absolute; /* El botón es absoluto RELATIVO al contenedor fixed */
+    /* ... resto de estilos igual ... */
+    width: 40px; 
+    height: 40px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #2c3e50, #000);
+    border: 2px solid #f1c40f;
+    color: white;
+    font-size: 20px;
+    display: flex; 
+    justify-content: center; 
+    align-items: center;
+    cursor: pointer;
+    pointer-events: auto; /* IMPORTANTE: Para poder hacer clic */
+    box-shadow: 0 0 10px rgba(0,0,0,0.8);
+    transition: transform 0.1s;
+    transform: translate(-50%, -50%) scale(0); 
+    animation: popOut 0.2s forwards;
+}
+
+#radialMenuContainer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;       /* Ancho total de la ventana */
+    height: 100vh;      /* Alto total de la ventana */
+    z-index: 99999;     /* Absurdamente alto para estar encima de todo */
+    pointer-events: none; /* Dejar pasar clics a través del fondo */
+    display: none;      /* Oculto por defecto */
+}
+
+/* Asegura que los botones sí reciban clics */
+.radial-btn {
+    pointer-events: auto !important; 
+}

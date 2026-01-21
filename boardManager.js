@@ -76,6 +76,10 @@ generateHillsAndForests(B_ROWS, B_COLS, 0.15, 0.1);
 generateRandomResourceNodes(selectedResourceLevel); 
 */
 generateProceduralMap(B_ROWS, B_COLS, selectedResourceLevel);
+
+const barbDensity = gameState.setupTempSettings?.barbarianDensity || 'med';
+generateBarbarianCities(B_ROWS, B_COLS, barbDensity);
+
 generateInitialRuins();
 initializeTerritoryData(); 
 
@@ -695,7 +699,7 @@ if (tacticalUiContainer && tacticalUiContainer.style.display !== 'none') {
 _boundMouseDown = function(e) {
     if (e.target.closest('button')) return;
     if (e.button !== 0 || (typeof placementMode !== 'undefined' && placementMode.active)) return;
-    
+    if (UIManager && UIManager.hideRadialMenu) UIManager.hideRadialMenu();
     e.preventDefault();
     domElements.initialClickX = e.clientX; // Guardamos para el final
     domElements.initialClickY = e.clientY;
@@ -1406,6 +1410,89 @@ ruinsPlaced++;
 }
 
     console.log(`[Mapa] ${ruinsPlaced} ruinas generadas en el mapa.`);
+}
+
+/**
+ * Genera ciudades independientes (Jugador 9) para acelerar el juego temprano.
+ * @param {number} rows - Filas del tablero.
+ * @param {number} cols - Columnas del tablero.
+ * @param {string} density - 'none', 'low', 'med', 'high'.
+ */
+function generateBarbarianCities(rows, cols, density) {
+    if (density === 'none') return;
+
+    let numCities = 0;
+    // Ajusta estos números según el tamaño de tu mapa
+    if (density === 'low') numCities = 2;
+    else if (density === 'med') numCities = 4;
+    else if (density === 'high') numCities = 6;
+
+    console.log(`[Mapa] Generando ${numCities} Ciudades Bárbaras (J9)...`);
+    let placed = 0;
+    let attempts = 0;
+
+    while (placed < numCities && attempts < 500) {
+        attempts++;
+        const r = Math.floor(Math.random() * rows);
+        const c = Math.floor(Math.random() * cols);
+        const hex = board[r]?.[c];
+
+        // CONDICIONES:
+        // 1. Terreno válido (tierra).
+        // 2. No es ya una ciudad, ni recurso, ni ruina, ni la Banca (centro).
+        // 3. Importante: No estar PEGADO a un jugador (para darles espacio, pero no tanto como para que sea inalcanzable).
+        if (hex && !hex.isCity && !hex.resourceNode && !hex.feature && !TERRAIN_TYPES[hex.terrain].isImpassableForLand) {
+            
+            // Distancia de seguridad con capitales de jugadores
+            let tooClose = false;
+            gameState.cities.forEach(city => {
+                if (hexDistance(r, c, city.r, city.c) < 4) tooClose = true; // 4 hex de distancia mínima
+            });
+
+            // Distancia con la Banca (centro)
+            const centerR = Math.floor(rows/2); 
+            const centerC = Math.floor(cols/2);
+            if (hexDistance(r, c, centerR, centerC) < 3) tooClose = true;
+
+            if (!tooClose) {
+                // 1. Crear la Ciudad (Nivel aleatorio)
+                // 30% Metrópoli (Premio gordo), 70% Ciudad estándar
+                const structureType = Math.random() > 0.7 ? 'Metrópoli' : 'Ciudad';
+                const cityName = `Ciudad Libre ${placed + 1}`;
+
+                // Usamos la función existente, pasando el ID 9
+                addCityToBoardData(r, c, BARBARIAN_PLAYER_ID, cityName, false);
+                
+                // Forzamos la estructura y estadísticas
+                hex.structure = structureType;
+                hex.estabilidad = 5; // Están bien atrincherados
+                hex.nacionalidad = { [BARBARIAN_PLAYER_ID]: 5 };
+
+                // 2. Crear la Guardia (Unidad defensiva inmóvil)
+                // Usamos una composición defensiva fuerte para que sea un reto
+                if (typeof AiGameplayManager !== 'undefined') {
+                    const unitDef = {
+                        name: "Guardia Rebelde",
+                        regiments: [
+                            { ...REGIMENT_TYPES["Infantería Pesada"], type: "Infantería Pesada", health: 200 },
+                            { ...REGIMENT_TYPES["Arqueros"], type: "Arqueros", health: 150 }
+                        ]
+                    };
+                    
+                    // Crear unidad para Jugador 9
+                    const barbarianUnit = AiGameplayManager.createUnitObject(unitDef, BARBARIAN_PLAYER_ID, {r, c});
+                    
+                    // IMPORTANTE: Le damos una propiedad para que la IA sepa que no debe moverla
+                    barbarianUnit.isGuardian = true; 
+                    
+                    placeFinalizedDivision(barbarianUnit, r, c);
+                }
+
+                placed++;
+                console.log(`Ciudad Bárbara fundada en (${r},${c}): ${structureType}`);
+            }
+        }
+    }
 }
 
 function centerMapOn(r, c) {

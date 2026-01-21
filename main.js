@@ -1241,6 +1241,8 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
             const turnTimeVal = document.getElementById('turnTimeSelect')?.value || '180'; // Valor por defecto seguro
             const numPlayersVal = parseInt(document.getElementById('num-players-slider')?.value) || 2;
 
+            const barbarianDensityVal = document.getElementById('barbarianDensity')?.value || 'med';
+
             console.log(`[SETUP] Guardando configuración temporal: Tiempo=${turnTimeVal}, Jugadores=${numPlayersVal}`);
 
             // 2. Guardado en el estado temporal
@@ -1249,7 +1251,8 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
                 resourceLevel: resourceLevelVal,
                 unitLimit: unitLimitVal,
                 turnTime: turnTimeVal,
-                numPlayers: numPlayersVal
+                numPlayers: numPlayersVal,
+                barbarianDensity: barbarianDensityVal
             };
             
             // 3. Renderizado de la siguiente pantalla
@@ -2437,13 +2440,14 @@ function reconstruirJuegoDesdeDatos(datos) {
         
         // 6. Reconstruir Unidades
         datos.units.forEach(unitData => {
+            unitData.element = null;
             placeFinalizedDivision(unitData, unitData.r, unitData.c);
         });
 
         // 7. ACTUALIZACIÓN VISUAL MASIVA
         renderFullBoardVisualState();
         if (typeof initializeBoardPanning === "function") initializeBoardPanning();
-        
+        if (typeof updateFogOfWar === "function") updateFogOfWar();
         if (UIManager) {
             console.log("Forzando actualización completa de UI...");
             UIManager.updatePlayerAndPhaseInfo(); 

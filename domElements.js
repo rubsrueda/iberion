@@ -90,6 +90,9 @@ domElements.closeRankingBtn = null;
 domElements.battlePassModal = null;
 domElements.openBattlePassProfileBtn = null;
 
+//barbaros
+domElements.barbarianDensitySelect = null;
+
 // Antiguo botón startGameBtn se renombra a startLocalGameBtn
 domElements.player1TypeSelect = null;
 domElements.player1AiLevelDiv = null;
@@ -255,6 +258,9 @@ function initializeDomElements() {
     //pase de batalla: 
     domElements.battlePassModal = document.getElementById('battlePassModal');
     domElements.openBattlePassProfileBtn = document.getElementById('openBattlePassProfileBtn');
+
+    //Barbaros
+    domElements.barbarianDensitySelect = document.getElementById('barbarianDensity');
 
     // --- Obtener referencias de elementos DOM ---
     domElements.setupScreen = document.getElementById('setupScreen'); 
