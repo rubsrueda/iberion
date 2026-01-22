@@ -1916,6 +1916,29 @@ if (newGeneralNameDisplay && PlayerDataManager.currentPlayer) {
         }
     }, 2000); // Damos 2 segundos a Supabase para recuperar la sesión
 
+    // --- PARCHE DE EMERGENCIA: RECARGAR PERFIL ---
+    if (PlayerDataManager.currentPlayer) {
+        // Forzamos la recarga desde la nube para traer el alliance_id actualizado
+        // Usamos una pequeña "trampa": llamamos a login sin credenciales para que refresque la sesión
+        supabaseClient.auth.getUser().then(({ data: { user } }) => {
+            if (user) {
+                // Recargar perfil completo
+                supabaseClient
+                    .from('profiles')
+                    .select('profile_data')
+                    .eq('id', user.id)
+                    .single()
+                    .then(({ data }) => {
+                        if (data && data.profile_data) {
+                            PlayerDataManager.currentPlayer = data.profile_data;
+                            PlayerDataManager.currentPlayer.auth_id = user.id;
+                            console.log("🔄 Perfil refrescado desde la nube.");
+                        }
+                    });
+            }
+        });
+    }
+
     console.log("main.js: initApp() FINALIZADO.");
 
 }

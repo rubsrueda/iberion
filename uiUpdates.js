@@ -1495,7 +1495,8 @@ const UIManager = {
         }});
 
         // --- DISTRIBUCIÓN CIRCULAR ---
-        const radius = 60; // Distancia del centro en píxeles
+        const currentScale = domElements.currentBoardScale || 1; 
+        const radius = 60 * currentScale; 
         const total = actions.length;
         const angleStep = (2 * Math.PI) / total;
 

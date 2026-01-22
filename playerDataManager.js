@@ -362,10 +362,7 @@ const PlayerDataManager = {
             this.saveCurrentPlayer();
         }
     },
-
-    /**
-     * Guarda los datos del jugador actual en localStorage y en Supabase.
-     */
+    
     saveCurrentPlayer: async function() {
         // Validación de seguridad
         if (!this.currentPlayer || !this.currentPlayer.auth_id) {
@@ -377,24 +374,27 @@ const PlayerDataManager = {
             const p = this.currentPlayer;
             const uid = p.auth_id;
 
-            // DIAGNÓSTICO: ¿Qué vamos a enviar realmente?
-            console.log(`[Cloud Save] Intentando guardar ID: ${uid} | Nivel Local: ${p.level} | Wins: ${p.total_wins}`);
+            // DIAGNÓSTICO
+            console.log(`[Cloud Save] Guardando ID: ${uid} | Alianza: ${p.alliance_id}`);
 
-            // Preparamos el paquete forzando tipos (asegurar que son números enteros)
+            // Preparamos el paquete forzando tipos y columnas externas
             const cleanPayload = {
                 id: uid,
                 username: p.username || "Jugador",
                 last_sync: new Date().toISOString(),
                 
-                // COLUMNAS EXTERNAS (Para el Ranking)
+                // COLUMNAS EXTERNAS (Para Ranking y Alianzas)
                 level: parseInt(p.level || 1),
                 xp: parseInt(p.xp || 0),
                 total_wins: parseInt(p.total_wins || 0),
                 total_kills: parseInt(p.total_kills || 0),
                 avatar_url: p.avatar_url || '🎖️',
+                
+                // --- CORRECCIÓN CRÍTICA: Guardar ID de Alianza en columna externa ---
+                alliance_id: p.alliance_id || null, 
+                // -------------------------------------------------------------------
 
-                // EL JSON COMPLETO (Para tu carga de juego)
-                // Lo guardamos tal cual está en memoria
+                // EL JSON COMPLETO (Datos internos)
                 profile_data: p 
             };
 
@@ -402,22 +402,14 @@ const PlayerDataManager = {
             const { data, error } = await supabaseClient
                 .from('profiles')
                 .upsert(cleanPayload, { onConflict: 'id' })
-                .select(); // El select devuelve el dato guardado para verificar
+                .select();
 
             if (error) {
                 console.error("❌ ERROR CRÍTICO GUARDANDO EN NUBE:", error);
                 console.error("Detalle:", error.details, error.message);
                 logMessage("Error de sincronización con la nube.", "error");
             } else {
-                // Confirmación visual
-                const savedLevel = data[0]?.level;
-                console.log(`✅ Nube Actualizada. Nivel en DB ahora es: ${savedLevel}`);
-                
-                if (savedLevel !== p.level) {
-                    console.warn(`⚠️ ALERTA DE DISCREPANCIA: Local=${p.level} vs DB=${savedLevel}`);
-                    // Intento de fuerza bruta: Update específico si Upsert falló
-                    await supabaseClient.from('profiles').update({ level: p.level }).eq('id', uid);
-                }
+                console.log(`✅ Perfil guardado. Alianza vinculada: ${cleanPayload.alliance_id}`);
             }
 
         } catch (err) {

@@ -486,6 +486,20 @@ const BattlePassManager = {
 
     saveUserProgress: async function() {
         if (!PlayerDataManager.currentPlayer?.auth_id) return;
+
+        // --- Carga de seguridad si la temporada no está inicializada ---
+        if (!this.currentSeason) {
+            // Intentamos cargar la configuración activa, o usamos la primera por defecto
+            const activeKey = (typeof SEASON_CONFIG !== 'undefined') ? SEASON_CONFIG.ACTIVE_SEASON_KEY : 'SEASON_1';
+            this.currentSeason = BATTLE_PASS_SEASONS[activeKey];
+            
+            // Si sigue sin existir, error controlado
+            if (!this.currentSeason) {
+                console.warn("BattlePassManager: No se pudo cargar la temporada para guardar progreso.");
+                return;
+            }
+        }
+        
         await supabaseClient.from('user_battle_pass')
             .update({ 
                 claimed_rewards: this.userProgress.claimed_rewards,
@@ -493,7 +507,7 @@ const BattlePassManager = {
                 is_premium: this.userProgress.is_premium
             })
             .eq('user_id', PlayerDataManager.currentPlayer.auth_id)
-            .eq('season_id', this.currentSeason.id);
+            .eq('season_id', this.currentSeason.id); // Aquí es donde fallaba
     },
 
     // FUNCIÓN LÓGICA DE ACTUALIZACIÓN DE PROGRESO (Hook para el juego)

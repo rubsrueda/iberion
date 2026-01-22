@@ -19,6 +19,25 @@ const DAILY_MISSIONS_POOL = [
     { id: 'earn_500g', desc: "Gana 500 de Oro en batallas", target: 500, xp_reward: 250, type: 'gold_earned' }
 ];
 
+// --- CONFIGURACIÓN DE INCURSIÓN (RAID) ---
+
+const RAID_CONFIG = {
+    DURATION_PER_STAGE_HOURS: 12,
+    MAP_ROWS: 12,
+    MAP_COLS: 25,
+    CARAVAN_SPEED: 3, // Casillas por hora (aprox, para cubrir 25 en <12h si no hay bloqueos)
+    CARAVAN_PATH_ROWS: [5, 6, 7], // Carriles centrales permitidos para la caravana
+    ENTRY_COST: 500, // Oro
+    
+    // Definición de las 4 Etapas
+    STAGES: {
+        1: { name: "Mar de las Antillas (Cuba -> Cádiz)", type: "naval", mapType: "water", caravan: "Galeón del Tesoro" },
+        2: { name: "Camino de Andalucía (Cádiz -> Madrid)", type: "land", mapType: "plains", caravan: "Caravana Real" },
+        3: { name: "Paso de Aragón (Madrid -> Barcelona)", type: "land", mapType: "hills", caravan: "Caravana Real" },
+        4: { name: "Mediterráneo (Barcelona -> Génova)", type: "naval", mapType: "water", caravan: "Galeón del Tesoro" }
+    }
+};
+
 // CONFIGURACIÓN DE MARKETING Y TEMPORADAS para el pase de batalla
 const SEASON_CONFIG = {
     ACTIVE_SEASON_KEY: 'SEASON_1', // Cambia esto a 'SEASON_2', 'HALLOWEEN', etc.
@@ -372,7 +391,7 @@ const CIVILIZATIONS = {
     "Bárbaros": {
         name: "Reinos Independientes",
         description: "Ciudades libres que se resisten a la conquista.",
-        factionImage: "", // Puedes poner una ruta si tienes imagen, o dejarlo vacío
+        factionImage: "", // Dejar vacío o poner ruta a una imagen genérica
         bonuses: {}
     },
 };

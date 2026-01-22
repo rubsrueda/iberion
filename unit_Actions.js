@@ -385,35 +385,45 @@ function handleActionWithSelectedUnit(r_target, c_target, clickedUnitOnTargetHex
 
 function selectUnit(unit) {
     if (!unit) {
-        console.warn("[selectUnit] Intento de seleccionar unidad nula.");
+        // Si intentamos seleccionar algo nulo, deseleccionamos lo actual y salimos
         if (typeof deselectUnit === "function") deselectUnit();
         return;
     }
 
-    // REGLA Bloqueo de Control
+    // 1. REGLA: Bloqueo de Control (Unidades Zombis/Desorganizadas)
+    // Si es mi unidad pero está desorganizada (Moral 0), no puedo controlarla.
     if (unit.isDisorganized && unit.player === gameState.currentPlayer) {
         logMessage(`No puedes dar órdenes a "${unit.name}". ¡Está desorganizada! (Moral 0)`, "error");
         if (typeof AudioManager !== 'undefined') AudioManager.playSound('ui_click'); 
         return; 
     }
 
-    selectedUnit = unit;
-    
+    // 2. REGLA: Turno y Propiedad
+    // Si estamos en fase de juego y no es mi turno o no es mi unidad,
+    // solo permitimos seleccionarla para ver sus stats, pero no la activamos como "selectedUnit" para mover.
     if (gameState.currentPhase === 'play' && unit.player !== gameState.currentPlayer) {
-        console.log(`[selectUnit] No se puede tomar control de ${unit.name} (Jugador ${unit.player}).`);
+        // Mostramos info pero no la seleccionamos como "activa"
+        if (typeof UIManager !== 'undefined' && UIManager.showUnitContextualInfo) {
+            UIManager.showUnitContextualInfo(unit, false); // false = sin botones de acción
+        }
+        // Aseguramos que no se quede nada seleccionado
         if (typeof deselectUnit === "function") deselectUnit();
         return; 
     }
 
+    // 3. REGLA: Caso especial de División (Split)
+    // Si estoy en medio de dividir esta misma unidad, refrescamos los highlights
     if (selectedUnit && selectedUnit.id === unit.id && gameState.preparingAction?.type === 'split_unit') {
         if (typeof highlightPossibleActions === "function") highlightPossibleActions(selectedUnit);
         return; 
     }
     
-    if (selectedUnit) {
+    // Si selecciono una unidad diferente a la que ya tenía, deselecciono la anterior
+    if (selectedUnit && selectedUnit.id !== unit.id) {
         if (typeof deselectUnit === "function") deselectUnit();
     }
 
+    // --- ASIGNACIÓN DE SELECCIÓN ---
     selectedUnit = unit;
     
     if (gameState) {
@@ -421,87 +431,57 @@ function selectUnit(unit) {
         gameState.selectedHexC = unit.c;
     }
 
+    // Resaltado visual (círculo dorado)
     if (unit.element) {
         unit.element.classList.add('selected-unit');
     } else {
-        console.error(`ERROR CRÍTICO: Unidad ${unit.name} (ID: ${unit.id}) no tiene .element!`);
-        selectedUnit = null;
-        if (gameState) { gameState.selectedHexR = -1; gameState.selectedHexC = -1; }
-        return;
+        console.warn(`[selectUnit] La unidad ${unit.name} no tiene elemento DOM. Intentando reposicionar...`);
+        if (typeof positionUnitElement === 'function') positionUnitElement(unit);
     }
     
-    logMessage(`${unit.name} (J${unit.player}) seleccionada.`);
+    // Feedback de audio/texto
+    logMessage(`${unit.name} seleccionada.`);
 
-    // >> LÓGICA PARA UNIDADES "ZOMBIS" <<
+    // 4. GESTIÓN DE UI (Panel Contextual)
     const isBroken = unit.morale <= 0;
     const canAct = gameState.currentPhase !== 'play' || (!unit.hasMoved && !unit.hasAttacked);
 
-    // Siempre mostramos la información de la unidad, esté rota o no.
-    if (typeof UIManager !== 'undefined' && UIManager.showUnitContextualInfo) {
-        UIManager.showUnitContextualInfo(unit, unit.player === gameState.currentPlayer);
+    if (typeof UIManager !== 'undefined') {
+        // Mostrar panel inferior
+        if (UIManager.showUnitContextualInfo) {
+            UIManager.showUnitContextualInfo(unit, true); // true = mostrar botones
+        }
+
+        // Resaltar hexágonos válidos (Movimiento/Ataque)
+        if (isBroken) {
+            if (UIManager.clearHighlights) UIManager.clearHighlights();
+        } else if (canAct) {
+            if (UIManager.highlightPossibleActions) UIManager.highlightPossibleActions(unit);
+        } else {
+            // Si ya actuó, limpiamos highlights
+            if (UIManager.clearHighlights) UIManager.clearHighlights();
+        }
     }
-    
-    if (isBroken) {
-        // Si la unidad está rota, no mostramos ninguna acción posible.
-        if (typeof UIManager !== 'undefined' && UIManager.clearHighlights) UIManager.clearHighlights();
-        logMessage(`${unit.name} tiene la moral rota y no puede actuar este turno.`);
-    } else if (canAct) {
-        if (typeof UIManager !== 'undefined' && UIManager.highlightPossibleActions) UIManager.highlightPossibleActions(unit);
-    } else {
-        // Si no está rota pero ya actuó.
-        logMessage(`${unit.name} ya ha actuado este turno.`);
-        if (typeof UIManager !== 'undefined' && UIManager.clearHighlights) UIManager.clearHighlights();
+
+    // Notificar al tutorial si está activo
+    if (gameState.isTutorialActive && typeof TutorialManager !== 'undefined') {
+        TutorialManager.notifyActionCompleted('unit_selected_by_objective');
     }
 
-    // --- INICIO DEL DIAGNÓSTICO ---
-    if (isNetworkGame() && !NetworkManager.esAnfitrion) { // Solo ejecutar en el cliente
-        console.group(`===== DIAGNÓSTICO DE UI PARA '${unit.name}' =====`);
-
-        const esMiUnidad = unit.player === gameState.myPlayerNumber;
-        console.log(`¿El 'player' de la unidad (${unit.player}) es igual a mi 'myPlayerNumber' (${gameState.myPlayerNumber})? -> R: ${esMiUnidad ? "SÍ" : "NO"}`);
-
-        const tieneCuartelGeneral = selectedUnit.regiments.some(reg => reg.type === 'Cuartel General' || REGIMENT_TYPES[reg.type]?.provides_morale_boost);
-        console.log(`¿Esta unidad tiene un 'Cuartel General'? -> R: ${tieneCuartelGeneral ? "SÍ" : "NO"}`);
-        
-        let estaEnBasePropia = false;
-        if (typeof isHexSuppliedForReinforce === 'function') {
-            estaEnBasePropia = isHexSuppliedForReinforce(unit.r, unit.c, unit.player);
-        } else { console.warn("Función 'isHexSuppliedForReinforce' no encontrada."); }
-        console.log(`¿Está en una base propia (para reclutar/reforzar)? -> R: ${estaEnBasePropia ? "SÍ" : "NO"}`);
-
-        const tieneGeneral = !!unit.commander;
-        console.log(`¿Esta unidad ya tiene un 'commander'? -> R: ${tieneGeneral ? "SÍ" : "NO"}`);
-        
-        const seHaMovido = unit.hasMoved;
-        console.log(`¿Esta unidad ya se ha movido ('hasMoved')? -> R: ${seHaMovido ? "SÍ" : "NO"}`);
-        
-        const haAtacado = unit.hasAttacked;
-        console.log(`¿Esta unidad ya ha atacado ('hasAttacked')? -> R: ${haAtacado ? "SÍ" : "NO"}`);
-
-        const esMiTurno = gameState.currentPlayer === gameState.myPlayerNumber;
-        console.log(`¿Es mi turno? (currentPlayer ${gameState.currentPlayer} vs myPlayerNumber ${gameState.myPlayerNumber}) -> R: ${esMiTurno ? "SÍ" : "NO"}`);
-
-        const deberiaMostrarBotonGeneral = esMiUnidad && esMiTurno && tieneCuartelGeneral && !tieneGeneral;
-        console.log(`%c¿Debo presentar el botón de 'Asignar General'? -> R: ${deberiaMostrarBotonGeneral ? "SÍ" : "NO"}`, `font-weight: bold; color: ${deberiaMostrarBotonGeneral ? 'green' : 'red'};`);
-
-        console.groupEnd();
-    }
-    // --- FIN DEL DIAGNÓSTICO DEFINITIVO ---
-    
-    if (gameState.isTutorialActive) TutorialManager.notifyActionCompleted('unit_selected_by_objective');
-    // --- NUEVO: ABRIR MENÚ RADIAL ---
+    // --- 5. NUEVO: ABRIR MENÚ RADIAL ---
     // Solo si es mi unidad, es fase de juego y no está "zombi"
     if (unit.player === gameState.currentPlayer && gameState.currentPhase === 'play' && !unit.isDisorganized) {
         
-        // Calcular posición en pantalla
-        // Necesitamos el elemento DOM de la unidad para saber dónde está
         if (unit.element) {
+            // Usamos getBoundingClientRect para obtener la posición exacta en pantalla (píxeles)
+            // Esto es compatible con zoom y paneo si el menú radial tiene position: fixed
             const rect = unit.element.getBoundingClientRect();
-            // Centro de la unidad
+            
+            // Calculamos el centro visual de la unidad
             const screenX = rect.left + rect.width / 2;
             const screenY = rect.top + rect.height / 2;
             
-            // Llamar al UIManager
+            // Llamar al UIManager para pintar los botones
             if (UIManager && UIManager.showRadialMenu) {
                 UIManager.showRadialMenu(unit, screenX, screenY);
             }
@@ -1579,6 +1559,20 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
     // --- APLICACIÓN DE DAÑO AL REGIMIENTO ---
     const actualDamage = Math.min(targetRegiment.health, damageDealt);
     targetRegiment.health -= actualDamage;
+
+    // === BLOQUE NUEVO PARA RAID ===
+    if (gameState.isRaid && opposingDivision.isBoss) {
+        if (typeof RaidManager !== 'undefined') {
+            RaidManager.recordDamage(actualDamage);
+            
+            // Actualizar barra de vida del jefe en la UI si existe
+            const hpBar = document.getElementById('raidBossHpBar');
+            if (hpBar) {
+                const pct = (opposingDivision.currentHealth / opposingDivision.maxHealth) * 100;
+                hpBar.style.width = `${pct}%`;
+            }
+        }
+    }
     
     targetRegiment.hitsTakenThisRound = (targetRegiment.hitsTakenThisRound || 0) + 1;
 

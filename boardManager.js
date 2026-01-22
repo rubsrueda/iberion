@@ -1550,3 +1550,155 @@ function centerMapOn(r, c) {
         gameBoard.style.transition = "none";
     }, 500);
 }
+
+// Caravana Imperial
+function initializeRaidMap(stageConfig, stageData) {
+    console.log("[RaidMap] Inicializando mapa:", stageConfig.name);
+    
+    // 1. Configuración del Tablero Físico (12 filas x 25 columnas)
+    const rows = 12;
+    const cols = 25;
+    
+    // Reseteo de cámara OBLIGATORIO
+    if (typeof domElements !== 'undefined') {
+        domElements.currentBoardTranslateX = 0;
+        domElements.currentBoardTranslateY = 0;
+        domElements.currentBoardScale = 1;
+        
+        if (domElements.gameBoard) {
+            domElements.gameBoard.innerHTML = '';
+            domElements.gameBoard.style.width = `${cols * HEX_WIDTH + HEX_WIDTH / 2}px`;
+            domElements.gameBoard.style.height = `${rows * HEX_VERT_SPACING + HEX_HEIGHT * 0.25}px`;
+            domElements.gameBoard.style.transform = `translate(0px, 0px) scale(1)`;
+        }
+    }
+    
+    board = Array(rows).fill(null).map(() => Array(cols).fill(null));
+    units = []; 
+
+    // 2. Reiniciar el registro civil (Evita el crash de 'find')
+    if (!gameState) gameState = {};
+    gameState.cities = []; 
+
+    // 3. Pintar Terreno Base
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            const hexEl = createHexDOMElementWithListener(r, c);
+            if (domElements.gameBoard) domElements.gameBoard.appendChild(hexEl);
+            
+            let terrain = stageConfig.mapType; // 'water' o 'plains'
+            
+            // Decoración: Camino central visual si es tierra
+            let struct = null;
+            if (stageConfig.type === 'land' && r === 6) {
+                 struct = 'Camino'; // Carril central
+            }
+
+            board[r][c] = {
+                r, c, element: hexEl, terrain: terrain,
+                owner: null, structure: struct, visibility: {player1:'visible'}
+            };
+            
+            renderSingleHexVisuals(r, c);
+        }
+    }
+
+    // --- NUEVO: CREACIÓN DE INFRAESTRUCTURA LÓGICA (CIUDADES) ---
+    // Parseamos el nombre de la etapa (ej: "Mar de las Antillas (Cuba -> Cádiz)")
+    // para extraer nombres reales. Si falla, usamos genéricos.
+    let startName = "Origen";
+    let endName = "Destino";
+    
+    try {
+        if (stageConfig.name.includes('->')) {
+            const parts = stageConfig.name.split('(')[1].replace(')', '').split('->');
+            startName = parts[0].trim();
+            endName = parts[1].trim();
+        }
+    } catch (e) { console.log("Usando nombres genéricos para ciudades"); }
+
+    // Coordenadas fijas para el Raid (Centro Izquierda -> Centro Derecha)
+    const startCoords = { r: 6, c: 0 };  // Entrada
+    const endCoords = { r: 6, c: 24 };   // Salida (Meta de la caravana)
+
+    // A. Ciudad de Origen (Donde spawnean los jugadores o salen recursos)
+    // Se la asignamos al Jugador 1 (Aliados) para que cuente como "territorio seguro"
+    addCityToBoardData(startCoords.r, startCoords.c, 1, startName, false);
+    
+    // B. Ciudad de Destino (La meta de la Caravana)
+    // Se la asignamos al Jugador 2 (IA/Enemigo) o Neutral.
+    addCityToBoardData(endCoords.r, endCoords.c, 2, endName, true); // True = Es Capital (Meta)
+
+    // Forzamos visualización de las ciudades creadas
+    renderSingleHexVisuals(startCoords.r, startCoords.c);
+    renderSingleHexVisuals(endCoords.r, endCoords.c);
+    // ------------------------------------------------------------
+
+    // 4. COLOCAR LA CARAVANA (Jefe)
+    const bossUnit = {
+        id: 'boss_caravan',
+        player: 2, // IA
+        name: stageConfig.caravan,
+        currentHealth: stageData.caravan_hp,
+        maxHealth: stageData.caravan_max_hp,
+        r: stageData.caravan_pos.r,
+        c: stageData.caravan_pos.c,
+        sprite: stageConfig.type === 'naval' ? 'images/sprites/barco256.png' : 'images/sprites/onlycaraban128.png',
+        isBoss: true
+    };
+    
+    // Ahora placeFinalizedDivision funcionará porque gameState.cities existe y tiene datos
+    placeFinalizedDivision(bossUnit, bossUnit.r, bossUnit.c);
+    
+    // Estilo visual del Jefe
+    if(bossUnit.element) {
+        bossUnit.element.style.width = "50px"; // Un poco más grande
+        bossUnit.element.style.height = "50px";
+        bossUnit.element.style.border = "3px solid #f1c40f"; // Borde dorado
+        bossUnit.element.style.zIndex = "100";
+    }
+
+    // 5. COLOCAR JUGADORES
+    if (typeof PlayerDataManager !== 'undefined') {
+        const myUid = PlayerDataManager.currentPlayer?.auth_id;
+        
+        for (const uid in stageData.units) {
+            const uData = stageData.units[uid];
+            // Si soy yo -> Player 1 (Azul). Si es otro -> Player 3 (Verde/Aliado)
+            const pNum = (uid === myUid) ? 1 : 3; 
+            
+            // Determinar sprite (fallback seguro)
+            let sprite = '🛡️';
+            if (typeof REGIMENT_TYPES !== 'undefined' && REGIMENT_TYPES[uData.type]) {
+                sprite = REGIMENT_TYPES[uData.type].sprite;
+            }
+
+            const playerUnit = {
+                id: `raid_u_${uid}`,
+                player: pNum,
+                name: uData.player_name || "Aliado",
+                currentHealth: uData.hp,
+                maxHealth: uData.max_hp,
+                r: uData.r,
+                c: uData.c,
+                sprite: sprite,
+                regiments: [{type: uData.type, health: uData.hp}] // Estructura mínima combate
+            };
+            
+            // Calcular stats si la función existe
+            if (typeof calculateRegimentStats === 'function') calculateRegimentStats(playerUnit);
+            
+            placeFinalizedDivision(playerUnit, uData.r, uData.c);
+        }
+    }
+
+    // 6. Configurar UI y Paneo
+    gameState.currentPhase = "play";
+    gameState.isRaid = true; 
+    
+    if (typeof UIManager !== 'undefined') UIManager.updateAllUIDisplays();
+    if (typeof initializeBoardPanning === 'function') initializeBoardPanning();
+    
+    logMessage(`Has entrado en: ${stageConfig.name}`);
+}
+

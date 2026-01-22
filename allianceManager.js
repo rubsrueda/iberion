@@ -131,80 +131,160 @@ const AllianceManager = {
     },
 
     // --- LÓGICA DEL CUARTEL GENERAL (HQ) ---
-
-    // En allianceManager.js
-
     loadHQ: async function(aliId) {
         this.showScreen('HQ');
         const listContainer = document.getElementById('membersListCompact');
-        listContainer.innerHTML = 'Cargando...';
+        listContainer.innerHTML = '<div style="text-align:center; padding:20px; color:#aaa;">Conectando...</div>';
 
-        // 1. Obtener la Alianza
-        const { data: ali } = await supabaseClient
-            .from('alliances')
-            .select('*')
-            .eq('id', aliId)
-            .single();
+        try {
+            const myId = PlayerDataManager.currentPlayer.auth_id;
 
-        this.currentAlliance = ali;
-        
-        // Pintar Cabecera básica
-        if(ali) {
-             document.getElementById('hqName').textContent = `[${ali.tag}] ${ali.name}`;
-             let icon = "🛡️";
-             try { icon = JSON.parse(ali.description).icon || icon; } catch(e){}
-             document.getElementById('hqFlag').textContent = icon;
-        }
+            // 1. OBTENER DATOS DE LA ALIANZA
+            const { data: ali, error: aliError } = await supabaseClient
+                .from('alliances')
+                .select('*')
+                .eq('id', aliId)
+                .single();
 
-        // 2. Obtener Miembros (Con Perfil)
-        const { data: members, error } = await supabaseClient
-            .from('alliance_members')
-            .select('role, user_id, profiles(username, avatar_url, level, total_wins)')
-            .eq('alliance_id', aliId);
+            if (aliError) throw aliError;
+            this.currentAlliance = ali;
 
-        if (error) {
-            console.error("Error miembros:", error);
-            return;
-        }
+            // 2. DETECTAR SI SOY LÍDER (Comparación directa)
+            this.isLeader = (ali.leader_id === myId);
 
-        // Actualizar contador
-        if(document.getElementById('memberCountDisplay')) {
-            document.getElementById('memberCountDisplay').textContent = `${members.length}/50`;
-        }
-
-        // 3. Pintar Lista
-        listContainer.innerHTML = '';
-        
-        // Ordenar: Líder primero
-        members.sort((a, b) => (a.role === 'Leader' ? -1 : 1));
-
-        members.forEach(m => {
-            // Protección contra perfiles nulos (si un usuario se borró pero sigue en la alianza)
-            const p = m.profiles || { username: 'Usuario Desconocido', avatar_url: '❓', level: 0 };
+            // 3. RENDERIZAR CABECERA
+            let icon = "🛡️";
+            try { icon = JSON.parse(ali.description).icon || icon; } catch(e){}
             
-            const div = document.createElement('div');
-            div.style.cssText = "display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #333; align-items: center; background: rgba(0,0,0,0.2);";
+            if(document.getElementById('hqFlag')) document.getElementById('hqFlag').textContent = icon;
+            if(document.getElementById('hqName')) document.getElementById('hqName').textContent = `[${ali.tag}] ${ali.name}`;
             
-            const roleColor = m.role === 'Leader' ? '#f1c40f' : '#aaa';
+            // 4. OBTENER MIEMBROS (Desde Perfiles)
+            const { data: members, error: membersError } = await supabaseClient
+                .from('profiles')
+                .select('id, username, level, avatar_url, total_wins, alliance_role')
+                .eq('alliance_id', aliId);
 
-            div.innerHTML = `
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <span style="font-size:1.5em;">${p.avatar_url}</span>
-                    <div>
-                        <div style="color:#eee; font-weight:bold;">${p.username}</div>
-                        <div style="font-size:0.8em; color:#777;">Nivel ${p.level}</div>
+            if (membersError) throw membersError;
+
+            // Calcular Poder Total
+            let totalPower = 0;
+            members.forEach(p => {
+                totalPower += (p.level || 1) * 100 + (p.total_wins || 0) * 10;
+            });
+
+            if(document.getElementById('hqLevel')) document.getElementById('hqLevel').textContent = Math.floor(totalPower / 1000) + 1;
+            if(document.getElementById('hqPower')) document.getElementById('hqPower').textContent = totalPower.toLocaleString();
+            if(document.getElementById('memberCountDisplay')) document.getElementById('memberCountDisplay').textContent = `${members.length}/50`;
+
+            // 5. RENDERIZAR LISTA
+            listContainer.innerHTML = '';
+            
+            // Ordenar: Líder arriba
+            members.sort((a, b) => {
+                if (a.id === ali.leader_id) return -1;
+                if (b.id === ali.leader_id) return 1;
+                return (b.level || 0) - (a.level || 0);
+            });
+
+            members.forEach(p => {
+                const div = document.createElement('div');
+                div.className = 'member-item';
+                div.style.cssText = "display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid #334155; align-items: center; background: rgba(255,255,255,0.02);";
+                
+                const isMemberLeader = (p.id === ali.leader_id);
+                const roleColor = isMemberLeader ? '#f1c40f' : '#94a3b8';
+                const roleText = isMemberLeader ? 'LÍDER' : (p.alliance_role || 'MIEMBRO');
+
+                div.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span style="font-size:1.5em;">${p.avatar_url || '👤'}</span>
+                        <div style="display:flex; flex-direction:column;">
+                            <span style="font-weight:bold; color:#e2e8f0; font-size:0.95em;">${p.username}</span>
+                            <span style="font-size:0.75em; color:#64748b;">Nivel ${p.level || 1} • ${p.total_wins || 0} Wins</span>
+                        </div>
                     </div>
-                </div>
-                <div style="color:${roleColor}; font-size:0.8em; font-weight:bold; border:1px solid ${roleColor}; padding:2px 6px; border-radius:4px;">
-                    ${m.role === 'Leader' ? 'LÍDER' : 'MIEMBRO'}
-                </div>
-            `;
-            listContainer.appendChild(div);
-        });
+                    <span style="font-size:0.7em; font-weight:bold; padding:2px 6px; border-radius:4px; border:1px solid ${roleColor}; color:${roleColor}; text-transform:uppercase;">
+                        ${roleText}
+                    </span>
+                `;
+                listContainer.appendChild(div);
+            });
+
+            // 6. GESTIÓN DEL BOTÓN DE ATAQUE / INICIO
+            const { data: activeRaid } = await supabaseClient
+                .from('alliance_raids')
+                .select('*')
+                .eq('alliance_id', aliId)
+                .eq('status', 'active')
+                .maybeSingle();
+
+            const btnAttack = document.getElementById('btnAttackRaid');
+            const hpText = document.getElementById('raidBossHpText');
+            const hpBar = document.getElementById('raidBossHpBar');
+
+            if (btnAttack) {
+                // Clonar para limpiar listeners
+                const newBtn = btnAttack.cloneNode(true);
+                btnAttack.parentNode.replaceChild(newBtn, btnAttack);
+
+                // CASO A: Hay Raid Activo
+                if (activeRaid) {
+                    const currentHP = activeRaid.stage_data.caravan_hp;
+                    const maxHP = activeRaid.stage_data.caravan_max_hp;
+                    const pct = (currentHP / maxHP) * 100;
+                    
+                    if(hpText) hpText.textContent = `${currentHP.toLocaleString()} / ${maxHP.toLocaleString()} HP`;
+                    if(hpBar) hpBar.style.width = `${pct}%`;
+
+                    newBtn.textContent = "⚔️ ATACAR";
+                    newBtn.style.background = "#dc2626";
+                    newBtn.disabled = false;
+                    
+                    newBtn.addEventListener('click', () => {
+                        document.getElementById('allianceModal').style.display = 'none';
+                        if (typeof RaidManager !== 'undefined') {
+                            RaidManager.currentRaid = activeRaid;
+                            RaidManager.enterRaid(); 
+                        }
+                    });
+                } 
+                // CASO B: No hay Raid (Líder)
+                else if (this.isLeader) { 
+                    if(hpText) hpText.textContent = "Sin Incursión Activa";
+                    if(hpBar) hpBar.style.width = "0%";
+
+                    newBtn.textContent = "🚩 INICIAR EVENTO";
+                    newBtn.style.background = "#f1c40f"; 
+                    newBtn.style.color = "black";
+                    newBtn.disabled = false;
+
+                    newBtn.addEventListener('click', () => {
+                        if (typeof RaidManager !== 'undefined') {
+                            if(confirm("¿Iniciar la Ruta del Oro? Costará 500 de oro del tesoro.")) { // Mensaje ejemplo
+                                RaidManager.startNewRaid(aliId);
+                                setTimeout(() => this.loadHQ(aliId), 1000);
+                            }
+                        }
+                    });
+                }
+                // CASO C: No hay Raid (Miembro)
+                else {
+                    if(hpText) hpText.textContent = "Esperando órdenes...";
+                    if(hpBar) hpBar.style.width = "0%";
+                    newBtn.textContent = "⏳ EN ESPERA";
+                    newBtn.style.background = "#555";
+                    newBtn.disabled = true;
+                }
+            }
+
+        } catch (err) {
+            console.error("Error cargando HQ:", err);
+            listContainer.innerHTML = '<p style="text-align:center; color:#ef4444;">Error de conexión.</p>';
+        }
     },
 
     // --- SISTEMA DE CHAT ---
-
     initChatWidget: function(aliId) {
         const widget = document.getElementById('globalChatWidget');
         if(widget) widget.style.display = 'flex';

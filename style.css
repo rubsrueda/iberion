@@ -6476,116 +6476,73 @@ input:checked + .slider:before {
     to { transform: scale(1.2); }
 }
 
-/* --- MENÚ RADIAL TÁCTICO --- */
-/* --- MENÚ RADIAL TÁCTICO --- */
-/* --- MENÚ RADIAL TÁCTICO --- */
+/* --- DEBUG VISUAL (BORRAR AL FINALIZAR) --- */
+#org-display {
+    border: 2px solid red !important; /* Borde rojo para verlo */
+    min-width: 100px !important;      /* Anchura mínima obligatoria */
+    min-height: 20px !important;      /* Altura mínima obligatoria */
+    background-color: yellow !important; /* Fondo amarillo chillón */
+    display: flex !important;
+    z-index: 9999 !important;
+}
 
+#org-name {
+    color: black !important;
+    font-size: 14px !important;
+    display: block !important;
+}
+
+
+/* --- MENÚ RADIAL TÁCTICO --- */
+/* --- MENÚ RADIAL TÁCTICO (DEFINITIVO) --- */
 #radialMenuContainer {
-    position: absolute;
-    width: 0; height: 0;
-    z-index: 15000; /* Por encima de las unidades */
-    display: none;
-    pointer-events: none; /* El contenedor no bloquea, los botones sí */
+    position: fixed; /* Fijo a la pantalla, no al mapa */
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 20000; /* Por encima de unidades (z=10) y UI estándar */
+    display: none;   /* Oculto por defecto */
+    pointer-events: none; /* Permite que los clics pasen a través del fondo */
 }
 
 .radial-btn {
     position: absolute;
-    width: 40px; 
-    height: 40px;
+    width: 50px; 
+    height: 50px;
     border-radius: 50%;
+    
+    /* Diseño visual */
     background: radial-gradient(circle, #2c3e50, #000);
     border: 2px solid #f1c40f;
     color: white;
-    font-size: 20px;
+    font-size: 24px;
+    
+    /* Centrado de contenido */
     display: flex; 
     justify-content: center; 
     align-items: center;
-    cursor: pointer;
-    pointer-events: auto;
-    box-shadow: 0 0 10px rgba(0,0,0,0.8);
-    transition: transform 0.1s, background-color 0.2s;
     
-    /* Centrado absoluto inicial */
-    transform: translate(-50%, -50%) scale(0); 
+    cursor: pointer;
+    pointer-events: auto !important; /* IMPORTANTE: Habilita clic en el botón */
+    box-shadow: 0 0 10px rgba(0,0,0,0.8);
+    transition: transform 0.1s;
+    
+    /* Animación de entrada */
+    transform: translate(-50%, -50%) scale(0);
     animation: popOut 0.2s forwards;
 }
 
+.radial-btn:hover {
+    transform: translate(-50%, -50%) scale(1.1);
+    background: #444;
+}
+
 .radial-btn:active {
-    transform: translate(-50%, -50%) scale(0.9);
-    background: #f1c40f;
-    color: black;
+    transform: translate(-50%, -50%) scale(0.95);
+    border-color: white;
 }
 
 @keyframes popOut {
     to { transform: translate(-50%, -50%) scale(1); }
-}
-
-/* Tooltip simple para saber qué hace el botón */
-.radial-btn::after {
-    content: attr(data-title);
-    position: absolute;
-    bottom: -20px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 10px;
-    background: rgba(0,0,0,0.8);
-    padding: 2px 4px;
-    border-radius: 4px;
-    white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s;
-}
-
-.radial-btn:hover::after {
-    opacity: 1;
-}
-
-/* --- MENÚ RADIAL TÁCTICO (CORREGIDO) --- */
-#radialMenuContainer {
-    position: fixed; /* <--- CAMBIO CLAVE: Fixed, no Absolute */
-    top: 0; 
-    left: 0;
-    width: 100%;       /* Ocupa toda la pantalla para que las coords X/Y sean correctas */
-    height: 100%;
-    z-index: 20000;    /* Muy alto, por encima de todo */
-    display: none;
-    pointer-events: none; 
-}
-
-.radial-btn {
-    position: absolute; /* El botón es absoluto RELATIVO al contenedor fixed */
-    /* ... resto de estilos igual ... */
-    width: 40px; 
-    height: 40px;
-    border-radius: 50%;
-    background: radial-gradient(circle, #2c3e50, #000);
-    border: 2px solid #f1c40f;
-    color: white;
-    font-size: 20px;
-    display: flex; 
-    justify-content: center; 
-    align-items: center;
-    cursor: pointer;
-    pointer-events: auto; /* IMPORTANTE: Para poder hacer clic */
-    box-shadow: 0 0 10px rgba(0,0,0,0.8);
-    transition: transform 0.1s;
-    transform: translate(-50%, -50%) scale(0); 
-    animation: popOut 0.2s forwards;
-}
-
-#radialMenuContainer {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;       /* Ancho total de la ventana */
-    height: 100vh;      /* Alto total de la ventana */
-    z-index: 99999;     /* Absurdamente alto para estar encima de todo */
-    pointer-events: none; /* Dejar pasar clics a través del fondo */
-    display: none;      /* Oculto por defecto */
-}
-
-/* Asegura que los botones sí reciban clics */
-.radial-btn {
-    pointer-events: auto !important; 
 }
