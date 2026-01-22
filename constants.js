@@ -26,15 +26,45 @@ const RAID_CONFIG = {
     MAP_ROWS: 12,
     MAP_COLS: 25,
     CARAVAN_SPEED: 3, // Casillas por hora (aprox, para cubrir 25 en <12h si no hay bloqueos)
-    CARAVAN_PATH_ROWS: [5, 6, 7], // Carriles centrales permitidos para la caravana
+    CARAVAN_PATH_ROWS: [4, 5, 6, 7, 8], // Carriles centrales permitidos para la caravana
     ENTRY_COST: 500, // Oro
     
     // Definición de las 4 Etapas
     STAGES: {
-        1: { name: "Mar de las Antillas (Cuba -> Cádiz)", type: "naval", mapType: "water", caravan: "Galeón del Tesoro" },
-        2: { name: "Camino de Andalucía (Cádiz -> Madrid)", type: "land", mapType: "plains", caravan: "Caravana Real" },
-        3: { name: "Paso de Aragón (Madrid -> Barcelona)", type: "land", mapType: "hills", caravan: "Caravana Real" },
-        4: { name: "Mediterráneo (Barcelona -> Génova)", type: "naval", mapType: "water", caravan: "Galeón del Tesoro" }
+        1: { 
+            name: "Mar de las Antillas (Cuba -> Cádiz)", 
+            type: "naval", 
+            mapType: "water", 
+            caravan: "Galeón del Tesoro",
+            // PARAMETRIZACIÓN DE LA DIVISIÓN:
+            regimentType: "Barco de Guerra", 
+            regimentCount: 30 // 50 Barcos x 2000 HP = 100k HP reales
+        },
+        2: { 
+            name: "Camino de Andalucía (Cádiz -> Madrid)", 
+            type: "land", 
+            mapType: "plains", 
+            caravan: "Caravana Real",
+            // En tierra usamos Caballería
+            regimentType: "Caballería Pesada", 
+            regimentCount: 30 
+        },
+        3: { 
+            name: "Paso de Aragón (Madrid -> Barcelona)", 
+            type: "land", 
+            mapType: "hills", 
+            caravan: "Caravana Real",
+            regimentType: "Caballería Pesada",
+            regimentCount: 40 // Más difícil
+        },
+        4: { 
+            name: "Mediterráneo (Barcelona -> Génova)", 
+            type: "naval", 
+            mapType: "water", 
+            caravan: "Galeón del Tesoro",
+            regimentType: "Barco de Guerra",
+            regimentCount: 40
+        }
     }
 };
 

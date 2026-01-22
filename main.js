@@ -10,6 +10,11 @@ function onHexClick(r, c) {
         gameState.tutorial.map_clicked = true;
     }
 
+    // radial
+    if (typeof UIManager !== 'undefined' && UIManager.hideRadialMenu) {
+        UIManager.hideRadialMenu();
+    }
+
     // Si se hace clic en la ciudad de La Banca, abrir el modal de comercio y detener todo lo demás.
     if (hexDataClicked && hexDataClicked.owner === BankManager.PLAYER_ID) {
         if (typeof openBankModal === 'function') {
@@ -1272,12 +1277,39 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
     }
 
     if (domElements.floatingEndTurnBtn) { 
-        domElements.floatingEndTurnBtn.addEventListener('click', () => { 
-            // La única responsabilidad del botón es llamar a la función principal.
-            // Toda la lógica compleja (red, local, IA) estará dentro de handleEndTurn.
-            if (typeof handleEndTurn === "function") {
-                handleEndTurn();
+    domElements.floatingEndTurnBtn.addEventListener('click', () => { 
+        //Lógica para Raid
+        if (gameState.isRaid) {
+            if (gameState.currentPhase === 'deployment') {
+                // El jugador ha terminado de crear su unidad.
+                // 1. Validar que ha creado algo
+                const myUnits = units.filter(u => u.player === 1);
+                if (myUnits.length === 0) {
+                    logMessage("Debes desplegar tu flota antes de comenzar.", "error");
+                    return;
+                }
+
+                // 2. Guardar la unidad en la Base de Datos (stage_data.units)
+                if (typeof RaidManager !== 'undefined') {
+                    RaidManager.saveMyUnitToDB(myUnits[0]); // <--- Nueva función necesaria
+                }
+                
+                // 3. Cambiar a fase de juego
+                gameState.currentPhase = 'play';
+                UIManager.refreshActionButtons();
+                alert("Flota desplegada. Sincronizando con la Alianza...");
             } else {
+                // En fase de juego, finalizar turno significa "Gastar puntos de acción"
+                // y recargar movimiento localmente.
+                resetUnitsForNewTurn(1);
+                logMessage("Turno finalizado. Puntos de acción recargados.");
+            }
+            return; // Cortar aquí, no ejecutar la lógica estándar de turnos
+        }
+
+        if (typeof handleEndTurn === "function") {
+            handleEndTurn();
+        }else {
                 console.error("main.js Error: La función handleEndTurn no está definida en gameFlow.js."); 
     }
         }); 

@@ -1553,18 +1553,15 @@ function centerMapOn(r, c) {
 
 // Caravana Imperial
 function initializeRaidMap(stageConfig, stageData) {
-    console.log("[RaidMap] Inicializando mapa:", stageConfig.name);
-    
-    // 1. Configuración del Tablero Físico (12 filas x 25 columnas)
+    // 1. Configuración Visual Básica
     const rows = 12;
     const cols = 25;
     
-    // Reseteo de cámara OBLIGATORIO
+    // Reseteo de Cámara
     if (typeof domElements !== 'undefined') {
         domElements.currentBoardTranslateX = 0;
         domElements.currentBoardTranslateY = 0;
         domElements.currentBoardScale = 1;
-        
         if (domElements.gameBoard) {
             domElements.gameBoard.innerHTML = '';
             domElements.gameBoard.style.width = `${cols * HEX_WIDTH + HEX_WIDTH / 2}px`;
@@ -1575,130 +1572,237 @@ function initializeRaidMap(stageConfig, stageData) {
     
     board = Array(rows).fill(null).map(() => Array(cols).fill(null));
     units = []; 
-
-    // 2. Reiniciar el registro civil (Evita el crash de 'find')
     if (!gameState) gameState = {};
     gameState.cities = []; 
 
-    // 3. Pintar Terreno Base
+    // --- POSICIONES FIJAS ---
+    // Bases de Jugadores (Norte y Sur). 
+    const playerPorts = [
+        {r: 1, c: 2}, {r: 1, c: 6}, {r: 1, c: 10}, {r: 1, c: 14},
+        {r: 10, c: 2}, {r: 10, c: 6}, {r: 10, c: 10}, {r: 10, c: 14}
+    ];
+
+    const myUid = PlayerDataManager.currentPlayer?.auth_id;
+    const mySlotIdx = (stageData.slots || []).indexOf(myUid); 
+
+    // 2. PINTADO DEL MAPA
     for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
             const hexEl = createHexDOMElementWithListener(r, c);
             if (domElements.gameBoard) domElements.gameBoard.appendChild(hexEl);
             
-            let terrain = stageConfig.mapType; // 'water' o 'plains'
-            
-            // Decoración: Camino central visual si es tierra
+            // LÓGICA DE TERRENO:
+            // Por defecto Agua. Si es una base de jugador, TIERRA ('plains').
+            let terrain = 'water'; // Default del mapa naval
+            if (stageConfig.type === 'land') terrain = stageConfig.mapType; // Si fase terrestre, lo que toque
+
+            let owner = null;
             let struct = null;
-            if (stageConfig.type === 'land' && r === 6) {
-                 struct = 'Camino'; // Carril central
+            let isCity = false;
+            let cityName = null;
+
+            // Verificar si es una Base de Jugador
+            const portIndex = playerPorts.findIndex(p => p.r === r && p.c === c);
+            
+            if (portIndex !== -1) {
+                // ¡CORRECCIÓN!: Forzamos 'plains' en la base para permitir construir, aunque estemos en el mar
+                terrain = 'plains'; 
+                isCity = true;
+                struct = 'Fortaleza';
+                
+                if (portIndex === mySlotIdx) {
+                    owner = 1; // Mío
+                    cityName = "Tu Base";
+                    // Centrar cámara
+                    if(typeof centerMapOn === 'function') setTimeout(()=>centerMapOn(r,c), 100);
+                } else {
+                    owner = 3; // Aliado
+                    cityName = `Aliado ${portIndex+1}`;
+                }
+                
+                // Añadir a gameState.cities para que el botón "Crear División" funcione nativamente
+                addCityToBoardData(r, c, owner, cityName, false);
+            }
+            
+            // Bases IA (Inicio/Fin)
+            if ((r===6 && c===0) || (r===6 && c===24)) {
+                terrain = 'plains'; // Tierra para que la caravana "salga" de algún sitio
+                addCityToBoardData(r, c, 2, (c===0?"Salida":"Meta"), true);
             }
 
             board[r][c] = {
                 r, c, element: hexEl, terrain: terrain,
-                owner: null, structure: struct, visibility: {player1:'visible'}
+                owner: owner, structure: struct, isCity: isCity, cityName: cityName,
+                visibility: {player1:'visible'},
+                estabilidad: owner ? 5 : 0, 
+                nacionalidad: { 1: 0, 2: 0 }
             };
-            
+            if(owner) board[r][c].nacionalidad[owner] = 5;
+
             renderSingleHexVisuals(r, c);
         }
     }
 
-    // --- NUEVO: CREACIÓN DE INFRAESTRUCTURA LÓGICA (CIUDADES) ---
-    // Parseamos el nombre de la etapa (ej: "Mar de las Antillas (Cuba -> Cádiz)")
-    // para extraer nombres reales. Si falla, usamos genéricos.
-    let startName = "Origen";
-    let endName = "Destino";
+    // 3. COLOCAR AL JEFE (Lectura Real)
+    const bossRegiments = stageData.boss_regiments;
     
-    try {
-        if (stageConfig.name.includes('->')) {
-            const parts = stageConfig.name.split('(')[1].replace(')', '').split('->');
-            startName = parts[0].trim();
-            endName = parts[1].trim();
-        }
-    } catch (e) { console.log("Usando nombres genéricos para ciudades"); }
+    if (bossRegiments && bossRegiments.length > 0) {
+        const firstType = bossRegiments[0].type;
+        const regDef = REGIMENT_TYPES[firstType];
+        
+        const bossUnit = {
+            id: 'boss_caravan',
+            player: 2, 
+            name: stageConfig.caravan,
+            r: stageData.caravan_pos.r,
+            c: stageData.caravan_pos.c,
+            sprite: regDef ? regDef.sprite : '☠️',
+            isBoss: true,
+            regiments: bossRegiments // Array real de 20, 40 o 50
+        };
+        
+        // Calcular stats y vida actuales
+        calculateRegimentStats(bossUnit);
+        bossUnit.currentHealth = bossUnit.regiments.reduce((sum, r) => sum + r.health, 0);
 
-    // Coordenadas fijas para el Raid (Centro Izquierda -> Centro Derecha)
-    const startCoords = { r: 6, c: 0 };  // Entrada
-    const endCoords = { r: 6, c: 24 };   // Salida (Meta de la caravana)
-
-    // A. Ciudad de Origen (Donde spawnean los jugadores o salen recursos)
-    // Se la asignamos al Jugador 1 (Aliados) para que cuente como "territorio seguro"
-    addCityToBoardData(startCoords.r, startCoords.c, 1, startName, false);
-    
-    // B. Ciudad de Destino (La meta de la Caravana)
-    // Se la asignamos al Jugador 2 (IA/Enemigo) o Neutral.
-    addCityToBoardData(endCoords.r, endCoords.c, 2, endName, true); // True = Es Capital (Meta)
-
-    // Forzamos visualización de las ciudades creadas
-    renderSingleHexVisuals(startCoords.r, startCoords.c);
-    renderSingleHexVisuals(endCoords.r, endCoords.c);
-    // ------------------------------------------------------------
-
-    // 4. COLOCAR LA CARAVANA (Jefe)
-    const bossUnit = {
-        id: 'boss_caravan',
-        player: 2, // IA
-        name: stageConfig.caravan,
-        currentHealth: stageData.caravan_hp,
-        maxHealth: stageData.caravan_max_hp,
-        r: stageData.caravan_pos.r,
-        c: stageData.caravan_pos.c,
-        sprite: stageConfig.type === 'naval' ? 'images/sprites/barco256.png' : 'images/sprites/onlycaraban128.png',
-        isBoss: true
-    };
-    
-    // Ahora placeFinalizedDivision funcionará porque gameState.cities existe y tiene datos
-    placeFinalizedDivision(bossUnit, bossUnit.r, bossUnit.c);
-    
-    // Estilo visual del Jefe
-    if(bossUnit.element) {
-        bossUnit.element.style.width = "50px"; // Un poco más grande
-        bossUnit.element.style.height = "50px";
-        bossUnit.element.style.border = "3px solid #f1c40f"; // Borde dorado
-        bossUnit.element.style.zIndex = "100";
+        placeBossUnitDirectly(bossUnit);
     }
 
-    // 5. COLOCAR JUGADORES
-    if (typeof PlayerDataManager !== 'undefined') {
-        const myUid = PlayerDataManager.currentPlayer?.auth_id;
-        
+    // 4. COLOCAR JUGADORES (Desde DB)
+    if (stageData.units) {
         for (const uid in stageData.units) {
             const uData = stageData.units[uid];
-            // Si soy yo -> Player 1 (Azul). Si es otro -> Player 3 (Verde/Aliado)
-            const pNum = (uid === myUid) ? 1 : 3; 
+            const pNum = (uid === myUid) ? 1 : 3;
             
-            // Determinar sprite (fallback seguro)
-            let sprite = '🛡️';
-            if (typeof REGIMENT_TYPES !== 'undefined' && REGIMENT_TYPES[uData.type]) {
-                sprite = REGIMENT_TYPES[uData.type].sprite;
-            }
-
             const playerUnit = {
                 id: `raid_u_${uid}`,
                 player: pNum,
                 name: uData.player_name || "Aliado",
-                currentHealth: uData.hp,
-                maxHealth: uData.max_hp,
-                r: uData.r,
-                c: uData.c,
-                sprite: sprite,
-                regiments: [{type: uData.type, health: uData.hp}] // Estructura mínima combate
+                regiments: uData.regiments || [],
+                r: uData.r, c: uData.c,
             };
+            calculateRegimentStats(playerUnit);
+            if(uData.currentHealth) playerUnit.currentHealth = uData.currentHealth;
             
-            // Calcular stats si la función existe
-            if (typeof calculateRegimentStats === 'function') calculateRegimentStats(playerUnit);
-            
+            // Usamos la función estándar porque el mapa ya tiene las ciudades correctas
             placeFinalizedDivision(playerUnit, uData.r, uData.c);
         }
     }
-
-    // 6. Configurar UI y Paneo
-    gameState.currentPhase = "play";
-    gameState.isRaid = true; 
+    
+    gameState.currentPhase = "play"; 
+    gameState.isRaid = true;
     
     if (typeof UIManager !== 'undefined') UIManager.updateAllUIDisplays();
     if (typeof initializeBoardPanning === 'function') initializeBoardPanning();
+}
+
+function placeBossUnitDirectly(unit) {
+    const hex = board[unit.r]?.[unit.c];
+    if(!hex) return;
+
+    const unitEl = document.createElement('div');
+    unitEl.className = `unit player${unit.player}`;
     
-    logMessage(`Has entrado en: ${stageConfig.name}`);
+    // Estilo visual del Boss
+    unitEl.style.width = "60px";
+    unitEl.style.height = "60px";
+    unitEl.style.border = "3px solid #f1c40f"; // Borde dorado
+    unitEl.style.zIndex = "100";
+    
+    // Imagen de fondo
+    if (unit.sprite.includes('/') || unit.sprite.includes('.')) {
+         unitEl.style.backgroundImage = `url('${unit.sprite}')`;
+         unitEl.style.backgroundSize = "contain";
+         unitEl.style.backgroundRepeat = "no-repeat";
+         unitEl.style.backgroundPosition = "center";
+         unitEl.textContent = "";
+    } else {
+        unitEl.textContent = unit.sprite;
+        unitEl.style.fontSize = "30px";
+        unitEl.style.display = "flex";
+        unitEl.style.alignItems = "center";
+        unitEl.style.justifyContent = "center";
+    }
+    
+    // Barra de Vida
+    const hpBar = document.createElement('div');
+    hpBar.className = 'unit-strength';
+    // Mostramos porcentaje porque el número es muy grande
+    hpBar.textContent = Math.ceil((unit.currentHealth/unit.maxHealth)*100) + '%';
+    unitEl.appendChild(hpBar);
+
+    if (domElements.gameBoard) domElements.gameBoard.appendChild(unitEl);
+    
+    unit.element = unitEl;
+    units.push(unit);
+    hex.unit = unit;
+    
+    const xPos = unit.c * HEX_WIDTH + (unit.r % 2 !== 0 ? HEX_WIDTH / 2 : 0) + (HEX_WIDTH - 60) / 2;
+    const yPos = unit.r * HEX_VERT_SPACING + (HEX_HEIGHT - 60) / 2;
+    unitEl.style.left = `${xPos}px`;
+    unitEl.style.top = `${yPos}px`;
+}
+
+// Función auxiliar simple para el Boss que no depende de validaciones complejas
+function placeBossUnitDirectly(unit) {
+    const hex = board[unit.r]?.[unit.c];
+    if(!hex) return;
+
+    // Crear elemento visual
+    const unitEl = document.createElement('div');
+    unitEl.className = `unit player${unit.player}`;
+    // Estilo especial grande
+    unitEl.style.width = "60px";
+    unitEl.style.height = "60px";
+    unitEl.style.border = "3px solid #f1c40f";
+    unitEl.style.zIndex = "100";
+    unitEl.style.backgroundImage = `url('${unit.sprite}')`;
+    unitEl.style.backgroundSize = "contain";
+    
+    // Barra de vida
+    const hpBar = document.createElement('div');
+    hpBar.className = 'unit-strength';
+    hpBar.textContent = Math.ceil((unit.currentHealth/unit.maxHealth)*100) + '%';
+    unitEl.appendChild(hpBar);
+
+    if (domElements.gameBoard) domElements.gameBoard.appendChild(unitEl);
+    
+    unit.element = unitEl;
+    units.push(unit);
+    hex.unit = unit;
+    
+    // Posicionar
+    const xPos = unit.c * HEX_WIDTH + (unit.r % 2 !== 0 ? HEX_WIDTH / 2 : 0) + (HEX_WIDTH - 60) / 2; // Centrado manual por tamaño
+    const yPos = unit.r * HEX_VERT_SPACING + (HEX_HEIGHT - 60) / 2;
+    unitEl.style.left = `${xPos}px`;
+    unitEl.style.top = `${yPos}px`;
+}
+
+// Helper para crear unidades en el mapa del Raid
+function spawnRaidUnit(player, name, hp, maxHp, r, c, isBoss, stageType) {
+    const sprite = stageType === 'naval' ? 'images/sprites/barco256.png' : 'images/sprites/onlycaraban128.png';
+    const unit = {
+        id: `ai_${r}_${c}`,
+        player: player,
+        name: name,
+        currentHealth: hp,
+        maxHealth: maxHp,
+        r: r, c: c,
+        sprite: sprite,
+        isBoss: isBoss,
+        regiments: Array(20).fill({type: 'Barco de Guerra'}) // Simulamos 20 barcos para stats
+    };
+    calculateRegimentStats(unit);
+    unit.currentHealth = hp; // Forzar HP real
+    
+    placeFinalizedDivision(unit, r, c);
+    
+    // Estilo especial para el Boss
+    if(isBoss && unit.element) {
+        unit.element.style.width = "55px";
+        unit.element.style.height = "55px";
+        unit.element.style.border = "3px solid #f1c40f";
+        unit.element.style.zIndex = "100";
+    }
 }
 

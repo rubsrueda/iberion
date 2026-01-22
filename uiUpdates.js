@@ -1098,8 +1098,12 @@ const UIManager = {
                 content += ` | ${hexData.structure}`;
             }
 
-            content += ` | Est: ${hexData.estabilidad}/${MAX_STABILITY}`;
-            content += ` | Nac: ${hexData.nacionalidad[hexData.owner] || 0}/${MAX_NACIONALIDAD}`;
+            // Usamos acceso seguro (?. y || 0) para que nunca falle
+            const est = hexData.estabilidad || 0;
+            const nac = (hexData.nacionalidad && hexData.nacionalidad[hexData.owner]) || 0;
+            
+            content += ` | Est: ${est}/${MAX_STABILITY}`;
+            content += ` | Nac: ${nac}/${MAX_NACIONALIDAD}`;
         } else {
             content += ` | <strong>Neutral</strong>`;
         }

@@ -7,35 +7,57 @@ const RaidManager = {
 
     // 1. INICIAR (Solo Líder)
     startNewRaid: async function(aliId) {
-        console.log("Iniciando nueva incursión...");
+        console.log("Iniciando Incursión: Generando División Real...");
         const now = new Date();
         
+        // 1. LEER CONFIGURACIÓN (De constants.js ya existente)
+        const stageNum = 1; 
+        const config = RAID_CONFIG.STAGES[stageNum];
+        const baseUnitStats = REGIMENT_TYPES[config.regimentType];
+        
+        // 2. CONSTRUIR LOS REGIMIENTOS REALES
+        const bossRegiments = [];
+        let totalHpCalculated = 0;
+
+        for (let i = 0; i < config.regimentCount; i++) {
+            bossRegiments.push({
+                type: config.regimentType,
+                health: baseUnitStats.health,
+                maxHealth: baseUnitStats.health
+            });
+            totalHpCalculated += baseUnitStats.health;
+        }
+
+        // 3. SOBRESCRIBIR DB CON DATOS LIMPIOS
         const newRaid = {
             alliance_id: aliId,
             start_time: now.toISOString(),
-            current_stage: 1,
+            current_stage: stageNum,
             status: 'active',
             stage_data: {
-                caravan_hp: 100000,
-                caravan_max_hp: 100000,
+                // AQUÍ ESTÁ LA CORRECCIÓN: Guardamos el array real, no un número inventado
+                boss_regiments: bossRegiments, 
+                
+                caravan_hp: totalHpCalculated,
+                caravan_max_hp: totalHpCalculated,
                 caravan_pos: { r: 6, c: 0 },
                 last_update: now.toISOString(),
-                // 8 Slots vacíos
                 slots: [null, null, null, null, null, null, null, null],
                 units: {}
             },
             global_log: { damage_by_user: {} }
         };
 
+        // Insertar (Esto limpia efectivamente el estado anterior al crear uno nuevo activo)
         const { error } = await supabaseClient
             .from('alliance_raids')
             .insert(newRaid);
         
         if (error) {
-            console.error("Error al iniciar raid:", error);
-            alert("Error al iniciar el evento.");
+            alert("Error: " + error.message);
         } else {
-            alert("¡La Ruta del Oro ha comenzado! Tus tropas pueden atacar.");
+            // Recargar UI inmediatamente para ver los cambios
+            if(typeof AllianceManager !== 'undefined') AllianceManager.loadHQ(aliId);
         }
     },
 
@@ -241,76 +263,60 @@ const RaidManager = {
 
     // 4. Entrar a la Incursión (Jugador)
     enterRaid: async function() {
+        if (!this.currentRaid) return;
+        
         const player = PlayerDataManager.currentPlayer;
         const uid = player.auth_id;
-        
-        // A. Validaciones
-        if (!this.currentRaid) return;
-        if (player.currencies.gold < RAID_CONFIG.ENTRY_COST) {
-            alert(`Necesitas ${RAID_CONFIG.ENTRY_COST} de oro para unirte a la incursión.`);
-            return;
-        }
-
-        // B. Refrescar estado para asegurar slots libres reales
-        const { data: freshRaid } = await supabaseClient
-            .from('alliance_raids')
-            .select('*')
-            .eq('id', this.currentRaid.id)
-            .single();
-        this.currentRaid = freshRaid;
-
         const stageData = this.currentRaid.stage_data;
         
-        // ¿Ya estoy dentro?
+        // 1. CHEQUEO DE ENTRADA
         let mySlotIdx = stageData.slots.indexOf(uid);
         
-        if (mySlotIdx === -1) {
-            // No estoy dentro. Buscar hueco libre.
-            mySlotIdx = stageData.slots.indexOf(null);
-            
-            if (mySlotIdx === -1) {
-                alert("El frente de batalla está lleno (8/8 jugadores). Espera una baja.");
-                return;
-            }
+        // (Tu lógica de pago existente va aquí...)
 
-            // Cobrar entrada
-            player.currencies.gold -= RAID_CONFIG.ENTRY_COST;
-            await PlayerDataManager.saveCurrentPlayer();
+        // 2. PREPARACIÓN DEL "ENTORNO DE GUERRA"
+        console.log("Configurando entorno táctico de Incursión...");
 
-            // Ocupar Slot
-            stageData.slots[mySlotIdx] = uid;
-            
-            // Asignar unidad inicial (Si es Naval o Terrestre depende de la etapa)
-            const stageConfig = RAID_CONFIG.STAGES[this.currentRaid.current_stage];
-            const unitType = stageConfig.type === 'naval' ? 'Barco de Guerra' : 'Infantería Pesada'; // Unidad base
-            
-            // Posición de despliegue según el slot (Rows 1-4 o 8-12)
-            // Slots 0-3 van arriba, 4-7 van abajo
-            const spawnRow = mySlotIdx < 4 ? mySlotIdx : (mySlotIdx + 4); // Ej: 0,1,2,3 o 8,9,10,11
-            
-            // Guardar mi unidad en la persistencia del Raid
-            if (!stageData.units) stageData.units = {};
-            stageData.units[uid] = {
-                type: unitType,
-                hp: 200, // Salud base estándar
-                max_hp: 200,
-                r: spawnRow,
-                c: 0, // Empiezan a la izquierda
-                player_name: player.username
-            };
-        }
+        // === CORRECCIÓN DEL ERROR ===
+        // Inicializamos los contenedores del estado antes de usarlos
+        gameState.currentPhase = "play";
+        gameState.currentPlayer = 1;
+        gameState.myPlayerNumber = 1; // En el Raid, tú siempre eres el 'Jugador 1' localmente
 
-        // C. Calcular Movimiento de la Caravana (Lazy Update) antes de guardar
-        this.calculateCaravanPath(stageData);
+        // Creamos los objetos vacíos para evitar el error "undefined"
+        gameState.playerResources = {}; 
+        gameState.playerCivilizations = { 1: "Iberia", 2: "Bárbaros" }; // Valores por defecto para evitar error visual
+        gameState.playerTypes = { player1: "human", player2: "ai" };
+        gameState.unitsPlacedByPlayer = { 1: 0 }; 
+        gameState.activeCommanders = { 1: [] };
+        // ============================
 
-        // D. Guardar todo en DB
-        await supabaseClient
-            .from('alliance_raids')
-            .update({ stage_data: stageData })
-            .eq('id', this.currentRaid.id);
+        // A. AHORA SÍ ASIGNAMOS LOS RECURSOS (Ya no dará error)
+        gameState.playerResources[1] = {
+            oro: 40000,
+            comida: 5000,
+            madera: 5000,
+            hierro: 5000,
+            piedra: 2000,
+            researchPoints: 250, 
+            researchedTechnologies: ["ORGANIZATION", "NAVIGATION"], 
+            puntosReclutamiento: 2000 
+        };
 
-        // E. Cargar Mapa Visual
+        // C. Configuración de Fase
+        gameState.deploymentUnitLimit = 1; // Solo 1 Gran División por jugador
+
+        // 3. CARGAR EL MAPA
         this.showRaidMap(stageData);
+        
+        // 4. MENSAJE
+        alert(
+            "--- FASE DE PREPARACIÓN ---\n\n" +
+            "1. Tienes 250 Puntos de Investigación. Úsalos sabiamente en el menú (💡).\n" +
+            "2. Elige tu rol: ¿Tanque Pesado? ¿DPS a Distancia? ¿Soporte?\n" +
+            "3. Crea tu DIVISIÓN en tu Puerto asignado.\n" +
+            "4. Cuando estés listo, pulsa 'Finalizar Turno' para sincronizar."
+        );
     },
 
     // 5. El Algoritmo "Perezoso" de la Caravana
@@ -466,6 +472,38 @@ const RaidManager = {
             // Aquí simplemente recargamos la página o volvemos al HQ.
             this.openRaidWindow(this.allianceId); // Volver al HQ
         }
-    }
+    }, 
+
+    // En raidManager.js, añade al objeto RaidManager:
+
+    saveMyUnitToDB: async function(unitObject) {
+        if (!this.currentRaid) return;
+        const myUid = PlayerDataManager.currentPlayer.auth_id;
+        const myName = PlayerDataManager.currentPlayer.username;
+
+        // Extraemos solo los datos necesarios para reconstruirla
+        const unitData = {
+            player_name: myName,
+            type: "Custom", // Tipo genérico, lo importante son los regimientos
+            hp: unitObject.currentHealth,
+            max_hp: unitObject.maxHealth,
+            r: unitObject.r,
+            c: unitObject.c,
+            // ¡GUARDAMOS LOS REGIMIENTOS EXACTOS!
+            regiments: unitObject.regiments.map(r => ({ type: r.type, health: r.health })),
+            // Guardamos ID del héroe si tiene
+            commander: unitObject.commander
+        };
+
+        // Actualizar localmente el stage_data
+        this.currentRaid.stage_data.units[myUid] = unitData;
+
+        // Enviar a Supabase
+        await supabaseClient.from('alliance_raids')
+            .update({ stage_data: this.currentRaid.stage_data })
+            .eq('id', this.currentRaid.id);
+
+        console.log("Unidad guardada en la nube del Raid.");
+    },
 
 };
