@@ -1447,8 +1447,12 @@ const UIManager = {
 
     // 1. Función para mostrar el menú
     showRadialMenu: function(unit, screenX, screenY) {
+        console.log(`[RADIAL MENU] Mostrando menú radial para unidad ${unit.name} en (${screenX}, ${screenY})`);
         const container = document.getElementById('radialMenuContainer');
-        if (!container) return;
+        if (!container) {
+            console.error('[RADIAL MENU] No se encontró el elemento radialMenuContainer');
+            return;
+        }
 
         // Limpiar menú anterior
         container.innerHTML = '';
@@ -1457,6 +1461,8 @@ const UIManager = {
         container.style.left = `${screenX}px`;
         container.style.top = `${screenY}px`;
         container.style.display = 'block';
+
+        console.log(`[RADIAL MENU] Contenedor posicionado en left: ${container.style.left}, top: ${container.style.top}, display: ${container.style.display}`);
 
         // Definir acciones posibles según el estado de la unidad
         const actions = [];
@@ -1519,6 +1525,8 @@ const UIManager = {
             btn.style.left = `${x}px`;
             btn.style.top = `${y}px`;
 
+            console.log(`[RADIAL MENU] Creando botón ${index}: ${action.title} en (${x}, ${y})`);
+
             // Listener
             btn.addEventListener('click', (e) => {
                 e.stopPropagation(); // Evitar clics en el mapa
@@ -1528,6 +1536,8 @@ const UIManager = {
 
             container.appendChild(btn);
         });
+
+        console.log(`[RADIAL MENU] Menú radial creado con ${actions.length} acciones`);
     },
 
     hideRadialMenu: function() {
