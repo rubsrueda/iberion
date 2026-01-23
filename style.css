@@ -6497,10 +6497,6 @@ input:checked + .slider:before {
 /* --- MENÚ RADIAL TÁCTICO (DEFINITIVO) --- */
 #radialMenuContainer {
     position: fixed; /* Fijo a la pantalla, no al mapa */
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
     z-index: 20000; /* Por encima de unidades (z=10) y UI estándar */
     display: none;   /* Oculto por defecto */
     pointer-events: none; /* Permite que los clics pasen a través del fondo */
@@ -6513,7 +6509,7 @@ input:checked + .slider:before {
     border-radius: 50%;
     
     /* Diseño visual */
-    background: radial-gradient(circle, #2c3e50, #000);
+    background: red;
     border: 2px solid #f1c40f;
     color: white;
     font-size: 24px;
@@ -6529,8 +6525,10 @@ input:checked + .slider:before {
     transition: transform 0.1s;
     
     /* Animación de entrada */
-    transform: translate(-50%, -50%) scale(0);
-    animation: popOut 0.2s forwards;
+    /* transform: translate(-50%, -50%) scale(0); */
+    /* animation: popOut 0.2s forwards; */
+    transform: translate(-50%, -50%) scale(1);
+}
 }
 
 .radial-btn:hover {
