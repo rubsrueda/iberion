@@ -469,7 +469,9 @@ function selectUnit(unit) {
     }
 
     // --- 5. NUEVO: ABRIR MENÚ RADIAL ---
+    console.log('RADIAL CODE REACHED');
     // Solo si es mi unidad, es fase de juego y no está "zombi"
+    console.log(`[RADIAL MENU] Verificando condiciones: player=${unit.player}, currentPlayer=${gameState.currentPlayer}, phase=${gameState.currentPhase}, disorganized=${unit.isDisorganized}`);
     if (unit.player === gameState.currentPlayer && gameState.currentPhase === 'play' && !unit.isDisorganized) {
         
         if (unit.element) {
@@ -481,11 +483,27 @@ function selectUnit(unit) {
             const screenX = rect.left + rect.width / 2;
             const screenY = rect.top + rect.height / 2;
             
+            console.log(`[RADIAL MENU] Unidad element rect: left=${rect.left}, top=${rect.top}, width=${rect.width}, height=${rect.height}`);
+            console.log(`[RADIAL MENU] Centro calculado: (${screenX}, ${screenY})`);
+            
+            // Verificar si la unidad está visible en la pantalla
+            if (screenX < 0 || screenY < 0 || screenX > window.innerWidth || screenY > window.innerHeight) {
+                console.log('[RADIAL MENU] Unidad fuera de la vista, no mostrar menú');
+                return;
+            }
+            
             // Llamar al UIManager para pintar los botones
             if (UIManager && UIManager.showRadialMenu) {
+                console.log(`[RADIAL MENU] Llamando a showRadialMenu para unidad ${unit.name} en pantalla (${screenX}, ${screenY})`);
                 UIManager.showRadialMenu(unit, screenX, screenY);
+            } else {
+                console.error('[RADIAL MENU] UIManager.showRadialMenu no está definido');
             }
+        } else {
+            console.error(`[RADIAL MENU] La unidad ${unit.name} no tiene element DOM`);
         }
+    } else {
+        console.log('[RADIAL MENU] Condiciones no cumplidas para mostrar menú radial');
     }
 }
 
