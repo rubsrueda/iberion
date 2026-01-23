@@ -1521,9 +1521,9 @@ const UIManager = {
             btn.setAttribute('data-title', action.title);
             btn.style.zIndex = "20001"; // Forzar z-index individual
             
-            // Posición final
-            btn.style.left = `${x}px`;
-            btn.style.top = `${y}px`;
+            // Posición: centrar el botón en x, y
+            btn.style.left = `${x - 25}px`;
+            btn.style.top = `${y - 25}px`;
 
             console.log(`[RADIAL MENU] Creando botón ${index}: ${action.title} en (${x}, ${y})`);
 
