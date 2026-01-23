@@ -6522,22 +6522,14 @@ input:checked + .slider:before {
     cursor: pointer;
     pointer-events: auto !important; /* IMPORTANTE: Habilita clic en el botón */
     box-shadow: 0 0 10px rgba(0,0,0,0.8);
-    transition: transform 0.1s;
-    
-    /* Animación de entrada */
-    /* transform: translate(-50%, -50%) scale(0); */
-    /* animation: popOut 0.2s forwards; */
-    transform: translate(-50%, -50%) scale(1);
 }
 }
 
 .radial-btn:hover {
-    transform: translate(-50%, -50%) scale(1.1);
     background: #444;
 }
 
 .radial-btn:active {
-    transform: translate(-50%, -50%) scale(0.95);
     border-color: white;
 }
 
