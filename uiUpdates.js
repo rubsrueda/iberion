@@ -1464,8 +1464,6 @@ const UIManager = {
         container.style.position = 'fixed';
         container.style.zIndex = '20000';
         container.style.transform = 'translate(-50%, -50%)'; // Centrar el contenedor
-        container.style.width = '0px'; // Contenedor sin tamaño (los botones son absolutos)
-        container.style.height = '0px';
         container.style.pointerEvents = 'none'; // Contenedor es transparent a clics
 
         console.log(`[RADIAL MENU] Contenedor posicionado en left: ${screenX}px, top: ${screenY}px`);
