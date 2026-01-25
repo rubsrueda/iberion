@@ -6505,15 +6505,13 @@ input:checked + .slider:before {
 
 .radial-btn {
     position: absolute;
-    width: 60px; 
-    height: 60px;
+    /* width y height se aplican dinámicamente desde JS */
     border-radius: 50%;
     
     /* Diseño visual */
     background: #ff4444;
     border: 3px solid #ffff00;
     color: white;
-    font-size: 32px;
     
     /* Centrado de contenido */
     display: flex; 
