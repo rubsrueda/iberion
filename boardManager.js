@@ -1753,6 +1753,7 @@ function initializeRaidMap(stageConfig, stageData) {
         const bossUnit = {
             id: 'boss_caravan',
             player: 2, 
+            civilization: 'Imperio', // Civilización del boss para bonos de combate
             name: stageConfig.caravan || "Caravana Imperial",
             r: stageData.caravan_pos?.r || 6,
             c: Math.max(stageData.caravan_pos?.c || 1, 1), // Siempre >= 1, nunca en 0

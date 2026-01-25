@@ -1586,7 +1586,7 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
     targetRegiment.health -= actualDamage;
 
     // === BLOQUE NUEVO PARA RAID ===
-    if (gameState.isRaid && opposingDivision.isBoss) {
+    if (gameState.isRaid && targetDivision.isBoss) {
         if (typeof RaidManager !== 'undefined') {
             // Llamada async sin await - capturamos errores para no bloquear
             RaidManager.recordDamage(actualDamage).catch(err => {
@@ -1596,7 +1596,7 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
             // Actualizar barra de vida del jefe en la UI si existe
             const hpBar = document.getElementById('raidBossHpBar');
             if (hpBar) {
-                const pct = (opposingDivision.currentHealth / opposingDivision.maxHealth) * 100;
+                const pct = (targetDivision.currentHealth / targetDivision.maxHealth) * 100;
                 hpBar.style.width = `${pct}%`;
             }
         }
