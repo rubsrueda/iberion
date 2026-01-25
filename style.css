@@ -6505,15 +6505,15 @@ input:checked + .slider:before {
 
 .radial-btn {
     position: absolute;
-    width: 50px; 
-    height: 50px;
+    width: 60px; 
+    height: 60px;
     border-radius: 50%;
     
     /* Diseño visual */
-    background: red;
-    border: 2px solid #f1c40f;
+    background: #ff4444;
+    border: 3px solid #ffff00;
     color: white;
-    font-size: 24px;
+    font-size: 32px;
     
     /* Centrado de contenido */
     display: flex; 
@@ -6522,7 +6522,8 @@ input:checked + .slider:before {
     
     cursor: pointer;
     pointer-events: auto !important; /* IMPORTANTE: Habilita clic en el botón */
-    box-shadow: 0 0 10px rgba(0,0,0,0.8);
+    box-shadow: 0 0 15px rgba(255, 0, 0, 0.9);
+    transition: all 0.2s ease;
 }
 
 .radial-btn:hover {
