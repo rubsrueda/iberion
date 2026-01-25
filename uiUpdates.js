@@ -1608,17 +1608,21 @@ const UIManager = {
                 const btnLeft = centerOffset + x;
                 const btnTop = centerOffset + y;
 
-                btn.style.position = 'absolute';
-                btn.style.left = `${btnLeft}px !important`;
-                btn.style.top = `${btnTop}px !important`;
-                btn.style.width = `${buttonSize}px !important`;
-                btn.style.height = `${buttonSize}px !important`;
-                btn.style.borderRadius = '50% !important';
-                btn.style.transform = 'translate(-50%, -50%) !important';
-                btn.style.zIndex = '2002 !important';
-                btn.style.pointerEvents = 'auto !important';
-                btn.style.fontSize = `${Math.round(buttonSize * 0.6)}px !important`;
-                btn.style.lineHeight = `${buttonSize}px !important`;
+                // Usar setProperty con 'important' para forzar los estilos
+                btn.style.setProperty('position', 'absolute', 'important');
+                btn.style.setProperty('left', `${btnLeft}px`, 'important');
+                btn.style.setProperty('top', `${btnTop}px`, 'important');
+                btn.style.setProperty('width', `${buttonSize}px`, 'important');
+                btn.style.setProperty('height', `${buttonSize}px`, 'important');
+                btn.style.setProperty('border-radius', '50%', 'important');
+                btn.style.setProperty('transform', 'translate(-50%, -50%)', 'important');
+                btn.style.setProperty('z-index', '2002', 'important');
+                btn.style.setProperty('pointer-events', 'auto', 'important');
+                btn.style.setProperty('font-size', `${Math.round(buttonSize * 0.6)}px`, 'important');
+                btn.style.setProperty('line-height', `${buttonSize}px`, 'important');
+                btn.style.setProperty('display', 'flex', 'important');
+                btn.style.setProperty('justify-content', 'center', 'important');
+                btn.style.setProperty('align-items', 'center', 'important');
 
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
