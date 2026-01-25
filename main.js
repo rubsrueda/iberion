@@ -30,7 +30,8 @@ function onHexClick(r, c) {
     }
 
     // Si se hace clic en la ciudad de La Banca, abrir el modal de comercio y detener todo lo demás.
-    if (hexDataClicked && hexDataClicked.owner === BankManager.PLAYER_ID) {
+    // EXCEPCIÓN: No abrir la banca en modo Raid
+    if (hexDataClicked && hexDataClicked.owner === BankManager.PLAYER_ID && !gameState.isRaid) {
         if (typeof openBankModal === 'function') {
             logMessage("Accediendo al Mercado de La Banca...");
             openBankModal();

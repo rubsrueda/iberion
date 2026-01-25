@@ -40,7 +40,7 @@ const RaidManager = {
                 
                 caravan_hp: totalHpCalculated,
                 caravan_max_hp: totalHpCalculated,
-                caravan_pos: { r: 6, c: 0 },
+                caravan_pos: { r: 6, c: 1 }, // Posición inicial en agua, no en la fortaleza
                 last_update: now.toISOString(),
                 slots: [null, null, null, null, null, null, null, null],
                 units: {}
@@ -130,10 +130,12 @@ const RaidManager = {
             console.log("[Raid] Unidad inicial creada en posición:", {r: spawnRow, c: spawnCol});
             
             // Guardar ocupación en DB
-            const { error } = await supabaseClient
+            const { error, data: updatedRaid } = await supabaseClient
                 .from('alliance_raids')
                 .update({ stage_data: stageData })
-                .eq('id', this.currentRaid.id);
+                .eq('id', this.currentRaid.id)
+                .select()
+                .single();
                 
             if (error) {
                 console.error("[Raid] Error al guardar slot:", error);
@@ -141,7 +143,11 @@ const RaidManager = {
                 return;
             }
             
+            // CRÍTICO: Actualizar currentRaid con los datos recién guardados
+            this.currentRaid = updatedRaid;
+            
             console.log("[Raid] Slot guardado exitosamente en la base de datos");
+            console.log("[Raid] Slot actualizado en currentRaid:", this.currentRaid.stage_data.slots);
         } else {
             console.log("[Raid] El jugador ya estaba en un slot. Reconectando...");
         }

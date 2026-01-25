@@ -1638,42 +1638,23 @@ function initializeRaidMap(stageConfig, stageData) {
                     console.log("[Raid Map] Fortaleza disponible en", {r, c, portIndex});
                 }
                 
-                // Añadir a gameState.cities para que el botón "Crear División" funcione nativamente
-                if (typeof addCityToBoardData === 'function') {
-                    addCityToBoardData(r, c, owner, cityName, false);
-                } else {
-                    // Fallback si no existe la función
-                    if (!gameState.cities) gameState.cities = [];
-                    gameState.cities.push({
-                        r: r, c: c, 
-                        owner: owner,
-                        name: cityName,
-                        isCapital: false,
-                        prosperity: 5,
-                        defenseBonus: 2
-                    });
-                }
+                // NO llamamos a addCityToBoardData aquí, se hace después de inicializar board[r][c]
+                // IMPORTANTE: En raids, estas NO son ciudades, son solo fortalezas (puntos de spawn)
+                // Por tanto, marcamos isCity = false para evitar el renderizado de ciudad
+                isCity = false;
             }
             
             // Bases IA (Inicio/Fin) - Puntos de referencia
+            // En raids, estas tampoco son ciudades, solo marcadores
             if ((r===6 && c===0) || (r===6 && c===24)) {
                 terrain = 'plains'; // Tierra para que la caravana "salga" de algún sitio
-                isCity = true;
+                isCity = false; // NO son ciudades en modo Raid
                 struct = 'Fortaleza';
                 owner = 2; // IA
                 cityName = (c===0) ? "Punto de Salida" : "Objetivo Final";
-                
-                if (typeof addCityToBoardData === 'function') {
-                    addCityToBoardData(r, c, owner, cityName, c === 0);
-                } else {
-                    if (!gameState.cities) gameState.cities = [];
-                    gameState.cities.push({
-                        r: r, c: c, owner: owner, name: cityName,
-                        isCapital: c === 0, prosperity: 5, defenseBonus: 2
-                    });
-                }
             }
 
+            // CRÍTICO: Inicializar board[r][c] ANTES de llamar a addCityToBoardData
             board[r][c] = {
                 r, c, element: hexEl, terrain: terrain,
                 owner: owner, structure: struct, isCity: isCity, cityName: cityName,
@@ -1682,6 +1663,18 @@ function initializeRaidMap(stageConfig, stageData) {
                 nacionalidad: { 1: 0, 2: 0, 3: 0 }
             };
             if(owner) board[r][c].nacionalidad[owner] = 5;
+
+            // Ahora sí, agregar a gameState.cities si corresponde (solo para fortalezas de jugador con owner=1)
+            if (struct === 'Fortaleza' && portIndex !== -1 && owner === 1) {
+                // Solo agregamos a gameState.cities MI fortaleza (para que funcione el botón de crear división)
+                // Las demás fortalezas son solo visuales
+                if (!gameState.cities) gameState.cities = [];
+                gameState.cities.push({
+                    r: r, c: c, owner: owner, name: cityName,
+                    isCapital: false, prosperity: 5, defenseBonus: 2
+                });
+                console.log("[Raid Map] Agregada MI fortaleza a gameState.cities:", {r, c, name: cityName});
+            }
 
             renderSingleHexVisuals(r, c);
         }
@@ -1744,7 +1737,7 @@ function initializeRaidMap(stageConfig, stageData) {
             player: 2, 
             name: stageConfig.caravan || "Caravana Imperial",
             r: stageData.caravan_pos?.r || 6,
-            c: stageData.caravan_pos?.c || 0,
+            c: stageData.caravan_pos?.c || 1, // Por defecto en columna 1 (agua), no 0 (fortaleza)
             sprite: bossSprite,
             isBoss: true,
             isAI: true,
