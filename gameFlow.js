@@ -1830,6 +1830,34 @@ async function handleEndTurn(isHostProcessing = false) {
     // --- CASO 2: PARTIDA NORMAL (Local o Red) ---
 
     // =========================================================
+    // === INTEGRACIÓN CON SISTEMA DE RAIDS ===
+    // =========================================================
+    if (gameState.isRaid && typeof RaidManager !== 'undefined' && RaidManager.currentRaid) {
+        console.log("[handleEndTurn] Procesando turno en modo Raid...");
+        
+        // 1. Actualizar movimiento de la caravana
+        await RaidManager.calculateCaravanPath(RaidManager.currentRaid.stage_data);
+        
+        // 2. Verificar si la caravana llegó al final
+        if (RaidManager.currentRaid.stage_data.caravan_pos.c >= 24) {
+            alert("¡DERROTA! La Caravana Imperial ha escapado.");
+            // Volver al HQ
+            if (RaidManager.allianceId) {
+                await RaidManager.openRaidWindow(RaidManager.allianceId);
+            }
+            return;
+        }
+        
+        // 3. Guardar estado de mi unidad en la DB
+        const myUnit = units.find(u => u.player === 1);
+        if (myUnit) {
+            await RaidManager.saveMyUnitToDB(myUnit);
+        }
+        
+        console.log("[handleEndTurn] Turno de Raid procesado");
+    }
+
+    // =========================================================
     // === FASE A: MANTENIMIENTO DEL JUGADOR QUE TERMINA ===
     // =========================================================
     if (gameState.currentPhase === "play") {

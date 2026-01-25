@@ -1585,6 +1585,10 @@ function initializeRaidMap(stageConfig, stageData) {
 
     const myUid = PlayerDataManager.currentPlayer?.auth_id;
     const mySlotIdx = (stageData.slots || []).indexOf(myUid); 
+    
+    console.log("[Raid Map] Mi UID:", myUid);
+    console.log("[Raid Map] Slots disponibles:", stageData.slots);
+    console.log("[Raid Map] Mi slot index:", mySlotIdx);
 
     // 2. PINTADO DEL MAPA
     for (let r = 0; r < rows; r++) {
@@ -1593,50 +1597,89 @@ function initializeRaidMap(stageConfig, stageData) {
             if (domElements.gameBoard) domElements.gameBoard.appendChild(hexEl);
             
             // LÓGICA DE TERRENO:
-            // Por defecto Agua. Si es una base de jugador, TIERRA ('plains').
-            let terrain = 'water'; // Default del mapa naval
-            if (stageConfig.type === 'land') terrain = stageConfig.mapType; // Si fase terrestre, lo que toque
+            // Por defecto según la etapa. Si es una base de jugador, forzamos 'plains'.
+            let terrain = stageConfig.type === 'naval' ? 'water' : (stageConfig.mapType || 'plains');
 
             let owner = null;
             let struct = null;
             let isCity = false;
             let cityName = null;
 
-            // Verificar si es una Base de Jugador
+            // Verificar si es una Base de Jugador (8 fortalezas)
             const portIndex = playerPorts.findIndex(p => p.r === r && p.c === c);
             
             if (portIndex !== -1) {
-                // ¡CORRECCIÓN!: Forzamos 'plains' en la base para permitir construir, aunque estemos en el mar
+                // ¡CORRECCIÓN!: Forzamos 'plains' en la base para permitir construir
                 terrain = 'plains'; 
                 isCity = true;
                 struct = 'Fortaleza';
                 
-                if (portIndex === mySlotIdx) {
-                    owner = 1; // Mío
+                // Verificar si este slot está ocupado
+                const slotOwnerUid = stageData.slots?.[portIndex];
+                
+                if (portIndex === mySlotIdx && mySlotIdx !== -1) {
+                    // Es MI fortaleza
+                    owner = 1;
                     cityName = "Tu Base";
-                    // Centrar cámara
+                    console.log("[Raid Map] Creando MI fortaleza en", {r, c, portIndex, mySlotIdx});
+                    // Centrar cámara en mi base
                     if(typeof centerMapOn === 'function') setTimeout(()=>centerMapOn(r,c), 100);
-                } else {
+                } else if (slotOwnerUid && slotOwnerUid !== null) {
+                    // Es de un aliado activo
                     owner = 3; // Aliado
-                    cityName = `Aliado ${portIndex+1}`;
+                    // Buscar el nombre del jugador en stageData.units
+                    const allyUnit = stageData.units?.[slotOwnerUid];
+                    cityName = allyUnit?.player_name || `Aliado ${portIndex+1}`;
+                    console.log("[Raid Map] Fortaleza de aliado en", {r, c, portIndex, owner: slotOwnerUid, name: cityName});
+                } else {
+                    // Slot vacío - fortaleza neutral/disponible
+                    owner = 0; // Neutral para que no cuente como de nadie
+                    cityName = `Slot ${portIndex+1} (Libre)`;
+                    console.log("[Raid Map] Fortaleza disponible en", {r, c, portIndex});
                 }
                 
                 // Añadir a gameState.cities para que el botón "Crear División" funcione nativamente
-                addCityToBoardData(r, c, owner, cityName, false);
+                if (typeof addCityToBoardData === 'function') {
+                    addCityToBoardData(r, c, owner, cityName, false);
+                } else {
+                    // Fallback si no existe la función
+                    if (!gameState.cities) gameState.cities = [];
+                    gameState.cities.push({
+                        r: r, c: c, 
+                        owner: owner,
+                        name: cityName,
+                        isCapital: false,
+                        prosperity: 5,
+                        defenseBonus: 2
+                    });
+                }
             }
             
-            // Bases IA (Inicio/Fin)
+            // Bases IA (Inicio/Fin) - Puntos de referencia
             if ((r===6 && c===0) || (r===6 && c===24)) {
                 terrain = 'plains'; // Tierra para que la caravana "salga" de algún sitio
-                addCityToBoardData(r, c, 2, (c===0?"Salida":"Meta"), true);
+                isCity = true;
+                struct = 'Fortaleza';
+                owner = 2; // IA
+                cityName = (c===0) ? "Punto de Salida" : "Objetivo Final";
+                
+                if (typeof addCityToBoardData === 'function') {
+                    addCityToBoardData(r, c, owner, cityName, c === 0);
+                } else {
+                    if (!gameState.cities) gameState.cities = [];
+                    gameState.cities.push({
+                        r: r, c: c, owner: owner, name: cityName,
+                        isCapital: c === 0, prosperity: 5, defenseBonus: 2
+                    });
+                }
             }
 
             board[r][c] = {
                 r, c, element: hexEl, terrain: terrain,
                 owner: owner, structure: struct, isCity: isCity, cityName: cityName,
-                visibility: {player1:'visible'},
+                visibility: {player1:'visible', player2:'visible'},
                 estabilidad: owner ? 5 : 0, 
-                nacionalidad: { 1: 0, 2: 0 }
+                nacionalidad: { 1: 0, 2: 0, 3: 0 }
             };
             if(owner) board[r][c].nacionalidad[owner] = 5;
 
@@ -1645,28 +1688,99 @@ function initializeRaidMap(stageConfig, stageData) {
     }
 
     // 3. COLOCAR AL JEFE (Lectura Real)
-    const bossRegiments = stageData.boss_regiments;
+    console.log("[Raid Map] ===== INICIANDO COLOCACIÓN DE CARAVANA =====");
+    console.log("[Raid Map] stageData completo:", JSON.stringify(stageData, null, 2));
+    console.log("[Raid Map] stageConfig:", stageConfig);
+    
+    let bossRegiments = stageData.boss_regiments;
+    
+    // Si no hay regimientos, generarlos ahora basado en la configuración
+    if (!bossRegiments || bossRegiments.length === 0) {
+        console.warn("[Raid Map] No hay regimientos del boss. Generando desde config...");
+        const regimentType = stageConfig.regimentType || "Barco de Guerra";
+        const regimentCount = stageConfig.regimentCount || 30;
+        
+        if (!REGIMENT_TYPES[regimentType]) {
+            console.error("[Raid Map] Tipo de regimiento no encontrado:", regimentType);
+            console.log("[Raid Map] REGIMENT_TYPES disponibles:", Object.keys(REGIMENT_TYPES));
+        }
+        
+        const baseUnitStats = REGIMENT_TYPES[regimentType] || REGIMENT_TYPES["Infantería Pesada"];
+        
+        bossRegiments = [];
+        for (let i = 0; i < regimentCount; i++) {
+            bossRegiments.push({
+                type: regimentType,
+                health: baseUnitStats.health,
+                maxHealth: baseUnitStats.health
+            });
+        }
+        
+        // Actualizar stageData para que persista
+        stageData.boss_regiments = bossRegiments;
+        
+        console.log("[Raid Map] Regimientos generados:", bossRegiments.length, "x", regimentType);
+    }
     
     if (bossRegiments && bossRegiments.length > 0) {
         const firstType = bossRegiments[0].type;
         const regDef = REGIMENT_TYPES[firstType];
         
+        console.log("[Raid Map] Tipo de regimiento:", firstType);
+        console.log("[Raid Map] Definición:", regDef);
+        
+        // Determinar sprite según tipo de etapa
+        let bossSprite = 'images/sprites/onlycaraban128.png'; // Default
+        if (regDef && regDef.sprite) {
+            bossSprite = regDef.sprite;
+        } else if (stageConfig.type === 'naval') {
+            bossSprite = 'images/sprites/barco256.png';
+        }
+        
+        console.log("[Raid Map] Sprite seleccionado:", bossSprite);
+        
         const bossUnit = {
             id: 'boss_caravan',
             player: 2, 
-            name: stageConfig.caravan,
-            r: stageData.caravan_pos.r,
-            c: stageData.caravan_pos.c,
-            sprite: regDef ? regDef.sprite : '☠️',
+            name: stageConfig.caravan || "Caravana Imperial",
+            r: stageData.caravan_pos?.r || 6,
+            c: stageData.caravan_pos?.c || 0,
+            sprite: bossSprite,
             isBoss: true,
-            regiments: bossRegiments // Array real de 20, 40 o 50
+            isAI: true,
+            regiments: bossRegiments // Array real de 30, 40 o 50
         };
         
+        console.log("[Raid Map] Creando unidad boss:", {
+            name: bossUnit.name,
+            regimentCount: bossUnit.regiments.length,
+            position: {r: bossUnit.r, c: bossUnit.c},
+            sprite: bossUnit.sprite
+        });
+        
         // Calcular stats y vida actuales
-        calculateRegimentStats(bossUnit);
-        bossUnit.currentHealth = bossUnit.regiments.reduce((sum, r) => sum + r.health, 0);
+        if (typeof calculateRegimentStats === 'function') {
+            calculateRegimentStats(bossUnit);
+            console.log("[Raid Map] Stats calculados por calculateRegimentStats");
+        } else {
+            console.warn("[Raid Map] calculateRegimentStats no disponible, calculando manualmente");
+        }
+        
+        bossUnit.maxHealth = bossUnit.regiments.reduce((sum, r) => sum + (r.maxHealth || r.health), 0);
+        bossUnit.currentHealth = stageData.caravan_hp || bossUnit.maxHealth;
+        
+        // Asegurar que el HP actual no exceda el máximo
+        if (bossUnit.currentHealth > bossUnit.maxHealth) {
+            bossUnit.currentHealth = bossUnit.maxHealth;
+        }
+
+        console.log("[Raid Map] Stats del boss calculados. HP:", bossUnit.currentHealth, "/", bossUnit.maxHealth);
 
         placeBossUnitDirectly(bossUnit);
+        console.log("[Raid Map] Boss colocado exitosamente. Total de unidades:", units.length);
+    } else {
+        console.error("[Raid Map] ERROR CRÍTICO: No se pudieron generar regimientos para el boss");
+        alert("Error al cargar la Caravana. Por favor, recarga la página.");
     }
 
     // 4. COLOCAR JUGADORES (Desde DB)
@@ -1695,6 +1809,54 @@ function initializeRaidMap(stageConfig, stageData) {
     
     if (typeof UIManager !== 'undefined') UIManager.updateAllUIDisplays();
     if (typeof initializeBoardPanning === 'function') initializeBoardPanning();
+    
+    console.log("[Raid Map] Mapa de Raid inicializado completamente");
+}
+
+// Función para actualizar la posición de la caravana en el mapa sin reiniciar todo
+function updateCaravanPosition(newR, newC) {
+    console.log("[Raid] Actualizando posición de caravana a:", {r: newR, c: newC});
+    
+    // Buscar la unidad boss en el array
+    const bossUnit = units.find(u => u.id === 'boss_caravan' || u.isBoss);
+    if (!bossUnit) {
+        console.error("[Raid] No se encontró la unidad boss para actualizar");
+        return;
+    }
+    
+    // Limpiar hex anterior
+    const oldHex = board[bossUnit.r]?.[bossUnit.c];
+    if (oldHex) {
+        oldHex.unit = null;
+    }
+    
+    // Actualizar posición
+    bossUnit.r = newR;
+    bossUnit.c = newC;
+    
+    // Actualizar hex nuevo
+    const newHex = board[newR]?.[newC];
+    if (newHex) {
+        newHex.unit = bossUnit;
+    }
+    
+    // Actualizar posición visual del elemento DOM
+    if (bossUnit.element) {
+        const xPos = newC * HEX_WIDTH + (newR % 2 !== 0 ? HEX_WIDTH / 2 : 0) + (HEX_WIDTH - 60) / 2;
+        const yPos = newR * HEX_VERT_SPACING + (HEX_HEIGHT - 60) / 2;
+        
+        // Animación suave
+        bossUnit.element.style.transition = 'all 0.5s ease-in-out';
+        bossUnit.element.style.left = `${xPos}px`;
+        bossUnit.element.style.top = `${yPos}px`;
+        
+        console.log("[Raid] Posición visual actualizada a:", {xPos, yPos});
+    }
+    
+    // Mostrar mensaje
+    if (typeof logMessage === 'function') {
+        logMessage(`¡La Caravana Imperial avanza hacia (${newR}, ${newC})!`, "warning");
+    }
 }
 
 function placeBossUnitDirectly(unit) {
@@ -1710,27 +1872,34 @@ function placeBossUnitDirectly(unit) {
     unitEl.style.border = "3px solid #f1c40f"; // Borde dorado
     unitEl.style.zIndex = "100";
     
+    console.log("[placeBossUnit] Colocando unidad boss:", unit.name, "en posición", {r: unit.r, c: unit.c});
+    
     // Imagen de fondo
-    if (unit.sprite.includes('/') || unit.sprite.includes('.')) {
+    if (unit.sprite && (unit.sprite.includes('/') || unit.sprite.includes('.'))) {
          unitEl.style.backgroundImage = `url('${unit.sprite}')`;
          unitEl.style.backgroundSize = "contain";
          unitEl.style.backgroundRepeat = "no-repeat";
          unitEl.style.backgroundPosition = "center";
          unitEl.textContent = "";
+         console.log("[placeBossUnit] Usando imagen:", unit.sprite);
     } else {
-        unitEl.textContent = unit.sprite;
+        unitEl.textContent = unit.sprite || '🚩';
         unitEl.style.fontSize = "30px";
         unitEl.style.display = "flex";
         unitEl.style.alignItems = "center";
         unitEl.style.justifyContent = "center";
+        console.log("[placeBossUnit] Usando emoji:", unit.sprite);
     }
     
     // Barra de Vida
     const hpBar = document.createElement('div');
     hpBar.className = 'unit-strength';
     // Mostramos porcentaje porque el número es muy grande
-    hpBar.textContent = Math.ceil((unit.currentHealth/unit.maxHealth)*100) + '%';
+    const hpPercent = Math.ceil((unit.currentHealth/unit.maxHealth)*100);
+    hpBar.textContent = hpPercent + '%';
     unitEl.appendChild(hpBar);
+    
+    console.log("[placeBossUnit] HP del boss:", unit.currentHealth, "/", unit.maxHealth, "=", hpPercent + "%");
 
     if (domElements.gameBoard) domElements.gameBoard.appendChild(unitEl);
     
@@ -1742,41 +1911,9 @@ function placeBossUnitDirectly(unit) {
     const yPos = unit.r * HEX_VERT_SPACING + (HEX_HEIGHT - 60) / 2;
     unitEl.style.left = `${xPos}px`;
     unitEl.style.top = `${yPos}px`;
-}
-
-// Función auxiliar simple para el Boss que no depende de validaciones complejas
-function placeBossUnitDirectly(unit) {
-    const hex = board[unit.r]?.[unit.c];
-    if(!hex) return;
-
-    // Crear elemento visual
-    const unitEl = document.createElement('div');
-    unitEl.className = `unit player${unit.player}`;
-    // Estilo especial grande
-    unitEl.style.width = "60px";
-    unitEl.style.height = "60px";
-    unitEl.style.border = "3px solid #f1c40f";
-    unitEl.style.zIndex = "100";
-    unitEl.style.backgroundImage = `url('${unit.sprite}')`;
-    unitEl.style.backgroundSize = "contain";
     
-    // Barra de vida
-    const hpBar = document.createElement('div');
-    hpBar.className = 'unit-strength';
-    hpBar.textContent = Math.ceil((unit.currentHealth/unit.maxHealth)*100) + '%';
-    unitEl.appendChild(hpBar);
-
-    if (domElements.gameBoard) domElements.gameBoard.appendChild(unitEl);
-    
-    unit.element = unitEl;
-    units.push(unit);
-    hex.unit = unit;
-    
-    // Posicionar
-    const xPos = unit.c * HEX_WIDTH + (unit.r % 2 !== 0 ? HEX_WIDTH / 2 : 0) + (HEX_WIDTH - 60) / 2; // Centrado manual por tamaño
-    const yPos = unit.r * HEX_VERT_SPACING + (HEX_HEIGHT - 60) / 2;
-    unitEl.style.left = `${xPos}px`;
-    unitEl.style.top = `${yPos}px`;
+    console.log("[placeBossUnit] Posición calculada:", {xPos, yPos});
+    console.log("[placeBossUnit] Boss colocado exitosamente. Total units:", units.length);
 }
 
 // Helper para crear unidades en el mapa del Raid

@@ -1219,6 +1219,13 @@ async function attackUnit(attackerDivision, defenderDivision) {
             attackerDivision.hasAttacked = true;
         }
 
+        // === INTEGRACIÓN CON SISTEMA DE RAIDS ===
+        // Si estamos en un Raid y atacamos a la caravana (boss), registrar el daño
+        if (gameState.isRaid && defenderDivision.isBoss && typeof RaidManager !== 'undefined') {
+            console.log("[Raid Combat] Registrando daño al boss:", damageDealtByAttacker);
+            await RaidManager.recordDamage(damageDealtByAttacker);
+        }
+
         console.groupEnd();
         if (UIManager) {
             UIManager.updateAllUIDisplays();

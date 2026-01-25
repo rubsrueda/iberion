@@ -63,22 +63,28 @@ const RaidManager = {
 
     // 2. ENTRAR (Cualquier miembro, botón ATACAR)
     enterRaid: async function() {
-        if (!this.currentRaid) return;
+        if (!this.currentRaid) {
+            console.error("[Raid] No hay raid activo cargado");
+            return;
+        }
         
         const player = PlayerDataManager.currentPlayer;
         const uid = player.auth_id;
         const stageData = this.currentRaid.stage_data;
         
-        console.log("Intentando entrar al Raid ID:", this.currentRaid.id);
+        console.log("[Raid] Intentando entrar al Raid ID:", this.currentRaid.id);
+        console.log("[Raid] Datos del jugador:", {uid, username: player.username, gold: player.currencies.gold});
 
         // A. Verificar si ya estoy dentro (Reconexión)
         let mySlotIdx = stageData.slots.indexOf(uid);
+        console.log("[Raid] Slot actual del jugador:", mySlotIdx);
         
         // B. Si no estoy dentro, intentar pagar y ocupar slot
         if (mySlotIdx === -1) {
             
             // Buscar hueco
             mySlotIdx = stageData.slots.indexOf(null);
+            console.log("[Raid] Buscando slot disponible. Encontrado:", mySlotIdx);
             
             if (mySlotIdx === -1) {
                 alert("El mapa está lleno (8/8). Debes esperar a que alguien se retire o muera.");
@@ -93,37 +99,112 @@ const RaidManager = {
             // Cobrar
             player.currencies.gold -= RAID_CONFIG.ENTRY_COST;
             await PlayerDataManager.saveCurrentPlayer();
+            console.log("[Raid] Cobrado " + RAID_CONFIG.ENTRY_COST + " oro. Restante:", player.currencies.gold);
 
             // Asignar Slot y Unidad Inicial
             stageData.slots[mySlotIdx] = uid;
+            console.log("[Raid] Slot asignado:", mySlotIdx);
             
             // Definir unidad según etapa (Tierra/Mar)
-            // (Asegúrate de que RAID_CONFIG.STAGES esté definido en constants.js)
             const stageType = RAID_CONFIG.STAGES?.[this.currentRaid.current_stage]?.type || 'land';
             const unitType = stageType === 'naval' ? 'Barco de Guerra' : 'Infantería Pesada';
             
-            // Slot 0-3: Arriba (Row 2), Slot 4-7: Abajo (Row 9)
-            const spawnRow = mySlotIdx < 4 ? (mySlotIdx + 1) : (mySlotIdx + 5); 
+            // Calcular posición de spawn basada en slot
+            // Slots 0-3 aparecen en fila 1-2 (Norte), slots 4-7 en fila 10-11 (Sur)
+            const spawnRow = mySlotIdx < 4 ? (1 + Math.floor(mySlotIdx / 2)) : (10 + Math.floor((mySlotIdx - 4) / 2));
+            const spawnCol = (mySlotIdx % 2) * 2; // Columnas 0 o 2 para separar
 
             if (!stageData.units) stageData.units = {};
+            
+            // Crear regimiento inicial vacío - el jugador lo construirá
             stageData.units[uid] = {
-                type: unitType,
-                hp: 200, // Vida estándar
-                max_hp: 200,
+                type: "Placeholder", // Solo para reservar el slot
+                regiments: [],
+                hp: 0,
+                max_hp: 0,
                 r: spawnRow,
-                c: 0, 
+                c: spawnCol, 
                 player_name: player.username
             };
             
+            console.log("[Raid] Unidad inicial creada en posición:", {r: spawnRow, c: spawnCol});
+            
             // Guardar ocupación en DB
-            await supabaseClient
+            const { error } = await supabaseClient
                 .from('alliance_raids')
                 .update({ stage_data: stageData })
                 .eq('id', this.currentRaid.id);
+                
+            if (error) {
+                console.error("[Raid] Error al guardar slot:", error);
+                alert("Error al entrar al raid. Intenta de nuevo.");
+                return;
+            }
+            
+            console.log("[Raid] Slot guardado exitosamente en la base de datos");
+        } else {
+            console.log("[Raid] El jugador ya estaba en un slot. Reconectando...");
         }
 
-        // C. Cargar Mapa Visual
+        // C. Inicializar gameState para el modo Raid
+        console.log("[Raid] Inicializando gameState para modo Raid...");
+        
+        // Resetear gameState completamente para evitar conflictos
+        Object.keys(gameState).forEach(key => delete gameState[key]);
+        
+        gameState.currentPhase = "deployment"; // Empezar en deployment para que pueda crear su división
+        gameState.currentPlayer = 1;
+        gameState.myPlayerNumber = 1;
+        gameState.isRaid = true;
+        gameState.isNetworkGame = false; // Raids NO usan la lógica de red estándar
+        gameState.numPlayers = 2; // Jugadores vs IA
+        gameState.turnNumber = 1;
+        gameState.cities = []; // Inicializar ciudades vacío
+        
+        // Inicializar recursos
+        gameState.playerResources = {
+            1: {
+                oro: 40000,
+                comida: 5000,
+                madera: 5000,
+                hierro: 5000,
+                piedra: 2000,
+                researchPoints: 250,
+                researchedTechnologies: ["ORGANIZATION", "NAVIGATION"],
+                puntosReclutamiento: 2000
+            },
+            2: {
+                oro: 0, comida: 0, madera: 0, hierro: 0, piedra: 0,
+                researchPoints: 0, researchedTechnologies: [], puntosReclutamiento: 0
+            }
+        };
+        
+        gameState.playerCivilizations = { 1: "Iberia", 2: "Imperio" };
+        gameState.playerTypes = { 1: "human", 2: "ai" };
+        gameState.unitsPlacedByPlayer = { 1: 0, 2: 1 }; // La IA ya tiene la caravana
+        gameState.activeCommanders = { 1: [], 2: [] };
+        gameState.deploymentUnitLimit = 1; // Solo 1 división
+        gameState.eliminatedPlayers = [];
+        
+        console.log("[Raid] gameState inicializado correctamente");
+
+        // D. Cargar Mapa Visual
         this.showRaidMap(stageData);
+        
+        // E. Calcular y aplicar movimiento automático de la caravana
+        console.log("[Raid] Calculando movimiento automático de la caravana...");
+        await this.calculateCaravanPath(stageData);
+        
+        // F. Mensaje de bienvenida
+        setTimeout(() => {
+            alert(
+                "🗡️ FASE DE PREPARACIÓN 🗡️\n\n" +
+                "1. Tienes 250 Puntos de Investigación (💡)\n" +
+                "2. Usa tu fortaleza para crear tu DIVISIÓN\n" +
+                "3. Una vez lista, pulsa 'Finalizar Turno'\n\n" +
+                "¡Detén la Caravana Imperial!"
+            );
+        }, 500);
     },
 
     // 3. MOSTRAR MAPA
@@ -240,25 +321,46 @@ const RaidManager = {
 
     // UI: Pantalla de Espera (Limbo)
     showLimboScreen: function(nextStage) {
-        // Aquí mostraremos un modal simple o usaremos el gameContainer vacío
         alert(`¡Victoria en esta etapa!\n\nLa caravana ha sido detenida o destruida.\n\nLa Etapa ${nextStage} comenzará pronto.`);
         // Volver al HQ
-        document.getElementById('allianceModal').style.display = 'flex';
-    },
-    
-    // UI: Cargar Mapa (Placeholder)
-    showRaidMap: function() {
-        console.log("Cargando mapa de incursión...");
-        // Aquí llamaremos a initializeNewGameBoardDOMAndData con el tipo de terreno forzado
-        // ...
-        
-        // Mostrar pantalla de juego
-        showScreen(domElements.gameContainer);
+        if (document.getElementById('allianceModal')) {
+            document.getElementById('allianceModal').style.display = 'flex';
+        }
     },
     
     finishRaid: function() {
         alert("El evento de Incursión ha terminado. Calculando recompensas...");
         // Lógica de reparto final...
+    },
+
+    // 3. MOSTRAR MAPA
+    showRaidMap: function(stageData) {
+        // Si no pasamos stageData, usar el actual
+        const data = stageData || this.currentRaid.stage_data;
+        const stageNum = this.currentRaid.current_stage;
+        const config = (typeof RAID_CONFIG !== 'undefined' && RAID_CONFIG.STAGES) 
+            ? RAID_CONFIG.STAGES[stageNum] 
+            : { name: "Zona Desconocida", type: "land", mapType: "plains", caravan: "Caravana" };
+        
+        console.log("[Raid] Cargando mapa de incursión. Etapa:", stageNum, "Config:", config);
+        
+        // Cerrar todos los modales
+        document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+        
+        // Iniciar mapa
+        if (typeof initializeRaidMap === 'function') {
+            initializeRaidMap(config, data);
+            
+            // Mostrar pantalla de juego
+            if (domElements.gameContainer) {
+                showScreen(domElements.gameContainer);
+                if (domElements.tacticalUiContainer) {
+                    domElements.tacticalUiContainer.style.display = 'block';
+                }
+            }
+        } else {
+            console.error("[Raid] Falta initializeRaidMap en boardManager.js");
+        }
     },
 
     // 4. Entrar a la Incursión (Jugador)
@@ -320,49 +422,80 @@ const RaidManager = {
     },
 
     // 5. El Algoritmo "Perezoso" de la Caravana
-    calculateCaravanPath: function(stageData) {
+    calculateCaravanPath: async function(stageData) {
         const now = new Date();
         const lastUpdate = new Date(stageData.last_update || now); // Si es null, es ahora
         const hoursPassed = (now - lastUpdate) / (1000 * 60 * 60);
         
-        if (hoursPassed <= 0) return; // Nada que actualizar
+        console.log("[Raid] Calculando movimiento de caravana. Horas pasadas:", hoursPassed);
+        
+        if (hoursPassed <= 0) return false; // Nada que actualizar
 
         const speed = RAID_CONFIG.CARAVAN_SPEED; // 3 casillas/hora
         let movesPending = Math.floor(hoursPassed * speed);
         
-        // Si no hay movimientos completos, salimos (acumulamos tiempo decimal para la próxima en un sistema real, aquí simplificamos)
-        if (movesPending < 1) return;
+        // Si no hay movimientos completos, salimos
+        if (movesPending < 1) return false;
 
+        let moved = false;
         // Bucle de movimiento
         for (let i = 0; i < movesPending; i++) {
             const curr = stageData.caravan_pos; // {r, c}
             
+            console.log("[Raid] Intentando mover caravana desde", curr);
+            
             // Objetivo: Llegar a la columna 24
             if (curr.c >= 24) {
                 stageData.is_victory = false; // La caravana escapó = Derrota de jugadores
-                // Podríamos marcar status='failed' aquí
+                stageData.is_defeat = true;
+                console.log("[Raid] ¡La caravana escapó! Derrota.");
                 break;
             }
 
             // Intento 1: Avanzar Recto (c+1)
             if (!this.isBlocked(curr.r, curr.c + 1, stageData.units)) {
                 curr.c++;
+                moved = true;
+                console.log("[Raid] Caravana avanzó recto a", curr);
             } 
             // Intento 2: Esquivar Abajo (r+1)
             else if (curr.r < 7 && !this.isBlocked(curr.r + 1, curr.c + 1, stageData.units)) {
                 curr.r++;
                 curr.c++;
+                moved = true;
+                console.log("[Raid] Caravana esquivó hacia abajo a", curr);
             }
             // Intento 3: Esquivar Arriba (r-1)
             else if (curr.r > 5 && !this.isBlocked(curr.r - 1, curr.c + 1, stageData.units)) {
                 curr.r--;
                 curr.c++;
+                moved = true;
+                console.log("[Raid] Caravana esquivó hacia arriba a", curr);
+            } else {
+                console.log("[Raid] Caravana bloqueada en", curr);
             }
             // Si todo está bloqueado, se queda quieta (pierde el turno de movimiento)
         }
 
         // Actualizar timestamp
         stageData.last_update = now.toISOString();
+        
+        // Si hubo movimiento, actualizar en la DB
+        if (moved && this.currentRaid) {
+            await supabaseClient
+                .from('alliance_raids')
+                .update({ stage_data: stageData })
+                .eq('id', this.currentRaid.id);
+            
+            console.log("[Raid] Posición de caravana actualizada en DB");
+            
+            // Actualizar visualmente en el mapa si estamos en el juego
+            if (typeof updateCaravanPosition === 'function' && typeof board !== 'undefined') {
+                updateCaravanPosition(stageData.caravan_pos.r, stageData.caravan_pos.c);
+            }
+        }
+        
+        return moved;
     },
 
     isBlocked: function(r, c, unitsMap) {
@@ -372,74 +505,115 @@ const RaidManager = {
             if (u.r === r && u.c === c && u.hp > 0) return true;
         }
         return false;
-    }, 
-
-    showRaidMap: function(stageData) {
-        // Si no pasamos stageData, usar el actual
-        const data = stageData || this.currentRaid.stage_data;
-        const config = RAID_CONFIG.STAGES[this.currentRaid.current_stage];
-        
-        // Cerrar modales
-        document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
-        
-        // Iniciar mapa
-        if (typeof initializeRaidMap === 'function') {
-            initializeRaidMap(config, data);
-            showScreen(domElements.gameContainer);
-            if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
-        }
-    }, 
+    },
 
     // Función para registrar daño (Llamar desde attackUnit en unit_Actions.js si gameState.isRaid es true)
     recordDamage: async function(damageAmount) {
-        if (!this.currentRaid) return;
+        if (!this.currentRaid) {
+            console.warn("[Raid] No hay raid activo para registrar daño");
+            return;
+        }
         
         const myUid = PlayerDataManager.currentPlayer.auth_id;
         const myName = PlayerDataManager.currentPlayer.username;
         
+        console.log("[Raid] Registrando daño:", damageAmount, "por", myName);
+        
         // 1. Actualizar HP localmente
-        this.currentRaid.stage_data.caravan_hp = Math.max(0, this.currentRaid.stage_data.caravan_hp - damageAmount);
+        const previousHp = this.currentRaid.stage_data.caravan_hp;
+        this.currentRaid.stage_data.caravan_hp = Math.max(0, previousHp - damageAmount);
+        
+        console.log("[Raid] HP de caravana:", previousHp, "->", this.currentRaid.stage_data.caravan_hp);
         
         // 2. Actualizar Log de Daño en DB
         // Usamos una llamada RPC (Stored Procedure) o actualización directa JSON si Supabase lo permite fácil.
         // Aquí hacemos un fetch + update simple por seguridad.
         
-        const { data: raid } = await supabaseClient
-            .from('alliance_raids')
-            .select('global_log, stage_data')
-            .eq('id', this.currentRaid.id)
-            .single();
-            
-        if (raid) {
-            const log = raid.global_log || { damage_by_user: {} };
-            const currentDmg = log.damage_by_user[myUid]?.amount || 0;
-            
-            log.damage_by_user[myUid] = {
-                username: myName,
-                amount: currentDmg + damageAmount
-            };
-            
-            // Actualizamos HP y Log
-            raid.stage_data.caravan_hp = this.currentRaid.stage_data.caravan_hp;
-            
-            await supabaseClient.from('alliance_raids').update({
-                stage_data: raid.stage_data,
-                global_log: log
-            }).eq('id', this.currentRaid.id);
-            
-            // Chequear victoria
-            if (raid.stage_data.caravan_hp <= 0) {
-                this.distributeRewards(log.damage_by_user);
+        try {
+            const { data: raid, error: fetchError } = await supabaseClient
+                .from('alliance_raids')
+                .select('global_log, stage_data')
+                .eq('id', this.currentRaid.id)
+                .single();
+                
+            if (fetchError) {
+                console.error("[Raid] Error al obtener datos del raid:", fetchError);
+                return;
             }
+                
+            if (raid) {
+                const log = raid.global_log || { damage_by_user: {} };
+                const currentDmg = log.damage_by_user[myUid]?.amount || 0;
+                
+                log.damage_by_user[myUid] = {
+                    username: myName,
+                    amount: currentDmg + damageAmount
+                };
+                
+                console.log("[Raid] Daño acumulado de", myName, ":", log.damage_by_user[myUid].amount);
+                
+                // Actualizamos HP y Log
+                raid.stage_data.caravan_hp = this.currentRaid.stage_data.caravan_hp;
+                
+                // Si la caravana fue destruida, marcar victoria
+                if (raid.stage_data.caravan_hp <= 0) {
+                    raid.stage_data.is_victory = true;
+                    console.log("[Raid] ¡VICTORIA! La caravana ha sido destruida.");
+                }
+                
+                const { error: updateError } = await supabaseClient
+                    .from('alliance_raids')
+                    .update({
+                        stage_data: raid.stage_data,
+                        global_log: log
+                    })
+                    .eq('id', this.currentRaid.id);
+                
+                if (updateError) {
+                    console.error("[Raid] Error al actualizar raid:", updateError);
+                    return;
+                }
+                
+                console.log("[Raid] Daño registrado exitosamente en la base de datos");
+                
+                // Chequear victoria
+                if (raid.stage_data.caravan_hp <= 0) {
+                    console.log("[Raid] Iniciando distribución de recompensas...");
+                    // Delay pequeño para asegurar que la animación de combate termine
+                    setTimeout(() => {
+                        this.distributeRewards(log.damage_by_user);
+                    }, 1000);
+                }
+                
+                // Actualizar visualmente la vida de la caravana en el mapa
+                const bossUnit = units.find(u => u.id === 'boss_caravan' || u.isBoss);
+                if (bossUnit) {
+                    bossUnit.currentHealth = this.currentRaid.stage_data.caravan_hp;
+                    // Actualizar la barra de vida
+                    if (bossUnit.element) {
+                        const hpBar = bossUnit.element.querySelector('.unit-strength');
+                        if (hpBar) {
+                            const hpPercent = Math.ceil((bossUnit.currentHealth / bossUnit.maxHealth) * 100);
+                            hpBar.textContent = hpPercent + '%';
+                            console.log("[Raid] Barra de vida actualizada:", hpPercent + "%");
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("[Raid] Error en recordDamage:", error);
         }
     },
 
     // Lógica de Reparto de Botín
     distributeRewards: async function(damageMap) {
         console.log("¡VICTORIA EN RAID! Calculando recompensas...");
+        console.log("[Raid Rewards] Mapa de daño:", damageMap);
         
         let totalDamage = 0;
         for (let uid in damageMap) totalDamage += damageMap[uid].amount;
+        
+        console.log("[Raid Rewards] Daño total:", totalDamage);
         
         // Si yo soy quien dio el golpe final (o el líder que lo procesa), 
         // calculo mi parte. (Idealmente esto se haría en servidor, pero aquí lo hacemos local).
@@ -448,42 +622,100 @@ const RaidManager = {
         const myUid = PlayerDataManager.currentPlayer.auth_id;
         const myData = damageMap[myUid];
         
+        console.log("[Raid Rewards] Mi UID:", myUid, "Mis datos:", myData);
+        
         if (myData && totalDamage > 0) {
             const contributionPct = myData.amount / totalDamage;
             
-            // Pool de Premios Base
-            const baseGems = 500;
-            const baseXp = 5000;
-            const baseSeals = 5;
+            console.log("[Raid Rewards] Mi contribución:", (contributionPct * 100).toFixed(1) + "%");
+            
+            // Pool de Premios Base (Escala según etapa)
+            const stageMultiplier = this.currentRaid?.current_stage || 1;
+            const baseGems = 300 * stageMultiplier;
+            const baseXp = 3000 * stageMultiplier;
+            const baseSeals = 3 * stageMultiplier;
+            const baseGold = 5000 * stageMultiplier;
             
             const myGems = Math.floor(baseGems * contributionPct);
             const mySeals = Math.max(1, Math.floor(baseSeals * contributionPct)); // Mínimo 1 sello si participaste
+            const myXp = Math.floor(baseXp * contributionPct);
+            const myGold = Math.floor(baseGold * contributionPct);
+            
+            console.log("[Raid Rewards] Calculadas:", { myGems, mySeals, myXp, myGold });
             
             // Otorgar con manejo de errores
             try {
                 PlayerDataManager.currentPlayer.currencies.gems += myGems;
-                PlayerDataManager.addWarSeals(mySeals);
+                PlayerDataManager.currentPlayer.currencies.gold += myGold;
+                
+                if (typeof PlayerDataManager.addWarSeals === 'function') {
+                    PlayerDataManager.addWarSeals(mySeals);
+                } else {
+                    console.warn("[Raid Rewards] Función addWarSeals no disponible");
+                }
                 
                 // Agregar XP de Battle Pass con retry
-                const xpResult = await BattlePassManager.addMatchXp(baseXp * contributionPct);
-                if (!xpResult.success) {
-                    console.warn("[Raid] Error al agregar XP de Battle Pass:", xpResult.error);
-                    // Re-intentar una vez
-                    await new Promise(r => setTimeout(r, 1000));
-                    await BattlePassManager.addMatchXp(baseXp * contributionPct);
+                if (typeof BattlePassManager !== 'undefined' && BattlePassManager.addMatchXp) {
+                    try {
+                        const xpResult = await BattlePassManager.addMatchXp(myXp);
+                        if (!xpResult || !xpResult.success) {
+                            console.warn("[Raid Rewards] Error al agregar XP de Battle Pass:", xpResult?.error);
+                            // Re-intentar una vez
+                            await new Promise(r => setTimeout(r, 1000));
+                            await BattlePassManager.addMatchXp(myXp);
+                        }
+                    } catch (bpError) {
+                        console.error("[Raid Rewards] Error en Battle Pass:", bpError);
+                    }
+                } else {
+                    console.warn("[Raid Rewards] BattlePassManager no disponible");
                 }
                 
                 await PlayerDataManager.saveCurrentPlayer();
                 
-                alert(`¡VICTORIA! Contribución: ${(contributionPct*100).toFixed(1)}%\nRecompensas: ${myGems} Gemas, ${mySeals} Sellos, +${Math.floor(baseXp * contributionPct)} XP Pase.`);
+                console.log("[Raid Rewards] Recompensas guardadas exitosamente");
                 
-                // Cerrar Raid y marcar como terminada en DB (Solo si soy líder o el último)
-                // Aquí simplemente recargamos la página o volvemos al HQ.
-                this.openRaidWindow(this.allianceId); // Volver al HQ
+                // Mostrar resumen detallado
+                alert(
+                    `🎉 ¡VICTORIA EN EL RAID! 🎉\n\n` +
+                    `Tu Contribución: ${(contributionPct*100).toFixed(1)}%\n` +
+                    `Daño Total: ${myData.amount.toLocaleString()}\n\n` +
+                    `RECOMPENSAS:\n` +
+                    `💎 ${myGems} Gemas\n` +
+                    `🏆 ${mySeals} Sellos de Guerra\n` +
+                    `⭐ ${myXp} XP de Pase de Batalla\n` +
+                    `💰 ${myGold} Oro\n\n` +
+                    `¡Buen trabajo, comandante!`
+                );
+                
+                // Marcar raid como completado
+                if (this.currentRaid) {
+                    await supabaseClient
+                        .from('alliance_raids')
+                        .update({ 
+                            status: 'completed',
+                            'stage_data.is_victory': true
+                        })
+                        .eq('id', this.currentRaid.id);
+                }
+                
+                // Volver al HQ
+                setTimeout(() => {
+                    if (this.allianceId) {
+                        this.openRaidWindow(this.allianceId);
+                    } else {
+                        // Cerrar juego y volver a menú principal
+                        if (domElements.gameContainer) domElements.gameContainer.style.display = 'none';
+                        if (domElements.mainMenu) domElements.mainMenu.style.display = 'flex';
+                    }
+                }, 500);
             } catch (error) {
-                console.error("[Raid] Error procesando recompensas:", error);
-                alert("Error al procesar recompensas. Por favor, intenta de nuevo.");
+                console.error("[Raid Rewards] Error procesando recompensas:", error);
+                alert("Error al procesar recompensas. Tus recompensas se guardarán cuando vuelvas a conectarte.");
             }
+        } else {
+            console.warn("[Raid Rewards] No hay datos de daño para este jugador o daño total es 0");
+            alert("No participaste en el daño a la caravana. ¡Necesitas atacarla para obtener recompensas!");
         }
     }, 
 
