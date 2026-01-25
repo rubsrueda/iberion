@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test BattlePass</title>
+</head>
+<body>
+    <h1>Test de Carga de BattlePassManager</h1>
+    <div id="logs" style="border: 1px solid black; padding: 10px; height: 400px; overflow-y: auto; font-family: monospace; white-space: pre-wrap;"></div>
+
+    <script>
+        function log(msg) {
+            const logsDiv = document.getElementById('logs');
+            logsDiv.innerHTML += msg + '\n';
+            console.log(msg);
+        }
+        
+        log('1. Iniciando test...');
+    </script>
+
+    <!-- Cargar dependencias -->
+    <script src="constants.js"></script>
+    <script>log('2. Cargado constants.js');</script>
+
+    <script src="seasonsData.js"></script>
+    <script>log('3. Cargado seasonsData.js');</script>
+
+    <!-- Intentar cargar BattlePassManager -->
+    <script>log('4. Antes de cargar BattlePassManager.js');</script>
+    <script src="BattlePassManager.js"></script>
+    <script>
+        log('5. Después de cargar BattlePassManager.js');
+        log('typeof BattlePassManager: ' + typeof BattlePassManager);
+        if (typeof BattlePassManager !== 'undefined') {
+            log('✅ SUCCESS: BattlePassManager está definido');
+            log('BattlePassManager.open: ' + typeof BattlePassManager.open);
+        } else {
+            log('❌ FAIL: BattlePassManager no está definido');
+        }
+    </script>
+</body>
+</html>

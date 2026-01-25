@@ -3,9 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>Hex General Evolved - Modular</title>
-    <script>
-        console.log("🔵 [INICIO DEL HTML] El navegador está leyendo index.html correctamente - timestamp:", new Date().getTime());
-    </script>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, maximum-scale=1.0, minimum-scale=1.0">
@@ -16,10 +13,8 @@
     <script>
     // Registra el Service Worker para habilitar la instalación
     if ('serviceWorker' in navigator) {
-        // DESACTIVADO TEMPORALMENTE PARA DEBUG
-        console.log("Service Worker desactivado temporalmente para debugging");
-        // navigator.serviceWorker.register('./sw.js')
-        // .then(() => console.log("Iberion Service Worker registrado"));
+        navigator.serviceWorker.register('./sw.js')
+        .then(() => console.log("Iberion Service Worker registrado"));
     }
     </script>
 
@@ -1693,18 +1688,7 @@
     <script src="mailboxManager.js"></script> 
     <script src="seasonsData.js"></script> 
     <script src="allianceManager.js"></script>
-    <script>
-        console.log("🟡 [HTML SCRIPT 1] Antes de cargar BattlePassManager - timestamp:", new Date().getTime());
-    </script>
-    <script src="BattlePassManager_simple.js?v=" + new Date().getTime()></script> 
-    <script>
-        console.log("🟡 [HTML SCRIPT 2] Después de cargar BattlePassManager - typeof:", typeof BattlePassManager);
-        if (typeof BattlePassManager !== 'undefined') {
-            console.log("🟢 ✅ BattlePassManager ESTÁ DEFINIDO");
-        } else {
-            console.log("🔴 ❌ BattlePassManager NO ESTÁ DEFINIDO");
-        }
-    </script>
+    <script src="BattlePassManager.js"></script> 
     <script src="audioManager.js"></script>
     <script src="technologyTree.js"></script> 
     <script src="worldMapData.js"></script>
