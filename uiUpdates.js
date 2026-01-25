@@ -1499,6 +1499,9 @@ const UIManager = {
             pointerEvents: containerComputed.pointerEvents
         });
 
+        // Asegurar que el contenedor sea hijo directo de body (evita clipping por padres)
+        if (container.parentElement !== document.body) document.body.appendChild(container);
+
         // Definir acciones posibles según el estado de la unidad
         const actions = [];
 
@@ -1540,47 +1543,50 @@ const UIManager = {
         }});
 
         // --- DISTRIBUCIÓN CIRCULAR ---
-        const currentScale = domElements.currentBoardScale || 1; 
-        const radius = 80 * currentScale; // Radio del círculo
-        const total = actions.length;
-        const angleStep = (2 * Math.PI) / total;
+        // Crear botones dentro de un requestAnimationFrame para forzar layout
+        requestAnimationFrame(() => {
+            const currentScale = domElements.currentBoardScale || 1; 
+            const radius = 80 * currentScale; // Radio del círculo
+            const total = actions.length || 1;
+            const angleStep = (2 * Math.PI) / total;
 
-        actions.forEach((action, index) => {
-            const angle = index * angleStep - (Math.PI / 2); // Empezar arriba (-90 grados)
-            const x = Math.cos(angle) * radius;
-            const y = Math.sin(angle) * radius;
+            actions.forEach((action, index) => {
+                const angle = index * angleStep - (Math.PI / 2); // Empezar arriba (-90 grados)
+                const x = Math.cos(angle) * radius;
+                const y = Math.sin(angle) * radius;
 
-            const btn = document.createElement('div');
-            btn.className = 'radial-btn';
-            btn.innerHTML = action.icon;
-            btn.setAttribute('data-title', action.title);
-            
-            // Posición: relativa al contenedor (que está en el centro de la unidad)
-            btn.style.position = 'absolute';
-            btn.style.left = `${x}px`;
-            btn.style.top = `${y}px`;
-            btn.style.transform = 'translate(-50%, -50%)'; // Centrar el botón en su posición
-            btn.style.zIndex = '20001';
-            btn.style.pointerEvents = 'auto'; // El botón SÍ responde a clics
+                const btn = document.createElement('div');
+                btn.className = 'radial-btn';
+                btn.innerHTML = action.icon;
+                btn.setAttribute('data-title', action.title);
 
-            console.log(`[RADIAL MENU] Creando botón ${index}: ${action.title} en ángulo ${angle.toFixed(2)}rad, posición relativa (${x.toFixed(0)}, ${y.toFixed(0)})`);
+                // Posición: relativa al contenedor (que está en el centro de la unidad)
+                btn.style.position = 'absolute';
+                btn.style.left = `${x}px`;
+                btn.style.top = `${y}px`;
+                btn.style.transform = 'translate(-50%, -50%)'; // Centrar el botón en su posición
+                btn.style.zIndex = '20001';
+                btn.style.pointerEvents = 'auto'; // El botón SÍ responde a clics
 
-            // Listener
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.hideRadialMenu();
-                action.onClick();
+                console.log(`[RADIAL MENU] Creando botón ${index}: ${action.title} en ángulo ${angle.toFixed(2)}rad, posición relativa (${x.toFixed(0)}, ${y.toFixed(0)})`);
+
+                // Listener
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.hideRadialMenu();
+                    action.onClick();
+                });
+
+                container.appendChild(btn);
+
+                // DEBUG: Inspeccionar el botón después de agregarlo
+                const computedStyle = window.getComputedStyle(btn);
+                console.log(`[RADIAL MENU DEBUG] Botón ${index}:`);
+                console.log(`  - Style inline: left=${btn.style.left}, top=${btn.style.top}, transform=${btn.style.transform}`);
+                console.log(`  - Computed: width=${computedStyle.width}, height=${computedStyle.height}, bg=${computedStyle.backgroundColor}`);
+                console.log(`  - Visibilidad: display=${computedStyle.display}, visibility=${computedStyle.visibility}, opacity=${computedStyle.opacity}, zIndex=${computedStyle.zIndex}`);
+                console.log(`  - Posicionamiento: position=${computedStyle.position}, pointerEvents=${computedStyle.pointerEvents}`);
             });
-
-            container.appendChild(btn);
-            
-            // DEBUG: Inspeccionar el botón después de agregarlo
-            const computedStyle = window.getComputedStyle(btn);
-            console.log(`[RADIAL MENU DEBUG] Botón ${index}:`);
-            console.log(`  - Style inline: left=${btn.style.left}, top=${btn.style.top}, transform=${btn.style.transform}`);
-            console.log(`  - Computed: width=${computedStyle.width}, height=${computedStyle.height}, bg=${computedStyle.backgroundColor}`);
-            console.log(`  - Visibilidad: display=${computedStyle.display}, visibility=${computedStyle.visibility}, opacity=${computedStyle.opacity}, zIndex=${computedStyle.zIndex}`);
-            console.log(`  - Posicionamiento: position=${computedStyle.position}, pointerEvents=${computedStyle.pointerEvents}`);
         });
 
         console.log(`[RADIAL MENU] ✅ Menú radial creado con ${actions.length} acciones`);
