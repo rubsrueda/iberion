@@ -1473,23 +1473,46 @@ const UIManager = {
         // Radio: proporción del hex en pantalla para separar los botones
         const baseRadius = Math.round(hexSizeOnScreen * 0.7);
 
-        // Función para actualizar posición (responde a zoom/pan)
-        const updatePosition = () => {
+        // Función para actualizar posición Y tamaños (responde a zoom/pan)
+        const updatePositionAndSize = () => {
             if (!unit || !unit.element) return;
             try {
                 const rect = unit.element.getBoundingClientRect();
                 const newScreenX = rect.left + rect.width / 2;
                 const newScreenY = rect.top + rect.height / 2;
+                const newHexSize = Math.max(rect.width || 36, rect.height || 36);
+                const newRadius = Math.round(newHexSize * 0.7);
                 
+                // Actualizar posición del contenedor
                 const style = container.style;
                 style.setProperty('left', `${newScreenX}px`, 'important');
                 style.setProperty('top', `${newScreenY}px`, 'important');
+                style.setProperty('width', `${newHexSize}px`, 'important');
+                style.setProperty('height', `${newHexSize}px`, 'important');
+                
+                // Actualizar posición de cada botón según el nuevo radio
+                const buttons = container.querySelectorAll('.radial-btn');
+                const total = buttons.length;
+                const angleRange = Math.PI;
+                const angleStep = total > 1 ? angleRange / (total - 1) : 0;
+                const centerOffset = newHexSize / 2;
+                
+                buttons.forEach((btn, index) => {
+                    const angle = Math.PI - (index * angleStep);
+                    const x = Math.cos(angle) * newRadius;
+                    const y = Math.sin(angle) * newRadius;
+                    const btnLeft = centerOffset + x;
+                    const btnTop = centerOffset + y;
+                    
+                    btn.style.setProperty('left', `${btnLeft}px`, 'important');
+                    btn.style.setProperty('top', `${btnTop}px`, 'important');
+                });
             } catch (e) { /* ignore */ }
         };
 
         // Aplicar estilos al contenedor
         const style = container.style;
-        updatePosition(); // Posición inicial
+        updatePositionAndSize(); // Posición inicial
         style.setProperty('display', 'block', 'important');
         style.setProperty('position', 'fixed', 'important');
         style.setProperty('z-index', '2001', 'important');
@@ -1506,8 +1529,8 @@ const UIManager = {
 
         this._suppressRadialHideUntil = Date.now() + 150;
         
-        // Actualizar posición continuamente (responde a zoom/pan)
-        const updateInterval = setInterval(updatePosition, 50); // Cada 50ms
+        // Actualizar posición Y tamaños continuamente (responde a zoom/pan)
+        const updateInterval = setInterval(updatePositionAndSize, 50); // Cada 50ms
         this._radialUpdateInterval = updateInterval;
 
         // Asegurar que está en body
