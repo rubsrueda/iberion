@@ -1493,13 +1493,15 @@ const UIManager = {
                 // Actualizar posición de cada botón según el nuevo radio
                 const buttons = container.querySelectorAll('.radial-btn');
                 const total = buttons.length;
-                const angleRange = (120 * Math.PI) / 180; // 120 grados en radianes
-                const angleStep = total > 1 ? angleRange / (total - 1) : 0;
+                // Abanico de 120° centrado en 270° (arriba)
+                const centerAngle = (270 * Math.PI) / 180; // 270° = arriba
+                const fanAngle = (120 * Math.PI) / 180; // 120° de apertura
+                const angleStep = total > 1 ? fanAngle / (total - 1) : 0;
+                const startAngle = centerAngle - (fanAngle / 2); // Comienza en 210°
                 const centerOffset = newHexSize / 2;
                 
                 buttons.forEach((btn, index) => {
-                    // Abanico de 120° en la parte superior: de 210° a 330° (desde arriba-izquierda a arriba-derecha)
-                    const startAngle = (210 * Math.PI) / 180; // 210° (arriba-izquierda)
+                    // Distribuir uniformemente en el abanico de 120° superior
                     const angle = startAngle + (index * angleStep);
                     const x = Math.cos(angle) * newRadius;
                     const y = Math.sin(angle) * newRadius;
@@ -1613,14 +1615,15 @@ const UIManager = {
         // Crear botones en forma de abanico de 120° superior
         requestAnimationFrame(() => {
             const total = actions.length || 1;
-            // Abanico de 120 grados en la parte superior
-            const angleRange = (120 * Math.PI) / 180; // 120 grados en radianes
-            const angleStep = total > 1 ? angleRange / (total - 1) : 0;
+            // Abanico de 120° centrado en 270° (arriba)
+            const centerAngle = (270 * Math.PI) / 180; // 270° = arriba
+            const fanAngle = (120 * Math.PI) / 180; // 120° de apertura
+            const angleStep = total > 1 ? fanAngle / (total - 1) : 0;
+            const startAngle = centerAngle - (fanAngle / 2); // Comienza en 210°
             const centerOffset = containerSize / 2;
 
             actions.forEach((action, index) => {
-                // Abanico de 120° en la parte superior: de 210° a 330° (desde arriba-izquierda a arriba-derecha)
-                const startAngle = (210 * Math.PI) / 180; // 210° (arriba-izquierda)
+                // Distribuir uniformemente en el abanico de 120° superior
                 const angle = startAngle + (index * angleStep);
                 const x = Math.cos(angle) * baseRadius;
                 const y = Math.sin(angle) * baseRadius;
