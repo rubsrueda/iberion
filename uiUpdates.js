@@ -1587,6 +1587,7 @@ const UIManager = {
     },
 
     hideRadialMenu: function() {
+        console.log(`[RADIAL MENU] hideRadialMenu() fue llamado`);
         const container = document.getElementById('radialMenuContainer');
         if (container) {
             container.style.display = 'none';
