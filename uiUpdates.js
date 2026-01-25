@@ -1460,13 +1460,28 @@ const UIManager = {
         // Posicionar el centro del menú sobre la unidad
         container.style.left = `${screenX}px`;
         container.style.top = `${screenY}px`;
-        container.style.display = 'block';
-        container.style.position = 'fixed';
-        container.style.zIndex = '20000';
-        container.style.width = '200px'; // Dar tamaño al contenedor para que los botones sean visibles
-        container.style.height = '200px';
-        container.style.transform = 'translate(-50%, -50%)'; // Centrar el contenedor
-        container.style.pointerEvents = 'none'; // Contenedor es transparent a clics
+        container.style.display = 'block !important';
+        container.style.position = 'fixed !important';
+        container.style.zIndex = '20000 !important';
+        container.style.width = '200px !important'; // Dar tamaño al contenedor para que los botones sean visibles
+        container.style.height = '200px !important';
+        container.style.transform = 'translate(-50%, -50%) !important'; // Centrar el contenedor
+        container.style.pointerEvents = 'none !important'; // Contenedor es transparent a clics
+        
+        // Force setAttribute para absoluta certeza
+        container.setAttribute('style', `
+            left: ${screenX}px !important;
+            top: ${screenY}px !important;
+            display: block !important;
+            position: fixed !important;
+            z-index: 20000 !important;
+            width: 200px !important;
+            height: 200px !important;
+            transform: translate(-50%, -50%) !important;
+            pointer-events: none !important;
+            background: rgba(0, 255, 0, 0.3) !important;
+            border: 2px solid lime !important;
+        `);
 
         console.log(`[RADIAL MENU] Contenedor posicionado en left: ${screenX}px, top: ${screenY}px`);
         const containerComputed = window.getComputedStyle(container);
