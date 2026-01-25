@@ -379,13 +379,106 @@ const RaidManager = {
         }
     },
 
+    // 4. VERIFICAR Y AVANZAR ETAPAS AUTOMÁTICAMENTE
+    checkAndAdvanceStage: async function() {
+        if (!this.currentRaid) return;
+
+        const now = new Date();
+        const startTime = new Date(this.currentRaid.start_time);
+        const hoursFromStart = (now - startTime) / (1000 * 60 * 60);
+        
+        // Cada etapa dura 12 horas, hay 4 etapas en total (48h)
+        const HOURS_PER_STAGE = 12;
+        const TOTAL_STAGES = 4;
+        
+        // Calcular en qué etapa DEBERÍAMOS estar basándonos en el tiempo
+        const expectedStage = Math.min(TOTAL_STAGES, Math.floor(hoursFromStart / HOURS_PER_STAGE) + 1);
+        
+        console.log(`[Raid] Verificando etapas. Horas desde inicio: ${hoursFromStart.toFixed(2)}h`);
+        console.log(`[Raid] Etapa actual: ${this.currentRaid.current_stage}, Etapa esperada: ${expectedStage}`);
+        
+        // Si el raid ha pasado las 48 horas (4 etapas * 12h), FINALIZAR
+        if (hoursFromStart >= TOTAL_STAGES * HOURS_PER_STAGE) {
+            console.log("[Raid] ⏰ El raid ha EXPIRADO (>48h). Finalizando automáticamente...");
+            
+            // Si la caravana llegó al final = Derrota
+            // Si la caravana murió = Victoria
+            const stageData = this.currentRaid.stage_data;
+            const caravanReachedEnd = stageData.caravan_pos.c >= 24;
+            const caravanDead = stageData.caravan_hp <= 0;
+            
+            await supabaseClient
+                .from('alliance_raids')
+                .update({ 
+                    status: 'completed',
+                    stage_data: {
+                        ...stageData,
+                        is_victory: caravanDead,
+                        is_defeat: !caravanDead
+                    }
+                })
+                .eq('id', this.currentRaid.id);
+            
+            alert("⏰ El Raid ha FINALIZADO (tiempo límite 48h). Volviendo al HQ...");
+            
+            // Volver al HQ de la alianza
+            if (typeof AllianceManager !== 'undefined' && this.allianceId) {
+                AllianceManager.loadHQ(this.allianceId);
+            }
+            return true; // Indica que el raid terminó
+        }
+        
+        // Si la etapa actual es menor a la esperada, avanzar automáticamente
+        if (this.currentRaid.current_stage < expectedStage) {
+            console.log(`[Raid] ⏩ Avanzando automáticamente de etapa ${this.currentRaid.current_stage} → ${expectedStage}`);
+            
+            // Actualizar la etapa en la DB
+            const { data, error } = await supabaseClient
+                .from('alliance_raids')
+                .update({ current_stage: expectedStage })
+                .eq('id', this.currentRaid.id)
+                .select()
+                .single();
+            
+            if (error) {
+                console.error("[Raid] Error al avanzar de etapa:", error);
+                return false;
+            }
+            
+            // Actualizar currentRaid local
+            this.currentRaid = data;
+            
+            console.log(`[Raid] ✅ Etapa actualizada a ${expectedStage}`);
+            
+            // Notificar al jugador si está en el raid
+            if (gameState.isRaid) {
+                alert(
+                    `🚨 NUEVA ETAPA ${expectedStage}/4 🚨\n\n` +
+                    `El tiempo ha avanzado. La caravana continúa su marcha.\n\n` +
+                    `¡Detenla antes de que escape!`
+                );
+            }
+            
+            return true; // Indica que hubo cambio de etapa
+        }
+        
+        return false; // No hubo cambios
+    },
+
     // 5. El Algoritmo "Perezoso" de la Caravana
     calculateCaravanPath: async function(stageData) {
+        // PRIMERO: Verificar si debemos avanzar de etapa
+        const stageChanged = await this.checkAndAdvanceStage();
+        if (stageChanged && this.currentRaid.status === 'completed') {
+            // El raid terminó durante la verificación
+            return false;
+        }
+        
         const now = new Date();
         const lastUpdate = new Date(stageData.last_update || now); // Si es null, es ahora
         const hoursPassed = (now - lastUpdate) / (1000 * 60 * 60);
         
-        console.log("[Raid] Calculando movimiento de caravana. Horas pasadas:", hoursPassed);
+        console.log("[Raid] Calculando movimiento de caravana. Horas pasadas desde último update:", hoursPassed);
         
         if (hoursPassed <= 0) return false; // Nada que actualizar
 

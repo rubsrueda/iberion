@@ -222,6 +222,7 @@ const AllianceManager = {
             const btnAttack = document.getElementById('btnAttackRaid');
             const hpText = document.getElementById('raidBossHpText');
             const hpBar = document.getElementById('raidBossHpBar');
+            const stageText = document.getElementById('raidStageText');
 
             if (btnAttack) {
                 // Clonar para limpiar listeners
@@ -230,12 +231,30 @@ const AllianceManager = {
 
                 // CASO A: Hay Raid Activo
                 if (activeRaid) {
+                    // Asignar raid y verificar si cambió de etapa automáticamente
+                    RaidManager.currentRaid = activeRaid;
+                    await RaidManager.checkAndAdvanceStage();
+                    
+                    // Recargar datos actualizados después de verificar etapas
+                    const { data: updatedRaid } = await supabaseClient
+                        .from('alliance_raids')
+                        .select('*')
+                        .eq('id', activeRaid.id)
+                        .single();
+                    
+                    if (updatedRaid) {
+                        RaidManager.currentRaid = updatedRaid;
+                        activeRaid = updatedRaid;
+                    }
+                    
                     const currentHP = activeRaid.stage_data.caravan_hp;
                     const maxHP = activeRaid.stage_data.caravan_max_hp;
                     const pct = (currentHP / maxHP) * 100;
+                    const currentStage = activeRaid.current_stage || 1;
                     
                     if(hpText) hpText.textContent = `${currentHP.toLocaleString()} / ${maxHP.toLocaleString()} HP`;
                     if(hpBar) hpBar.style.width = `${pct}%`;
+                    if(stageText) stageText.textContent = `ETAPA ${currentStage}/4`;
 
                     newBtn.textContent = "⚔️ ATACAR";
                     newBtn.style.background = "#dc2626";
@@ -244,7 +263,6 @@ const AllianceManager = {
                     newBtn.addEventListener('click', () => {
                         document.getElementById('allianceModal').style.display = 'none';
                         if (typeof RaidManager !== 'undefined') {
-                            RaidManager.currentRaid = activeRaid;
                             RaidManager.enterRaid(); 
                         }
                     });
@@ -253,6 +271,7 @@ const AllianceManager = {
                 else if (this.isLeader) { 
                     if(hpText) hpText.textContent = "Sin Incursión Activa";
                     if(hpBar) hpBar.style.width = "0%";
+                    if(stageText) stageText.textContent = "";
 
                     newBtn.textContent = "🚩 INICIAR EVENTO";
                     newBtn.style.background = "#f1c40f"; 
@@ -272,6 +291,7 @@ const AllianceManager = {
                 else {
                     if(hpText) hpText.textContent = "Esperando órdenes...";
                     if(hpBar) hpBar.style.width = "0%";
+                    if(stageText) stageText.textContent = "";
                     newBtn.textContent = "⏳ EN ESPERA";
                     newBtn.style.background = "#555";
                     newBtn.disabled = true;
