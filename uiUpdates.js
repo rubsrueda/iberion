@@ -41,6 +41,7 @@ const UIManager = {
     _domElements: null, 
     _restoreTimeout: null,
     _autoCloseTimeout: null,
+    _suppressRadialHideUntil: 0,
     _lastShownInfo: { type: null, data: null }, // Para recordar qué se mostró por última vez
     _reopenBtn: null, // Guardará la referencia al botón ▲
     
@@ -1484,6 +1485,8 @@ const UIManager = {
             getBoundingClientRect: container.getBoundingClientRect()
         });
 
+        // Evitar que un hide inmediato (por listeners globales) borre el menú recién creado
+        this._suppressRadialHideUntil = Date.now() + 150; // 150ms de tolerancia
         console.log(`[RADIAL MENU] Contenedor posicionado en left: ${screenX}px, top: ${screenY}px`);
         const containerComputed = window.getComputedStyle(container);
         console.log(`[RADIAL MENU DEBUG] Container computed:`, {
@@ -1584,6 +1587,11 @@ const UIManager = {
     },
 
     hideRadialMenu: function() {
+        // Ignorar hides que ocurran inmediatamente después de abrir el menú
+        if (Date.now() < (this._suppressRadialHideUntil || 0)) {
+            console.log(`[RADIAL MENU] hideRadialMenu() ignorado por supresión temporal`);
+            return;
+        }
         console.log(`[RADIAL MENU] hideRadialMenu() fue llamado`);
         const container = document.getElementById('radialMenuContainer');
         if (container) {
