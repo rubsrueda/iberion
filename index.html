@@ -13,8 +13,10 @@
     <script>
     // Registra el Service Worker para habilitar la instalación
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js')
-        .then(() => console.log("Iberion Service Worker registrado"));
+        // DESACTIVADO TEMPORALMENTE PARA DEBUG
+        console.log("Service Worker desactivado temporalmente para debugging");
+        // navigator.serviceWorker.register('./sw.js')
+        // .then(() => console.log("Iberion Service Worker registrado"));
     }
     </script>
 
@@ -1689,14 +1691,16 @@
     <script src="seasonsData.js"></script> 
     <script src="allianceManager.js"></script>
     <script>
-        console.log("🟡 [HTML SCRIPT 1] Antes de cargar BattlePassManager");
+        console.log("🟡 [HTML SCRIPT 1] Antes de cargar BattlePassManager - timestamp:", new Date().getTime());
     </script>
-    <script src="BattlePassManager_simple.js"></script> 
+    <script src="BattlePassManager_simple.js?v=" + new Date().getTime()></script> 
     <script>
-        console.log("🟡 [HTML SCRIPT 2] Después de cargar BattlePassManager");
-        console.log("🟡 typeof BattlePassManager:", typeof BattlePassManager);
-        console.log("🟡 BattlePassManager.version:", BattlePassManager?.version);
-        console.log("🟡 window.BattlePassManagerLoaded:", window.BattlePassManagerLoaded);
+        console.log("🟡 [HTML SCRIPT 2] Después de cargar BattlePassManager - typeof:", typeof BattlePassManager);
+        if (typeof BattlePassManager !== 'undefined') {
+            console.log("🟢 ✅ BattlePassManager ESTÁ DEFINIDO");
+        } else {
+            console.log("🔴 ❌ BattlePassManager NO ESTÁ DEFINIDO");
+        }
     </script>
     <script src="audioManager.js"></script>
     <script src="technologyTree.js"></script> 
