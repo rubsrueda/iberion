@@ -624,13 +624,22 @@ console.log("[BattlePassManager] Carga completada. Objeto definido:", typeof Bat
 
 // LISTENERS UNIFICADOS (Importante actualizar para los Tabs)
 document.addEventListener('click', (e) => {
+    if (!e.target) return; // Seguridad
+    
     // TABS (Pestañas)
-    if(e.target.classList.contains('bp-mini-btn')) { // Se llamaba bp-tab, ahora ajustado
+    if (e.target.classList && e.target.classList.contains('bp-mini-btn')) {
         // Detectar cuál es
-        if(e.target.textContent.includes('Recomp')) BattlePassManager.switchTab('rewards');
-        if(e.target.textContent.includes('Hazañas')) BattlePassManager.switchTab('missions');
+        if (e.target.textContent.includes('Recomp')) {
+            if (typeof BattlePassManager !== 'undefined') BattlePassManager.switchTab('rewards');
+        }
+        if (e.target.textContent.includes('Hazañas')) {
+            if (typeof BattlePassManager !== 'undefined') BattlePassManager.switchTab('missions');
+        }
     }
-    if(e.target.closest('#closeBattlePassBtn')) {
-        document.getElementById('battlePassModal').style.display = 'none';
+    
+    const closeBtn = e.target.closest ? e.target.closest('#closeBattlePassBtn') : null;
+    if (closeBtn) {
+        const modal = document.getElementById('battlePassModal');
+        if (modal) modal.style.display = 'none';
     }
 });
