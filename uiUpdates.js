@@ -1467,6 +1467,16 @@ const UIManager = {
         container.style.pointerEvents = 'none'; // Contenedor es transparent a clics
 
         console.log(`[RADIAL MENU] Contenedor posicionado en left: ${screenX}px, top: ${screenY}px`);
+        const containerComputed = window.getComputedStyle(container);
+        console.log(`[RADIAL MENU DEBUG] Container computed:`, {
+            display: containerComputed.display,
+            position: containerComputed.position,
+            width: containerComputed.width,
+            height: containerComputed.height,
+            zIndex: containerComputed.zIndex,
+            visibility: containerComputed.visibility,
+            pointerEvents: containerComputed.pointerEvents
+        });
 
         // Definir acciones posibles según el estado de la unidad
         const actions = [];
@@ -1545,19 +1555,11 @@ const UIManager = {
             
             // DEBUG: Inspeccionar el botón después de agregarlo
             const computedStyle = window.getComputedStyle(btn);
-            console.log(`[RADIAL MENU DEBUG] Botón ${index} después de agregar:`, {
-                display: computedStyle.display,
-                visibility: computedStyle.visibility,
-                opacity: computedStyle.opacity,
-                position: computedStyle.position,
-                left: btn.style.left,
-                top: btn.style.top,
-                width: computedStyle.width,
-                height: computedStyle.height,
-                backgroundColor: computedStyle.backgroundColor,
-                zIndex: computedStyle.zIndex,
-                pointerEvents: computedStyle.pointerEvents
-            });
+            console.log(`[RADIAL MENU DEBUG] Botón ${index}:`);
+            console.log(`  - Style inline: left=${btn.style.left}, top=${btn.style.top}, transform=${btn.style.transform}`);
+            console.log(`  - Computed: width=${computedStyle.width}, height=${computedStyle.height}, bg=${computedStyle.backgroundColor}`);
+            console.log(`  - Visibilidad: display=${computedStyle.display}, visibility=${computedStyle.visibility}, opacity=${computedStyle.opacity}, zIndex=${computedStyle.zIndex}`);
+            console.log(`  - Posicionamiento: position=${computedStyle.position}, pointerEvents=${computedStyle.pointerEvents}`);
         });
 
         console.log(`[RADIAL MENU] ✅ Menú radial creado con ${actions.length} acciones`);
