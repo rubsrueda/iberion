@@ -1486,6 +1486,12 @@ const UIManager = {
         `;
         container.setAttribute('style', styleAttr);
         console.log(`[RADIAL MENU DEBUG] setAttribute ejecutado con:`, styleAttr);
+        
+        // DEBUG: Verificar que el elemento está realmente en el DOM
+        console.log(`[RADIAL MENU DEBUG] Container en DOM:`, document.body.contains(container));
+        console.log(`[RADIAL MENU DEBUG] Container HTML:`, container.outerHTML.substring(0, 200));
+        console.log(`[RADIAL MENU DEBUG] Container offsetParent:`, container.offsetParent);
+        console.log(`[RADIAL MENU DEBUG] Container getBoundingClientRect:`, container.getBoundingClientRect());
 
         console.log(`[RADIAL MENU] Contenedor posicionado en left: ${screenX}px, top: ${screenY}px`);
         const containerComputed = window.getComputedStyle(container);
