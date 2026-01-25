@@ -379,64 +379,6 @@ const RaidManager = {
         }
     },
 
-    // 4. Entrar a la Incursión (Jugador)
-    enterRaid: async function() {
-        if (!this.currentRaid) return;
-        
-        const player = PlayerDataManager.currentPlayer;
-        const uid = player.auth_id;
-        const stageData = this.currentRaid.stage_data;
-        
-        // 1. CHEQUEO DE ENTRADA
-        let mySlotIdx = stageData.slots.indexOf(uid);
-        
-        // (Tu lógica de pago existente va aquí...)
-
-        // 2. PREPARACIÓN DEL "ENTORNO DE GUERRA"
-        console.log("Configurando entorno táctico de Incursión...");
-
-        // === CORRECCIÓN DEL ERROR ===
-        // Inicializamos los contenedores del estado antes de usarlos
-        gameState.currentPhase = "play";
-        gameState.currentPlayer = 1;
-        gameState.myPlayerNumber = 1; // En el Raid, tú siempre eres el 'Jugador 1' localmente
-
-        // Creamos los objetos vacíos para evitar el error "undefined"
-        gameState.playerResources = {}; 
-        gameState.playerCivilizations = { 1: "Iberia", 2: "Bárbaros" }; // Valores por defecto para evitar error visual
-        gameState.playerTypes = { player1: "human", player2: "ai" };
-        gameState.unitsPlacedByPlayer = { 1: 0 }; 
-        gameState.activeCommanders = { 1: [] };
-        // ============================
-
-        // A. AHORA SÍ ASIGNAMOS LOS RECURSOS (Ya no dará error)
-        gameState.playerResources[1] = {
-            oro: 40000,
-            comida: 5000,
-            madera: 5000,
-            hierro: 5000,
-            piedra: 2000,
-            researchPoints: 250, 
-            researchedTechnologies: ["ORGANIZATION", "NAVIGATION"], 
-            puntosReclutamiento: 2000 
-        };
-
-        // C. Configuración de Fase
-        gameState.deploymentUnitLimit = 1; // Solo 1 Gran División por jugador
-
-        // 3. CARGAR EL MAPA
-        this.showRaidMap(stageData);
-        
-        // 4. MENSAJE
-        alert(
-            "--- FASE DE PREPARACIÓN ---\n\n" +
-            "1. Tienes 250 Puntos de Investigación. Úsalos sabiamente en el menú (💡).\n" +
-            "2. Elige tu rol: ¿Tanque Pesado? ¿DPS a Distancia? ¿Soporte?\n" +
-            "3. Crea tu DIVISIÓN en tu Puerto asignado.\n" +
-            "4. Cuando estés listo, pulsa 'Finalizar Turno' para sincronizar."
-        );
-    },
-
     // 5. El Algoritmo "Perezoso" de la Caravana
     calculateCaravanPath: async function(stageData) {
         const now = new Date();
