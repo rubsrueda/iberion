@@ -1,5 +1,7 @@
 // BattlePassManager.js v3.0 (Completo con Misiones)
 
+console.log("[BattlePassManager] Iniciando carga...");
+
 const BattlePassManager = {
     currentSeason: null,
     userProgress: null,
@@ -150,6 +152,12 @@ const BattlePassManager = {
             // Placeholder para misiones
             trackContainer.innerHTML = "<div style='color:white; padding:20px; width:100%; text-align:center;'>Misiones disponibles próximamente.</div>";
         }
+    },
+
+    render: function() {
+        // Método conveniente que renderiza header y tab actual
+        this.renderHeader();
+        this.switchTab(this.currentTab);
     },
     
     renderHeader: function() {
@@ -618,15 +626,26 @@ const BattlePassManager = {
     },
 };
 
+console.log("[BattlePassManager] Carga completada. Objeto definido:", typeof BattlePassManager);
+
 // LISTENERS UNIFICADOS (Importante actualizar para los Tabs)
 document.addEventListener('click', (e) => {
+    if (!e.target) return; // Seguridad
+    
     // TABS (Pestañas)
-    if(e.target.classList.contains('bp-mini-btn')) { // Se llamaba bp-tab, ahora ajustado
+    if (e.target.classList && e.target.classList.contains('bp-mini-btn')) {
         // Detectar cuál es
-        if(e.target.textContent.includes('Recomp')) BattlePassManager.switchTab('rewards');
-        if(e.target.textContent.includes('Hazañas')) BattlePassManager.switchTab('missions');
+        if (e.target.textContent.includes('Recomp')) {
+            if (typeof BattlePassManager !== 'undefined') BattlePassManager.switchTab('rewards');
+        }
+        if (e.target.textContent.includes('Hazañas')) {
+            if (typeof BattlePassManager !== 'undefined') BattlePassManager.switchTab('missions');
+        }
     }
-    if(e.target.closest('#closeBattlePassBtn')) {
-        document.getElementById('battlePassModal').style.display = 'none';
+    
+    const closeBtn = e.target.closest ? e.target.closest('#closeBattlePassBtn') : null;
+    if (closeBtn) {
+        const modal = document.getElementById('battlePassModal');
+        if (modal) modal.style.display = 'none';
     }
 });
