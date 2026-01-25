@@ -6498,14 +6498,9 @@ input:checked + .slider:before {
 #radialMenuContainer {
     position: fixed; /* Fijo a la pantalla, no al mapa */
     z-index: 20000; /* Por encima de unidades (z=10) y UI estándar */
-    display: block;   /* Visible cuando se activa */
-    width: 200px;     /* Dar tamaño al contenedor */
-    height: 200px;
-    overflow: visible; /* CRITICAL: Mostrar elementos fuera del contenedor */
+    display: none;   /* Oculto por defecto, JavaScript lo mostrará */
     pointer-events: none; /* Bloqueado por defecto, los botones usan auto !important */
-    background: rgba(0, 255, 0, 0.3); /* DEBUG: Verde semi-transparente para ver dónde está */
-    border: 2px solid lime;
-    /* NO transform aquí - lo hacemos en JavaScript */
+    /* NO width/height aquí - lo hacemos en JavaScript */
 }
 
 .radial-btn {

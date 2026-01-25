@@ -1454,44 +1454,25 @@ const UIManager = {
             return;
         }
 
-        // Limpiar menú anterior
+        // Limpiar y establecer estilos de forma más robusta
         container.innerHTML = '';
         
-        // Posicionar el centro del menú sobre la unidad
-        container.style.left = `${screenX}px`;
-        container.style.top = `${screenY}px`;
-        container.style.display = 'block';
-        container.style.position = 'fixed';
-        container.style.zIndex = '20000';
-        container.style.width = '200px'; // Dar tamaño al contenedor para que los botones sean visibles
-        container.style.height = '200px';
-        container.style.transform = 'translate(-50%, -50%)'; // Centrar el contenedor
-        container.style.pointerEvents = 'none'; // Contenedor es transparent a clics
-        
-        // Force setAttribute para absoluta certeza
-        const styleAttr = `
-            left: ${screenX}px !important;
-            top: ${screenY}px !important;
-            display: block !important;
-            position: fixed !important;
-            z-index: 20000 !important;
-            width: 200px !important;
-            height: 200px !important;
-            transform: translate(-50%, -50%) !important;
-            pointer-events: none !important;
-            background: rgba(0, 255, 0, 0.3) !important;
-            border: 2px solid lime !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-        `;
-        container.setAttribute('style', styleAttr);
-        console.log(`[RADIAL MENU DEBUG] setAttribute ejecutado con:`, styleAttr);
-        
-        // DEBUG: Verificar que el elemento está realmente en el DOM
-        console.log(`[RADIAL MENU DEBUG] Container en DOM:`, document.body.contains(container));
-        console.log(`[RADIAL MENU DEBUG] Container HTML:`, container.outerHTML.substring(0, 200));
-        console.log(`[RADIAL MENU DEBUG] Container offsetParent:`, container.offsetParent);
-        console.log(`[RADIAL MENU DEBUG] Container getBoundingClientRect:`, container.getBoundingClientRect());
+        // Usar setProperty para !important
+        const style = container.style;
+        style.setProperty('left', `${screenX}px`, 'important');
+        style.setProperty('top', `${screenY}px`, 'important');
+        style.setProperty('display', 'block', 'important');
+        style.setProperty('position', 'fixed', 'important');
+        style.setProperty('z-index', '20000', 'important');
+        style.setProperty('width', '200px', 'important');
+        style.setProperty('height', '200px', 'important');
+        style.setProperty('transform', `translate(-50%, -50%)`, 'important');
+        style.setProperty('pointer-events', 'none', 'important');
+        style.setProperty('background', 'rgba(0, 255, 0, 0.3)', 'important');
+        style.setProperty('border', '2px solid lime', 'important');
+        style.setProperty('visibility', 'visible', 'important');
+        style.setProperty('opacity', '1', 'important');
+        style.setProperty('overflow', 'visible', 'important');
 
         console.log(`[RADIAL MENU] Contenedor posicionado en left: ${screenX}px, top: ${screenY}px`);
         const containerComputed = window.getComputedStyle(container);
