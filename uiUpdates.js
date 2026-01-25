@@ -1448,7 +1448,7 @@ const UIManager = {
 
     // 1. Función para mostrar el menú
     showRadialMenu: function(unit, screenX, screenY) {
-        console.log(`[RADIAL MENU] Mostrando menú radial para unidad ${unit.name} en (${screenX}, ${screenY})`);
+        // Mostrar menú radial (registro mínimo para errores)
         const container = document.getElementById('radialMenuContainer');
         if (!container) {
             console.error('[RADIAL MENU] No se encontró el elemento radialMenuContainer');
@@ -1458,18 +1458,38 @@ const UIManager = {
         // Limpiar y establecer estilos de forma más robusta
         container.innerHTML = '';
         
-        // Calcular tamaño del contenedor en función del radio (para forma circular)
+        // Calcular tamaño del contenedor y botones en función del tamaño real del hex
         const currentScale = domElements.currentBoardScale || 1;
-        const radius = 80 * currentScale;
-        const sizePx = (radius * 2) + 'px';
+        let unitRect = { width: 36, height: 36 };
+        try { if (unit && unit.element && typeof unit.element.getBoundingClientRect === 'function') unitRect = unit.element.getBoundingClientRect(); } catch (e) { /* ignore */ }
+        const hexSize = Math.max(unitRect.width || 36, unitRect.height || 36) || 36;
+
+        // Contenedor: ligeramente mayor que el hex, para enmarcar la unidad
+        const containerDiameter = Math.max(24, Math.round(hexSize * 1.2 * currentScale));
+        const sizePx = containerDiameter + 'px';
+
+        // Botones: aproximadamente 1/4 del tamaño del hex (pedido del usuario)
+        const buttonSize = Math.max(10, Math.round(hexSize * 0.25 * currentScale));
+
+        // Radio para situar los botones justo fuera del hex
+        const radius = Math.round((containerDiameter / 2) + (buttonSize * 0.8));
 
         // Usar setProperty para !important
         const style = container.style;
-        style.setProperty('left', `${screenX}px`, 'important');
-        style.setProperty('top', `${screenY}px`, 'important');
+        // Clamp center so container stays inside viewport
+        const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+        const minCenterX = (containerDiameter / 2) + 4;
+        const maxCenterX = window.innerWidth - (containerDiameter / 2) - 4;
+        const minCenterY = (containerDiameter / 2) + 4;
+        const maxCenterY = window.innerHeight - (containerDiameter / 2) - 4;
+        const centerX = clamp(screenX, minCenterX, maxCenterX);
+        const centerY = clamp(screenY, minCenterY, maxCenterY);
+
+        style.setProperty('left', `${centerX}px`, 'important');
+        style.setProperty('top', `${centerY}px`, 'important');
         style.setProperty('display', 'block', 'important');
         style.setProperty('position', 'fixed', 'important');
-        style.setProperty('z-index', '10001', 'important');
+        style.setProperty('z-index', '2001', 'important');
         style.setProperty('width', sizePx, 'important');
         style.setProperty('height', sizePx, 'important');
         style.setProperty('transform', `translate(-50%, -50%)`, 'important');
@@ -1481,28 +1501,9 @@ const UIManager = {
         style.setProperty('opacity', '1', 'important');
         style.setProperty('overflow', 'visible', 'important');
 
-        console.log(`[RADIAL MENU DEBUG] setProperty ejecutado - verificando estilos:`, {
-            left: container.style.getPropertyValue('left'),
-            top: container.style.getPropertyValue('top'),
-            display: container.style.getPropertyValue('display'),
-            width: container.style.getPropertyValue('width'),
-            height: container.style.getPropertyValue('height'),
-            getBoundingClientRect: container.getBoundingClientRect()
-        });
-
         // Evitar que un hide inmediato (por listeners globales) borre el menú recién creado
         this._suppressRadialHideUntil = Date.now() + 150; // 150ms de tolerancia
-        console.log(`[RADIAL MENU] Contenedor posicionado en left: ${screenX}px, top: ${screenY}px`);
         const containerComputed = window.getComputedStyle(container);
-        console.log(`[RADIAL MENU DEBUG] Container computed:`, {
-            display: containerComputed.display,
-            position: containerComputed.position,
-            width: containerComputed.width,
-            height: containerComputed.height,
-            zIndex: containerComputed.zIndex,
-            visibility: containerComputed.visibility,
-            pointerEvents: containerComputed.pointerEvents
-        });
 
         // Asegurar que el contenedor sea hijo directo de body (evita clipping por padres)
         if (container.parentElement !== document.body) document.body.appendChild(container);
@@ -1563,8 +1564,6 @@ const UIManager = {
         // --- DISTRIBUCIÓN CIRCULAR ---
         // Crear botones dentro de un requestAnimationFrame para forzar layout
         requestAnimationFrame(() => {
-            const currentScale = domElements.currentBoardScale || 1; 
-            const radius = 80 * currentScale; // Radio del círculo
             const total = actions.length || 1;
             const angleStep = (2 * Math.PI) / total;
 
@@ -1578,15 +1577,20 @@ const UIManager = {
                 btn.innerHTML = action.icon;
                 btn.setAttribute('data-title', action.title);
 
-                // Posición: relativa al contenedor (que está en el centro de la unidad)
-                btn.style.position = 'absolute';
-                btn.style.left = `${x}px`;
-                btn.style.top = `${y}px`;
-                btn.style.transform = 'translate(-50%, -50%)'; // Centrar el botón en su posición
-                btn.style.zIndex = '20001';
-                btn.style.pointerEvents = 'auto'; // El botón SÍ responde a clics
+                // Posición: relativa al contenedor (centro = containerDiameter/2)
+                const centerOffset = containerDiameter / 2;
+                const leftPos = centerOffset + x;
+                const topPos = centerOffset + y;
 
-                console.log(`[RADIAL MENU] Creando botón ${index}: ${action.title} en ángulo ${angle.toFixed(2)}rad, posición relativa (${x.toFixed(0)}, ${y.toFixed(0)})`);
+                btn.style.position = 'absolute';
+                btn.style.left = `${leftPos}px`;
+                btn.style.top = `${topPos}px`;
+                btn.style.width = `${buttonSize}px`;
+                btn.style.height = `${buttonSize}px`;
+                btn.style.borderRadius = '50%';
+                btn.style.transform = 'translate(-50%, -50%)'; // Centrar el botón en su punto
+                btn.style.zIndex = '2002';
+                btn.style.pointerEvents = 'auto'; // El botón SÍ responde a clics
 
                 // Listener
                 btn.addEventListener('click', (e) => {
@@ -1596,27 +1600,16 @@ const UIManager = {
                 });
 
                 container.appendChild(btn);
-
-                // DEBUG: Inspeccionar el botón después de agregarlo
-                const computedStyle = window.getComputedStyle(btn);
-                console.log(`[RADIAL MENU DEBUG] Botón ${index}:`);
-                console.log(`  - Style inline: left=${btn.style.left}, top=${btn.style.top}, transform=${btn.style.transform}`);
-                console.log(`  - Computed: width=${computedStyle.width}, height=${computedStyle.height}, bg=${computedStyle.backgroundColor}`);
-                console.log(`  - Visibilidad: display=${computedStyle.display}, visibility=${computedStyle.visibility}, opacity=${computedStyle.opacity}, zIndex=${computedStyle.zIndex}`);
-                console.log(`  - Posicionamiento: position=${computedStyle.position}, pointerEvents=${computedStyle.pointerEvents}`);
             });
         });
 
-        console.log(`[RADIAL MENU] ✅ Menú radial creado con ${actions.length} acciones`);
     },
 
     hideRadialMenu: function() {
         // Ignorar hides que ocurran inmediatamente después de abrir el menú
         if (Date.now() < (this._suppressRadialHideUntil || 0)) {
-            console.log(`[RADIAL MENU] hideRadialMenu() ignorado por supresión temporal`);
             return;
         }
-        console.log(`[RADIAL MENU] hideRadialMenu() fue llamado`);
         const container = document.getElementById('radialMenuContainer');
         if (container) {
             container.style.display = 'none';
