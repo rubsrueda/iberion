@@ -1474,6 +1474,15 @@ const UIManager = {
         style.setProperty('opacity', '1', 'important');
         style.setProperty('overflow', 'visible', 'important');
 
+        console.log(`[RADIAL MENU DEBUG] setProperty ejecutado - verificando estilos:`, {
+            left: container.style.getPropertyValue('left'),
+            top: container.style.getPropertyValue('top'),
+            display: container.style.getPropertyValue('display'),
+            width: container.style.getPropertyValue('width'),
+            height: container.style.getPropertyValue('height'),
+            getBoundingClientRect: container.getBoundingClientRect()
+        });
+
         console.log(`[RADIAL MENU] Contenedor posicionado en left: ${screenX}px, top: ${screenY}px`);
         const containerComputed = window.getComputedStyle(container);
         console.log(`[RADIAL MENU DEBUG] Container computed:`, {
