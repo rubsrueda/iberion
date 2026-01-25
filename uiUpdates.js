@@ -1542,6 +1542,22 @@ const UIManager = {
             });
 
             container.appendChild(btn);
+            
+            // DEBUG: Inspeccionar el botón después de agregarlo
+            const computedStyle = window.getComputedStyle(btn);
+            console.log(`[RADIAL MENU DEBUG] Botón ${index} después de agregar:`, {
+                display: computedStyle.display,
+                visibility: computedStyle.visibility,
+                opacity: computedStyle.opacity,
+                position: computedStyle.position,
+                left: btn.style.left,
+                top: btn.style.top,
+                width: computedStyle.width,
+                height: computedStyle.height,
+                backgroundColor: computedStyle.backgroundColor,
+                zIndex: computedStyle.zIndex,
+                pointerEvents: computedStyle.pointerEvents
+            });
         });
 
         console.log(`[RADIAL MENU] ✅ Menú radial creado con ${actions.length} acciones`);
