@@ -1467,7 +1467,7 @@ const UIManager = {
         }
 
         // Tamaños fijos pequeños (no escalan con zoom para evitar botones gigantes)
-        const buttonSize = 9;  // Tamaño fijo 9px
+        const buttonSize = 12;  // Tamaño fijo 12px (visible pero no gigante)
         const containerSize = Math.round(hexSizeOnScreen * 1.0);
 
         // Radio: proporción del hex en pantalla para separar los botones
@@ -1500,7 +1500,7 @@ const UIManager = {
                 buttons.forEach((btn, index) => {
                     const angle = Math.PI - (index * angleStep);
                     const x = Math.cos(angle) * newRadius;
-                    const y = Math.sin(angle) * newRadius;
+                    const y = -Math.sin(angle) * newRadius; // Negativo para que vaya hacia arriba
                     const btnLeft = centerOffset + x;
                     const btnTop = centerOffset + y;
                     
@@ -1620,7 +1620,7 @@ const UIManager = {
                 // Ángulo: comenzar en 180° (izquierda) hasta 0° (derecha)
                 const angle = Math.PI - (index * angleStep);
                 const x = Math.cos(angle) * baseRadius;
-                const y = Math.sin(angle) * baseRadius;
+                const y = -Math.sin(angle) * baseRadius; // Negativo para que el semicírculo quede ARRIBA
 
                 const btn = document.createElement('div');
                 btn.className = 'radial-btn';
