@@ -1448,51 +1448,41 @@ const UIManager = {
 
     // 1. Función para mostrar el menú
     showRadialMenu: function(unit, screenX, screenY) {
-        // Mostrar menú radial (registro mínimo para errores)
+        // Mostrar menú radial
         const container = document.getElementById('radialMenuContainer');
         if (!container) {
-            console.error('[RADIAL MENU] No se encontró el elemento radialMenuContainer');
+            console.error('[RADIAL MENU] No se encontró radialMenuContainer');
             return;
         }
 
-        // Limpiar y establecer estilos de forma más robusta
         container.innerHTML = '';
         
-        // Calcular tamaño del contenedor y botones en función del tamaño real del hex
-        const currentScale = domElements.currentBoardScale || 1;
-        let unitRect = { width: 36, height: 36 };
-        try { if (unit && unit.element && typeof unit.element.getBoundingClientRect === 'function') unitRect = unit.element.getBoundingClientRect(); } catch (e) { /* ignore */ }
-        const hexSize = Math.max(unitRect.width || 36, unitRect.height || 36) || 36;
+        // Calcular tamaño del hex (en pantalla con zoom)
+        let hexSize = 36;
+        if (unit && unit.element) {
+            try {
+                const rect = unit.element.getBoundingClientRect();
+                hexSize = Math.max(rect.width || 36, rect.height || 36);
+            } catch (e) { /* ignore */ }
+        }
 
-        // Contenedor: ligeramente mayor que el hex, para enmarcar la unidad
-        const containerDiameter = Math.max(24, Math.round(hexSize * 1.2 * currentScale));
-        const sizePx = containerDiameter + 'px';
+        // Tamaños finales (botones pequeños, 1/4 del hex)
+        const buttonSize = Math.round(hexSize * 0.25);  // ~9px para hex de 36px
+        const containerSize = Math.round(hexSize * 1.0); // Un poco más chico que el hex original
 
-        // Botones: aproximadamente 1/4 del tamaño del hex (pedido del usuario)
-        const buttonSize = Math.max(10, Math.round(hexSize * 0.25 * currentScale));
+        // Radio: pequeño para que los botones estén cerca
+        const baseRadius = Math.round(hexSize * 0.4); // Botones a 40% de distancia del centro
 
-        // Radio para situar los botones justo fuera del hex
-        const radius = Math.round((containerDiameter / 2) + (buttonSize * 0.8));
-
-        // Usar setProperty para !important
+        // Aplicar estilos al contenedor (centrado en la unidad, SIN clamp)
         const style = container.style;
-        // Clamp center so container stays inside viewport
-        const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-        const minCenterX = (containerDiameter / 2) + 4;
-        const maxCenterX = window.innerWidth - (containerDiameter / 2) - 4;
-        const minCenterY = (containerDiameter / 2) + 4;
-        const maxCenterY = window.innerHeight - (containerDiameter / 2) - 4;
-        const centerX = clamp(screenX, minCenterX, maxCenterX);
-        const centerY = clamp(screenY, minCenterY, maxCenterY);
-
-        style.setProperty('left', `${centerX}px`, 'important');
-        style.setProperty('top', `${centerY}px`, 'important');
+        style.setProperty('left', `${screenX}px`, 'important');
+        style.setProperty('top', `${screenY}px`, 'important');
         style.setProperty('display', 'block', 'important');
         style.setProperty('position', 'fixed', 'important');
         style.setProperty('z-index', '2001', 'important');
-        style.setProperty('width', sizePx, 'important');
-        style.setProperty('height', sizePx, 'important');
-        style.setProperty('transform', `translate(-50%, -50%)`, 'important');
+        style.setProperty('width', `${containerSize}px`, 'important');
+        style.setProperty('height', `${containerSize}px`, 'important');
+        style.setProperty('transform', 'translate(-50%, -50%)', 'important');
         style.setProperty('pointer-events', 'none', 'important');
         style.setProperty('background', 'transparent', 'important');
         style.setProperty('border', 'none', 'important');
@@ -1501,98 +1491,115 @@ const UIManager = {
         style.setProperty('opacity', '1', 'important');
         style.setProperty('overflow', 'visible', 'important');
 
-        // Evitar que un hide inmediato (por listeners globales) borre el menú recién creado
-        this._suppressRadialHideUntil = Date.now() + 150; // 150ms de tolerancia
-        const containerComputed = window.getComputedStyle(container);
+        this._suppressRadialHideUntil = Date.now() + 150;
 
-        // Asegurar que el contenedor sea hijo directo de body (evita clipping por padres)
-        if (container.parentElement !== document.body) document.body.appendChild(container);
+        // Asegurar que está en body
+        if (container.parentElement !== document.body) {
+            document.body.appendChild(container);
+        }
 
-        // Definir acciones posibles según el estado de la unidad
+        // Definir acciones
         const actions = [];
-
-        // Acción: Construir (Si es Ingeniero o tiene la habilidad)
         const isBuilder = unit.regiments.some(r => REGIMENT_TYPES[r.type]?.abilities?.includes("build_road"));
         const hex = board[unit.r]?.[unit.c];
         
         if (isBuilder && hex && hex.owner === unit.player) {
-            actions.push({ icon: '🏗️', title: 'Construir', onClick: () => { 
-                hexToBuildOn = { r: unit.r, c: unit.c };
-                if (typeof openBuildStructureModal === "function") openBuildStructureModal(); 
-            }});
+            actions.push({ 
+                icon: '🏗️', 
+                title: 'Construir', 
+                onClick: () => { 
+                    hexToBuildOn = { r: unit.r, c: unit.c };
+                    if (typeof openBuildStructureModal === "function") openBuildStructureModal(); 
+                }
+            });
         }
 
-        // Acción: Dividir (Si tiene más de 1 regimiento)
         if (unit.regiments.length > 1) {
-            actions.push({ icon: '✂️', title: 'Dividir', onClick: () => { 
-                if (typeof openAdvancedSplitUnitModal === "function") openAdvancedSplitUnitModal(unit); 
-            }});
+            actions.push({ 
+                icon: '✂️', 
+                title: 'Dividir', 
+                onClick: () => { 
+                    if (typeof openAdvancedSplitUnitModal === "function") openAdvancedSplitUnitModal(unit); 
+                }
+            });
         }
 
-        // Acción: Saquear (Si está en territorio enemigo)
         if (hex && hex.owner !== null && hex.owner !== unit.player) {
-            actions.push({ icon: '💰', title: 'Saquear', onClick: () => { 
-                if (typeof RequestPillageAction === "function") RequestPillageAction(); 
-            }});
+            actions.push({ 
+                icon: '💰', 
+                title: 'Saquear', 
+                onClick: () => { 
+                    if (typeof RequestPillageAction === "function") RequestPillageAction(); 
+                }
+            });
         }
         
-        // Acción: Explorar Ruinas
         if (hex && hex.feature === 'ruins') {
-             actions.push({ icon: '🧭', title: 'Explorar', onClick: () => { 
-                if (typeof requestExploreRuins === "function") requestExploreRuins(); 
-            }});
+            actions.push({ 
+                icon: '🧭', 
+                title: 'Explorar', 
+                onClick: () => { 
+                    if (typeof requestExploreRuins === "function") requestExploreRuins(); 
+                }
+            });
         }
 
-        // Acción: Unir/Fusionar (Si hay unidad amiga adyacente)
         const neighbors = getHexNeighbors(unit.r, unit.c);
         for (const n of neighbors) {
             const adjUnit = units.find(u => u.r === n.r && u.c === n.c && u.player === unit.player && u.id !== unit.id);
             if (adjUnit) {
-                actions.push({ icon: '🔗', title: 'Unir', onClick: () => {
-                    if (typeof RequestMergeUnits === 'function') RequestMergeUnits(unit, adjUnit);
-                    else if (typeof mergeUnits === 'function') mergeUnits(unit, adjUnit);
-                }});
+                actions.push({ 
+                    icon: '🔗', 
+                    title: 'Unir', 
+                    onClick: () => {
+                        if (typeof RequestMergeUnits === 'function') RequestMergeUnits(unit, adjUnit);
+                        else if (typeof mergeUnits === 'function') mergeUnits(unit, adjUnit);
+                    }
+                });
                 break;
             }
         }
 
-        // Acción: Gestionar/Info (Siempre)
-        actions.push({ icon: 'ℹ️', title: 'Detalles', onClick: () => { 
-             if (typeof openUnitDetailModal === "function") openUnitDetailModal(unit);
-        }});
+        actions.push({ 
+            icon: 'ℹ️', 
+            title: 'Detalles', 
+            onClick: () => { 
+                if (typeof openUnitDetailModal === "function") openUnitDetailModal(unit);
+            }
+        });
 
-        // --- DISTRIBUCIÓN CIRCULAR ---
-        // Crear botones dentro de un requestAnimationFrame para forzar layout
+        // Crear botones en forma radial
         requestAnimationFrame(() => {
             const total = actions.length || 1;
             const angleStep = (2 * Math.PI) / total;
+            const centerOffset = containerSize / 2;
 
             actions.forEach((action, index) => {
-                const angle = index * angleStep - (Math.PI / 2); // Empezar arriba (-90 grados)
-                const x = Math.cos(angle) * radius;
-                const y = Math.sin(angle) * radius;
+                const angle = index * angleStep - (Math.PI / 2);
+                const x = Math.cos(angle) * baseRadius;
+                const y = Math.sin(angle) * baseRadius;
 
                 const btn = document.createElement('div');
                 btn.className = 'radial-btn';
                 btn.innerHTML = action.icon;
                 btn.setAttribute('data-title', action.title);
 
-                // Posición: relativa al contenedor (centro = containerDiameter/2)
-                const centerOffset = containerDiameter / 2;
-                const leftPos = centerOffset + x;
-                const topPos = centerOffset + y;
+                // Posicionar dentro del contenedor
+                const btnLeft = centerOffset + x;
+                const btnTop = centerOffset + y;
 
                 btn.style.position = 'absolute';
-                btn.style.left = `${leftPos}px`;
-                btn.style.top = `${topPos}px`;
-                btn.style.width = `${buttonSize}px`;
-                btn.style.height = `${buttonSize}px`;
-                btn.style.borderRadius = '50%';
-                btn.style.transform = 'translate(-50%, -50%)'; // Centrar el botón en su punto
-                btn.style.zIndex = '2002';
-                btn.style.pointerEvents = 'auto'; // El botón SÍ responde a clics
+                btn.style.left = `${btnLeft}px !important`;
+                btn.style.top = `${btnTop}px !important`;
+                btn.style.width = `${buttonSize}px !important`;
+                btn.style.height = `${buttonSize}px !important`;
+                btn.style.borderRadius = '50% !important';
+                btn.style.transform = 'translate(-50%, -50%) !important';
+                btn.style.zIndex = '2002 !important';
+                btn.style.pointerEvents = 'auto !important';
+                btn.style.fontSize = `${Math.round(buttonSize * 0.6)}px !important`;
+                btn.style.lineHeight = `${buttonSize}px !important`;
 
-                // Listener
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     this.hideRadialMenu();
