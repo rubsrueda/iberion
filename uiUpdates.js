@@ -1457,21 +1457,21 @@ const UIManager = {
 
         container.innerHTML = '';
         
-        // Calcular tamaño del hex (en pantalla con zoom)
-        let hexSize = 36;
+        // Calcular tamaño del hex (en pantalla con zoom aplicado)
+        let hexSizeOnScreen = 36;
         if (unit && unit.element) {
             try {
                 const rect = unit.element.getBoundingClientRect();
-                hexSize = Math.max(rect.width || 36, rect.height || 36);
+                hexSizeOnScreen = Math.max(rect.width || 36, rect.height || 36);
             } catch (e) { /* ignore */ }
         }
 
-        // Tamaños finales (botones pequeños, 1/4 del hex)
-        const buttonSize = Math.round(hexSize * 0.25);  // ~9px para hex de 36px
-        const containerSize = Math.round(hexSize * 1.0);
+        // Tamaños fijos pequeños (no escalan con zoom para evitar botones gigantes)
+        const buttonSize = 9;  // Tamaño fijo 9px
+        const containerSize = Math.round(hexSizeOnScreen * 1.0);
 
-        // Radio: más grande para separar los botones (70% del hex)
-        const baseRadius = Math.round(hexSize * 0.7);
+        // Radio: proporción del hex en pantalla para separar los botones
+        const baseRadius = Math.round(hexSizeOnScreen * 0.7);
 
         // Función para actualizar posición (responde a zoom/pan)
         const updatePosition = () => {
