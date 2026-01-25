@@ -1585,14 +1585,17 @@ const UIManager = {
             }
         });
 
-        // Crear botones en forma radial
+        // Crear botones en forma de semicírculo superior
         requestAnimationFrame(() => {
             const total = actions.length || 1;
-            const angleStep = (2 * Math.PI) / total;
+            // Semicírculo: distribuir botones en 180 grados (de izquierda a derecha por arriba)
+            const angleRange = Math.PI; // 180 grados
+            const angleStep = total > 1 ? angleRange / (total - 1) : 0;
             const centerOffset = containerSize / 2;
 
             actions.forEach((action, index) => {
-                const angle = index * angleStep - (Math.PI / 2);
+                // Ángulo: comenzar en 180° (izquierda) hasta 0° (derecha)
+                const angle = Math.PI - (index * angleStep);
                 const x = Math.cos(angle) * baseRadius;
                 const y = Math.sin(angle) * baseRadius;
 

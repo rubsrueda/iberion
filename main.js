@@ -10,9 +10,23 @@ function onHexClick(r, c) {
         gameState.tutorial.map_clicked = true;
     }
 
-    // radial
-    if (typeof UIManager !== 'undefined' && UIManager.hideRadialMenu) {
-        UIManager.hideRadialMenu();
+    // Cerrar menú radial solo si se hizo clic fuera de un botón radial
+    const radialContainer = document.getElementById('radialMenuContainer');
+    if (radialContainer && radialContainer.style.display === 'block') {
+        const rect = radialContainer.getBoundingClientRect();
+        // Obtener coordenadas del clic en pantalla
+        const clickX = event ? event.clientX : 0;
+        const clickY = event ? event.clientY : 0;
+        const distFromCenter = Math.sqrt(
+            Math.pow(clickX - (rect.left + rect.width / 2), 2) + 
+            Math.pow(clickY - (rect.top + rect.height / 2), 2)
+        );
+        // Solo cerrar si el clic está lejos del menú radial
+        if (distFromCenter > rect.width) {
+            if (typeof UIManager !== 'undefined' && UIManager.hideRadialMenu) {
+                UIManager.hideRadialMenu();
+            }
+        }
     }
 
     // Si se hace clic en la ciudad de La Banca, abrir el modal de comercio y detener todo lo demás.

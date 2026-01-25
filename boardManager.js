@@ -699,7 +699,8 @@ if (tacticalUiContainer && tacticalUiContainer.style.display !== 'none') {
 _boundMouseDown = function(e) {
     if (e.target.closest('button')) return;
     if (e.button !== 0 || (typeof placementMode !== 'undefined' && placementMode.active)) return;
-    if (UIManager && UIManager.hideRadialMenu) UIManager.hideRadialMenu();
+    // NO cerrar el menú radial durante pan/zoom - se actualiza continuamente
+    // if (UIManager && UIManager.hideRadialMenu) UIManager.hideRadialMenu();
     e.preventDefault();
     domElements.initialClickX = e.clientX; // Guardamos para el final
     domElements.initialClickY = e.clientY;
