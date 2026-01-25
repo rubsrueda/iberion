@@ -1689,13 +1689,14 @@
     <script src="seasonsData.js"></script> 
     <script src="allianceManager.js"></script>
     <script>
-        console.log("[HTML] Antes de cargar BattlePassManager");
+        console.log("🟡 [HTML SCRIPT 1] Antes de cargar BattlePassManager");
     </script>
     <script src="BattlePassManager_simple.js"></script> 
     <script>
-        console.log("[HTML] Después de cargar BattlePassManager");
-        console.log("[HTML] typeof BattlePassManager:", typeof BattlePassManager);
-        console.log("[HTML] window.BattlePassManagerLoaded:", window.BattlePassManagerLoaded);
+        console.log("🟡 [HTML SCRIPT 2] Después de cargar BattlePassManager");
+        console.log("🟡 typeof BattlePassManager:", typeof BattlePassManager);
+        console.log("🟡 BattlePassManager.version:", BattlePassManager?.version);
+        console.log("🟡 window.BattlePassManagerLoaded:", window.BattlePassManagerLoaded);
     </script>
     <script src="audioManager.js"></script>
     <script src="technologyTree.js"></script> 
