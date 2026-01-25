@@ -6501,6 +6501,7 @@ input:checked + .slider:before {
     display: block;   /* Visible cuando se activa */
     width: 200px;     /* Dar tamaño al contenedor */
     height: 200px;
+    overflow: visible; /* CRITICAL: Mostrar elementos fuera del contenedor */
     pointer-events: none; /* Bloqueado por defecto, los botones usan auto !important */
     /* NO transform aquí - lo hacemos en JavaScript */
 }
