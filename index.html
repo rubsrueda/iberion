@@ -1688,7 +1688,14 @@
     <script src="mailboxManager.js"></script> 
     <script src="seasonsData.js"></script> 
     <script src="allianceManager.js"></script>
-    <script src="BattlePassManager_test.js"></script> 
+    <script>
+        console.log("[HTML] Antes de cargar BattlePassManager.js");
+    </script>
+    <script src="BattlePassManager.js"></script> 
+    <script>
+        console.log("[HTML] Después de cargar BattlePassManager.js");
+        console.log("[HTML] typeof BattlePassManager:", typeof BattlePassManager);
+    </script>
     <script src="audioManager.js"></script>
     <script src="technologyTree.js"></script> 
     <script src="worldMapData.js"></script>
