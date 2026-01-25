@@ -6503,6 +6503,8 @@ input:checked + .slider:before {
     height: 200px;
     overflow: visible; /* CRITICAL: Mostrar elementos fuera del contenedor */
     pointer-events: none; /* Bloqueado por defecto, los botones usan auto !important */
+    background: rgba(0, 255, 0, 0.3); /* DEBUG: Verde semi-transparente para ver dónde está */
+    border: 2px solid lime;
     /* NO transform aquí - lo hacemos en JavaScript */
 }
 
