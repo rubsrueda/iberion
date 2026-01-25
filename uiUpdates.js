@@ -1458,20 +1458,25 @@ const UIManager = {
         // Limpiar y establecer estilos de forma más robusta
         container.innerHTML = '';
         
+        // Calcular tamaño del contenedor en función del radio (para forma circular)
+        const currentScale = domElements.currentBoardScale || 1;
+        const radius = 80 * currentScale;
+        const sizePx = (radius * 2) + 'px';
+
         // Usar setProperty para !important
         const style = container.style;
         style.setProperty('left', `${screenX}px`, 'important');
         style.setProperty('top', `${screenY}px`, 'important');
         style.setProperty('display', 'block', 'important');
         style.setProperty('position', 'fixed', 'important');
-        style.setProperty('z-index', '1000000', 'important');
-        style.setProperty('width', '200px', 'important');
-        style.setProperty('height', '200px', 'important');
+        style.setProperty('z-index', '10001', 'important');
+        style.setProperty('width', sizePx, 'important');
+        style.setProperty('height', sizePx, 'important');
         style.setProperty('transform', `translate(-50%, -50%)`, 'important');
-        // Hacer el contenedor claramente visible y por encima de todo para depuración
-        style.setProperty('pointer-events', 'auto', 'important');
-        style.setProperty('background', 'rgba(255, 0, 0, 0.85)', 'important');
-        style.setProperty('border', '3px solid yellow', 'important');
+        style.setProperty('pointer-events', 'none', 'important');
+        style.setProperty('background', 'transparent', 'important');
+        style.setProperty('border', 'none', 'important');
+        style.setProperty('border-radius', '50%', 'important');
         style.setProperty('visibility', 'visible', 'important');
         style.setProperty('opacity', '1', 'important');
         style.setProperty('overflow', 'visible', 'important');
@@ -1535,6 +1540,19 @@ const UIManager = {
              actions.push({ icon: '🧭', title: 'Explorar', onClick: () => { 
                 if (typeof requestExploreRuins === "function") requestExploreRuins(); 
             }});
+        }
+
+        // Acción: Unir/Fusionar (Si hay unidad amiga adyacente)
+        const neighbors = getHexNeighbors(unit.r, unit.c);
+        for (const n of neighbors) {
+            const adjUnit = units.find(u => u.r === n.r && u.c === n.c && u.player === unit.player && u.id !== unit.id);
+            if (adjUnit) {
+                actions.push({ icon: '🔗', title: 'Unir', onClick: () => {
+                    if (typeof RequestMergeUnits === 'function') RequestMergeUnits(unit, adjUnit);
+                    else if (typeof mergeUnits === 'function') mergeUnits(unit, adjUnit);
+                }});
+                break;
+            }
         }
 
         // Acción: Gestionar/Info (Siempre)
