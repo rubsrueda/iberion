@@ -1461,11 +1461,14 @@ const UIManager = {
         container.style.left = `${screenX}px`;
         container.style.top = `${screenY}px`;
         container.style.display = 'block';
-        container.style.position = 'fixed'; // Asegurar position fixed
-        container.style.zIndex = '20000'; // Asegurar z-index
+        container.style.position = 'fixed';
+        container.style.zIndex = '20000';
+        container.style.transform = 'translate(-50%, -50%)'; // Centrar el contenedor
+        container.style.width = '0px'; // Contenedor sin tamaño (los botones son absolutos)
+        container.style.height = '0px';
+        container.style.pointerEvents = 'none'; // Contenedor es transparent a clics
 
-        console.log(`[RADIAL MENU] Contenedor posicionado en left: ${container.style.left}, top: ${container.style.top}, display: ${container.style.display}`);
-        console.log(`[RADIAL MENU] Contenedor en DOM:`, container);
+        console.log(`[RADIAL MENU] Contenedor posicionado en left: ${screenX}px, top: ${screenY}px`);
 
         // Definir acciones posibles según el estado de la unidad
         const actions = [];
@@ -1509,7 +1512,7 @@ const UIManager = {
 
         // --- DISTRIBUCIÓN CIRCULAR ---
         const currentScale = domElements.currentBoardScale || 1; 
-        const radius = 80 * currentScale; // Aumentado de 60 a 80
+        const radius = 80 * currentScale; // Radio del círculo
         const total = actions.length;
         const angleStep = (2 * Math.PI) / total;
 
@@ -1522,28 +1525,28 @@ const UIManager = {
             btn.className = 'radial-btn';
             btn.innerHTML = action.icon;
             btn.setAttribute('data-title', action.title);
-            btn.style.zIndex = "20001"; // Forzar z-index individual
             
-            // Posición: centrar el botón en x, y (ajustado para que esté centrado en sus propias coordenadas)
+            // Posición: relativa al contenedor (que está en el centro de la unidad)
+            btn.style.position = 'absolute';
             btn.style.left = `${x}px`;
             btn.style.top = `${y}px`;
-            btn.style.transform = 'translate(-50%, -50%)'; // Centrar el botón en su propia posición
-            btn.style.position = 'absolute';
+            btn.style.transform = 'translate(-50%, -50%)'; // Centrar el botón en su posición
+            btn.style.zIndex = '20001';
+            btn.style.pointerEvents = 'auto'; // El botón SÍ responde a clics
 
-            console.log(`[RADIAL MENU] Creando botón ${index}: ${action.title} en (${x}, ${y}) → pantalla (${screenX + x}, ${screenY + y})`);
+            console.log(`[RADIAL MENU] Creando botón ${index}: ${action.title} en ángulo ${angle.toFixed(2)}rad, posición relativa (${x.toFixed(0)}, ${y.toFixed(0)})`);
 
             // Listener
             btn.addEventListener('click', (e) => {
-                e.stopPropagation(); // Evitar clics en el mapa
-                this.hideRadialMenu(); // Cerrar menú al pulsar
+                e.stopPropagation();
+                this.hideRadialMenu();
                 action.onClick();
             });
 
             container.appendChild(btn);
         });
 
-        console.log(`[RADIAL MENU] Menú radial creado con ${actions.length} acciones`);
-        console.log(`[RADIAL MENU] Botones visibles:`, container.querySelectorAll('.radial-btn').length);
+        console.log(`[RADIAL MENU] ✅ Menú radial creado con ${actions.length} acciones`);
     },
 
     hideRadialMenu: function() {

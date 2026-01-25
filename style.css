@@ -6500,7 +6500,7 @@ input:checked + .slider:before {
     z-index: 20000; /* Por encima de unidades (z=10) y UI estándar */
     display: none;   /* Oculto por defecto */
     pointer-events: none; /* Bloqueado por defecto, los botones usan auto !important */
-    transform: translate(-50%, -50%); /* Centrar el contenedor en el punto (left, top) */
+    /* NO transform aquí - lo hacemos en JavaScript */
 }
 
 .radial-btn {
