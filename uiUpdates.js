@@ -1468,15 +1468,28 @@ const UIManager = {
 
         // Tamaños finales (botones pequeños, 1/4 del hex)
         const buttonSize = Math.round(hexSize * 0.25);  // ~9px para hex de 36px
-        const containerSize = Math.round(hexSize * 1.0); // Un poco más chico que el hex original
+        const containerSize = Math.round(hexSize * 1.0);
 
-        // Radio: pequeño para que los botones estén cerca
-        const baseRadius = Math.round(hexSize * 0.4); // Botones a 40% de distancia del centro
+        // Radio: más grande para separar los botones (70% del hex)
+        const baseRadius = Math.round(hexSize * 0.7);
 
-        // Aplicar estilos al contenedor (centrado en la unidad, SIN clamp)
+        // Función para actualizar posición (responde a zoom/pan)
+        const updatePosition = () => {
+            if (!unit || !unit.element) return;
+            try {
+                const rect = unit.element.getBoundingClientRect();
+                const newScreenX = rect.left + rect.width / 2;
+                const newScreenY = rect.top + rect.height / 2;
+                
+                const style = container.style;
+                style.setProperty('left', `${newScreenX}px`, 'important');
+                style.setProperty('top', `${newScreenY}px`, 'important');
+            } catch (e) { /* ignore */ }
+        };
+
+        // Aplicar estilos al contenedor
         const style = container.style;
-        style.setProperty('left', `${screenX}px`, 'important');
-        style.setProperty('top', `${screenY}px`, 'important');
+        updatePosition(); // Posición inicial
         style.setProperty('display', 'block', 'important');
         style.setProperty('position', 'fixed', 'important');
         style.setProperty('z-index', '2001', 'important');
@@ -1492,6 +1505,10 @@ const UIManager = {
         style.setProperty('overflow', 'visible', 'important');
 
         this._suppressRadialHideUntil = Date.now() + 150;
+        
+        // Actualizar posición continuamente (responde a zoom/pan)
+        const updateInterval = setInterval(updatePosition, 50); // Cada 50ms
+        this._radialUpdateInterval = updateInterval;
 
         // Asegurar que está en body
         if (container.parentElement !== document.body) {
@@ -1617,6 +1634,13 @@ const UIManager = {
         if (Date.now() < (this._suppressRadialHideUntil || 0)) {
             return;
         }
+        
+        // Limpiar el interval de actualización de posición
+        if (this._radialUpdateInterval) {
+            clearInterval(this._radialUpdateInterval);
+            this._radialUpdateInterval = null;
+        }
+        
         const container = document.getElementById('radialMenuContainer');
         if (container) {
             container.style.display = 'none';
