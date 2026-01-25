@@ -1609,9 +1609,9 @@ function initializeRaidMap(stageConfig, stageData) {
             const portIndex = playerPorts.findIndex(p => p.r === r && p.c === c);
             
             if (portIndex !== -1) {
-                // ¡CORRECCIÓN!: Forzamos 'plains' en la base para permitir construir
+                // Forzamos 'plains' en la base para permitir construir
                 terrain = 'plains'; 
-                isCity = true;
+                isCity = false; // NUNCA ciudad en raids, solo fortaleza
                 struct = 'Fortaleza';
                 
                 // Verificar si este slot está ocupado
@@ -1633,25 +1633,19 @@ function initializeRaidMap(stageConfig, stageData) {
                     console.log("[Raid Map] Fortaleza de aliado en", {r, c, portIndex, owner: slotOwnerUid, name: cityName});
                 } else {
                     // Slot vacío - fortaleza neutral/disponible
-                    owner = 0; // Neutral para que no cuente como de nadie
+                    owner = null; // NULL para que no aparezca ningún owner
                     cityName = `Slot ${portIndex+1} (Libre)`;
                     console.log("[Raid Map] Fortaleza disponible en", {r, c, portIndex});
                 }
-                
-                // NO llamamos a addCityToBoardData aquí, se hace después de inicializar board[r][c]
-                // IMPORTANTE: En raids, estas NO son ciudades, son solo fortalezas (puntos de spawn)
-                // Por tanto, marcamos isCity = false para evitar el renderizado de ciudad
-                isCity = false;
             }
             
-            // Bases IA (Inicio/Fin) - Puntos de referencia
-            // En raids, estas tampoco son ciudades, solo marcadores
+            // Bases IA (Inicio/Fin) - Solo marcadores visuales
             if ((r===6 && c===0) || (r===6 && c===24)) {
-                terrain = 'plains'; // Tierra para que la caravana "salga" de algún sitio
-                isCity = false; // NO son ciudades en modo Raid
-                struct = 'Fortaleza';
-                owner = 2; // IA
-                cityName = (c===0) ? "Punto de Salida" : "Objetivo Final";
+                terrain = 'plains';
+                isCity = false; // NO son ciudades
+                struct = null; // SIN estructura, solo terreno
+                owner = null; // SIN dueño
+                cityName = null;
             }
 
             // CRÍTICO: Inicializar board[r][c] ANTES de llamar a addCityToBoardData
@@ -1664,15 +1658,20 @@ function initializeRaidMap(stageConfig, stageData) {
             };
             if(owner) board[r][c].nacionalidad[owner] = 5;
 
-            // Ahora sí, agregar a gameState.cities si corresponde (solo para fortalezas de jugador con owner=1)
-            if (struct === 'Fortaleza' && portIndex !== -1 && owner === 1) {
-                // Solo agregamos a gameState.cities MI fortaleza (para que funcione el botón de crear división)
-                // Las demás fortalezas son solo visuales
+            // Ahora sí, agregar a gameState.cities SOLO mi fortaleza (owner=1)
+            if (struct === 'Fortaleza' && owner === 1) {
+                // Solo MI fortaleza va a gameState.cities para el botón de crear división
                 if (!gameState.cities) gameState.cities = [];
                 gameState.cities.push({
-                    r: r, c: c, owner: owner, name: cityName,
-                    isCapital: false, prosperity: 5, defenseBonus: 2
+                    r: r, c: c, 
+                    owner: 1, 
+                    name: cityName,
+                    isCapital: false, 
+                    prosperity: 5, 
+                    defenseBonus: 2
                 });
+                // IMPORTANTE: Para que el botón funcione, la celda debe ser ciudad
+                board[r][c].isCity = true;
                 console.log("[Raid Map] Agregada MI fortaleza a gameState.cities:", {r, c, name: cityName});
             }
 
@@ -1684,6 +1683,12 @@ function initializeRaidMap(stageConfig, stageData) {
     console.log("[Raid Map] ===== INICIANDO COLOCACIÓN DE CARAVANA =====");
     console.log("[Raid Map] stageData completo:", JSON.stringify(stageData, null, 2));
     console.log("[Raid Map] stageConfig:", stageConfig);
+    
+    // CORRECCIÓN: Si caravan_pos.c es 0, forzar a 1
+    if (stageData.caravan_pos && stageData.caravan_pos.c === 0) {
+        console.warn("[Raid Map] Detectada posición incorrecta de caravana (c=0), corrigiendo a c=1");
+        stageData.caravan_pos.c = 1;
+    }
     
     let bossRegiments = stageData.boss_regiments;
     
@@ -1737,7 +1742,7 @@ function initializeRaidMap(stageConfig, stageData) {
             player: 2, 
             name: stageConfig.caravan || "Caravana Imperial",
             r: stageData.caravan_pos?.r || 6,
-            c: stageData.caravan_pos?.c || 1, // Por defecto en columna 1 (agua), no 0 (fortaleza)
+            c: Math.max(stageData.caravan_pos?.c || 1, 1), // Siempre >= 1, nunca en 0
             sprite: bossSprite,
             isBoss: true,
             isAI: true,
