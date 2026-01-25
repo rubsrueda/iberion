@@ -113,6 +113,16 @@ const RaidManager = {
             // Slots 0-3 aparecen en fila 1-2 (Norte), slots 4-7 en fila 10-11 (Sur)
             const spawnRow = mySlotIdx < 4 ? (1 + Math.floor(mySlotIdx / 2)) : (10 + Math.floor((mySlotIdx - 4) / 2));
             const spawnCol = (mySlotIdx % 2) * 2; // Columnas 0 o 2 para separar
+            
+            // NUEVO: Mapa de posiciones de fortalezas para logging
+            const fortressPositions = [
+                {r: 1, c: 2}, {r: 1, c: 6}, {r: 1, c: 10}, {r: 1, c: 14},
+                {r: 10, c: 2}, {r: 10, c: 6}, {r: 10, c: 10}, {r: 10, c: 14}
+            ];
+            
+            console.log(`%c[Raid] ¡JUGADOR ASIGNADO AL SLOT ${mySlotIdx}!`, 'background: #00ff00; color: #000; font-weight: bold; padding: 5px;');
+            console.log(`[Raid] Fortaleza asignada en posición: (${fortressPositions[mySlotIdx].r}, ${fortressPositions[mySlotIdx].c})`);
+            console.log(`[Raid] Unidad inicial aparecerá en: (${spawnRow}, ${spawnCol})`);
 
             if (!stageData.units) stageData.units = {};
             
@@ -194,8 +204,8 @@ const RaidManager = {
         
         console.log("[Raid] gameState inicializado correctamente");
 
-        // D. Cargar Mapa Visual
-        this.showRaidMap(stageData);
+        // D. Cargar Mapa Visual - IMPORTANTE: Usar this.currentRaid.stage_data actualizado
+        this.showRaidMap(this.currentRaid.stage_data);
         
         // E. Calcular y aplicar movimiento automático de la caravana
         console.log("[Raid] Calculando movimiento automático de la caravana...");

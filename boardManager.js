@@ -1586,9 +1586,21 @@ function initializeRaidMap(stageConfig, stageData) {
     const myUid = PlayerDataManager.currentPlayer?.auth_id;
     const mySlotIdx = (stageData.slots || []).indexOf(myUid); 
     
+    console.log("[Raid Map] ===== ASIGNACIÓN DE SLOT =====");
     console.log("[Raid Map] Mi UID:", myUid);
     console.log("[Raid Map] Slots disponibles:", stageData.slots);
     console.log("[Raid Map] Mi slot index:", mySlotIdx);
+    
+    if (mySlotIdx === -1) {
+        console.error("%c[Raid Map] ERROR: El jugador NO tiene slot asignado!", 'background: #ff0000; color: #fff; font-weight: bold; padding: 5px;');
+    } else {
+        const fortressPositions = [
+            {r: 1, c: 2}, {r: 1, c: 6}, {r: 1, c: 10}, {r: 1, c: 14},
+            {r: 10, c: 2}, {r: 10, c: 6}, {r: 10, c: 10}, {r: 10, c: 14}
+        ];
+        console.log(`%c[Raid Map] Jugador asignado al SLOT ${mySlotIdx}`, 'background: #00ff00; color: #000; font-weight: bold; padding: 5px;');
+        console.log(`[Raid Map] Fortaleza en: (${fortressPositions[mySlotIdx].r}, ${fortressPositions[mySlotIdx].c})`);
+    }
 
     // 2. PINTADO DEL MAPA
     for (let r = 0; r < rows; r++) {
@@ -1639,13 +1651,14 @@ function initializeRaidMap(stageConfig, stageData) {
                 }
             }
             
-            // Bases IA (Inicio/Fin) - Solo marcadores visuales
+            // Bases IA (Inicio/Fin) - Puntos de referencia del recorrido
             if ((r===6 && c===0) || (r===6 && c===24)) {
                 terrain = 'plains';
-                isCity = false; // NO son ciudades
-                struct = null; // SIN estructura, solo terreno
-                owner = null; // SIN dueño
-                cityName = null;
+                isCity = false; // NO son ciudades funcionales, solo marcadores
+                struct = 'Fortaleza'; // SÍ tienen estructura de fortaleza
+                owner = 2; // IA - para marcar que son del "enemigo"
+                cityName = (c===0) ? "Punto de Salida" : "Objetivo Final";
+                console.log("[Raid Map] Base IA creada en", {r, c, name: cityName});
             }
 
             // CRÍTICO: Inicializar board[r][c] ANTES de llamar a addCityToBoardData
