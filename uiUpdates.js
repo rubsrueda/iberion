@@ -1463,13 +1463,14 @@ const UIManager = {
         style.setProperty('top', `${screenY}px`, 'important');
         style.setProperty('display', 'block', 'important');
         style.setProperty('position', 'fixed', 'important');
-        style.setProperty('z-index', '20000', 'important');
+        style.setProperty('z-index', '1000000', 'important');
         style.setProperty('width', '200px', 'important');
         style.setProperty('height', '200px', 'important');
         style.setProperty('transform', `translate(-50%, -50%)`, 'important');
-        style.setProperty('pointer-events', 'none', 'important');
-        style.setProperty('background', 'rgba(0, 255, 0, 0.3)', 'important');
-        style.setProperty('border', '2px solid lime', 'important');
+        // Hacer el contenedor claramente visible y por encima de todo para depuración
+        style.setProperty('pointer-events', 'auto', 'important');
+        style.setProperty('background', 'rgba(255, 0, 0, 0.85)', 'important');
+        style.setProperty('border', '3px solid yellow', 'important');
         style.setProperty('visibility', 'visible', 'important');
         style.setProperty('opacity', '1', 'important');
         style.setProperty('overflow', 'visible', 'important');
