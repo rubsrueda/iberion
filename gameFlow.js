@@ -2176,6 +2176,11 @@ function calculateVictoryPoints() {
         const res = gameState.playerResources[p] || {};
         const playerUnits = units.filter(u => u.player === p && u.currentHealth > 0);
 
+        // === NUEVA MÉTRICA: Ciudades bárbaras (neutrales) conquistadas ===
+        const barbaraCitiesConquered = gameState.cities.filter(c => {
+            return c.owner === p && (c.isBarbaric === true || (c.owner === 9 && board[c.r]?.[c.c]?.owner === p));
+        }).length;
+
         metrics[p] = {
             // MÉTRICA ACORDADA 1: Conteo de rutas activas
             routesCount: playerUnits.filter(u => u.tradeRoute).length,
@@ -2190,7 +2195,8 @@ function calculateVictoryPoints() {
             techs: (res.researchedTechnologies || []).length,
             heroes: playerUnits.filter(u => u.commander).length,
             trades: gameState.playerStats?.sealTrades?.[pKey] || 0,
-            ruinsCount: gameState.playerStats?.ruinsExplored?.[pKey] || 0
+            ruinsCount: gameState.playerStats?.ruinsExplored?.[pKey] || 0,
+            barbaraCities: barbaraCitiesConquered  // === NUEVA MÉTRICA ===
         };
     });
 
@@ -2219,7 +2225,8 @@ function calculateVictoryPoints() {
     vp.holders.mostHeroes = findWinner('heroes');
     vp.holders.mostResources = findWinner('wealthSum'); // Cambio aplicado
     vp.holders.mostTrades = findWinner('trades');
-    vp.holders.mostRuins = findWinner('ruinsCount'); 
+    vp.holders.mostRuins = findWinner('ruinsCount');
+    vp.holders.mostBarbaraCities = findWinner('barbaraCities');  // === NUEVO TÍTULO ===
 
     // 3. Recalcular total de PV para cada jugador
     players.forEach(p => {

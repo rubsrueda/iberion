@@ -459,18 +459,31 @@ const RaidManager = {
             const myGems = Math.floor(baseGems * contributionPct);
             const mySeals = Math.max(1, Math.floor(baseSeals * contributionPct)); // Mínimo 1 sello si participaste
             
-            // Otorgar
-            PlayerDataManager.currentPlayer.currencies.gems += myGems;
-            PlayerDataManager.addWarSeals(mySeals);
-            await BattlePassManager.addMatchXp(baseXp * contributionPct);
-            
-            await PlayerDataManager.saveCurrentPlayer();
-            
-            alert(`¡VICTORIA! Contribución: ${(contributionPct*100).toFixed(1)}%\nRecompensas: ${myGems} Gemas, ${mySeals} Sellos.`);
-            
-            // Cerrar Raid y marcar como terminada en DB (Solo si soy líder o el último)
-            // Aquí simplemente recargamos la página o volvemos al HQ.
-            this.openRaidWindow(this.allianceId); // Volver al HQ
+            // Otorgar con manejo de errores
+            try {
+                PlayerDataManager.currentPlayer.currencies.gems += myGems;
+                PlayerDataManager.addWarSeals(mySeals);
+                
+                // Agregar XP de Battle Pass con retry
+                const xpResult = await BattlePassManager.addMatchXp(baseXp * contributionPct);
+                if (!xpResult.success) {
+                    console.warn("[Raid] Error al agregar XP de Battle Pass:", xpResult.error);
+                    // Re-intentar una vez
+                    await new Promise(r => setTimeout(r, 1000));
+                    await BattlePassManager.addMatchXp(baseXp * contributionPct);
+                }
+                
+                await PlayerDataManager.saveCurrentPlayer();
+                
+                alert(`¡VICTORIA! Contribución: ${(contributionPct*100).toFixed(1)}%\nRecompensas: ${myGems} Gemas, ${mySeals} Sellos, +${Math.floor(baseXp * contributionPct)} XP Pase.`);
+                
+                // Cerrar Raid y marcar como terminada en DB (Solo si soy líder o el último)
+                // Aquí simplemente recargamos la página o volvemos al HQ.
+                this.openRaidWindow(this.allianceId); // Volver al HQ
+            } catch (error) {
+                console.error("[Raid] Error procesando recompensas:", error);
+                alert("Error al procesar recompensas. Por favor, intenta de nuevo.");
+            }
         }
     }, 
 

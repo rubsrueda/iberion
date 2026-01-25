@@ -659,6 +659,14 @@ const AiGameplayManager = {
     },
 
     handlePressureProduction: async function(playerNumber) {
+        // === NUEVA LÓGICA: Si la IA está sin oro, considera comerciar con la Banca ===
+        const playerRes = gameState.playerResources[playerNumber];
+        if (playerRes.oro < 300 && playerRes.oro > 0) {
+            // Intentar comerciar con la Banca para recuperar oro
+            await AiGameplayManager.considerBankTrade(playerNumber);
+            // Re-evaluar recursos después del intento de comercio
+        }
+        
         if (AiGameplayManager.ownedHexPercentage(playerNumber) < 0.6 && units.filter(u => u.player === playerNumber).length < 25) {
             
             const unitsOfType = (type) => units.filter(u => u.player === playerNumber && u.regiments.some(r => r.type === type)).length;
@@ -677,6 +685,63 @@ const AiGameplayManager = {
                 console.log(`%c[IA Acción Inmediata] Moviendo la unidad recién creada: ${newUnit.name}`, "color: #DAA520; font-weight: bold;");
                 await AiGameplayManager.executeGeneralMovement(newUnit);
             }
+        }
+    },
+
+    /**
+     * Nueva función: Considera si la IA debe comerciar con la Banca
+     * para obtener recursos necesarios (especialmente ORO)
+     */
+    considerBankTrade: async function(playerNumber) {
+        try {
+            console.log(`%c[IA Commerce] Jugador ${playerNumber} evalúa comerciar con La Banca...`, "color: #FFD700; font-weight: bold;");
+            
+            const playerRes = gameState.playerResources[playerNumber];
+            const bankCity = gameState.cities.find(c => c.owner === 0); // Banca es Player 0
+            
+            if (!bankCity) {
+                console.log("[IA Commerce] No se encontró ciudad de La Banca.");
+                return false;
+            }
+            
+            // Verificar que haya una ruta de comercio disponible
+            const pathToBank = findInfrastructurePath(
+                gameState.cities.find(c => c.owner === playerNumber),
+                bankCity
+            );
+            
+            if (!pathToBank) {
+                console.log("[IA Commerce] No hay ruta de infraestructura hacia La Banca.");
+                return false;
+            }
+            
+            // Recomen daciones de intercambio
+            // Cambiar 2 de madera y piedra por 500 oro (ejemplo)
+            if (playerRes.madera >= 2 && playerRes.piedra >= 2) {
+                playerRes.madera -= 2;
+                playerRes.piedra -= 2;
+                playerRes.oro += 500;
+                
+                console.log(`%c[IA Commerce] ✓ Comercio exitoso: -2 Madera, -2 Piedra, +500 Oro`, "color: #90EE90; font-weight: bold;");
+                logMessage(`La IA (Jugador ${playerNumber}) ha comerciado con La Banca.`, "event");
+                return true;
+            }
+            
+            // Alternativa: Cambiar hierro por oro
+            if (playerRes.hierro >= 3) {
+                playerRes.hierro -= 3;
+                playerRes.oro += 400;
+                
+                console.log(`%c[IA Commerce] ✓ Comercio exitoso: -3 Hierro, +400 Oro`, "color: #90EE90; font-weight: bold;");
+                logMessage(`La IA (Jugador ${playerNumber}) ha comerciado con La Banca.`, "event");
+                return true;
+            }
+            
+            console.log("[IA Commerce] No hay recursos suficientes para comerciar.");
+            return false;
+        } catch (error) {
+            console.error("[IA Commerce] Error en considerBankTrade:", error);
+            return false;
         }
     },
 

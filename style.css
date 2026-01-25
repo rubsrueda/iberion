@@ -6499,7 +6499,7 @@ input:checked + .slider:before {
     position: fixed; /* Fijo a la pantalla, no al mapa */
     z-index: 20000; /* Por encima de unidades (z=10) y UI estándar */
     display: none;   /* Oculto por defecto */
-    pointer-events: none; /* Permite que los clics pasen a través del fondo */
+    pointer-events: none; /* Bloqueado por defecto, los botones usan auto !important */
 }
 
 .radial-btn {
@@ -6522,7 +6522,6 @@ input:checked + .slider:before {
     cursor: pointer;
     pointer-events: auto !important; /* IMPORTANTE: Habilita clic en el botón */
     box-shadow: 0 0 10px rgba(0,0,0,0.8);
-}
 }
 
 .radial-btn:hover {

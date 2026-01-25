@@ -31,6 +31,15 @@ const BankManager = {
      * Comprueba las condiciones y, si se cumplen, crea una nueva caravana.
      */
     createNewCaravanIfNeeded: function() {
+        // === LÍMITE GLOBAL DE CARAVANAS ===
+        const maxSimultaneousCaravans = 3;
+        const activeCaravans = units.filter(u => u.player === this.PLAYER_ID && u.tradeRoute).length;
+        
+        if (activeCaravans >= maxSimultaneousCaravans) {
+            console.log(`[Banca] Límite de ${maxSimultaneousCaravans} caravanas alcanzado. No se crea nueva.`);
+            return;
+        }
+        
         // 1. Obtener la Ciudad Banco
         const bankCity = gameState.cities.find(c => c.owner === this.PLAYER_ID);
         if (!bankCity) return;
@@ -64,12 +73,8 @@ const BankManager = {
             const path = findInfrastructurePath(bankCity, targetCity);
             if (!path) return false;
 
-            
-
             return true;
         });
-
-
 
         if (availableTargets.length === 0) {
             // No hay rutas libres

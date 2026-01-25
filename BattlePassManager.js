@@ -485,29 +485,49 @@ const BattlePassManager = {
     },
 
     saveUserProgress: async function() {
-        if (!PlayerDataManager.currentPlayer?.auth_id) return;
-
-        // --- Carga de seguridad si la temporada no está inicializada ---
-        if (!this.currentSeason) {
-            // Intentamos cargar la configuración activa, o usamos la primera por defecto
-            const activeKey = (typeof SEASON_CONFIG !== 'undefined') ? SEASON_CONFIG.ACTIVE_SEASON_KEY : 'SEASON_1';
-            this.currentSeason = BATTLE_PASS_SEASONS[activeKey];
-            
-            // Si sigue sin existir, error controlado
-            if (!this.currentSeason) {
-                console.warn("BattlePassManager: No se pudo cargar la temporada para guardar progreso.");
+        try {
+            if (!PlayerDataManager.currentPlayer?.auth_id) {
+                console.warn("[BattlePassManager] No hay usuario autenticado. Guardando en localStorage.");
+                // Fallback a localStorage para debug
+                localStorage.setItem('battlePassProgress', JSON.stringify(this.userProgress));
                 return;
             }
+
+            // --- Carga de seguridad si la temporada no está inicializada ---
+            if (!this.currentSeason) {
+                const activeKey = (typeof SEASON_CONFIG !== 'undefined') ? SEASON_CONFIG.ACTIVE_SEASON_KEY : 'SEASON_1';
+                this.currentSeason = BATTLE_PASS_SEASONS[activeKey];
+                
+                if (!this.currentSeason) {
+                    console.warn("[BattlePassManager] No se pudo cargar la temporada para guardar progreso.");
+                    return;
+                }
+            }
+            
+            const seasonId = this.currentSeason.id || 1;
+            
+            const { error } = await supabaseClient.from('user_battle_pass')
+                .update({ 
+                    claimed_rewards: this.userProgress.claimed_rewards || [],
+                    current_level: this.userProgress.current_level || 1,
+                    current_xp: this.userProgress.current_xp || 0,
+                    is_premium: this.userProgress.is_premium || false,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('user_id', PlayerDataManager.currentPlayer.auth_id)
+                .eq('season_id', seasonId);
+            
+            if (error) {
+                console.error("[BattlePassManager] Error al guardar en Supabase:", error);
+                // Guardar localmente como respaldo
+                localStorage.setItem('battlePassProgress', JSON.stringify(this.userProgress));
+            } else {
+                console.log("[BattlePassManager] Progreso guardado exitosamente en Supabase.");
+            }
+        } catch (error) {
+            console.error("[BattlePassManager] Error en saveUserProgress:", error);
+            localStorage.setItem('battlePassProgress', JSON.stringify(this.userProgress));
         }
-        
-        await supabaseClient.from('user_battle_pass')
-            .update({ 
-                claimed_rewards: this.userProgress.claimed_rewards,
-                current_level: this.userProgress.current_level,
-                is_premium: this.userProgress.is_premium
-            })
-            .eq('user_id', PlayerDataManager.currentPlayer.auth_id)
-            .eq('season_id', this.currentSeason.id); // Aquí es donde fallaba
     },
 
     // FUNCIÓN LÓGICA DE ACTUALIZACIÓN DE PROGRESO (Hook para el juego)
@@ -533,31 +553,54 @@ const BattlePassManager = {
     
     // Función reutilizada de tu petición anterior
     addMatchXp: async function(xpAmount) {
-         // (Pegar aquí el contenido de la función addMatchXp que hicimos antes, 
-         // la que calcula niveles. Es vital que esté dentro del objeto.)
-         
-         // RESUMEN PARA AHORRAR ESPACIO EN LA RESPUESTA:
-         // 1. Sumar XP a this.userProgress.current_xp
-         // 2. Calcular si sube de nivel
-         // 3. Guardar en DB
-         // 4. Retornar info.
-         
-         // --- COPIA ESTE BLOQUE EXACTO ---
-         const oldLvl = this.userProgress.current_level;
-         this.userProgress.current_xp += xpAmount;
-         
-         // Lógica subida nivel simplificada para ejemplo:
-         // Asumimos saltos fijos de 500xp
-         let nextLevelReq = 500 * this.userProgress.current_level; 
-         // NOTA: Para producción usar el array 'levels' real.
-         
-         while (this.userProgress.current_xp >= nextLevelReq) {
-             this.userProgress.current_level++;
-             nextLevelReq = 500 * this.userProgress.current_level; 
+         try {
+             // Validación de seguridad
+             if (!this.userProgress) {
+                 console.warn("[BattlePassManager] userProgress no inicializado. Omitiendo XP.");
+                 return { xpAdded: 0, levelsGained: 0, success: false };
+             }
+
+             const oldLvl = this.userProgress.current_level;
+             this.userProgress.current_xp += xpAmount;
+             
+             // Usar datos reales de temporada si existen
+             let leveledUp = false;
+             if (this.currentSeason && this.currentSeason.levels) {
+                 // Buscar el siguiente nivel
+                 const nextLevel = this.currentSeason.levels.find(l => 
+                     l.req_xp > this.userProgress.current_xp && l.lvl > this.userProgress.current_level
+                 );
+                 
+                 // Si no hay siguiente nivel, estamos en máx
+                 if (!nextLevel && this.userProgress.current_level < this.currentSeason.levels.length) {
+                     this.userProgress.current_level = this.currentSeason.levels.length;
+                     leveledUp = true;
+                 } else if (nextLevel) {
+                     // Verificar si hemos alcanzado algún nivel intermedio
+                     const reachedLevels = this.currentSeason.levels.filter(l => 
+                         l.req_xp <= this.userProgress.current_xp && l.lvl > oldLvl
+                     );
+                     if (reachedLevels.length > 0) {
+                         this.userProgress.current_level = reachedLevels[reachedLevels.length - 1].lvl;
+                         leveledUp = true;
+                     }
+                 }
+             }
+             
+             // Guardar en DB
+             await this.saveUserProgress();
+             
+             console.log(`[BattlePassManager] XP agregado: +${xpAmount}. Nivel: ${oldLvl} → ${this.userProgress.current_level}`);
+             
+             return { 
+                 xpAdded: xpAmount, 
+                 levelsGained: this.userProgress.current_level - oldLvl,
+                 success: true
+             };
+         } catch (error) {
+             console.error("[BattlePassManager] Error en addMatchXp:", error);
+             return { xpAdded: 0, levelsGained: 0, success: false, error: error.message };
          }
-         
-         await this.saveUserProgress();
-         return { xpAdded: xpAmount, levelsGained: this.userProgress.current_level - oldLvl };
     },
 
     //Activar el Premium

@@ -418,7 +418,122 @@ function toggleChatWidget() {
         // Si está abierto, lo minimizamos
         widget.classList.add('minimized');
     }
-}
+};
+
+/**
+ * (NUEVO) Desplega la "Caravana Imperial" como unidad compartida de la alianza
+ * cuando se inicia una misión especial de alianza
+ */
+AllianceManager.deployImperialCaravan = async function(allianceId) {
+    try {
+        console.log(`[Alliance] Desplegando Caravana Imperial para alianza ${allianceId}...`);
+        
+        if (!gameState || !board || !units) {
+            console.error("[Alliance] No se puede desplegar: gameState no inicializado.");
+            return false;
+        }
+
+        // 1. Encontrar una posición válida para desplegar (cerca de la capital del jugador)
+        const playerCapital = gameState.cities.find(c => c.isCapital && c.owner === gameState.currentPlayer);
+        if (!playerCapital) {
+            console.warn("[Alliance] No se encontró capital del jugador para desplegar Caravana.");
+            return false;
+        }
+
+        // 2. Buscar un hexágono adyacente disponible
+        const neighbors = getHexNeighbors(playerCapital.r, playerCapital.c);
+        let deploySpot = null;
+        for (const neighbor of neighbors) {
+            const hexData = board[neighbor.r]?.[neighbor.c];
+            if (hexData && !getUnitOnHex(neighbor.r, neighbor.c) && !TERRAIN_TYPES[hexData.terrain]?.isImpassableForLand) {
+                deploySpot = neighbor;
+                break;
+            }
+        }
+
+        if (!deploySpot) {
+            console.warn("[Alliance] No hay espacio adyacente para desplegar Caravana Imperial.");
+            return false;
+        }
+
+        // 3. Crear la unidad de Caravana Imperial
+        const imperialCaravan = {
+            id: `u${unitIdCounter++}`,
+            player: 0, // Neutral / Alianza (Player 0)
+            name: `Caravana Imperial [${PlayerDataManager.currentPlayer?.username || 'Alianza'}]`,
+            commander: null,
+            regiments: [
+                { type: 'Caballería Pesada', id: `r${Date.now()}${Math.random()}`, health: REGIMENT_TYPES['Caballería Pesada'].health },
+                { type: 'Caballería Pesada', id: `r${Date.now()}${Math.random()}`, health: REGIMENT_TYPES['Caballería Pesada'].health },
+                { type: 'Arqueros', id: `r${Date.now()}${Math.random()}`, health: REGIMENT_TYPES['Arqueros'].health }
+            ],
+            r: deploySpot.r,
+            c: deploySpot.c,
+            hasMoved: false,
+            hasAttacked: false,
+            level: 0,
+            experience: 0,
+            morale: 100,
+            maxMorale: 125,
+            allianceId: allianceId,  // Identificar como unidad de alianza
+            isAllianceUnit: true     // Flag para tratamiento especial
+        };
+
+        // Calcular stats
+        calculateRegimentStats(imperialCaravan);
+        imperialCaravan.currentHealth = imperialCaravan.maxHealth;
+        imperialCaravan.currentMovement = imperialCaravan.movement;
+
+        // 4. Colocar en el tablero
+        units.push(imperialCaravan);
+        board[deploySpot.r][deploySpot.c].unit = imperialCaravan;
+        
+        // 5. Crear elemento visual
+        const hexElement = board[deploySpot.r][deploySpot.c].element;
+        if (hexElement) {
+            imperialCaravan.element = createUnitElement(imperialCaravan);
+            positionUnitElement(imperialCaravan);
+            hexElement.appendChild(imperialCaravan.element);
+        }
+
+        logMessage(`¡La Caravana Imperial ha sido desplegada en (${deploySpot.r},${deploySpot.c})!`, "success");
+        console.log("[Alliance] Caravana Imperial desplegada exitosamente.");
+        return true;
+
+    } catch (error) {
+        console.error("[Alliance] Error al desplegar Caravana Imperial:", error);
+        return false;
+    }
+};
+
+/**
+ * (NUEVO) Habilita el acceso a una fortaleza aliada para el jugador
+ */
+AllianceManager.enableAllyFortress = function(fortressR, fortressC) {
+    try {
+        const hexData = board[fortressR]?.[fortressC];
+        if (!hexData) {
+            console.warn(`[Alliance] Fortaleza inválida en (${fortressR},${fortressC})`);
+            return false;
+        }
+
+        // Marcar como accesible
+        hexData.isAllyFortress = true;
+        hexData.canBeUsedBy = gameState.currentPlayer;
+        
+        logMessage(`¡Ahora puedes usar la fortaleza aliada en (${fortressR},${fortressC})!`, "success");
+        
+        // Actualizar visualmente
+        if (typeof renderSingleHexVisuals === 'function') {
+            renderSingleHexVisuals(fortressR, fortressC);
+        }
+
+        return true;
+    } catch (error) {
+        console.error("[Alliance] Error habilitando fortaleza aliada:", error);
+        return false;
+    }
+};
 
 // Inicialización de Listeners del Chat (Llamar en init())
 // Asegúrate de que esto no se duplique
