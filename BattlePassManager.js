@@ -1,5 +1,7 @@
 // BattlePassManager.js v3.0 (Completo con Misiones)
 
+console.log("[BattlePassManager] Iniciando carga...");
+
 const BattlePassManager = {
     currentSeason: null,
     userProgress: null,
@@ -617,6 +619,8 @@ const BattlePassManager = {
         if(typeof showToast === 'function') showToast("¡Pase Premium Desbloqueado!", "success");
     },
 };
+
+console.log("[BattlePassManager] Carga completada. Objeto definido:", typeof BattlePassManager);
 
 // LISTENERS UNIFICADOS (Importante actualizar para los Tabs)
 document.addEventListener('click', (e) => {
