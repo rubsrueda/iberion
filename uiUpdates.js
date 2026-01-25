@@ -1463,6 +1463,8 @@ const UIManager = {
         container.style.display = 'block';
         container.style.position = 'fixed';
         container.style.zIndex = '20000';
+        container.style.width = '200px'; // Dar tamaño al contenedor para que los botones sean visibles
+        container.style.height = '200px';
         container.style.transform = 'translate(-50%, -50%)'; // Centrar el contenedor
         container.style.pointerEvents = 'none'; // Contenedor es transparent a clics
 
