@@ -212,7 +212,7 @@ const AllianceManager = {
             });
 
             // 6. GESTIÓN DEL BOTÓN DE ATAQUE / INICIO
-            const { data: activeRaid } = await supabaseClient
+            let { data: activeRaid } = await supabaseClient
                 .from('alliance_raids')
                 .select('*')
                 .eq('alliance_id', aliId)
