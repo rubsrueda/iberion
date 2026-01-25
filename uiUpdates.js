@@ -1467,7 +1467,7 @@ const UIManager = {
         }
 
         // Tamaños fijos pequeños (no escalan con zoom para evitar botones gigantes)
-        const buttonSize = 14;  // Tamaño fijo 14px (más visible)
+        const buttonSize = 15.4;  // Tamaño fijo 15.4px (10% más grande que 14px)
         const containerSize = Math.round(hexSizeOnScreen * 1.0);
 
         // Radio: proporción del hex en pantalla para separar los botones
@@ -1493,15 +1493,16 @@ const UIManager = {
                 // Actualizar posición de cada botón según el nuevo radio
                 const buttons = container.querySelectorAll('.radial-btn');
                 const total = buttons.length;
-                const angleRange = Math.PI;
+                const angleRange = (120 * Math.PI) / 180; // 120 grados en radianes
                 const angleStep = total > 1 ? angleRange / (total - 1) : 0;
                 const centerOffset = newHexSize / 2;
                 
                 buttons.forEach((btn, index) => {
-                    // Semicírculo superior: de 180° a 360° (Math.PI a 2*Math.PI)
-                    const angle = Math.PI + (index * angleStep);
+                    // Abanico de 120° en la parte superior: de 210° a 330° (desde arriba-izquierda a arriba-derecha)
+                    const startAngle = (210 * Math.PI) / 180; // 210° (arriba-izquierda)
+                    const angle = startAngle + (index * angleStep);
                     const x = Math.cos(angle) * newRadius;
-                    const y = Math.sin(angle) * newRadius; // Sin negar, ya da valores negativos
+                    const y = Math.sin(angle) * newRadius;
                     const btnLeft = centerOffset + x;
                     const btnTop = centerOffset + y;
                     
@@ -1609,19 +1610,20 @@ const UIManager = {
             }
         });
 
-        // Crear botones en forma de semicírculo superior
+        // Crear botones en forma de abanico de 120° superior
         requestAnimationFrame(() => {
             const total = actions.length || 1;
-            // Semicírculo: distribuir botones en 180 grados (de izquierda a derecha por arriba)
-            const angleRange = Math.PI; // 180 grados
+            // Abanico de 120 grados en la parte superior
+            const angleRange = (120 * Math.PI) / 180; // 120 grados en radianes
             const angleStep = total > 1 ? angleRange / (total - 1) : 0;
             const centerOffset = containerSize / 2;
 
             actions.forEach((action, index) => {
-                // Semicírculo superior: distribuir de 180° a 360° (izquierda superior a derecha superior)
-                const angle = Math.PI + (index * angleStep);
+                // Abanico de 120° en la parte superior: de 210° a 330° (desde arriba-izquierda a arriba-derecha)
+                const startAngle = (210 * Math.PI) / 180; // 210° (arriba-izquierda)
+                const angle = startAngle + (index * angleStep);
                 const x = Math.cos(angle) * baseRadius;
-                const y = Math.sin(angle) * baseRadius; // Ya da valores negativos (arriba)
+                const y = Math.sin(angle) * baseRadius;
 
                 const btn = document.createElement('div');
                 btn.className = 'radial-btn';
