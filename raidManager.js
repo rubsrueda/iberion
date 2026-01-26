@@ -307,10 +307,28 @@ const RaidManager = {
 
     // 3. Transición de Etapa (Reset)
     transitionToStage: async function(newStageIdx) {
-        // Reiniciar datos para la nueva etapa
+        // CORRECCIÓN: Leer la configuración de la nueva etapa
+        const config = RAID_CONFIG.STAGES[newStageIdx];
+        const baseUnitStats = REGIMENT_TYPES[config.regimentType];
+        
+        // Construir regimientos reales según la nueva etapa
+        const bossRegiments = [];
+        let totalHpCalculated = 0;
+
+        for (let i = 0; i < config.regimentCount; i++) {
+            bossRegiments.push({
+                type: config.regimentType,
+                health: baseUnitStats.health,
+                maxHealth: baseUnitStats.health
+            });
+            totalHpCalculated += baseUnitStats.health;
+        }
+        
+        // Reiniciar datos para la nueva etapa CON los regimientos correctos
         const newStageData = {
-            caravan_hp: 100000,
-            caravan_max_hp: 100000,
+            boss_regiments: bossRegiments, // AGREGADO: Array real de regimientos
+            caravan_hp: totalHpCalculated,
+            caravan_max_hp: totalHpCalculated,
             caravan_pos: { r: 6, c: 0 },
             last_update: new Date().toISOString(), // El reloj de movimiento empieza ahora para esta etapa
             is_victory: false,
@@ -330,7 +348,7 @@ const RaidManager = {
 
         if (!error) {
             this.currentRaid = data;
-            console.log(`[Raid] Etapa ${newStageIdx} iniciada.`);
+            console.log(`[Raid] Etapa ${newStageIdx} iniciada con ${config.regimentType}.`);
             this.showRaidMap(); // Cargar mapa nuevo
         }
     },

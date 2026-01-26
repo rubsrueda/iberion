@@ -112,6 +112,10 @@ const StoreManager = {
             player.currencies.gold -= item.costGold;
             this.deliverItem(item);
             this.saveAndNotify(item, 'gold');
+            // CORRECCIÓN: Actualizar UI global
+            if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
+                UIManager.updateAllUIDisplays();
+            }
         } else {
             showToast("No tienes suficiente Oro de Perfil.", "error");
         }
@@ -126,6 +130,10 @@ const StoreManager = {
             player.currencies.gems -= item.costGems;
             this.deliverItem(item);
             this.saveAndNotify(item, 'gems');
+            // CORRECCIÓN: Actualizar UI global
+            if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
+                UIManager.updateAllUIDisplays();
+            }
         } else {
             showToast("No tienes suficientes Gemas.", "error");
         }
@@ -170,6 +178,10 @@ const StoreManager = {
                 }
                 
                 this.updateHeader();
+                // CORRECCIÓN: Actualizar UI global
+                if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
+                    UIManager.updateAllUIDisplays();
+                }
             } else {
                 if(typeof showToast === 'function') showToast("Compra cancelada.", "info");
             }

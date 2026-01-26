@@ -205,6 +205,27 @@ const BattlePassManager = {
         // Aseguramos que existan los datos mínimos para pintar, si no, salimos
         if (!this.userProgress || !this.currentSeason) return;
 
+        // CORRECCIÓN: Auto-avance de nivel al renderizar
+        // Verificar si el XP actual debería estar en un nivel superior
+        if (this.currentSeason.levels) {
+            let correctLevel = 1;
+            for (const level of this.currentSeason.levels) {
+                if (this.userProgress.current_xp >= level.req_xp) {
+                    correctLevel = level.lvl;
+                } else {
+                    break;
+                }
+            }
+            
+            // Si detectamos que el nivel no coincide, lo corregimos automáticamente
+            if (correctLevel > this.userProgress.current_level) {
+                console.log(`[BattlePassManager] Auto-corrección de nivel: ${this.userProgress.current_level} → ${correctLevel}`);
+                this.userProgress.current_level = correctLevel;
+                // Guardar inmediatamente
+                this.saveUserProgress();
+            }
+        }
+
         const currentLvl = this.userProgress.current_level;
         const isPremium = this.userProgress.is_premium;
         
@@ -240,8 +261,13 @@ const BattlePassManager = {
             const end = new Date(this.currentSeason.endDate);
             const now = new Date();
             const diff = end - now;
-            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-            if(document.getElementById('bpSeasonTimer')) document.getElementById('bpSeasonTimer').textContent = `${days} días restantes`;
+            
+            // CORRECCIÓN: Cálculo correcto de días (dividir entre milisegundos en un día)
+            const daysRemaining = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+            
+            if(document.getElementById('bpSeasonTimer')) {
+                document.getElementById('bpSeasonTimer').textContent = `${daysRemaining} días restantes`;
+            }
         }
 
         // 5. >>> CORRECCIÓN: BOTÓN "ACTIVAR DORADO" <<<

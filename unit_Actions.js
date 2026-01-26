@@ -1943,6 +1943,8 @@ function handleReinforceUnitAction(unitToReinforce) {
             if (UIManager.clearHighlights && selectedUnit && selectedUnit.id === unitToReinforce.id) { 
                  UIManager.clearHighlights(); 
             }
+            // CORRECCIÓN: Actualizar UI completa de recursos
+            if (UIManager.updateAllUIDisplays) UIManager.updateAllUIDisplays();
         }
     };
 
@@ -2173,6 +2175,10 @@ function _applyDestructionRewards(destroyedUnit, victorUnit) {
 
     if (gameState.playerResources && gameState.playerResources[victorUnit.player]) {
         gameState.playerResources[victorUnit.player].oro += totalGold;
+        // CORRECCIÓN: Actualizar UI cuando el jugador humano gana oro
+        if (victorUnit.player === gameState.currentPlayer && typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
+            UIManager.updateAllUIDisplays();
+        }
     }
 
     // 5. Inventario de Perfil
@@ -2801,6 +2807,10 @@ function _executePillageAction(pillagerUnit) {
     // Añadir el oro al jugador
     if (gameState.playerResources[pillagerUnit.player]) {
         gameState.playerResources[pillagerUnit.player].oro += goldGained;
+        // CORRECCIÓN: Actualizar UI cuando el jugador humano saquea
+        if (pillagerUnit.player === gameState.currentPlayer && typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
+            UIManager.updateAllUIDisplays();
+        }
     }
 
     // Consumir la acción de la unidad

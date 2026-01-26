@@ -4075,40 +4075,9 @@ async function openMyGamesModal() {
             separator.innerHTML = "<small style='color:#555; display:block; margin:10px 0; border-bottom:1px solid #333;'>GUARDADAS / IA</small>";
             list.appendChild(separator);
 
+            // CORRECCIÓN: Usar renderMatchCard para tener menú contextual también
             savedData.forEach(save => {
-                const state = save.game_state?.gameState || {};
-                const turn = state.turnNumber || 1;
-                const dateStr = new Date(save.created_at).toLocaleDateString();
-
-                const card = document.createElement('div');
-                card.className = 'save-slot-card';
-                // Usamos un estilo similar pero distintivo (icono de disco)
-                card.innerHTML = `
-                    <div style="font-size:14px;">💾</div>
-                    <div style="overflow:hidden;">
-                        <h4 style="color:#3498db; font-size:11px; margin:0;">${save.save_name}</h4>
-                    </div>
-                    <div style="font-size:16px; text-align:center;">🤖</div>
-                    <div class="match-status" style="color:#3498db; font-size:9px; text-align:center;">LOCAL</div>
-                    <div style="font-size:10px; color:#aaa; text-align:center;">T${turn}</div>
-                    <div style="font-size:9px; color:#555; text-align:right;">${dateStr}</div>
-                `;
-
-                card.onclick = () => {
-                    document.getElementById('myGamesModal').style.display = 'none';
-                    // Carga directa local sin pasar por NetworkManager
-                    if (typeof reconstruirJuegoDesdeDatos === 'function') {
-                        reconstruirJuegoDesdeDatos(save.game_state);
-                        // Asegurar que si era vs IA, la IA esté lista
-                        gameState.isCampaignBattle = false; // Asumimos escaramuza
-                        logMessage(`Partida guardada "${save.save_name}" cargada.`);
-                        
-                        // Mostrar pantalla
-                        showScreen(domElements.gameContainer);
-                        if(domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
-                    }
-                };
-                list.appendChild(card);
+                renderMatchCard(save, list, myId, 'save');
             });
         }
 
