@@ -367,6 +367,25 @@ const RaidManager = {
         // Lógica de reparto final...
     },
 
+    // ===== FUNCIÓN DEBUG =====
+    // Forzar avance a la siguiente fase (solo para testing)
+    debugForceNextStage: async function() {
+        if (!this.currentRaid) {
+            console.error("[Raid Debug] No hay raid activo");
+            return;
+        }
+        
+        const nextStage = this.currentRaid.current_stage + 1;
+        if (nextStage > 4) {
+            console.log("[Raid Debug] Ya estás en la última etapa");
+            return;
+        }
+        
+        console.log(`[Raid Debug] Forzando transición: Etapa ${this.currentRaid.current_stage} → ${nextStage}`);
+        await this.transitionToStage(nextStage);
+        console.log("[Raid Debug] ✅ Transición completada");
+    },
+
     // 3. MOSTRAR MAPA
     showRaidMap: function(stageData) {
         // Si no pasamos stageData, usar el actual

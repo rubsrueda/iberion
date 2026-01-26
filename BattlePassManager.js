@@ -246,12 +246,21 @@ const BattlePassManager = {
         }
 
         // 3. Barra de Progreso Visual (Header)
-        // Calculamos cuánto falta para el siguiente nivel
-        // Nota: Asumimos saltos de 500xp para la visualización rápida, o leemos del seasonData
-        const nextLvlReq = 500 * currentLvl; 
-        const prevLvlReq = 500 * (currentLvl - 1);
+        // CORRECCIÓN: Usar datos reales de la temporada en lugar de asumir 500xp
+        let prevLvlReq = 0;
+        let nextLvlReq = 500;
+        
+        if (this.currentSeason.levels) {
+            const currentLevelData = this.currentSeason.levels.find(l => l.lvl === currentLvl);
+            const nextLevelData = this.currentSeason.levels.find(l => l.lvl === currentLvl + 1);
+            
+            if (currentLevelData) prevLvlReq = currentLevelData.req_xp;
+            if (nextLevelData) nextLvlReq = nextLevelData.req_xp;
+        }
+        
         const progressInLevel = this.userProgress.current_xp - prevLvlReq;
-        const percent = Math.min(100, Math.max(0, (progressInLevel / 500) * 100));
+        const xpNeededForNext = nextLvlReq - prevLvlReq;
+        const percent = Math.min(100, Math.max(0, (progressInLevel / xpNeededForNext) * 100));
         
         const progressBar = document.getElementById('bpHeaderProgressBar');
         if (progressBar) progressBar.style.width = `${percent}%`;

@@ -4077,7 +4077,7 @@ async function openMyGamesModal() {
 
             // CORRECCIÓN: Usar renderMatchCard para tener menú contextual también
             savedData.forEach(save => {
-                renderMatchCard(save, list, myId, 'save');
+                renderMatchCard(save, list, uid, 'save');
             });
         }
 
