@@ -511,11 +511,24 @@ const AiGameplayManager = {
     },
 
     _executeCombatLogic: async function(unit, enemies) {
+        // NUEVO: Verificar si es unidad naval y usar lógica especializada
+        const isNaval = unit.regiments.some(reg => REGIMENT_TYPES[reg.type]?.type === 'Naval');
+        if (isNaval && this._executeNavalCombat) {
+            const handled = await this._executeNavalCombat(unit, enemies);
+            if (handled) return;
+        }
+
         // Si la salud es muy baja, la retirada es la única opción.
         const healthPercentage = unit.currentHealth / unit.maxHealth;
         if (healthPercentage < 0.35) {
             console.log(`[IA Combat] ${unit.name} tiene salud crítica. Intentando retirada.`);
             await AiGameplayManager.executeRetreat(unit, enemies);
+            return;
+        }
+
+        // NUEVO: Considerar cortar líneas de suministro si la unidad está profundamente en territorio enemigo
+        if (this._attemptSupplyLineCut && await this._attemptSupplyLineCut(unit)) {
+            console.log(`[IA Combat] ${unit.name} cortó línea enemiga`);
             return;
         }
 
@@ -526,6 +539,12 @@ const AiGameplayManager = {
         if (!bestAttack) {
             console.log(`[IA Combat] ${unit.name} no encontró objetivos de ataque. Procediendo a movimiento de expansión.`);
             await AiGameplayManager._executeExpansionLogic(unit);
+            return;
+        }
+
+        // NUEVO: Considerar split táctico antes de atacar
+        if (this._considerTacticalSplit && await this._considerTacticalSplit(unit, bestAttack.target)) {
+            console.log(`[IA Combat] ${unit.name} ejecutó split táctico`);
             return;
         }
 
@@ -850,6 +869,54 @@ const AiGameplayManager = {
         return bestAction; 
     },
     
+    /**
+     * Implementa la retirada táctica de una unidad amenazada
+     */
+    executeRetreat: async function(unit, enemies) {
+        console.log(`[IA Retreat] ${unit.name} está en retirada táctica...`);
+        
+        // Buscar hexágonos seguros (lejos de enemigos, cerca de aliados)
+        const safeHexes = [];
+        const reachableHexes = this.getReachableHexes(unit);
+        const allies = units.filter(u => u.player === unit.player && u.id !== unit.id && u.currentHealth > 0);
+        
+        for (const hex of reachableHexes) {
+            // Calcular distancia mínima a enemigos
+            const minEnemyDist = Math.min(...enemies.map(e => hexDistance(hex.r, hex.c, e.r, e.c)));
+            
+            // Calcular distancia mínima a aliados
+            const minAllyDist = allies.length > 0 ? Math.min(...allies.map(a => hexDistance(hex.r, hex.c, a.r, a.c))) : 999;
+            
+            // Bonus por terreno defensivo
+            const hexData = board[hex.r]?.[hex.c];
+            const terrainBonus = (hexData?.terrain === 'forest' || hexData?.terrain === 'hills') ? 3 : 0;
+            
+            // Score: alejarse de enemigos, acercarse a aliados, preferir terreno defensivo
+            const score = (minEnemyDist * 10) - (minAllyDist * 2) + terrainBonus;
+            safeHexes.push({ ...hex, score, minEnemyDist });
+        }
+        
+        // Ordenar por seguridad
+        safeHexes.sort((a, b) => b.score - a.score);
+        
+        // Intentar retirarse al mejor hexágono
+        if (safeHexes.length > 0 && safeHexes[0].minEnemyDist > 1) {
+            await _executeMoveUnit(unit, safeHexes[0].r, safeHexes[0].c);
+            console.log(`[IA Retreat] ${unit.name} se retiró a (${safeHexes[0].r}, ${safeHexes[0].c})`);
+        } else {
+            // Si no hay hexágonos seguros, intentar fusionarse con aliado cercano
+            const nearbyAlly = allies.find(a => hexDistance(unit.r, unit.c, a.r, a.c) <= (unit.currentMovement || unit.movement));
+            if (nearbyAlly && (unit.regiments.length + nearbyAlly.regiments.length) <= MAX_REGIMENTS_PER_DIVISION) {
+                console.log(`[IA Retreat] ${unit.name} no encontró hexágono seguro, fusionándose con aliado...`);
+                await _executeMoveUnit(unit, nearbyAlly.r, nearbyAlly.c, true);
+                mergeUnits(unit, nearbyAlly);
+            } else {
+                console.log(`[IA Retreat] ${unit.name} no tiene opciones de retirada, se mantiene en posición.`);
+                unit.hasMoved = true;
+            }
+        }
+    },
+
     getReachableHexes: function(unit) { let reachable=[];let queue=[{r:unit.r,c:unit.c,cost:0}];let visited=new Set([`${unit.r},${unit.c}`]);const maxMove=unit.currentMovement||unit.movement;while(queue.length>0){let curr=queue.shift();for(const n of getHexNeighbors(curr.r,curr.c)){const key=`${n.r},${n.c}`;if(!visited.has(key)){visited.add(key);const neighborHex=board[n.r]?.[n.c];if(neighborHex&&!neighborHex.unit&&!TERRAIN_TYPES[neighborHex.terrain].isImpassableForLand){const moveCost=TERRAIN_TYPES[neighborHex.terrain]?.movementCostMultiplier||1;const newCost=curr.cost+moveCost;if(newCost<=maxMove){reachable.push({r:n.r,c:n.c,cost:newCost});queue.push({r:n.r,c:n.c,cost:newCost});}}}}}return reachable;},
     executeGeneralMovement: async function(unit) { const mission = AiGameplayManager.missionAssignments.get(unit.id); if (mission?.type === 'AXIS_ADVANCE') { const potentialTargets = AiGameplayManager.findBestStrategicObjective(unit, 'expansion', mission.objective); if (potentialTargets.length > 0) { const targetHex = potentialTargets[0]; const path = AiGameplayManager.findPathToTarget(unit, targetHex.r, targetHex.c); if (path && path.length > 1) { const moveHex = path[Math.min(path.length - 1, unit.currentMovement || unit.movement)]; if (!getUnitOnHex(moveHex.r, moveHex.c)) { await _executeMoveUnit(unit, moveHex.r, moveHex.c); return true; } } } } const localTarget = AiGameplayManager._findBestLocalMove(unit); if (localTarget) { await _executeMoveUnit(unit, localTarget.r, localTarget.c); return true; } return false; },
     
