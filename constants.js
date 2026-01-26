@@ -134,13 +134,22 @@ const REGIMENT_TYPES = {
         goldValueOnDestroy: 400, foodConsumption: -5,
         abilities: ["provide_supply"], cargoCapacity: 400
     },
-    // Unidad Naval de transporte
-    "Barco de Guerra": {category: "naval", is_naval: true,
-        cost: { oro: 2000, upkeep: 100, madera: 25 },
-        attack: 200, defense: 100, health: 200, movement: 5,
+    
+    // Unidades Navales
+    "Patache": {category: "naval", is_naval: true,
+        cost: { oro: 1000, upkeep: 100, madera: 500 },
+        attack: 80, defense: 50, health: 100, movement: 5,
         sprite: 'images/sprites/barco256.png', visionRange: 4, attackRange: 3, initiative: 10,
-        goldValueOnDestroy: 2200, foodConsumption: 1, puntosReclutamiento: 50,
-        abilities: ["provide_supply","transport", "coastal_bombardment"],
+        goldValueOnDestroy: 200, foodConsumption: 1, puntosReclutamiento: 50, evasion: 5,
+        abilities: ["enhanced_vision", "reveal_details", "jump", "barlovento"],
+        canOnlyBeAttackedByRanged: true, transportCapacity: 0, cargoCapacity: 200
+    },
+    "Barco de Guerra": {category: "naval", is_naval: true,
+        cost: { oro: 2000, upkeep: 100, madera: 1000 },
+        attack: 180, defense: 120, health: 200, movement: 4,
+        sprite: 'images/sprites/barco256.png', visionRange: 3, attackRange: 3, initiative: 9,
+        goldValueOnDestroy: 2200, foodConsumption: 1, puntosReclutamiento: 50, evasion: 1,
+        abilities: ["provide_supply", "transport", "coastal_bombardment"],
         canOnlyBeAttackedByRanged: true, transportCapacity: 2, cargoCapacity: 2200
     }, 
 
@@ -237,6 +246,7 @@ const CIVILIZATIONS = {
         bonuses: {
             unitTypeBonus: {
                 "Artillería": { attackBonus: 20 }, // +20 Ataque (antes +1)
+                "Patache": { defenseBonus: 10, movementBonus: 1 }, // Barcos exploradores más rápidos y resistentes
                 "Barco de Guerra": { defenseBonus: 20, attackRange: 1 } // +20 Defensa (antes +1), rango sin cambios
             }
         }

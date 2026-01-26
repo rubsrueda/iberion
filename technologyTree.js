@@ -73,10 +73,10 @@ const TECHNOLOGY_TREE_DATA = {
     "NAVIGATION": {
         id: "NAVIGATION",
         name: "Navegación",
-        description: "Permite la construcción de astilleros y el dominio de los mares con barcos de guerra.",
+        description: "Permite la construcción de astilleros y el dominio de los mares con barcos de guerra y pataches exploradores.",
         sprite: "🧭",
         cost: { researchPoints: 60 },
-        unlocksUnits: ["Barco de Guerra"],
+        unlocksUnits: ["Patache", "Barco de Guerra"],
         unlocksStructures: [], // Futuro: Astilleros
         prerequisites: ["ENGINEERING", "FORESTRY"], // Requiere madera e ingeniería
         position: { x: -150, y: 200 }, // Posición en la rama civil/maderera

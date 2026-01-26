@@ -223,6 +223,7 @@ function getAbbreviatedName(unitTypeName) {
         "Ingenieros": "Ingenieros",
         "Hospital de Campaña": "Hospital Camp.",
         "Columna de Suministro": "Suministros",
+        "Patache": "Patache",
         "Barco de Guerra": "Navío Guerra",
         "Colono": "Colono",
         "Explorador": "Explorador"
