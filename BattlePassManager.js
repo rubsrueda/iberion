@@ -560,8 +560,7 @@ const BattlePassManager = {
                     claimed_rewards: this.userProgress.claimed_rewards || [],
                     current_level: this.userProgress.current_level || 1,
                     current_xp: this.userProgress.current_xp || 0,
-                    is_premium: this.userProgress.is_premium || false,
-                    updated_at: new Date().toISOString()
+                    is_premium: this.userProgress.is_premium || false
                 })
                 .eq('user_id', PlayerDataManager.currentPlayer.auth_id)
                 .eq('season_id', seasonId);

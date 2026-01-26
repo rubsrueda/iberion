@@ -1123,7 +1123,7 @@ async function endTacticalBattle(winningPlayerNumber) {
                 game_state: estadoGuardar,
                 board_state: estadoGuardar.board,
                 created_at: new Date().toISOString()
-            }, { onConflict: 'save_name, user_id' }) // Asegúrate de tener una restricción única o usa el ID si lo tienes
+            })
             .then(({ error }) => {
                 if(error) console.error("Error en autosave local:", error);
                 else console.log("Autosave local completado.");
