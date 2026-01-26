@@ -74,6 +74,37 @@ const RaidManager = {
         
         console.log("[Raid] Intentando entrar al Raid ID:", this.currentRaid.id);
         console.log("[Raid] Datos del jugador:", {uid, username: player.username, gold: player.currencies.gold});
+        
+        // === MIGRACIÓN: Corregir raids existentes sin stage_start_time ===
+        if (!stageData.stage_start_time) {
+            console.warn("[Raid] Raid antiguo detectado. Aplicando migración...");
+            
+            // Usar el start_time del raid completo como referencia
+            const raidStartTime = new Date(this.currentRaid.start_time);
+            const now = new Date();
+            const hoursElapsed = (now - raidStartTime) / (1000 * 60 * 60);
+            
+            // Calcular en qué etapa DEBERÍAMOS estar
+            const expectedStage = Math.min(4, Math.floor(hoursElapsed / RAID_CONFIG.DURATION_PER_STAGE_HOURS) + 1);
+            
+            // Calcular cuándo empezó la etapa actual
+            const stageStartOffset = (this.currentRaid.current_stage - 1) * RAID_CONFIG.DURATION_PER_STAGE_HOURS;
+            const calculatedStageStart = new Date(raidStartTime.getTime() + (stageStartOffset * 60 * 60 * 1000));
+            
+            stageData.stage_start_time = calculatedStageStart.toISOString();
+            
+            // Si estamos en la etapa incorrecta, forzar transición
+            if (expectedStage > this.currentRaid.current_stage) {
+                console.log(`[Raid] Etapa incorrecta detectada. Forzando transición: ${this.currentRaid.current_stage} → ${expectedStage}`);
+                await this.transitionToStage(expectedStage);
+                return; // Salir y dejar que se vuelva a llamar
+            }
+            
+            // Resetear posición a inicial para recalcular correctamente
+            stageData.caravan_pos = { r: 6, c: 1 };
+            
+            console.log("[Raid] Migración completada. stage_start_time:", stageData.stage_start_time);
+        }
 
         // A. Verificar si ya estoy dentro (Reconexión)
         let mySlotIdx = stageData.slots.indexOf(uid);
@@ -208,8 +239,14 @@ const RaidManager = {
         this.showRaidMap(this.currentRaid.stage_data);
         
         // E. Calcular y aplicar movimiento automático de la caravana basado en tiempo transcurrido
-        console.log("[Raid] Calculando posición actual de la caravana según tiempo transcurrido...");
+        console.log("[Raid] === CALCULANDO POSICIÓN DE CARAVANA ===");
+        console.log("[Raid] Etapa actual:", this.currentRaid.current_stage);
+        console.log("[Raid] stage_start_time:", stageData.stage_start_time);
+        console.log("[Raid] Posición actual antes de calcular:", JSON.stringify(stageData.caravan_pos));
+        
         await this.calculateCaravanPath(stageData);
+        
+        console.log("[Raid] Posición después de calcular:", JSON.stringify(stageData.caravan_pos));
         
         // F. Mensaje de bienvenida
         setTimeout(() => {
@@ -844,5 +881,67 @@ const RaidManager = {
 
         console.log("Unidad guardada en la nube del Raid.");
     },
+
+    // === UTILIDADES DE DEBUG ===
+    
+    // Reiniciar el raid completamente (útil para pruebas)
+    debugResetRaid: async function() {
+        if (!this.allianceId) {
+            console.error("[Raid Debug] No hay allianceId. Usa desde el HQ de alianza.");
+            return;
+        }
+        
+        console.log("[Raid Debug] Eliminando raids activos...");
+        
+        // Marcar todos los raids activos como completados
+        await supabaseClient
+            .from('alliance_raids')
+            .update({ status: 'completed' })
+            .eq('alliance_id', this.allianceId)
+            .eq('status', 'active');
+        
+        console.log("[Raid Debug] ✅ Raids anteriores cerrados");
+        console.log("[Raid Debug] Ahora el líder puede iniciar un nuevo raid con startNewRaid()");
+        
+        // Recargar el HQ
+        if (typeof AllianceManager !== 'undefined') {
+            AllianceManager.loadHQ(this.allianceId);
+        }
+    },
+    
+    // Ver estado detallado del raid actual
+    debugShowRaidState: function() {
+        if (!this.currentRaid) {
+            console.log("[Raid Debug] No hay raid activo cargado");
+            return;
+        }
+        
+        console.log("[Raid Debug] === ESTADO DEL RAID ===");
+        console.log("ID:", this.currentRaid.id);
+        console.log("Alianza:", this.currentRaid.alliance_id);
+        console.log("Inicio:", this.currentRaid.start_time);
+        console.log("Etapa actual:", this.currentRaid.current_stage);
+        console.log("Estado:", this.currentRaid.status);
+        console.log("");
+        console.log("=== STAGE DATA ===");
+        console.log("stage_start_time:", this.currentRaid.stage_data.stage_start_time);
+        console.log("Posición caravana:", this.currentRaid.stage_data.caravan_pos);
+        console.log("HP caravana:", this.currentRaid.stage_data.caravan_hp, "/", this.currentRaid.stage_data.caravan_max_hp);
+        console.log("Regimientos:", this.currentRaid.stage_data.boss_regiments?.length || 0);
+        console.log("Slots ocupados:", this.currentRaid.stage_data.slots.filter(s => s !== null).length, "/ 8");
+        console.log("Victoria:", this.currentRaid.stage_data.is_victory);
+        console.log("Derrota:", this.currentRaid.stage_data.is_defeat);
+        
+        // Calcular tiempo transcurrido
+        const now = new Date();
+        const start = new Date(this.currentRaid.start_time);
+        const stageStart = new Date(this.currentRaid.stage_data.stage_start_time || start);
+        
+        console.log("");
+        console.log("=== TIEMPO ===");
+        console.log("Horas desde inicio total:", ((now - start) / (1000*60*60)).toFixed(2));
+        console.log("Horas desde inicio de etapa:", ((now - stageStart) / (1000*60*60)).toFixed(2));
+        console.log("Posición esperada (col):", Math.min(24, 1 + Math.floor(((now - stageStart) / (1000*60*60)) * 3)));
+    }
 
 };
