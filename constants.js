@@ -213,7 +213,7 @@ const CIVILIZATIONS = {
     "Roma": {
         name: "Roma",
         description: "Su infantería y movimiento táctico son superiores.",
-        factionImage: "images/nacion/Roma.png",
+        factionImage: "images/nacion/roma.png",
         bonuses: {
             unitTypeBonus: {
                 "Infantería Pesada": { defenseBonus: 20, movementBonus: 1 } // +20 Defensa (antes +1), movimiento sin cambios
@@ -223,7 +223,7 @@ const CIVILIZATIONS = {
     "Grecia": {
         name: "Grecia",
         description: "La infantería ligera griega es más resistente y ágil.",
-        factionImage: "images/nacion/Grecia.png",
+        factionImage: "images/nacion/grecia.png",
         bonuses: {
             unitTypeBonus: {
                 "Infantería Ligera": { defenseBonus: 20, movementBonus: 1 } // +20 Defensa (antes +1)
@@ -233,7 +233,7 @@ const CIVILIZATIONS = {
     "Cartago": {
         name: "Cartago",
         description: "Potencia naval por excelencia.",
-        factionImage: "images/nacion/Cartago.png",
+        factionImage: "images/nacion/cartago.png",
         bonuses: {
             unitTypeBonus: {
                 "Artillería": { attackBonus: 20 }, // +20 Ataque (antes +1)
@@ -244,7 +244,7 @@ const CIVILIZATIONS = {
     "Egipto": {
         name: "Egipto",
         description: "Sus arqueros son célebres por su letalidad y alcance.",
-        factionImage: "images/nacion/Egipto.png",
+        factionImage: "images/nacion/egipto.png",
         bonuses: {
             unitTypeBonus: {
                 "Arqueros": { attackBonus: 20, attackRange: 1 } // +20 Ataque (antes +1)
@@ -254,7 +254,7 @@ const CIVILIZATIONS = {
     "Galia": {
         name: "Galia",
         description: "Famosos por su caballería e infantería de choque.",
-        factionImage: "images/nacion/Galia.png",
+        factionImage: "images/nacion/galia.png",
         bonuses: {
             unitTypeBonus: {
                 "Infantería Ligera": { attackBonus: 20 }, // +20 Ataque
@@ -265,7 +265,7 @@ const CIVILIZATIONS = {
     "Germania": {
         name: "Germania",
         description: "Una infantería ligera muy resistente.",
-        factionImage: "images/nacion/Germania.png",
+        factionImage: "images/nacion/germania.png",
         bonuses: {
             unitTypeBonus: {
                 "Infantería Ligera": { defenseBonus: 20 } // +20 Defensa
@@ -275,7 +275,7 @@ const CIVILIZATIONS = {
     "Britania": {
         name: "Britania",
         description: "Sus arqueros son más resistentes y sus barcos ganan experiencia más rápido.",
-        factionImage: "images/nacion/Britania.png",
+        factionImage: "images/nacion/britania.png",
         bonuses: {
             unitTypeBonus: {
                 "Arqueros": { defenseBonus: 20 }, // +20 Defensa
@@ -286,7 +286,7 @@ const CIVILIZATIONS = {
     "Iberia": {
         name: "Iberia",
         description: "Guerreros versátiles, letales en varios frentes.",
-        factionImage: "images/nacion/Iberia.png",
+        factionImage: "images/nacion/iberia.png",
         bonuses: {
             unitTypeBonus: {
                 "Infantería Ligera": { attackBonus: 40 }, // +40 Ataque (antes +2)
@@ -298,7 +298,7 @@ const CIVILIZATIONS = {
     "Persia": {
         name: "Persia",
         description: "Un imperio con unidades de élite y habilidades de regeneración únicas.",
-        factionImage: "images/nacion/Persia.png",
+        factionImage: "images/nacion/persia.png",
         bonuses: {
             unitTypeBonus: {
                 "Arcabuceros": { attackBonus: 20 }, // +20 Ataque
@@ -310,7 +310,7 @@ const CIVILIZATIONS = {
     "China": {
         name: "China",
         description: "Maestros de las armas de pólvora y la organización militar.",
-        factionImage: "images/nacion/China.png",
+        factionImage: "images/nacion/china.png",
         bonuses: {
             unitTypeBonus: {
                 "Arqueros": { attackBonus: 20 },
@@ -322,7 +322,7 @@ const CIVILIZATIONS = {
     "Vikingos": {
         name: "Vikingos",
         description: "Guerreros ágiles y rápidos en sus incursiones.",
-        factionImage: "images/nacion/Vikingos.png",
+        factionImage: "images/nacion/vikingos.png",
         bonuses: {
             unitTypeBonus: {
                 "Infantería Ligera": { attackBonus: 20, movementBonus: 1 }
@@ -332,7 +332,7 @@ const CIVILIZATIONS = {
     "Mongol": {
         name: "Mongolia",
         description: "La horda imparable, maestros de la caballería y el movimiento.",
-        factionImage: "images/nacion/Mongol.png",
+        factionImage: "images/nacion/mongol.png",
         bonuses: {
             unitTypeBonus: {
                 "Caballería Ligera": { movementBonus: 1 },
@@ -343,7 +343,7 @@ const CIVILIZATIONS = {
     "Arábiga": {
         name: "Arabia",
         description: "Jinetes del desierto rápidos y mortales.",
-        factionImage: "images/nacion/Arabiga.png",
+        factionImage: "images/nacion/arabiga.png",
         bonuses: {
             unitTypeBonus: {
                 "Caballería Ligera": { attackBonus: 20 }
@@ -353,7 +353,7 @@ const CIVILIZATIONS = {
     "Mameluca": {
         name: "Sultanato Mameluco",
         description: "Tropas de élite que no cuestan mantenimiento de oro ni comida.",
-        factionImage: "images/nacion/Mameluca.png",
+        factionImage: "images/nacion/mameluca.png",
         bonuses: {
             globalBonus: { noGoldUpkeep: true, noFoodUpkeep: true }
         }
@@ -361,7 +361,7 @@ const CIVILIZATIONS = {
     "Otomana": {
         name: "Imperio Otomano",
         description: "Una potencia de asedio con una artillería y unidades de pólvora temibles.",
-        factionImage: "images/nacion/Otomana.png",
+        factionImage: "images/nacion/otomana.png",
         bonuses: {
             unitTypeBonus: {
                 "Arcabuceros": { attackBonus: 20 },
@@ -372,7 +372,7 @@ const CIVILIZATIONS = {
     "Maya": {
         name: "Civilización Maya",
         description: "Grandes arqueros que ganan experiencia rápidamente.",
-        factionImage: "images/nacion/Maya.png",
+        factionImage: "images/nacion/maya.png",
         bonuses: {
             unitTypeBonus: {
                 "Arqueros": { attackBonus: 20 },
@@ -389,7 +389,7 @@ const CIVILIZATIONS = {
     "Asiria": {
         name: "Asiria",
         description: "Pioneros del asedio y el terror. Su maquinaria de guerra y su infantería pesada son formidables.",
-        factionImage: "images/nacion/Asiria.png",
+        factionImage: "images/nacion/asiria.png",
         bonuses: {
             unitTypeBonus: {
                 "Artillería": { attackBonus: 40, buildCostModifier: -0.1 }, // +40 Ataque (antes +2)
@@ -400,7 +400,7 @@ const CIVILIZATIONS = {
     "Babilonia": {
         name: "Babilonia",
         description: "Cuna de la ley y la ciencia. Progresan tecnológicamente más rápido que nadie.",
-        factionImage: "images/nacion/Babilonia.png",
+        factionImage: "images/nacion/babilonia.png",
         bonuses: {
             economyBonus: { researchPointBonus: 0.25 },
             unitTypeBonus: { "Arqueros": { defenseBonus: 20 } }
@@ -409,7 +409,7 @@ const CIVILIZATIONS = {
     "Japón": {
         name: "Japón",
         description: "Guerreros samurái cuyo código de honor los hace luchar hasta el final sin perder la moral.",
-        factionImage: "images/nacion/Japon.png",
+        factionImage: "images/nacion/japon.png",
         bonuses: {
             unitTypeBonus: {
                 "Infantería Pesada": { initiativeBonus: 5 }, // Iniciativa es táctica, no se escala
