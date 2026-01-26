@@ -41,10 +41,9 @@ const RaidManager = {
                 caravan_hp: totalHpCalculated,
                 caravan_max_hp: totalHpCalculated,
                 caravan_pos: { r: 6, c: 1 }, // Posición inicial (columna 1 = inicio del mapa)
-                last_update: now.toISOString(), // Importante: El reloj de movimiento comienza AHORA
+                stage_start_time: now.toISOString(), // IMPORTANTE: Tiempo de inicio de esta etapa
                 slots: [null, null, null, null, null, null, null, null],
-                units: {},
-                deployment_phase: true // NUEVO: Flag para indicar que estamos en fase de despliegue
+                units: {}
             },
             global_log: { damage_by_user: {} }
         };
@@ -208,9 +207,9 @@ const RaidManager = {
         // D. Cargar Mapa Visual - IMPORTANTE: Usar this.currentRaid.stage_data actualizado
         this.showRaidMap(this.currentRaid.stage_data);
         
-        // E. NO calcular movimiento automático durante deployment
-        // La caravana solo se mueve cuando el jugador esté en fase "play"
-        console.log("[Raid] Esperando a que el jugador despliegue sus tropas antes de mover la caravana...");
+        // E. Calcular y aplicar movimiento automático de la caravana basado en tiempo transcurrido
+        console.log("[Raid] Calculando posición actual de la caravana según tiempo transcurrido...");
+        await this.calculateCaravanPath(stageData);
         
         // F. Mensaje de bienvenida
         setTimeout(() => {
@@ -273,7 +272,7 @@ const RaidManager = {
         await this.syncRaidState();
     },
 
-    // 2. Cerebro Temporal
+    // 2. Cerebro Temporal - Verifica y ajusta la etapa según el tiempo transcurrido
     syncRaidState: async function() {
         const now = new Date();
         const startTime = new Date(this.currentRaid.start_time);
@@ -299,9 +298,8 @@ const RaidManager = {
                 // MODO LIMBO: Esperando a que el reloj llegue a la siguiente etapa
                 this.showLimboScreen(calculatedStage + 1);
             } else {
-                // MODO COMBATE: Abrir el mapa y procesar movimiento de caravana
-                this.processCaravanMovement(hoursElapsedTotal); // Lo haremos en el siguiente paso
-                this.showRaidMap();
+                // MODO COMBATE: Proceder a entrar al raid
+                await this.enterRaid();
             }
         }
     },
@@ -326,16 +324,16 @@ const RaidManager = {
         }
         
         // Reiniciar datos para la nueva etapa CON los regimientos correctos
+        const now = new Date();
         const newStageData = {
             boss_regiments: bossRegiments, // AGREGADO: Array real de regimientos
             caravan_hp: totalHpCalculated,
             caravan_max_hp: totalHpCalculated,
             caravan_pos: { r: 6, c: 1 }, // CORREGIDO: Siempre empezar en columna 1, no 0
-            last_update: new Date().toISOString(), // El reloj de movimiento empieza ahora para esta etapa
+            stage_start_time: now.toISOString(), // IMPORTANTE: Tiempo de inicio de ESTA etapa
             is_victory: false,
             slots: Array(8).fill(null), // Expulsar a todos (Opción A)
-            units: {}, // Limpiar mapa
-            deployment_phase: true // NUEVO: Reiniciar flag de despliegue
+            units: {} // Limpiar mapa
         };
 
         const { data, error } = await supabaseClient
@@ -504,14 +502,8 @@ const RaidManager = {
         return false; // No hubo cambios
     },
 
-    // 5. El Algoritmo "Perezoso" de la Caravana
+    // 5. El Algoritmo de la Caravana - Calcula posición basada en tiempo real
     calculateCaravanPath: async function(stageData) {
-        // NUEVO: Si estamos en fase de despliegue, no mover la caravana
-        if (stageData.deployment_phase) {
-            console.log("[Raid] Caravana en espera durante fase de despliegue");
-            return false;
-        }
-        
         // PRIMERO: Verificar si debemos avanzar de etapa
         const stageChanged = await this.checkAndAdvanceStage();
         if (stageChanged && this.currentRaid.status === 'completed') {
@@ -520,30 +512,41 @@ const RaidManager = {
         }
         
         const now = new Date();
-        const lastUpdate = new Date(stageData.last_update || now); // Si es null, es ahora
-        const hoursPassed = (now - lastUpdate) / (1000 * 60 * 60);
+        const stageStartTime = new Date(stageData.stage_start_time || this.currentRaid.start_time);
+        const hoursElapsed = (now - stageStartTime) / (1000 * 60 * 60);
         
-        console.log("[Raid] Calculando movimiento de caravana. Horas pasadas desde último update:", hoursPassed);
+        console.log("[Raid] Calculando posición de caravana. Horas desde inicio de etapa:", hoursElapsed.toFixed(2));
         
-        if (hoursPassed <= 0) return false; // Nada que actualizar
+        if (hoursElapsed <= 0) return false; // Nada que calcular
 
         const speed = RAID_CONFIG.CARAVAN_SPEED; // 3 casillas/hora
-        let movesPending = Math.floor(hoursPassed * speed);
+        const totalMovesExpected = Math.floor(hoursElapsed * speed);
         
-        // Si no hay movimientos completos, salimos
-        if (movesPending < 1) return false;
-
+        console.log("[Raid] Movimientos esperados desde inicio de etapa:", totalMovesExpected);
+        
+        // Calcular la posición ideal (sin obstáculos)
+        const startCol = 1; // Siempre empieza en columna 1
+        let targetCol = Math.min(24, startCol + totalMovesExpected);
+        
+        // Si la caravana ya está en su posición esperada o más adelante, no hacer nada
+        if (stageData.caravan_pos.c >= targetCol) {
+            console.log("[Raid] Caravana ya está en posición correcta o adelantada:", stageData.caravan_pos);
+            return false;
+        }
+        
+        // Calcular cuántos movimientos necesitamos hacer para alcanzar la posición objetivo
+        let movesPending = targetCol - stageData.caravan_pos.c;
         let moved = false;
+        
+        console.log("[Raid] Moviendo caravana de columna", stageData.caravan_pos.c, "a", targetCol);
+        
         // Bucle de movimiento
         for (let i = 0; i < movesPending; i++) {
-            const curr = stageData.caravan_pos; // {r, c}
+            const curr = stageData.caravan_pos;
             
-            console.log("[Raid] Intentando mover caravana desde", curr);
-            
-            // Objetivo: Llegar a la columna 24
+            // Objetivo: Llegar a la columna objetivo
             if (curr.c >= 24) {
-                stageData.is_victory = false; // La caravana escapó = Derrota de jugadores
-                stageData.is_defeat = true;
+                stageData.is_defeat = true; // La caravana escapó
                 console.log("[Raid] ¡La caravana escapó! Derrota.");
                 break;
             }
@@ -552,38 +555,33 @@ const RaidManager = {
             if (!this.isBlocked(curr.r, curr.c + 1, stageData.units)) {
                 curr.c++;
                 moved = true;
-                console.log("[Raid] Caravana avanzó recto a", curr);
             } 
             // Intento 2: Esquivar Abajo (r+1)
             else if (curr.r < 7 && !this.isBlocked(curr.r + 1, curr.c + 1, stageData.units)) {
                 curr.r++;
                 curr.c++;
                 moved = true;
-                console.log("[Raid] Caravana esquivó hacia abajo a", curr);
             }
             // Intento 3: Esquivar Arriba (r-1)
             else if (curr.r > 5 && !this.isBlocked(curr.r - 1, curr.c + 1, stageData.units)) {
                 curr.r--;
                 curr.c++;
                 moved = true;
-                console.log("[Raid] Caravana esquivó hacia arriba a", curr);
             } else {
+                // Bloqueada completamente - se queda quieta
                 console.log("[Raid] Caravana bloqueada en", curr);
+                break;
             }
-            // Si todo está bloqueado, se queda quieta (pierde el turno de movimiento)
         }
-
-        // Actualizar timestamp
-        stageData.last_update = now.toISOString();
         
         // Si hubo movimiento, actualizar en la DB
         if (moved && this.currentRaid) {
+            console.log("[Raid] Nueva posición de caravana:", stageData.caravan_pos);
+            
             await supabaseClient
                 .from('alliance_raids')
                 .update({ stage_data: stageData })
                 .eq('id', this.currentRaid.id);
-            
-            console.log("[Raid] Posición de caravana actualizada en DB");
             
             // Actualizar visualmente en el mapa si estamos en el juego
             if (typeof updateCaravanPosition === 'function' && typeof board !== 'undefined') {

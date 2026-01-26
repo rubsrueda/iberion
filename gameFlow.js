@@ -1844,22 +1844,7 @@ async function handleEndTurn(isHostProcessing = false) {
     if (gameState.isRaid && typeof RaidManager !== 'undefined' && RaidManager.currentRaid) {
         console.log("[handleEndTurn] Procesando turno en modo Raid...");
         
-        // NUEVO: Si estamos en fase de despliegue, desactivar el flag cuando se complete
-        if (gameState.currentPhase === "deployment" && RaidManager.currentRaid.stage_data.deployment_phase) {
-            console.log("[Raid] Finalizando fase de despliegue. La caravana comenzará a moverse.");
-            RaidManager.currentRaid.stage_data.deployment_phase = false;
-            
-            // Actualizar el timestamp para que el movimiento de la caravana comience AHORA
-            RaidManager.currentRaid.stage_data.last_update = new Date().toISOString();
-            
-            // Guardar en la DB
-            await supabaseClient
-                .from('alliance_raids')
-                .update({ stage_data: RaidManager.currentRaid.stage_data })
-                .eq('id', RaidManager.currentRaid.id);
-        }
-        
-        // 1. Actualizar movimiento de la caravana (solo si NO estamos en deployment_phase)
+        // 1. Actualizar movimiento de la caravana basado en tiempo transcurrido
         await RaidManager.calculateCaravanPath(RaidManager.currentRaid.stage_data);
         
         // 2. Verificar si la caravana llegó al final
