@@ -34,9 +34,8 @@ const BattlePassManager = {
         }
 
         // Cargar Usuario + Misiones (Tu lógica original)
-        if (!this.userProgress || !this.dailyMissions.length) {
-            await this.loadAllData();
-        }
+        // SIEMPRE recargar para asegurar sincronización
+        await this.loadAllData();
         
         // --- PARCHE DE SEGURIDAD VISUAL ---
         // Si la carga de datos falló (ej: red lenta), inicializamos un objeto vacío
@@ -56,7 +55,39 @@ const BattlePassManager = {
     },
 
     loadAllData: async function() {
-        if (!PlayerDataManager.currentPlayer?.auth_id) return;
+        // Verificar si el usuario está autenticado
+        if (!PlayerDataManager.currentPlayer?.auth_id) {
+            console.warn("[BattlePassManager] Usuario no autenticado. Usando datos locales.");
+            
+            // Intentar cargar desde localStorage
+            const localData = localStorage.getItem('battlePassProgress');
+            if (localData) {
+                try {
+                    this.userProgress = JSON.parse(localData);
+                    console.log("[BattlePassManager] Datos cargados desde localStorage.");
+                } catch (e) {
+                    console.error("Error al parsear datos locales:", e);
+                }
+            }
+            
+            // Si no hay datos locales, crear estructura inicial
+            if (!this.userProgress) {
+                this.userProgress = {
+                    user_id: 'local_user',
+                    season_id: 1,
+                    current_level: 1,
+                    current_xp: 0,
+                    is_premium: false,
+                    claimed_rewards: []
+                };
+                localStorage.setItem('battlePassProgress', JSON.stringify(this.userProgress));
+            }
+            
+            // Inicializar misiones vacías
+            this.dailyMissions = [];
+            return;
+        }
+        
         const uid = PlayerDataManager.currentPlayer.auth_id;
 
         // 1. CARGAR PROGRESO DEL PASE
@@ -68,9 +99,17 @@ const BattlePassManager = {
             .single();
 
         if (!passData) {
+            console.log("[BattlePassManager] Creando nuevo registro de pase para usuario.");
             const { data: newPass } = await supabaseClient
                 .from('user_battle_pass')
-                .insert({ user_id: uid, season_id: 1 })
+                .insert({ 
+                    user_id: uid, 
+                    season_id: 1,
+                    current_level: 1,
+                    current_xp: 0,
+                    is_premium: false,
+                    claimed_rewards: []
+                })
                 .select().single();
             passData = newPass;
         }
@@ -79,6 +118,8 @@ const BattlePassManager = {
         if (this.userProgress && !this.userProgress.claimed_rewards) {
             this.userProgress.claimed_rewards = [];
         }
+        
+        console.log("[BattlePassManager] Progreso cargado:", this.userProgress);
 
         // 2. CARGAR O GENERAR MISIONES DIARIAS
         await this.checkDailyMissionsGen(uid);
@@ -564,59 +605,88 @@ const BattlePassManager = {
          try {
              // Validación de seguridad
              if (!this.userProgress) {
-                 console.warn("[BattlePassManager] userProgress no inicializado. Omitiendo XP.");
-                 return { xpAdded: 0, levelsGained: 0, success: false };
+                 console.warn("[BattlePassManager] userProgress no inicializado. Cargando datos...");
+                 await this.loadAllData();
+                 if (!this.userProgress) {
+                     console.error("[BattlePassManager] No se pudo inicializar userProgress.");
+                     return { xpAdded: 0, levelsGained: 0, currentLevel: 1, success: false };
+                 }
              }
 
              const oldLvl = this.userProgress.current_level;
+             const oldXp = this.userProgress.current_xp;
              this.userProgress.current_xp += xpAmount;
              
              // Usar datos reales de temporada si existen
              let leveledUp = false;
              if (this.currentSeason && this.currentSeason.levels) {
-                 // Buscar el siguiente nivel
-                 const nextLevel = this.currentSeason.levels.find(l => 
-                     l.req_xp > this.userProgress.current_xp && l.lvl > this.userProgress.current_level
-                 );
-                 
-                 // Si no hay siguiente nivel, estamos en máx
-                 if (!nextLevel && this.userProgress.current_level < this.currentSeason.levels.length) {
-                     this.userProgress.current_level = this.currentSeason.levels.length;
-                     leveledUp = true;
-                 } else if (nextLevel) {
-                     // Verificar si hemos alcanzado algún nivel intermedio
-                     const reachedLevels = this.currentSeason.levels.filter(l => 
-                         l.req_xp <= this.userProgress.current_xp && l.lvl > oldLvl
-                     );
-                     if (reachedLevels.length > 0) {
-                         this.userProgress.current_level = reachedLevels[reachedLevels.length - 1].lvl;
-                         leveledUp = true;
+                 // Encontrar el nivel actual basado en el XP
+                 let newLevel = oldLvl;
+                 for (const level of this.currentSeason.levels) {
+                     if (this.userProgress.current_xp >= level.req_xp) {
+                         newLevel = level.lvl;
+                     } else {
+                         break;
                      }
+                 }
+                 
+                 if (newLevel > oldLvl) {
+                     this.userProgress.current_level = newLevel;
+                     leveledUp = true;
                  }
              }
              
-             // Guardar en DB
+             // Guardar en DB y en PlayerDataManager
              await this.saveUserProgress();
              
-             console.log(`[BattlePassManager] XP agregado: +${xpAmount}. Nivel: ${oldLvl} → ${this.userProgress.current_level}`);
+             // Actualizar en PlayerDataManager también
+             if (PlayerDataManager.currentPlayer) {
+                 if (!PlayerDataManager.currentPlayer.battlePass) {
+                     PlayerDataManager.currentPlayer.battlePass = {};
+                 }
+                 PlayerDataManager.currentPlayer.battlePass.current_xp = this.userProgress.current_xp;
+                 PlayerDataManager.currentPlayer.battlePass.current_level = this.userProgress.current_level;
+                 PlayerDataManager.currentPlayer.battlePass.is_premium = this.userProgress.is_premium;
+                 await PlayerDataManager.saveCurrentPlayer();
+             }
+             
+             console.log(`[BattlePassManager] XP agregado: +${xpAmount}. XP Total: ${oldXp} → ${this.userProgress.current_xp}. Nivel: ${oldLvl} → ${this.userProgress.current_level}`);
+             
+             // Actualizar visualización si el modal está abierto
+             const modal = document.getElementById('battlePassModal');
+             if (modal && modal.style.display === 'flex') {
+                 this.renderHeader();
+             }
              
              return { 
                  xpAdded: xpAmount, 
                  levelsGained: this.userProgress.current_level - oldLvl,
+                 currentLevel: this.userProgress.current_level,
                  success: true
              };
          } catch (error) {
              console.error("[BattlePassManager] Error en addMatchXp:", error);
-             return { xpAdded: 0, levelsGained: 0, success: false, error: error.message };
+             return { xpAdded: 0, levelsGained: 0, currentLevel: 1, success: false, error: error.message };
          }
     },
 
     //Activar el Premium
     activatePremium: async function() {
-        if (!this.userProgress) return;
+        if (!this.userProgress) {
+            await this.loadAllData();
+        }
         
         this.userProgress.is_premium = true;
         await this.saveUserProgress();
+        
+        // Guardar en PlayerDataManager también
+        if (PlayerDataManager.currentPlayer) {
+            if (!PlayerDataManager.currentPlayer.battlePass) {
+                PlayerDataManager.currentPlayer.battlePass = {};
+            }
+            PlayerDataManager.currentPlayer.battlePass.is_premium = true;
+            await PlayerDataManager.saveCurrentPlayer();
+        }
         
         this.renderHeader();      // Actualiza la cabecera
         this.switchTab('rewards');// Redibuja el camino de premios

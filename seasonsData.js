@@ -10,6 +10,8 @@ const BATTLE_PASS_SEASONS = {
         id: 1,
         name: "T1: EL AMANECER",
         description: "Los primeros pasos hacia la conquista total.",
+        startDate: "2025-01-01T00:00:00Z",
+        endDate: "2025-01-29T23:59:59Z", // 28 días de duración
         
         // Estructura: 
         // lvl: Nivel del pase

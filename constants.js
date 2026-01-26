@@ -72,7 +72,7 @@ const RAID_CONFIG = {
 const SEASON_CONFIG = {
     ACTIVE_SEASON_KEY: 'SEASON_1', // Cambia esto a 'SEASON_2', 'HALLOWEEN', etc.
     LEVEL_COST_GEMS: 200,          // Precio para comprar 1 nivel
-    SEASON_DURATION_DAYS: 41       // Duración estándar (41 días)
+    SEASON_DURATION_DAYS: 28       // Duración estándar (28 días)
 };
 
 const HEX_WIDTH = 50;

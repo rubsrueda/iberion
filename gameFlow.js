@@ -1159,15 +1159,24 @@ function _processBattlePassRewards(isWinner) {
 
     // 2. Sumar XP
     BattlePassManager.addMatchXp(battlePassXp).then(res => {
-        if (res && typeof showToast === 'function') {
-            let msg = `⭐ Pase de Batalla: +${res.xpAdded} XP.`;
-            if (res.levelsGained > 0) {
-                msg += ` ¡NIVEL SUBIDO A ${res.currentLevel}!`;
-                // Sonido extra de celebración
-                if(typeof AudioManager !== 'undefined') AudioManager.playSound('structure_built');
+        if (res && res.success) {
+            if (typeof showToast === 'function') {
+                let msg = `⭐ Pase de Batalla: +${res.xpAdded} XP`;
+                if (res.levelsGained > 0) {
+                    msg += ` | ¡NIVEL ${res.currentLevel}! 🎉`;
+                    // Sonido extra de celebración
+                    if(typeof AudioManager !== 'undefined') AudioManager.playSound('structure_built');
+                } else {
+                    msg += ` | Nivel ${res.currentLevel}`;
+                }
+                showToast(msg, res.levelsGained > 0 ? "success" : "warning", 4000); 
             }
-            showToast(msg, "warning", 4000); 
+            console.log(`[BP] XP aplicado correctamente. Nivel actual: ${res.currentLevel}, XP ganado: ${res.xpAdded}`);
+        } else {
+            console.warn(`[BP] Error al aplicar XP:`, res?.error || 'Unknown');
         }
+    }).catch(err => {
+        console.error("[BP] Error en la promesa de addMatchXp:", err);
     });
 
     // 3. Actualizar Misiones
