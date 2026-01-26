@@ -7,9 +7,9 @@ let hasMovedEnoughForPan = false;
 const PAN_MOVE_THRESHOLD = 5;
 
 // --- INICIALIZACIÓN PARA PARTIDAS DE ESCARAMUZA ---
-function initializeNewGameBoardDOMAndData(selectedResourceLevel = 'min', selectedBoardSize = 'small') {
+function initializeNewGameBoardDOMAndData(selectedResourceLevel = 'min', selectedBoardSize = 'small', isNavalMap = false) {
 
-console.log("boardManager.js: initializeNewGameBoardDOMAndData ha sido llamada.");
+console.log(`boardManager.js: initializeNewGameBoardDOMAndData ha sido llamada. Naval: ${isNavalMap}`);
 
 const boardDimensions = BOARD_SIZES[selectedBoardSize] || BOARD_SIZES['small'];
 const B_ROWS = boardDimensions.rows;
@@ -75,7 +75,7 @@ generateHillsAndForests(B_ROWS, B_COLS, 0.15, 0.1);
 
 generateRandomResourceNodes(selectedResourceLevel); 
 */
-generateProceduralMap(B_ROWS, B_COLS, selectedResourceLevel);
+generateProceduralMap(B_ROWS, B_COLS, selectedResourceLevel, isNavalMap);
 
 const barbDensity = gameState.setupTempSettings?.barbarianDensity || 'med';
 generateBarbarianCities(B_ROWS, B_COLS, barbDensity);
@@ -95,11 +95,17 @@ console.log("boardManager.js: initializeNewGameBoardDOMAndData completada.");
  * @param {number} B_COLS - Número de columnas del tablero.
  * @param {string} resourceLevel - Nivel de recursos ('min', 'med', 'max').
 */
-function generateProceduralMap(B_ROWS, B_COLS, resourceLevel) {
-    console.log("Iniciando generación procedural de mapa...");
+function generateProceduralMap(B_ROWS, B_COLS, resourceLevel, isNavalMap = false) {
+    console.log(`Iniciando generación procedural de mapa... Naval: ${isNavalMap}`);
     const totalHexes = B_ROWS * B_COLS;
 
-    // --- 1. Generar Terreno ---
+    // --- GENERACIÓN DE MAPA NAVAL ---
+    if (isNavalMap) {
+        generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel);
+        return; // Salir temprano, la función naval maneja todo
+    }
+
+    // --- 1. Generar Terreno (Mapa estándar) ---
     const terrainProportions = { water: 0.30, forest: 0.25, hills: 0.15, plains: 0.30 };
 
     // Primero, llenamos todo de llanura
@@ -222,6 +228,190 @@ function generateProceduralMap(B_ROWS, B_COLS, resourceLevel) {
     placeResourcesOnGeneratedMap(B_ROWS, B_COLS, resourceLevel);
 
     console.log("Generación procedural de mapa completada.");
+}
+
+/**
+ * Genera un mapa naval con dos archipiélagos separados por mar.
+ * 70-80% del mapa es agua, con dos islas/archipiélagos que pueden estar conectados opcionalmente.
+ */
+function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel) {
+    console.log("Generando mapa naval de archipiélagos...");
+    const totalHexes = B_ROWS * B_COLS;
+    
+    // 1. LLENAR TODO EL MAPA DE AGUA
+    for (let r = 0; r < B_ROWS; r++) {
+        for (let c = 0; c < B_COLS; c++) {
+            if (board[r]?.[c]) {
+                board[r][c].terrain = 'water';
+                board[r][c].resourceNode = null;
+            }
+        }
+    }
+    
+    // 2. DEFINIR CENTROS DE LOS DOS ARCHIPIÉLAGOS
+    // Archipiélago 1 (izquierda): Para Jugador 1
+    const arch1CenterR = Math.floor(B_ROWS / 2);
+    const arch1CenterC = Math.floor(B_COLS * 0.25);
+    
+    // Archipiélago 2 (derecha): Para Jugador 2
+    const arch2CenterR = Math.floor(B_ROWS / 2);
+    const arch2CenterC = Math.floor(B_COLS * 0.75);
+    
+    // 3. GENERAR ARCHIPIÉLAGO 1
+    const arch1Size = Math.floor(totalHexes * 0.12); // 12% del mapa
+    generateIslandCluster(arch1CenterR, arch1CenterC, arch1Size, B_ROWS, B_COLS);
+    
+    // 4. GENERAR ARCHIPIÉLAGO 2
+    const arch2Size = Math.floor(totalHexes * 0.12); // 12% del mapa
+    generateIslandCluster(arch2CenterR, arch2CenterC, arch2Size, B_ROWS, B_COLS);
+    
+    // 5. OPCIONALMENTE CONECTAR CON FRANJA DE TIERRA (50% de probabilidad)
+    if (Math.random() < 0.5) {
+        console.log("Conectando archipiélagos con franja de tierra...");
+        createLandBridge(arch1CenterR, arch1CenterC, arch2CenterR, arch2CenterC, B_ROWS, B_COLS);
+    }
+    
+    // 6. COLOCAR CAPITALES EN LOS ARCHIPIÉLAGOS
+    const cap1Pos = findSafeLandPosition(arch1CenterR, arch1CenterC, 5, B_ROWS, B_COLS);
+    const cap2Pos = findSafeLandPosition(arch2CenterR, arch2CenterC, 5, B_ROWS, B_COLS);
+    
+    if (cap1Pos) {
+        addCityToBoardData(cap1Pos.r, cap1Pos.c, 1, "Capital P1 (Escaramuza)", true);
+        if (board[cap1Pos.r]?.[cap1Pos.c]) board[cap1Pos.r][cap1Pos.c].structure = 'Aldea';
+    }
+    
+    if (cap2Pos) {
+        addCityToBoardData(cap2Pos.r, cap2Pos.c, 2, "Capital P2 (Escaramuza)", true);
+        if (board[cap2Pos.r]?.[cap2Pos.c]) board[cap2Pos.r][cap2Pos.c].structure = 'Aldea';
+    }
+    
+    // 7. COLOCAR LA BANCA EN ISLA NEUTRAL (centro del mapa)
+    const bankR = Math.floor(B_ROWS / 2);
+    const bankC = Math.floor(B_COLS / 2);
+    
+    // Crear pequeña isla para la banca
+    const bankIslandSize = 8;
+    generateIslandCluster(bankR, bankC, bankIslandSize, B_ROWS, B_COLS);
+    
+    const bankPos = findSafeLandPosition(bankR, bankC, 3, B_ROWS, B_COLS);
+    if (bankPos) {
+        addCityToBoardData(bankPos.r, bankPos.c, BankManager.PLAYER_ID, "La Banca", true);
+        if (board[bankPos.r]?.[bankPos.c]) {
+            board[bankPos.r][bankPos.c].structure = 'Metrópoli';
+            board[bankPos.r][bankPos.c].terrain = 'plains';
+        }
+        logMessage("¡La ciudad neutral de La Banca ha sido fundada en una isla central!", "event");
+    }
+    
+    // 8. AGREGAR VARIEDAD DE TERRENO A LAS ISLAS
+    addTerrainVarietyToLand(B_ROWS, B_COLS);
+    
+    // 9. COLOCAR RECURSOS
+    placeResourcesOnGeneratedMap(B_ROWS, B_COLS, resourceLevel);
+    
+    console.log("Generación de mapa naval completada.");
+}
+
+/**
+ * Genera un cluster de islas alrededor de un punto central.
+ */
+function generateIslandCluster(centerR, centerC, targetSize, maxR, maxC) {
+    let placed = 0;
+    const placedSet = new Set();
+    const queue = [{r: centerR, c: centerC}];
+    
+    while (queue.length > 0 && placed < targetSize) {
+        const current = queue.shift();
+        const key = `${current.r},${current.c}`;
+        
+        if (placedSet.has(key)) continue;
+        if (current.r < 0 || current.r >= maxR || current.c < 0 || current.c >= maxC) continue;
+        if (!board[current.r]?.[current.c]) continue;
+        
+        // Convertir a tierra con probabilidad decreciente según distancia
+        const distance = Math.abs(current.r - centerR) + Math.abs(current.c - centerC);
+        const probability = Math.max(0.3, 1 - (distance / 10));
+        
+        if (Math.random() < probability) {
+            board[current.r][current.c].terrain = 'plains';
+            placedSet.add(key);
+            placed++;
+            
+            // Agregar vecinos a la cola
+            const neighbors = getHexNeighbors(current.r, current.c);
+            neighbors.forEach(n => {
+                const nKey = `${n.r},${n.c}`;
+                if (!placedSet.has(nKey)) {
+                    queue.push(n);
+                }
+            });
+        }
+    }
+    
+    return placed;
+}
+
+/**
+ * Crea una franja de tierra conectando dos puntos.
+ */
+function createLandBridge(r1, c1, r2, c2, maxR, maxC) {
+    const steps = Math.max(Math.abs(r2 - r1), Math.abs(c2 - c1));
+    
+    for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const r = Math.round(r1 + (r2 - r1) * t);
+        const c = Math.round(c1 + (c2 - c1) * t);
+        
+        if (r >= 0 && r < maxR && c >= 0 && c < maxC && board[r]?.[c]) {
+            // Crear franja estrecha (1-2 hexágonos de ancho)
+            board[r][c].terrain = 'plains';
+            
+            // Ocasionalmente agregar un hexágono adicional para ancho
+            if (Math.random() < 0.3) {
+                const neighbors = getHexNeighbors(r, c);
+                const randomNeighbor = neighbors[Math.floor(Math.random() * neighbors.length)];
+                if (board[randomNeighbor.r]?.[randomNeighbor.c]) {
+                    board[randomNeighbor.r][randomNeighbor.c].terrain = 'plains';
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Busca una posición de tierra segura cerca de un punto dado.
+ */
+function findSafeLandPosition(centerR, centerC, radius, maxR, maxC) {
+    for (let r = centerR - radius; r <= centerR + radius; r++) {
+        for (let c = centerC - radius; c <= centerC + radius; c++) {
+            if (r >= 0 && r < maxR && c >= 0 && c < maxC) {
+                const hex = board[r]?.[c];
+                if (hex && hex.terrain !== 'water' && !hex.isCity) {
+                    return {r, c};
+                }
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * Agrega variedad de terreno (bosques, colinas) a las áreas de tierra.
+ */
+function addTerrainVarietyToLand(maxR, maxC) {
+    for (let r = 0; r < maxR; r++) {
+        for (let c = 0; c < maxC; c++) {
+            const hex = board[r]?.[c];
+            if (hex && hex.terrain === 'plains' && !hex.isCity) {
+                const rand = Math.random();
+                if (rand < 0.15) {
+                    hex.terrain = 'forest';
+                } else if (rand < 0.25) {
+                    hex.terrain = 'hills';
+                }
+            }
+        }
+    }
 }
 
 /**

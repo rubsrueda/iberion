@@ -1154,7 +1154,7 @@ function initApp() {
             
             // 6. Inicializar el tablero de juego.
             if (typeof initializeNewGameBoardDOMAndData === "function") { 
-                initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize); 
+                initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize, settings.navalMap || false); 
             } else { 
                 console.error("CRÍTICO: initializeNewGameBoardDOMAndData NO es una función."); 
                 return;
@@ -1251,6 +1251,22 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
         });
     }
 
+    // === LISTENER PARA MOSTRAR/OCULTAR OPCIÓN DE MAPA NAVAL ===
+    const boardSizeSelect = document.getElementById('boardSizeSelect');
+    const navalMapOption = document.getElementById('navalMapOption');
+    if (boardSizeSelect && navalMapOption) {
+        boardSizeSelect.addEventListener('change', (e) => {
+            if (e.target.value === 'large') {
+                navalMapOption.style.display = 'block';
+            } else {
+                navalMapOption.style.display = 'none';
+                // Desmarcar si cambió a otro tamaño
+                const checkbox = document.getElementById('navalMapCheckbox');
+                if (checkbox) checkbox.checked = false;
+            }
+        });
+    }
+
     // === LÓGICA DE TRANSICIÓN DE PANTALLAS DE CONFIGURACIÓN (SETUP) ===
     const nextToPlayerSetupBtn = document.getElementById('next-to-player-setup-btn');
     if (nextToPlayerSetupBtn) {
@@ -1265,8 +1281,9 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
 
             const barbarianDensityVal = document.getElementById('barbarianDensity')?.value || 'med';
             const victoryByPointsVal = document.getElementById('victoryByPoints')?.value || 'enabled';
+            const navalMapVal = boardSizeVal === 'large' && document.getElementById('navalMapCheckbox')?.checked;
 
-            console.log(`[SETUP] Guardando configuración temporal: Tiempo=${turnTimeVal}, Jugadores=${numPlayersVal}, Victoria por Puntos=${victoryByPointsVal}`);
+            console.log(`[SETUP] Guardando configuración temporal: Tiempo=${turnTimeVal}, Jugadores=${numPlayersVal}, Victoria por Puntos=${victoryByPointsVal}, Mapa Naval=${navalMapVal}`);
 
             // 2. Guardado en el estado temporal
             gameState.setupTempSettings = {
@@ -1276,7 +1293,8 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
                 turnTime: turnTimeVal,
                 numPlayers: numPlayersVal,
                 barbarianDensity: barbarianDensityVal,
-                victoryByPoints: victoryByPointsVal === 'enabled'
+                victoryByPoints: victoryByPointsVal === 'enabled',
+                navalMap: navalMapVal
             };
             
             // 3. Renderizado de la siguiente pantalla
