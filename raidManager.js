@@ -885,27 +885,47 @@ const RaidManager = {
     // === UTILIDADES DE DEBUG ===
     
     // Reiniciar el raid completamente (útil para pruebas)
-    debugResetRaid: async function() {
-        if (!this.allianceId) {
-            console.error("[Raid Debug] No hay allianceId. Usa desde el HQ de alianza.");
+    debugResetRaid: async function(allianceIdParam) {
+        // Usar el parámetro, o el allianceId actual, o el del currentRaid
+        const aliId = allianceIdParam || this.allianceId || this.currentRaid?.alliance_id;
+        
+        if (!aliId) {
+            console.error("[Raid Debug] No hay allianceId. Pasa el ID como parámetro: debugResetRaid('tu-alliance-id')");
+            console.log("[Raid Debug] O ejecuta desde el currentRaid:", this.currentRaid?.alliance_id);
             return;
         }
         
-        console.log("[Raid Debug] Eliminando raids activos...");
+        console.log("[Raid Debug] Eliminando raids activos de alianza:", aliId);
         
         // Marcar todos los raids activos como completados
-        await supabaseClient
+        const { error } = await supabaseClient
             .from('alliance_raids')
             .update({ status: 'completed' })
-            .eq('alliance_id', this.allianceId)
+            .eq('alliance_id', aliId)
             .eq('status', 'active');
         
-        console.log("[Raid Debug] ✅ Raids anteriores cerrados");
-        console.log("[Raid Debug] Ahora el líder puede iniciar un nuevo raid con startNewRaid()");
+        if (error) {
+            console.error("[Raid Debug] Error:", error);
+            return;
+        }
         
-        // Recargar el HQ
-        if (typeof AllianceManager !== 'undefined') {
-            AllianceManager.loadHQ(this.allianceId);
+        console.log("[Raid Debug] ✅ Raids anteriores cerrados");
+        console.log("[Raid Debug] Vuelve al HQ de tu alianza para iniciar uno nuevo");
+        
+        // Cerrar el juego actual y volver al menú
+        if (typeof domElements !== 'undefined' && domElements.gameContainer) {
+            domElements.gameContainer.style.display = 'none';
+        }
+        
+        // Intentar abrir el modal de alianza si existe
+        const allianceModal = document.getElementById('allianceModal');
+        if (allianceModal) {
+            allianceModal.style.display = 'flex';
+            
+            // Recargar el HQ
+            if (typeof AllianceManager !== 'undefined') {
+                AllianceManager.loadHQ(aliId);
+            }
         }
     },
     
