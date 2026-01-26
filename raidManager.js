@@ -213,7 +213,7 @@ const RaidManager = {
             1: {
                 oro: 40000,
                 comida: 5000,
-                madera: 5000,
+                madera: 15000,
                 hierro: 5000,
                 piedra: 2000,
                 researchPoints: 250,
