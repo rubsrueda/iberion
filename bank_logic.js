@@ -48,14 +48,18 @@ const BankManager = {
         const unitAtBank = getUnitOnHex(bankCity.r, bankCity.c);
         if (unitAtBank) return;
         
-        // A. Listar hacia dónde van las caravanas actuales
-        const activeDestinations = new Set();
+        // A. Listar rutas activas desde ESTA ciudad (como lo hace el jugador)
+        const existingRouteKeys = new Set();
         
-        // Filtramos todas las unidades de la banca
+        // Filtramos todas las caravanas de la banca que salen de esta ciudad
         units.forEach(u => {
-            if (u.player === this.PLAYER_ID && u.tradeRoute && u.tradeRoute.destination) {
-                // Guardamos el NOMBRE del destino para evitar duplicados
-                activeDestinations.add(u.tradeRoute.destination.name);
+            if (u.player === this.PLAYER_ID && u.tradeRoute && u.tradeRoute.origin && u.tradeRoute.destination) {
+                // CORRECCIÓN: Solo contar caravanas que salgan específicamente de esta ciudad
+                if (u.tradeRoute.origin.r === bankCity.r && u.tradeRoute.origin.c === bankCity.c) {
+                    // Guardamos la clave "Origen-Destino" para evitar duplicados
+                    const routeKey = `${u.tradeRoute.origin.name}-${u.tradeRoute.destination.name}`;
+                    existingRouteKeys.add(routeKey);
+                }
             }
         });
 
@@ -66,8 +70,9 @@ const BankManager = {
             // Regla 1: Que no sea la propia banca (obvio)
             if (targetCity.owner === this.PLAYER_ID) return false;
 
-            // Regla 2: Que NO HAYA YA una caravana yendo hacia allí
-            if (activeDestinations.has(targetCity.name)) return false;
+            // Regla 2: Que NO HAYA YA una caravana desde ESTA ciudad hacia ese destino (igual que el jugador)
+            const routeKey = `${bankCity.name}-${targetCity.name}`;
+            if (existingRouteKeys.has(routeKey)) return false;
 
             // Regla 3: Que exista camino físico
             const path = findInfrastructurePath(bankCity, targetCity);
