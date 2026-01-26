@@ -59,15 +59,19 @@ if (gameState) {
     gameState.currentMapData = null;
 }
 
-// Capital Jugador 1
-addCityToBoardData(1, 2, 1, "Capital P1 (Escaramuza)", true);
-if (board[1]?.[2]) board[1][2].structure = 'Aldea'; // <-- LÍNEA AÑADIDA PARA P1
+// Solo crear capitales iniciales si NO es un mapa naval
+// (en mapas navales, las capitales se crean durante generateNavalArchipelagoMap)
+if (!isNavalMap) {
+    // Capital Jugador 1
+    addCityToBoardData(1, 2, 1, "Capital P1 (Escaramuza)", true);
+    if (board[1]?.[2]) board[1][2].structure = 'Aldea';
 
-// Capital Jugador 2
-const capitalP2_r = B_ROWS - 2;
-const capitalP2_c = B_COLS - 3;
-addCityToBoardData(capitalP2_r, capitalP2_c, 2, "Capital P2 (Escaramuza)", true);
-if (board[capitalP2_r]?.[capitalP2_c]) board[capitalP2_r][capitalP2_c].structure = 'Aldea'; // <-- LÍNEA AÑADIDA PARA P2
+    // Capital Jugador 2
+    const capitalP2_r = B_ROWS - 2;
+    const capitalP2_c = B_COLS - 3;
+    addCityToBoardData(capitalP2_r, capitalP2_c, 2, "Capital P2 (Escaramuza)", true);
+    if (board[capitalP2_r]?.[capitalP2_c]) board[capitalP2_r][capitalP2_c].structure = 'Aldea';
+}
 
 /* se cambia por generateProceduralMap a continuación.
 generateRiversAndLakes(B_ROWS, B_COLS, 1); 
