@@ -888,6 +888,131 @@ function isValidAttack(attacker, defender) {
 }
 
 /**
+ * COMBATE NAVAL: Calcula qué flota gana el Barlovento
+ * @returns {object} { winner: 'attacker'|'defender', attackerScore: number, defenderScore: number }
+ */
+function calculateBarlovento(attackerDivision, defenderDivision) {
+    // 1. Composición (Factor Patache)
+    const attackerPataches = attackerDivision.regiments.filter(r => 
+        REGIMENT_TYPES[r.type]?.abilities?.includes('barlovento')
+    ).length;
+    const defenderPataches = defenderDivision.regiments.filter(r => 
+        REGIMENT_TYPES[r.type]?.abilities?.includes('barlovento')
+    ).length;
+    
+    const patacheDiff = Math.min(2, Math.abs(attackerPataches - defenderPataches));
+    const attackerPatacheBonus = attackerPataches > defenderPataches ? patacheDiff * 15 : 0;
+    const defenderPatacheBonus = defenderPataches > attackerPataches ? patacheDiff * 15 : 0;
+    
+    // 2. Héroe (Navegación) - Buscar talento de navegación
+    const getNavegacionLevel = (division) => {
+        if (!division.commander) return 0;
+        const playerProfile = PlayerDataManager.getCurrentPlayer();
+        if (!playerProfile) return 0;
+        const heroInstance = playerProfile.heroes?.find(h => h.id === division.commander);
+        if (!heroInstance || !heroInstance.talents) return 0;
+        
+        // Buscar talento de navegación (puedes ajustar el ID del talento)
+        const navegacionTalent = heroInstance.talents.find(t => t.includes('navegacion') || t.includes('naval'));
+        return navegacionTalent ? (heroInstance.talentLevels?.[navegacionTalent] || 0) : 0;
+    };
+    
+    const attackerNavLevel = getNavegacionLevel(attackerDivision);
+    const defenderNavLevel = getNavegacionLevel(defenderDivision);
+    const attackerNavBonus = attackerNavLevel * 5;
+    const defenderNavBonus = defenderNavLevel * 5;
+    
+    // 3. Salud (Estado del Barco)
+    const getFleetHealthBonus = (division) => {
+        const healthPercentage = (division.currentHealth / division.maxHealth) * 100;
+        if (healthPercentage >= 100) return 20;
+        if (healthPercentage >= 80) return 15;
+        if (healthPercentage >= 60) return 10;
+        return 5;
+    };
+    
+    const attackerHealthBonus = getFleetHealthBonus(attackerDivision);
+    const defenderHealthBonus = getFleetHealthBonus(defenderDivision);
+    
+    // 4. Suerte (Factor Caos) - d20
+    const attackerLuck = Math.floor(Math.random() * 21); // 0-20
+    const defenderLuck = Math.floor(Math.random() * 21); // 0-20
+    
+    // Calcular totales
+    const attackerScore = attackerPatacheBonus + attackerNavBonus + attackerHealthBonus + attackerLuck;
+    const defenderScore = defenderPatacheBonus + defenderNavBonus + defenderHealthBonus + defenderLuck;
+    
+    console.log(`[Barlovento] Atacante: Pataches(${attackerPatacheBonus}) + Nav(${attackerNavBonus}) + Salud(${attackerHealthBonus}) + Suerte(${attackerLuck}) = ${attackerScore}`);
+    console.log(`[Barlovento] Defensor: Pataches(${defenderPatacheBonus}) + Nav(${defenderNavBonus}) + Salud(${defenderHealthBonus}) + Suerte(${defenderLuck}) = ${defenderScore}`);
+    
+    return {
+        winner: attackerScore > defenderScore ? 'attacker' : 'defender',
+        attackerScore,
+        defenderScore
+    };
+}
+
+/**
+ * COMBATE NAVAL: Calcula si un barco individual evade un ataque
+ * @param {object} attackerRegiment - Regimiento atacante
+ * @param {object} defenderRegiment - Regimiento defensor
+ * @param {object} attackerDivision - División atacante
+ * @param {object} defenderDivision - División defensora
+ * @param {string} barloventoWinner - 'attacker' o 'defender'
+ * @returns {boolean} true si el defensor evade el ataque
+ */
+function checkNavalEvasion(attackerRegiment, defenderRegiment, attackerDivision, defenderDivision, barloventoWinner) {
+    // Solo aplicar evasión en combates navales
+    const attackerData = REGIMENT_TYPES[attackerRegiment.type];
+    const defenderData = REGIMENT_TYPES[defenderRegiment.type];
+    
+    if (!attackerData?.is_naval || !defenderData?.is_naval) return false;
+    
+    // 1. Barlovento Ganado
+    const defenderBarloventoBonus = barloventoWinner === 'defender' ? 15 : 0;
+    const attackerBarloventoBonus = barloventoWinner === 'attacker' ? 15 : 0;
+    
+    // 2. Variable de Evasión del barco
+    const defenderEvasion = (defenderData.evasion || 0) * 10;
+    const attackerEvasion = (attackerData.evasion || 0) * 10;
+    
+    // 3. Héroe (Navegación)
+    const getNavegacionLevel = (division) => {
+        if (!division.commander) return 0;
+        const playerProfile = PlayerDataManager.getCurrentPlayer();
+        if (!playerProfile) return 0;
+        const heroInstance = playerProfile.heroes?.find(h => h.id === division.commander);
+        if (!heroInstance || !heroInstance.talents) return 0;
+        
+        const navegacionTalent = heroInstance.talents.find(t => t.includes('navegacion') || t.includes('naval'));
+        return navegacionTalent ? (heroInstance.talentLevels?.[navegacionTalent] || 0) : 0;
+    };
+    
+    const defenderNavLevel = getNavegacionLevel(defenderDivision);
+    const attackerNavLevel = getNavegacionLevel(attackerDivision);
+    const defenderNavBonus = defenderNavLevel * 5;
+    const attackerNavBonus = attackerNavLevel * 5;
+    
+    // 4. Suerte (Factor Caos) - d20
+    const defenderLuck = Math.floor(Math.random() * 21); // 0-20
+    const attackerLuck = Math.floor(Math.random() * 21); // 0-20
+    
+    // Calcular totales
+    const defenderEvasionScore = defenderBarloventoBonus + defenderEvasion + defenderNavBonus + defenderLuck;
+    const attackerAccuracyScore = attackerBarloventoBonus + attackerEvasion + attackerNavBonus + attackerLuck;
+    
+    const evaded = defenderEvasionScore > attackerAccuracyScore;
+    
+    if (evaded) {
+        console.log(`[Evasión Naval] ${defenderRegiment.type} EVADE! (${defenderEvasionScore} vs ${attackerAccuracyScore})`);
+    } else {
+        console.log(`[Evasión Naval] ${attackerRegiment.type} acierta. (${attackerAccuracyScore} vs ${defenderEvasionScore})`);
+    }
+    
+    return evaded;
+}
+
+/**
  * Orquesta un combate completo entre dos divisiones, resolviéndolo a nivel de regimientos.
  * Crea una cola de acciones basada en la iniciativa y el rango de ataque de cada regimiento,
  * y luego procesa cada acción de forma secuencial.
@@ -922,6 +1047,19 @@ async function attackUnit(attackerDivision, defenderDivision) {
     try {
         if (!attackerDivision || !defenderDivision) return;
         logMessage(`¡COMBATE! ${attackerDivision.name} (J${attackerDivision.player}) vs ${defenderDivision.name} (J${defenderDivision.player})`);
+        
+        // === DETECCIÓN DE COMBATE NAVAL ===
+        const attackerIsNaval = attackerDivision.regiments.some(r => REGIMENT_TYPES[r.type]?.is_naval);
+        const defenderIsNaval = defenderDivision.regiments.some(r => REGIMENT_TYPES[r.type]?.is_naval);
+        const isPureNavalCombat = attackerIsNaval && defenderIsNaval;
+        
+        // === CÁLCULO DE BARLOVENTO (Solo para combates navales) ===
+        let barloventoWinner = null;
+        if (isPureNavalCombat) {
+            const barloventoResult = calculateBarlovento(attackerDivision, defenderDivision);
+            barloventoWinner = barloventoResult.winner;
+            logMessage(`⚓ BARLOVENTO: ${barloventoResult.winner === 'attacker' ? attackerDivision.name : defenderDivision.name} gana la posición ventajosa! (${barloventoResult.attackerScore} vs ${barloventoResult.defenderScore})`, "event");
+        }
         
         // <<== FLANQUEO ==>>
         // 1. Llamar a la función de detección de flanqueo ANTES de cualquier cálculo de daño.
@@ -1088,7 +1226,7 @@ async function attackUnit(attackerDivision, defenderDivision) {
                 if (newTarget) {
                     // La llamada a applyDamage DEBE estar aquí dentro
                     console.log(`[DEBUG] Llamando a applyDamage (newTarget). battleIntegrity = ${battleIntegrity}`);
-                    applyDamage(regiment, newTarget, division, opposingDivision, battleIntegrity, defenderHex);
+                    applyDamage(regiment, newTarget, division, opposingDivision, battleIntegrity, defenderHex, isPureNavalCombat, barloventoWinner);
                     recalculateUnitHealth(opposingDivision);
                     if (UIManager) UIManager.updateUnitStrengthDisplay(opposingDivision);
                 }
@@ -1096,7 +1234,7 @@ async function attackUnit(attackerDivision, defenderDivision) {
                 // Si el objetivo fijo sigue vivo, lo ataca
                 console.log(`[DEBUG] Llamando a applyDamage (newTarget). battleIntegrity = ${battleIntegrity}`);
                 await new Promise(resolve => setTimeout(resolve, 100));
-                applyDamage(regiment, targetRegiment, division, opposingDivision, battleIntegrity, defenderHex);
+                applyDamage(regiment, targetRegiment, division, opposingDivision, battleIntegrity, defenderHex, isPureNavalCombat, barloventoWinner);
                 
                 if (defenderHex && defenderHex.currentIntegrity <= 0) {
                     battleIntegrity = 0;
@@ -1362,11 +1500,22 @@ function calculateRegimentStats(unit) {
  * y generando logs detallados para cada paso.
  */
 
-function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetDivision, battleIntegrity, defenderHex) {
+function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetDivision, battleIntegrity, defenderHex, isPureNavalCombat = false, barloventoWinner = null) {
     // 1. OBTENCIÓN DE DATOS BASE
     const attackerData = REGIMENT_TYPES[attackerRegiment.type];
     const targetData = REGIMENT_TYPES[targetRegiment.type];
     if (!attackerData || !targetData) return 0;
+    
+    // === EVASIÓN NAVAL ===
+    // Si es combate naval puro, verificar si el defensor evade
+    if (isPureNavalCombat && barloventoWinner) {
+        const evaded = checkNavalEvasion(attackerRegiment, targetRegiment, attackerDivision, targetDivision, barloventoWinner);
+        if (evaded) {
+            console.log(`⚓ ${targetRegiment.type} evade el ataque de ${attackerRegiment.type}!`);
+            logMessage(`⚓ ${targetDivision.name} evade el ataque!`, "combat");
+            return 0; // No hay daño
+        }
+    }
     
         // --- CONTEXTO DEL DUELO ---
     const isFirstHitOnTarget = (targetRegiment.hitsTakenThisRound || 0) === 0;
