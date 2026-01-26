@@ -40,10 +40,11 @@ const RaidManager = {
                 
                 caravan_hp: totalHpCalculated,
                 caravan_max_hp: totalHpCalculated,
-                caravan_pos: { r: 6, c: 1 }, // Posición inicial en agua, no en la fortaleza
-                last_update: now.toISOString(),
+                caravan_pos: { r: 6, c: 1 }, // Posición inicial (columna 1 = inicio del mapa)
+                last_update: now.toISOString(), // Importante: El reloj de movimiento comienza AHORA
                 slots: [null, null, null, null, null, null, null, null],
-                units: {}
+                units: {},
+                deployment_phase: true // NUEVO: Flag para indicar que estamos en fase de despliegue
             },
             global_log: { damage_by_user: {} }
         };
@@ -207,9 +208,9 @@ const RaidManager = {
         // D. Cargar Mapa Visual - IMPORTANTE: Usar this.currentRaid.stage_data actualizado
         this.showRaidMap(this.currentRaid.stage_data);
         
-        // E. Calcular y aplicar movimiento automático de la caravana
-        console.log("[Raid] Calculando movimiento automático de la caravana...");
-        await this.calculateCaravanPath(stageData);
+        // E. NO calcular movimiento automático durante deployment
+        // La caravana solo se mueve cuando el jugador esté en fase "play"
+        console.log("[Raid] Esperando a que el jugador despliegue sus tropas antes de mover la caravana...");
         
         // F. Mensaje de bienvenida
         setTimeout(() => {
@@ -329,11 +330,12 @@ const RaidManager = {
             boss_regiments: bossRegiments, // AGREGADO: Array real de regimientos
             caravan_hp: totalHpCalculated,
             caravan_max_hp: totalHpCalculated,
-            caravan_pos: { r: 6, c: 0 },
+            caravan_pos: { r: 6, c: 1 }, // CORREGIDO: Siempre empezar en columna 1, no 0
             last_update: new Date().toISOString(), // El reloj de movimiento empieza ahora para esta etapa
             is_victory: false,
             slots: Array(8).fill(null), // Expulsar a todos (Opción A)
-            units: {} // Limpiar mapa
+            units: {}, // Limpiar mapa
+            deployment_phase: true // NUEVO: Reiniciar flag de despliegue
         };
 
         const { data, error } = await supabaseClient
@@ -504,6 +506,12 @@ const RaidManager = {
 
     // 5. El Algoritmo "Perezoso" de la Caravana
     calculateCaravanPath: async function(stageData) {
+        // NUEVO: Si estamos en fase de despliegue, no mover la caravana
+        if (stageData.deployment_phase) {
+            console.log("[Raid] Caravana en espera durante fase de despliegue");
+            return false;
+        }
+        
         // PRIMERO: Verificar si debemos avanzar de etapa
         const stageChanged = await this.checkAndAdvanceStage();
         if (stageChanged && this.currentRaid.status === 'completed') {
