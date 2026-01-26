@@ -1143,6 +1143,8 @@ function initApp() {
             // 5. Finalizar configuración global usando settings del paso "Siguiente"
                 
             gameState.deploymentUnitLimit = settings.unitLimit === "unlimited" ? Infinity : parseInt(settings.unitLimit);
+            gameState.victoryByPointsEnabled = settings.victoryByPoints ?? VICTORY_BY_POINTS_ENABLED_DEFAULT;
+            console.log(`[SETUP] Victoria por puntos: ${gameState.victoryByPointsEnabled ? 'ACTIVADA' : 'DESACTIVADA'}`);
             console.error(`DEBUGGING TIMER | PASO 3: Asignando gameState.turnDurationSeconds. Valor final: ${gameState.turnDurationSeconds}`);
             gameState.isCampaignBattle = false;
             
@@ -1262,8 +1264,9 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
             const numPlayersVal = parseInt(document.getElementById('num-players-slider')?.value) || 2;
 
             const barbarianDensityVal = document.getElementById('barbarianDensity')?.value || 'med';
+            const victoryByPointsVal = document.getElementById('victoryByPoints')?.value || 'enabled';
 
-            console.log(`[SETUP] Guardando configuración temporal: Tiempo=${turnTimeVal}, Jugadores=${numPlayersVal}`);
+            console.log(`[SETUP] Guardando configuración temporal: Tiempo=${turnTimeVal}, Jugadores=${numPlayersVal}, Victoria por Puntos=${victoryByPointsVal}`);
 
             // 2. Guardado en el estado temporal
             gameState.setupTempSettings = {
@@ -1272,7 +1275,8 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
                 unitLimit: unitLimitVal,
                 turnTime: turnTimeVal,
                 numPlayers: numPlayersVal,
-                barbarianDensity: barbarianDensityVal
+                barbarianDensity: barbarianDensityVal,
+                victoryByPoints: victoryByPointsVal === 'enabled'
             };
             
             // 3. Renderizado de la siguiente pantalla
@@ -2117,6 +2121,7 @@ function iniciarPartidaLAN(settings) {
     gameState.playerCivilizations = settings.playerCivilizations;
     gameState.deploymentUnitLimit = settings.deploymentUnitLimit;
     gameState.turnDurationSeconds = settings.turnTime === 'none' ? Infinity : parseInt(settings.turnTime);
+    gameState.victoryByPointsEnabled = settings.victoryByPoints ?? VICTORY_BY_POINTS_ENABLED_DEFAULT;
     gameState.isCampaignBattle = false;
 
     showScreen(domElements.gameContainer);

@@ -2224,7 +2224,8 @@ function calculateVictoryPoints() {
             heroes: playerUnits.filter(u => u.commander).length,
             trades: gameState.playerStats?.sealTrades?.[pKey] || 0,
             ruinsCount: gameState.playerStats?.ruinsExplored?.[pKey] || 0,
-            barbaraCities: barbaraCitiesConquered  // === NUEVA MÉTRICA ===
+            barbaraCities: barbaraCitiesConquered,  // === NUEVA MÉTRICA ===
+            navalVictories: gameState.playerStats?.navalVictories?.[pKey] || 0  // === NUEVA MÉTRICA ===
         };
     });
 
@@ -2255,6 +2256,7 @@ function calculateVictoryPoints() {
     vp.holders.mostTrades = findWinner('trades');
     vp.holders.mostRuins = findWinner('ruinsCount');
     vp.holders.mostBarbaraCities = findWinner('barbaraCities');  // === NUEVO TÍTULO ===
+    vp.holders.mostNavalVictories = findWinner('navalVictories');  // === NUEVO TÍTULO ===
 
     // 3. Recalcular total de PV para cada jugador
     players.forEach(p => {
@@ -2274,17 +2276,22 @@ function calculateVictoryPoints() {
         }
     }
 
-    // PUNTO DE CONTROL B2: Comprobación de puntos acumulados
-    const currentScore = vp[`player${gameState.currentPlayer}`];
-    console.log(`[AUDITORÍA] Puntos de J${gameState.currentPlayer}: ${currentScore} / Objetivo: 9`);
-
-    if (currentScore >= 9) {
-        console.log("%c[AUDITORÍA] ¡Victoria por 9 puntos alcanzada! Llamando a endTacticalBattle.", "color: #f1c40f; font-weight: bold;");
-        endTacticalBattle(gameState.currentPlayer);
-    }
-
-    if (vp[`player${gameState.currentPlayer}`] >= 9) {
-        endTacticalBattle(gameState.currentPlayer);
+    // VERIFICACIÓN DE VICTORIA POR PUNTOS
+    const victoryPointsEnabled = gameState.victoryByPointsEnabled ?? VICTORY_BY_POINTS_ENABLED_DEFAULT;
+    const victoryThreshold = VICTORY_POINTS_TO_WIN;
+    
+    if (victoryPointsEnabled) {
+        // Verificar todos los jugadores (no solo el actual)
+        players.forEach(p => {
+            const pKey = `player${p}`;
+            const currentScore = vp[pKey] || 0;
+            console.log(`[AUDITORÍA] Puntos de J${p}: ${currentScore} / Objetivo: ${victoryThreshold}`);
+            
+            if (currentScore >= victoryThreshold) {
+                console.log(`%c[AUDITORÍA] ¡Victoria por ${victoryThreshold} puntos alcanzada por J${p}! Llamando a endTacticalBattle.`, "color: #f1c40f; font-weight: bold;");
+                endTacticalBattle(p);
+            }
+        });
     }
 
     if (UIManager) UIManager.updateVictoryPointsDisplay();

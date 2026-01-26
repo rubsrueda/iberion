@@ -500,6 +500,8 @@ function ensureFullGameState() {
     if (!gameState.victoryPoints) gameState.victoryPoints = { holders: {}, ruins: {} };
     if (!gameState.victoryPoints.holders) gameState.victoryPoints.holders = {};
     if (!gameState.victoryPoints.ruins) gameState.victoryPoints.ruins = {};
+    if (!gameState.playerStats) gameState.playerStats = { unitsDestroyed: {}, sealTrades: {}, ruinsExplored: {}, navalVictories: {} };
+    if (!gameState.playerStats.navalVictories) gameState.playerStats.navalVictories = {};
 
     // B. INICIALIZACIÓN DE VALORES POR JUGADOR
     const totalPlayers = gameState.numPlayers || 2;

@@ -1336,7 +1336,8 @@ const UIManager = {
         const titles = {
             mostCities: "Más Ciudades", largestArmy: "Ejército Grande", mostRoutes: "Ruta Larga",
             mostKills: "Más Victorias", mostTechs: "Más Avances", mostHeroes: "Más Héroes",
-            mostResources: "Más Riqueza", mostTrades: "Más Comercios", mostRuins: "Gran Arqueólogo"  
+            mostResources: "Más Riqueza", mostTrades: "Más Comercios", mostRuins: "Gran Arqueólogo",
+            mostBarbaraCities: "Conquistador Bárbaro", mostNavalVictories: "Almirante Supremo"
         };
 
         for (const key in vpData.holders) {

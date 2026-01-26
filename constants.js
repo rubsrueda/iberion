@@ -454,6 +454,10 @@ const HERO_FRAGMENTS_PER_STAR = {
 
 const SKIRMISH_VICTORY_GOLD_BONUS = 200;
 
+// Sistema de Victoria por Puntos
+const VICTORY_POINTS_TO_WIN = 8; // Puntos necesarios para ganar la partida
+const VICTORY_BY_POINTS_ENABLED_DEFAULT = true; // Si la victoria por puntos está activa por defecto
+
 const STRUCTURE_TYPES = {
     // Nota: Costos de recursos y upkeep escalados x20. Bonus y otras propiedades sin cambios, salvo tradeValue.
     "Camino": { 
@@ -564,7 +568,9 @@ const VICTORY_TITLE_NAMES = {
     mostHeroes: "Líder de Leyendas",
     mostResources: "Acaudalado",    
     mostTrades: "Socio Preferente",
-    mostRuins: "Gran Arqueólogo"    
+    mostRuins: "Gran Arqueólogo",
+    mostBarbaraCities: "Conquistador Bárbaro",
+    mostNavalVictories: "Almirante Supremo"
 };
 
 // Define qué terrenos son intransitables para cada categoría de unidad

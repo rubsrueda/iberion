@@ -2115,10 +2115,19 @@ function _applyDestructionRewards(destroyedUnit, victorUnit) {
 
     const victorPlayerKey = `player${victorUnit.player}`;
 
-    if (!gameState.playerStats) gameState.playerStats = { unitsDestroyed: {}, sealTrades: {} };
+    if (!gameState.playerStats) gameState.playerStats = { unitsDestroyed: {}, sealTrades: {}, navalVictories: {} };
     if (!gameState.playerStats.unitsDestroyed[victorPlayerKey]) gameState.playerStats.unitsDestroyed[victorPlayerKey] = 0;
+    if (!gameState.playerStats.navalVictories[victorPlayerKey]) gameState.playerStats.navalVictories[victorPlayerKey] = 0;
 
     gameState.playerStats.unitsDestroyed[victorPlayerKey]++;
+    
+    // Verificar si fue una batalla naval (ambas unidades son navales)
+    const victorIsNaval = victorUnit.regiments.some(r => REGIMENT_TYPES[r.type]?.is_naval);
+    const destroyedIsNaval = destroyedUnit.regiments.some(r => REGIMENT_TYPES[r.type]?.is_naval);
+    if (victorIsNaval && destroyedIsNaval) {
+        gameState.playerStats.navalVictories[victorPlayerKey]++;
+        logMessage(`¡Victoria naval para J${victorUnit.player}! (Total: ${gameState.playerStats.navalVictories[victorPlayerKey]})`, "success");
+    }
 
 
     // 2. Registro de bajas (con protección contra objetos no definidos)
