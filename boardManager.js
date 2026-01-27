@@ -2000,14 +2000,40 @@ function initializeRaidMap(stageConfig, stageData) {
         }
         
         bossUnit.maxHealth = bossUnit.regiments.reduce((sum, r) => sum + (r.maxHealth || r.health), 0);
+        
+        console.log("%c[Raid Map] === ASIGNACIÓN DE HP DEL BOSS ===", 'background: #0066ff; color: #fff; font-weight: bold;');
+        console.log("[Raid Map] HP máximo calculado desde regimientos:", bossUnit.maxHealth);
+        console.log("[Raid Map] HP actual desde stageData.caravan_hp:", stageData.caravan_hp);
+        console.log("[Raid Map] HP máximo desde stageData.caravan_max_hp:", stageData.caravan_max_hp);
+        
         bossUnit.currentHealth = stageData.caravan_hp || bossUnit.maxHealth;
         
         // Asegurar que el HP actual no exceda el máximo
         if (bossUnit.currentHealth > bossUnit.maxHealth) {
+            console.warn("%c[Raid Map] ⚠️ HP actual excede el máximo, corrigiendo...", 'background: #ff6600; color: #fff;');
             bossUnit.currentHealth = bossUnit.maxHealth;
         }
+        
+        // VALIDACIÓN CRÍTICA: Detectar herencia de daño de fase anterior
+        if (stageData.caravan_hp && stageData.caravan_max_hp) {
+            const hpPercentage = (stageData.caravan_hp / stageData.caravan_max_hp) * 100;
+            console.log("[Raid Map] Porcentaje de HP:", hpPercentage.toFixed(1) + "%");
+            
+            if (hpPercentage < 100) {
+                console.warn(
+                    "%c[Raid Map] ⚠️ ADVERTENCIA: La caravana ya tiene daño!",
+                    'background: #ff0000; color: #fff; font-weight: bold; padding: 5px;'
+                );
+                console.warn("[Raid Map] Esto puede indicar herencia de daño de la fase anterior");
+                console.warn("[Raid Map] HP actual:", stageData.caravan_hp);
+                console.warn("[Raid Map] HP máximo:", stageData.caravan_max_hp);
+                console.warn("[Raid Map] HP faltante:", stageData.caravan_max_hp - stageData.caravan_hp);
+            } else {
+                console.log("%c[Raid Map] ✅ La caravana tiene HP completo", 'background: #00ff00; color: #000;');
+            }
+        }
 
-        console.log("[Raid Map] Stats del boss calculados. HP:", bossUnit.currentHealth, "/", bossUnit.maxHealth);
+        console.log("[Raid Map] HP FINAL asignado al boss:", bossUnit.currentHealth, "/", bossUnit.maxHealth);
 
         placeBossUnitDirectly(bossUnit);
         console.log("[Raid Map] Boss colocado exitosamente. Total de unidades:", units.length);

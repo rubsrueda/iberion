@@ -206,6 +206,12 @@ const RaidManager = {
             console.log("[Raid] Datos actualizados. Etapa:", this.currentRaid.current_stage);
             console.log("[Raid] Regimientos del boss:", this.currentRaid.stage_data.boss_regiments?.length || 0);
             console.log("[Raid] Tipo de regimiento:", this.currentRaid.stage_data.boss_regiments?.[0]?.type || 'N/A');
+            console.log("%c[Raid] HP de caravana:", 'background: #00ff00; color: #000; font-weight: bold;', 
+                this.currentRaid.stage_data.caravan_hp, "/", this.currentRaid.stage_data.caravan_max_hp);
+            
+            // CRÍTICO: Actualizar la referencia de stageData para que apunte a los datos frescos
+            stageData = this.currentRaid.stage_data;
+            console.log("[Raid] ✅ Referencia de stageData actualizada a datos frescos");
         } else {
             console.error("[Raid] Error al recargar datos:", refreshError);
         }
@@ -632,6 +638,18 @@ const RaidManager = {
         if (moved && this.currentRaid) {
             console.log("[Raid] Nueva posición de caravana:", stageData.caravan_pos);
             
+            // VALIDACIÓN CRÍTICA: Verificar que el HP no se haya corrompido
+            const expectedMaxHp = stageData.caravan_max_hp;
+            const currentHp = stageData.caravan_hp;
+            
+            console.log("[Raid] Validación antes de guardar - HP:", currentHp, "/", expectedMaxHp);
+            
+            if (currentHp > expectedMaxHp) {
+                console.error("%c[Raid] ERROR: HP actual excede el máximo!", 'background: #ff0000; color: #fff; font-weight: bold;');
+                console.error("[Raid] Esto indica corrupción de datos. Corrigiendo...");
+                stageData.caravan_hp = expectedMaxHp;
+            }
+            
             await supabaseClient
                 .from('alliance_raids')
                 .update({ stage_data: stageData })
@@ -1051,11 +1069,41 @@ const RaidManager = {
         console.log("\n--- VERIFICACIÓN DE HP ---");
         console.log("HP actual:", stageData.caravan_hp);
         console.log("HP máximo:", stageData.caravan_max_hp);
+        
+        // Calcular HP esperado basado en regimientos
+        let expectedHp = 0;
+        if (stageData.boss_regiments && stageData.boss_regiments.length > 0) {
+            expectedHp = stageData.boss_regiments.reduce((sum, r) => sum + (r.maxHealth || r.health), 0);
+            console.log("HP esperado según regimientos:", expectedHp);
+        }
+        
         if (stageData.caravan_hp > stageData.caravan_max_hp) {
             console.error("❌ HP actual excede el máximo");
             hasErrors = true;
+        } else if (expectedHp > 0 && stageData.caravan_max_hp !== expectedHp) {
+            console.error("❌ HP máximo NO coincide con la suma de regimientos");
+            console.error("   Esperado:", expectedHp);
+            console.error("   Actual:", stageData.caravan_max_hp);
+            hasErrors = true;
         } else {
-            console.log("✅ HP válido");
+            console.log("✅ HP máximo válido");
+        }
+        
+        // CRÍTICO: Verificar si hay herencia de daño
+        const hpPercentage = (stageData.caravan_hp / stageData.caravan_max_hp) * 100;
+        console.log("Porcentaje de HP:", hpPercentage.toFixed(1) + "%");
+        
+        if (hpPercentage < 100) {
+            console.error(
+                "%c⚠️ HERENCIA DE DAÑO DETECTADA",
+                'background: #ff6600; color: #fff; font-weight: bold; padding: 10px;'
+            );
+            console.error("La caravana de esta fase ya tiene daño");
+            console.error("HP faltante:", stageData.caravan_max_hp - stageData.caravan_hp);
+            console.error("Esto NO debería ocurrir en una fase nueva");
+            hasErrors = true;
+        } else {
+            console.log("✅ La caravana tiene HP completo (sin daño heredado)");
         }
         
         // Resultado final
@@ -1073,6 +1121,86 @@ const RaidManager = {
                 'background: #00ff00; color: #000; font-weight: bold; padding: 10px;'
             );
         }
+    },
+
+    // NUEVA FUNCIÓN: Reparar HP de la caravana (emergencia)
+    debugRepairCaravanHP: async function() {
+        if (!this.currentRaid) {
+            console.error("[Raid Debug] No hay raid activo");
+            return;
+        }
+
+        console.log("%c=== REPARACIÓN DE HP DE CARAVANA ===", 'background: #ff6600; color: #fff; font-weight: bold; padding: 10px;');
+        
+        const stageData = this.currentRaid.stage_data;
+        const currentStage = this.currentRaid.current_stage;
+        const config = RAID_CONFIG.STAGES[currentStage];
+        
+        if (!config) {
+            console.error("Etapa inválida:", currentStage);
+            return;
+        }
+
+        console.log("Etapa actual:", currentStage, "-", config.name);
+        console.log("HP actual:", stageData.caravan_hp, "/", stageData.caravan_max_hp);
+        
+        // Recalcular HP correcto basado en la configuración de la etapa
+        const regimentType = config.regimentType;
+        const regimentCount = config.regimentCount;
+        const baseStats = REGIMENT_TYPES[regimentType];
+        
+        if (!baseStats) {
+            console.error("Tipo de regimiento no encontrado:", regimentType);
+            return;
+        }
+
+        const correctMaxHP = regimentCount * baseStats.health;
+        
+        console.log("\n--- VALORES CORRECTOS ---");
+        console.log("Tipo de regimiento:", regimentType);
+        console.log("Cantidad:", regimentCount);
+        console.log("HP por regimiento:", baseStats.health);
+        console.log("HP máximo correcto:", correctMaxHP);
+        
+        if (stageData.caravan_hp === correctMaxHP && stageData.caravan_max_hp === correctMaxHP) {
+            console.log("%c✅ El HP ya es correcto, no se necesita reparación", 'background: #00ff00; color: #000; font-weight: bold;');
+            return;
+        }
+
+        console.log("\n%c⚠️ Se detectó HP incorrecto. Reparando...", 'background: #ff0000; color: #fff; font-weight: bold;');
+        
+        // Regenerar regimientos correctos
+        const newRegiments = [];
+        for (let i = 0; i < regimentCount; i++) {
+            newRegiments.push({
+                type: regimentType,
+                health: baseStats.health,
+                maxHealth: baseStats.health
+            });
+        }
+
+        // Actualizar stage_data
+        stageData.boss_regiments = newRegiments;
+        stageData.caravan_hp = correctMaxHP;
+        stageData.caravan_max_hp = correctMaxHP;
+
+        // Guardar en la BD
+        const { error } = await supabaseClient
+            .from('alliance_raids')
+            .update({ stage_data: stageData })
+            .eq('id', this.currentRaid.id);
+
+        if (error) {
+            console.error("Error al guardar:", error);
+            return;
+        }
+
+        console.log("%c✅ HP REPARADO EXITOSAMENTE", 'background: #00ff00; color: #000; font-weight: bold; padding: 10px;');
+        console.log("Nuevo HP:", correctMaxHP, "/", correctMaxHP);
+        console.log("\n⚠️ IMPORTANTE: Sal y vuelve a entrar al raid para ver los cambios");
+        
+        // Actualizar el currentRaid local
+        this.currentRaid.stage_data = stageData;
     }
 
 };

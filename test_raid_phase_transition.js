@@ -13,9 +13,13 @@ async function testRaidPhaseTransition() {
     const originalStage = RaidManager.currentRaid.current_stage;
     console.log("📍 Etapa inicial:", originalStage);
     
-    // Paso 1: Verificar consistencia inicial
+    // Paso 1: Verificar consistencia inicial (incluye HP)
     console.log("\n--- PASO 1: Verificación inicial ---");
     RaidManager.debugCheckConsistency();
+    
+    const initialHP = RaidManager.currentRaid.stage_data.caravan_hp;
+    const initialMaxHP = RaidManager.currentRaid.stage_data.caravan_max_hp;
+    console.log("HP inicial:", initialHP, "/", initialMaxHP);
     
     // Paso 2: Si no estamos en la etapa 4, forzar transición
     if (originalStage < 4) {
@@ -47,6 +51,30 @@ async function testRaidPhaseTransition() {
                 const regType = freshData.stage_data.boss_regiments[0].type;
                 const expectedSprite = REGIMENT_TYPES[regType]?.sprite || 'N/A';
                 console.log("Sprite esperado:", expectedSprite);
+                
+                // CRÍTICO: Verificar HP de la nueva fase
+                const newHP = freshData.stage_data.caravan_hp;
+                const newMaxHP = freshData.stage_data.caravan_max_hp;
+                const hpPercent = (newHP / newMaxHP) * 100;
+                
+                console.log("\n%c=== VERIFICACIÓN DE HP DESPUÉS DE TRANSICIÓN ===", 'background: #ff6600; color: #fff; font-weight: bold;');
+                console.log("HP de la nueva fase:", newHP, "/", newMaxHP);
+                console.log("Porcentaje:", hpPercent.toFixed(1) + "%");
+                
+                if (hpPercent < 100) {
+                    console.error(
+                        "%c❌ ERROR: HERENCIA DE DAÑO DETECTADA!",
+                        'background: #ff0000; color: #fff; font-weight: bold; padding: 10px;'
+                    );
+                    console.error("La nueva caravana NO tiene HP completo");
+                    console.error("Esto indica que heredó daño de la fase anterior");
+                    console.error("\nPuedes repararlo con: RaidManager.debugRepairCaravanHP()");
+                } else {
+                    console.log(
+                        "%c✅ CORRECTO: La nueva caravana tiene HP completo",
+                        'background: #00ff00; color: #000; font-weight: bold; padding: 10px;'
+                    );
+                }
             }
             
             RaidManager.currentRaid = freshData;
@@ -125,3 +153,5 @@ console.log("\n3. Para verificar consistencia en cualquier momento:");
 console.log("   RaidManager.debugCheckConsistency()");
 console.log("\n4. Para ver el estado actual del raid:");
 console.log("   RaidManager.debugShowRaidState()");
+console.log("\n5. Para reparar HP corrupto (emergencia):");
+console.log("   RaidManager.debugRepairCaravanHP()");
