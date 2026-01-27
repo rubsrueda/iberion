@@ -1899,6 +1899,25 @@ function initializeRaidMap(stageConfig, stageData) {
     
     let bossRegiments = stageData.boss_regiments;
     
+    // VALIDACIÓN DE CONSISTENCIA: Verificar que los regimientos coincidan con la etapa actual
+    if (bossRegiments && bossRegiments.length > 0) {
+        const expectedType = stageConfig.regimentType;
+        const actualType = bossRegiments[0].type;
+        if (expectedType !== actualType) {
+            console.error(
+                "%c[Raid Map] ERROR DE CONSISTENCIA DETECTADO!",
+                'background: #ff0000; color: #fff; font-weight: bold; padding: 10px;'
+            );
+            console.error("[Raid Map] Se esperaba tipo:", expectedType);
+            console.error("[Raid Map] Se recibió tipo:", actualType);
+            console.error("[Raid Map] Esto indica que stageData no fue actualizado correctamente en la transición");
+            
+            // Forzar regeneración de regimientos correctos
+            console.warn("[Raid Map] Regenerando regimientos según la configuración de la etapa actual...");
+            bossRegiments = null; // Forzar regeneración en el siguiente bloque
+        }
+    }
+    
     // Si no hay regimientos, generarlos ahora basado en la configuración
     if (!bossRegiments || bossRegiments.length === 0) {
         console.warn("[Raid Map] No hay regimientos del boss. Generando desde config...");
@@ -1931,18 +1950,26 @@ function initializeRaidMap(stageConfig, stageData) {
         const firstType = bossRegiments[0].type;
         const regDef = REGIMENT_TYPES[firstType];
         
+        console.log("%c[Raid Map] CREANDO BOSS DE LA CARAVANA", 'background: #00ff00; color: #000; font-weight: bold; padding: 5px;');
         console.log("[Raid Map] Tipo de regimiento:", firstType);
         console.log("[Raid Map] Definición:", regDef);
+        console.log("[Raid Map] Etapa actual:", RaidManager?.currentRaid?.current_stage || 'N/A');
+        console.log("[Raid Map] Nombre de etapa:", stageConfig.name);
+        console.log("[Raid Map] Tipo de etapa:", stageConfig.type);
         
         // Determinar sprite según tipo de etapa
         let bossSprite = 'images/sprites/onlycaraban128.png'; // Default
         if (regDef && regDef.sprite) {
             bossSprite = regDef.sprite;
+            console.log("[Raid Map] → Usando sprite del tipo de regimiento:", bossSprite);
         } else if (stageConfig.type === 'naval') {
             bossSprite = 'images/sprites/barco256.png';
+            console.log("[Raid Map] → Usando sprite naval por defecto:", bossSprite);
+        } else {
+            console.log("[Raid Map] → Usando sprite de caravana por defecto:", bossSprite);
         }
         
-        console.log("[Raid Map] Sprite seleccionado:", bossSprite);
+        console.log("%c[Raid Map] SPRITE FINAL:", 'background: #ffff00; color: #000; font-weight: bold; padding: 5px;', bossSprite);
         
         const bossUnit = {
             id: 'boss_caravan',

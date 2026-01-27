@@ -193,6 +193,23 @@ const RaidManager = {
             console.log("[Raid] El jugador ya estaba en un slot. Reconectando...");
         }
 
+        // B2. CRÍTICO: Recargar datos FRESCOS desde la BD antes de renderizar
+        console.log("[Raid] Recargando datos actualizados desde la base de datos...");
+        const { data: freshRaidData, error: refreshError } = await supabaseClient
+            .from('alliance_raids')
+            .select('*')
+            .eq('id', this.currentRaid.id)
+            .single();
+        
+        if (freshRaidData && !refreshError) {
+            this.currentRaid = freshRaidData;
+            console.log("[Raid] Datos actualizados. Etapa:", this.currentRaid.current_stage);
+            console.log("[Raid] Regimientos del boss:", this.currentRaid.stage_data.boss_regiments?.length || 0);
+            console.log("[Raid] Tipo de regimiento:", this.currentRaid.stage_data.boss_regiments?.[0]?.type || 'N/A');
+        } else {
+            console.error("[Raid] Error al recargar datos:", refreshError);
+        }
+
         // C. Inicializar gameState para el modo Raid
         console.log("[Raid] Inicializando gameState para modo Raid...");
         
@@ -962,6 +979,100 @@ const RaidManager = {
         console.log("Horas desde inicio total:", ((now - start) / (1000*60*60)).toFixed(2));
         console.log("Horas desde inicio de etapa:", ((now - stageStart) / (1000*60*60)).toFixed(2));
         console.log("Posición esperada (col):", Math.min(24, 1 + Math.floor(((now - stageStart) / (1000*60*60)) * 3)));
+    },
+
+    // Verificar consistencia de datos del raid (nueva función de debug)
+    debugCheckConsistency: function() {
+        if (!this.currentRaid) {
+            console.log("%c[Raid Debug] No hay raid activo cargado", 'background: #ff0000; color: #fff; font-weight: bold; padding: 5px;');
+            return;
+        }
+
+        console.log("%c[Raid Debug] VERIFICACIÓN DE CONSISTENCIA", 'background: #0066ff; color: #fff; font-weight: bold; padding: 10px;');
+        
+        const stageData = this.currentRaid.stage_data;
+        const currentStage = this.currentRaid.current_stage;
+        const expectedConfig = RAID_CONFIG.STAGES[currentStage];
+        
+        if (!expectedConfig) {
+            console.error("%cETAPA INVÁLIDA:", 'background: #ff0000; color: #fff; font-weight: bold;', currentStage);
+            return;
+        }
+
+        console.log("Etapa actual:", currentStage, "-", expectedConfig.name);
+        console.log("Tipo:", expectedConfig.type);
+        
+        let hasErrors = false;
+
+        // Verificar regimientos
+        console.log("\n--- VERIFICACIÓN DE REGIMIENTOS ---");
+        if (stageData.boss_regiments && stageData.boss_regiments.length > 0) {
+            const actualType = stageData.boss_regiments[0].type;
+            const expectedType = expectedConfig.regimentType;
+            const actualCount = stageData.boss_regiments.length;
+            const expectedCount = expectedConfig.regimentCount;
+            
+            console.log("Tipo esperado:", expectedType);
+            console.log("Tipo actual:", actualType);
+            console.log("Match:", actualType === expectedType ? "✅" : "❌");
+            
+            console.log("Cantidad esperada:", expectedCount);
+            console.log("Cantidad actual:", actualCount);
+            console.log("Match:", actualCount === expectedCount ? "✅" : "❌");
+            
+            if (actualType !== expectedType || actualCount !== expectedCount) {
+                console.error(
+                    "%c¡INCONSISTENCIA EN REGIMIENTOS!",
+                    'background: #ff0000; color: #fff; font-weight: bold; padding: 10px;'
+                );
+                hasErrors = true;
+            }
+        } else {
+            console.error("⚠️ No hay regimientos del boss");
+            hasErrors = true;
+        }
+        
+        // Verificar posición
+        console.log("\n--- VERIFICACIÓN DE POSICIÓN ---");
+        if (stageData.caravan_pos) {
+            console.log("Posición actual:", stageData.caravan_pos);
+            if (stageData.caravan_pos.c < 1) {
+                console.error("❌ Posición inválida (columna < 1)");
+                hasErrors = true;
+            } else {
+                console.log("✅ Posición válida");
+            }
+        } else {
+            console.error("⚠️ No hay posición de caravana");
+            hasErrors = true;
+        }
+        
+        // Verificar HP
+        console.log("\n--- VERIFICACIÓN DE HP ---");
+        console.log("HP actual:", stageData.caravan_hp);
+        console.log("HP máximo:", stageData.caravan_max_hp);
+        if (stageData.caravan_hp > stageData.caravan_max_hp) {
+            console.error("❌ HP actual excede el máximo");
+            hasErrors = true;
+        } else {
+            console.log("✅ HP válido");
+        }
+        
+        // Resultado final
+        console.log("\n" + "=".repeat(50));
+        if (hasErrors) {
+            console.error(
+                "%c¡SE ENCONTRARON INCONSISTENCIAS!",
+                'background: #ff0000; color: #fff; font-weight: bold; padding: 10px;'
+            );
+            console.log("%cRecomendación: Usa RaidManager.debugForceNextStage() para forzar la transición correcta", 
+                'background: #ffff00; color: #000; font-weight: bold; padding: 5px;');
+        } else {
+            console.log(
+                "%c✅ TODOS LOS DATOS SON CONSISTENTES",
+                'background: #00ff00; color: #000; font-weight: bold; padding: 10px;'
+            );
+        }
     }
 
 };
