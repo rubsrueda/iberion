@@ -70,7 +70,7 @@ const RaidManager = {
         
         const player = PlayerDataManager.currentPlayer;
         const uid = player.auth_id;
-        const stageData = this.currentRaid.stage_data;
+        let stageData = this.currentRaid.stage_data; // Cambiar a 'let' para poder reasignar
         
         console.log("[Raid] Intentando entrar al Raid ID:", this.currentRaid.id);
         console.log("[Raid] Datos del jugador:", {uid, username: player.username, gold: player.currencies.gold});
