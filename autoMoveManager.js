@@ -336,7 +336,7 @@ const AutoMoveManager = {
     },
     
     /**
-     * Obtiene las coordenadas del hex desde un evento de mouse
+     * Obtiene las coordenadas del hex desde un evento de mouse o touch
      */
     getHexFromMouseEvent(event) {
         const gameBoard = document.getElementById('gameBoard');
@@ -345,11 +345,28 @@ const AutoMoveManager = {
             return null;
         }
         
-        const rect = gameBoard.getBoundingClientRect();
-        const x = event.clientX - rect.left + gameBoard.scrollLeft;
-        const y = event.clientY - rect.top + gameBoard.scrollTop;
+        // Determinar si es touch o mouse
+        let clientX, clientY;
+        if (event.touches && event.touches.length > 0) {
+            // Evento touch
+            clientX = event.touches[0].clientX;
+            clientY = event.touches[0].clientY;
+            console.log(`[AutoMove] Evento TOUCH detectado`);
+        } else if (event.clientX !== undefined && event.clientY !== undefined) {
+            // Evento mouse
+            clientX = event.clientX;
+            clientY = event.clientY;
+            console.log(`[AutoMove] Evento MOUSE detectado`);
+        } else {
+            console.error("[AutoMove] ❌ No se pudieron obtener coordenadas del evento");
+            return null;
+        }
         
-        console.log(`[AutoMove] Coordenadas del clic: clientX=${event.clientX}, clientY=${event.clientY}`);
+        const rect = gameBoard.getBoundingClientRect();
+        const x = clientX - rect.left + gameBoard.scrollLeft;
+        const y = clientY - rect.top + gameBoard.scrollTop;
+        
+        console.log(`[AutoMove] Coordenadas del clic: clientX=${clientX}, clientY=${clientY}`);
         console.log(`[AutoMove] Coordenadas relativas: x=${x}, y=${y}`);
         
         return this.pixelToHex(x, y);
