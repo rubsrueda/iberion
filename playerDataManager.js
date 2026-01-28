@@ -760,5 +760,128 @@ const PlayerDataManager = {
         }
     },
 
+    // ===== FUNCIONES DE DEBUG =====
+    
+    /**
+     * Agregar oro al perfil del jugador actual (para pruebas)
+     * @param {number} amount - Cantidad de oro a agregar (puede ser negativo para quitar)
+     */
+    debugAddGold: async function(amount = 1000) {
+        if (!this.currentPlayer) {
+            console.error("%c[Debug] No hay jugador activo", 'background: #ff0000; color: #fff; font-weight: bold;');
+            console.log("Inicia sesión primero");
+            return;
+        }
+
+        const before = this.currentPlayer.currencies.gold;
+        this.currentPlayer.currencies.gold += amount;
+        const after = this.currentPlayer.currencies.gold;
+
+        console.log("%c=== AGREGAR ORO (DEBUG) ===", 'background: #ffcc00; color: #000; font-weight: bold; padding: 10px;');
+        console.log("Jugador:", this.currentPlayer.username);
+        console.log("Oro antes:", before.toLocaleString());
+        console.log("Cantidad agregada:", amount.toLocaleString());
+        console.log("Oro después:", after.toLocaleString());
+
+        // Guardar en la BD
+        await this.saveCurrentPlayer();
+        console.log("%c✅ Oro actualizado y guardado", 'background: #00ff00; color: #000; font-weight: bold;');
+
+        // Actualizar UI si está visible
+        if (typeof UIManager !== 'undefined' && UIManager.updateResourceDisplays) {
+            UIManager.updateResourceDisplays();
+        }
+
+        return after;
+    },
+
+    /**
+     * Agregar gemas al perfil del jugador actual (para pruebas)
+     * @param {number} amount - Cantidad de gemas a agregar
+     */
+    debugAddGems: async function(amount = 100) {
+        if (!this.currentPlayer) {
+            console.error("%c[Debug] No hay jugador activo", 'background: #ff0000; color: #fff; font-weight: bold;');
+            return;
+        }
+
+        const before = this.currentPlayer.currencies.gems;
+        this.currentPlayer.currencies.gems += amount;
+        const after = this.currentPlayer.currencies.gems;
+
+        console.log("%c=== AGREGAR GEMAS (DEBUG) ===", 'background: #9966ff; color: #fff; font-weight: bold; padding: 10px;');
+        console.log("Jugador:", this.currentPlayer.username);
+        console.log("Gemas antes:", before);
+        console.log("Cantidad agregada:", amount);
+        console.log("Gemas después:", after);
+
+        await this.saveCurrentPlayer();
+        console.log("%c✅ Gemas actualizadas y guardadas", 'background: #00ff00; color: #000; font-weight: bold;');
+
+        if (typeof UIManager !== 'undefined' && UIManager.updateResourceDisplays) {
+            UIManager.updateResourceDisplays();
+        }
+
+        return after;
+    },
+
+    /**
+     * Agregar todos los tipos de moneda al jugador (para pruebas)
+     * @param {number} multiplier - Multiplicador para las cantidades base
+     */
+    debugAddAllCurrencies: async function(multiplier = 1) {
+        if (!this.currentPlayer) {
+            console.error("%c[Debug] No hay jugador activo", 'background: #ff0000; color: #fff; font-weight: bold;');
+            return;
+        }
+
+        console.log("%c=== AGREGAR TODAS LAS MONEDAS (DEBUG) ===", 'background: #00ccff; color: #000; font-weight: bold; padding: 10px;');
+        
+        const before = { ...this.currentPlayer.currencies };
+        
+        this.currentPlayer.currencies.gold += 10000 * multiplier;
+        this.currentPlayer.currencies.gems += 500 * multiplier;
+        this.currentPlayer.currencies.edicts += 50 * multiplier;
+        this.currentPlayer.currencies.influence += 1000 * multiplier;
+        this.currentPlayer.currencies.sellos_guerra += 20 * multiplier;
+
+        const after = this.currentPlayer.currencies;
+
+        console.log("Jugador:", this.currentPlayer.username);
+        console.table({
+            "Oro": { antes: before.gold, agregado: 10000 * multiplier, después: after.gold },
+            "Gemas": { antes: before.gems, agregado: 500 * multiplier, después: after.gems },
+            "Edictos": { antes: before.edicts, agregado: 50 * multiplier, después: after.edicts },
+            "Influencia": { antes: before.influence, agregado: 1000 * multiplier, después: after.influence },
+            "Sellos de Guerra": { antes: before.sellos_guerra, agregado: 20 * multiplier, después: after.sellos_guerra }
+        });
+
+        await this.saveCurrentPlayer();
+        console.log("%c✅ Todas las monedas actualizadas y guardadas", 'background: #00ff00; color: #000; font-weight: bold;');
+
+        if (typeof UIManager !== 'undefined' && UIManager.updateResourceDisplays) {
+            UIManager.updateResourceDisplays();
+        }
+
+        return after;
+    },
+
+    /**
+     * Ver el estado actual de las monedas del jugador
+     */
+    debugShowCurrencies: function() {
+        if (!this.currentPlayer) {
+            console.error("%c[Debug] No hay jugador activo", 'background: #ff0000; color: #fff; font-weight: bold;');
+            return;
+        }
+
+        console.log("%c=== MONEDAS DEL JUGADOR ===", 'background: #0066ff; color: #fff; font-weight: bold; padding: 10px;');
+        console.log("Jugador:", this.currentPlayer.username);
+        console.log("ID:", this.currentPlayer.auth_id);
+        console.log("\nMonedas actuales:");
+        console.table(this.currentPlayer.currencies);
+
+        return this.currentPlayer.currencies;
+    }
 
 };
