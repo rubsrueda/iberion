@@ -1364,6 +1364,10 @@ const RaidManager = {
     // Verificar recompensas pendientes (llamar al iniciar sesión)
     checkPendingRewards: async function() {
         const myUid = PlayerDataManager.currentPlayer?.auth_id;
+        if (!myUid) {
+            console.log('[Raid] No hay usuario autenticado, saltando check de recompensas pendientes');
+            return;
+        }
         
         console.log('[Raid] Verificando recompensas pendientes para:', myUid);
         
@@ -1371,14 +1375,25 @@ const RaidManager = {
             const { data: completedRaids, error } = await supabaseClient
                 .from('alliance_raids')
                 .select('id, rewards_data, current_stage, completed_at')
-                .eq('status', 'completed')
-                .not('rewards_data', 'is', null);
+                .eq('status', 'completed');
             
+            if (error) {
+                console.error('[Raid] Error en query de recompensas:', error);
+                return;
+            }
+            
+            if (!completedRaids || completedRaids.length === 0) {
+                console.log('[Raid] No hay raids completados');
+                return;
+            }
             
             let pendingCount = 0;
             
             for (let raid of completedRaids) {
-                const myRewards = raid.rewards_data?.[myUid];
+                // Saltar raids sin rewards_data
+                if (!raid.rewards_data) continue;
+                
+                const myRewards = raid.rewards_data[myUid];
                 
                 if (myRewards && !myRewards.claimed) {
                     pendingCount++;
