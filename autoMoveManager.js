@@ -7,37 +7,20 @@ const AutoMoveManager = {
     currentPaintingUnit: null,
     paintedPath: [], // Array de {r, c}
     
-    // Estado de arrastre
-    isDragging: false,
-    dragStartHex: null,
-    lastHoveredHex: null,
+    // Control de timeout
+    lastClickTime: null,
+    autoConfirmTimeout: null,
+    timeoutDuration: 2000, // 2 segundos
     
     // Elementos visuales
     pathElements: [],
+    confirmButton: null,
     
     /**
      * Inicializa el sistema de movimiento automático
      */
     init() {
         console.log("[AutoMove] Inicializando sistema de movimiento automático...");
-        
-        // Agregar listeners para mouse
-        const gameBoard = document.getElementById('gameBoard');
-        if (gameBoard) {
-            gameBoard.addEventListener('mousedown', this.onMouseDown.bind(this));
-            gameBoard.addEventListener('mousemove', this.onMouseMove.bind(this));
-            gameBoard.addEventListener('mouseup', this.onMouseUp.bind(this));
-            gameBoard.addEventListener('mouseleave', this.onMouseLeave.bind(this));
-        }
-        
-        // Agregar listeners para touch
-        if (gameBoard) {
-            gameBoard.addEventListener('touchstart', this.onTouchStart.bind(this), { passive: false });
-            gameBoard.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: false });
-            gameBoard.addEventListener('touchend', this.onTouchEnd.bind(this));
-            gameBoard.addEventListener('touchcancel', this.onTouchCancel.bind(this));
-        }
-        
         console.log("[AutoMove] Sistema inicializado correctamente");
     },
     
@@ -52,11 +35,31 @@ const AutoMoveManager = {
         
         this.isPaintModeActive = true;
         this.currentPaintingUnit = unit;
-        this.paintedPath = [];
+        this.paintedPath = [{ r: unit.r, c: unit.c }]; // Empezar con la posición actual
+        this.lastClickTime = Date.now();
         this.clearPathVisuals();
         
-        logMessage(`Modo paint activado para ${unit.name}. Mantén presionado y arrastra para dibujar la ruta.`, "info");
+        // Crear overlay de instrucciones
+        this.showPaintModeUI();
+        
+        // Iniciar temporizador de auto-confirmación
+        this.resetAutoConfirmTimer();
+        
+        // Instalar interceptor de clics en el mapa
+        this.installClickInterceptor();
+        
+        logMessage(`Modo Ruta Automática: Haz clic en cada hexágono. Auto-confirma en 2s sin clics.`, "info");
         console.log(`[AutoMove] Modo paint activado para unidad ${unit.id}`);
+        lastClickTime = null;
+        this.clearPathVisuals();
+        this.hidePaintModeUI();
+        this.removeClickInterceptor();
+        
+        // Cancelar temporizador
+        if (this.autoConfirmTimeout) {
+            clearTimeout(this.autoConfirmTimeout);
+            this.autoConfirmTimeout = null;
+        }
         
         return true;
     },
@@ -68,176 +71,191 @@ const AutoMoveManager = {
         this.isPaintModeActive = false;
         this.currentPaintingUnit = null;
         this.isDragging = false;
-        this.dragStartHex = null;
-        this.lastHoveredHex = null;
-        this.clearPathVisuals();
-        console.log("[AutoMove] Modo paint desactivado");
+       Instala un interceptor de clics en el mapa
+     */
+    installClickInterceptor() {
+        const gameBoard = document.getElementById('gameBoard');
+        if (!gameBoard) return;
+        
+        this.clickHandler = this.handlePaintClick.bind(this);
+        gameBoard.addEventListener('click', this.clickHandler, true); // true = captura
     },
     
     /**
-     * Maneja el evento mousedown
+     * Remueve el interceptor de clics
      */
-    onMouseDown(event) {
+    removeClickInterceptor() {
+        const gameBoard = document.getElementById('gameBoard');
+        if (!gameBoard || !this.clickHandler) return;
+        
+        gameBoard.removeEventListener('click', this.clickHandler, true);
+        this.clickHandler = null;
+    },
+    
+    /**
+     * Maneja clics en modo paint
+     */
+    handlePaintClick(event) {
         if (!this.isPaintModeActive || !this.currentPaintingUnit) return;
+        
+        // Evitar que el clic llegue a otros handlers
+        event.stopPropagation();
+        event.preventDefault();
         
         const hex = this.getHexFromMouseEvent(event);
         if (!hex) return;
         
-        // Verificar que el clic inicial es sobre la unidad
-        if (hex.r === this.currentPaintingUnit.r && hex.c === this.currentPaintingUnit.c) {
-            this.isDragging = true;
-            this.dragStartHex = { r: hex.r, c: hex.c };
-            this.paintedPath = [{ r: hex.r, c: hex.c }];
-            this.lastHoveredHex = { r: hex.r, c: hex.c };
-            
-            event.preventDefault();
-            console.log(`[AutoMove] Inicio de arrastre en (${hex.r}, ${hex.c})`);
-        }
-    },
-    
-    /**
-     * Maneja el evento mousemove
-     */
-    onMouseMove(event) {
-        if (!this.isPaintModeActive || !this.isDragging || !this.currentPaintingUnit) return;
+        // Resetear temporizador
+        this.lastClickTime = Date.now();
+        this.resetAutoConfirmTimer();
         
-        const hex = this.getHexFromMouseEvent(event);
-        if (!hex) return;
+        // Obtener el último hexágono en la ruta
+        const lastHex = this.paintedPath[this.paintedPath.length - 1];
         
-        // Si es el mismo hex que el anterior, no hacer nada
-        if (this.lastHoveredHex && hex.r === this.lastHoveredHex.r && hex.c === this.lastHoveredHex.c) {
+        // Verificar si es el mismo hex (ignorar)
+        if (hex.r === lastHex.r && hex.c === lastHex.c) {
             return;
         }
         
-        // Verificar si es un hex adyacente al último
-        const lastHex = this.paintedPath[this.paintedPath.length - 1];
-        if (this.areHexesAdjacent(lastHex, hex)) {
-            // Verificar que no estemos retrocediendo (evitar loops)
-            const isDuplicate = this.paintedPath.some(p => p.r === hex.r && p.c === hex.c);
-            
-            if (!isDuplicate) {
-                // Validar que el movimiento es legal
-                if (this.isValidPathStep(this.currentPaintingUnit, lastHex, hex)) {
-                    this.paintedPath.push({ r: hex.r, c: hex.c });
-                    this.updatePathVisuals();
-                    this.lastHoveredHex = { r: hex.r, c: hex.c };
-                    console.log(`[AutoMove] Ruta extendida a (${hex.r}, ${hex.c})`);
-                }
-            } else {
-                // Si es duplicado, eliminar desde ese punto hacia adelante
-                const duplicateIndex = this.paintedPath.findIndex(p => p.r === hex.r && p.c === hex.c);
-                if (duplicateIndex > 0 && duplicateIndex < this.paintedPath.length - 1) {
-                    this.paintedPath = this.paintedPath.slice(0, duplicateIndex + 1);
-                    this.updatePathVisuals();
-                    this.lastHoveredHex = { r: hex.r, c: hex.c };
-                    console.log(`[AutoMove] Ruta recortada hasta (${hex.r}, ${hex.c})`);
-                }
-            }
-        }
-        
-        event.preventDefault();
-    },
-    
-    /**
-     * Maneja el evento mouseup
-     */
-    onMouseUp(event) {
-        if (!this.isPaintModeActive || !this.isDragging) return;
-        
-        this.isDragging = false;
-        
-        // Si hay una ruta pintada, confirmarla
-        if (this.paintedPath.length > 1) {
-            this.confirmPath();
-        } else {
-            logMessage("Ruta muy corta. Dibuja una ruta más larga.", "warning");
-            this.clearPathVisuals();
-            this.paintedPath = [];
-        }
-        
-        event.preventDefault();
-    },
-    
-    /**
-     * Maneja el evento cuando el mouse sale del board
-     */
-    onMouseLeave(event) {
-        if (this.isDragging) {
-            // Cancelar el arrastre si el mouse sale del tablero
-            this.isDragging = false;
-            this.clearPathVisuals();
-            this.paintedPath = [];
-            logMessage("Ruta cancelada (mouse salió del tablero)", "warning");
-        }
-    },
-    
-    /**
-     * Soporte para touch - touchstart
-     */
-    onTouchStart(event) {
-        if (!this.isPaintModeActive || !this.currentPaintingUnit) return;
-        
-        const hex = this.getHexFromTouchEvent(event);
-        if (!hex) return;
-        
-        if (hex.r === this.currentPaintingUnit.r && hex.c === this.currentPaintingUnit.c) {
-            this.isDragging = true;
-            this.dragStartHex = { r: hex.r, c: hex.c };
-            this.paintedPath = [{ r: hex.r, c: hex.c }];
-            this.lastHoveredHex = { r: hex.r, c: hex.c };
-            
-            event.preventDefault();
-        }
-    },
-    
-    /**
-     * Soporte para touch - touchmove
-     */
-    onTouchMove(event) {
-        if (!this.isPaintModeActive || !this.isDragging || !this.currentPaintingUnit) return;
-        
-        const hex = this.getHexFromTouchEvent(event);
-        if (!hex) return;
-        
-        if (this.lastHoveredHex && hex.r === this.lastHoveredHex.r && hex.c === this.lastHoveredHex.c) {
+        // Verificar si es un hex adyacente
+        if (!this.areHexesAdjacent(lastHex, hex)) {
+            logMessage("Solo puedes seleccionar hexágonos adyacentes", "warning");
             return;
         }
         
-        const lastHex = this.paintedPath[this.paintedPath.length - 1];
-        if (this.areHexesAdjacent(lastHex, hex)) {
-            const isDuplicate = this.paintedPath.some(p => p.r === hex.r && p.c === hex.c);
-            
-            if (!isDuplicate) {
-                if (this.isValidPathStep(this.currentPaintingUnit, lastHex, hex)) {
-                    this.paintedPath.push({ r: hex.r, c: hex.c });
-                    this.updatePathVisuals();
-                    this.lastHoveredHex = { r: hex.r, c: hex.c };
-                }
-            }
+        // Verificar si ya está en la ruta (permitir retroceder eliminando)
+        const existingIndex = this.paintedPath.findIndex(p => p.r === hex.r && p.c === hex.c);
+        if (existingIndex !== -1) {
+            // Retroceder hasta ese punto
+            this.paintedPath = this.paintedPath.slice(0, existingIndex + 1);
+            this.updatePathVisuals();
+            console.log(`[AutoMove] Ruta retrocedida hasta (${hex.r}, ${hex.c})`);
+            return;
         }
         
-        event.preventDefault();
+        // Validar que el movimiento es legal
+        if (!this.isValidPathStep(this.currentPaintingUnit, lastHex, hex)) {
+            logMessage("Ese hexágono no es válido para la ruta", "warning");
+            return;
+        }
+        
+        // Agregar a la ruta
+        this.paintedPath.push({ r: hex.r, c: hex.c });
+        this.updatePathVisuals();
+        console.log(`[AutoMove] Ruta extendida a (${hex.r}, ${hex.c}). Total: ${this.paintedPath.length} pasos`);
     },
     
     /**
-     * Soporte para touch - touchend
+     * Resetea el temporizador de auto-confirmación
      */
-    onTouchEnd(event) {
-        if (!this.isPaintModeActive || !this.isDragging) return;
-        
-        this.isDragging = false;
-        
-        if (this.paintedPath.length > 1) {
-            this.confirmPath();
-        } else {
-            logMessage("Ruta muy corta. Dibuja una ruta más larga.", "warning");
-            this.clearPathVisuals();
-            this.paintedPath = [];
+    resetAutoConfirmTimer() {
+        // Cancelar temporizador anterior
+        if (this.autoConfirmTimeout) {
+            clearTimeout(this.autoConfirmTimeout);
         }
         
-        event.preventDefault();
+        // Crear nuevo temporizador
+        this.autoConfirmTimeout = setTimeout(() => {
+            if (this.isPaintModeActive && this.paintedPath.length > 1) {
+                console.log("[AutoMove] Timeout alcanzado, confirmando ruta automáticamente");
+                this.confirmPath();
+            }
+        }, this.timeoutDuration);
     },
     
+    /**
+     * Muestra la UI del modo paint
+     */
+    showPaintModeUI() {
+        // Crear overlay con instrucciones y botón de confirmar
+        const overlay = document.createElement('div');
+        overlay.id = 'paintModeOverlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            z-index: 10000;
+            font-size: 14px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            border: 2px solid #4CAF50;
+        `;
+        
+        overlay.innerHTML = `
+            <div style="margin-bottom: 10px;">
+                <strong>🎨 Modo Ruta Automática</strong><br>
+                <span style="font-size: 12px;">Haz clic en cada hexágono para crear la ruta</span>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button id="confirmPathBtn" style="
+                    background: #4CAF50;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-size: 13px;
+                    font-weight: bold;
+                ">✓ Confirmar</button>
+                <button id="cancelPathBtn" style="
+                    background: #f44336;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-size: 13px;
+                    font-weight: bold;
+                ">✗ Cancelar</button>
+            </div>
+            <div id="pathStepsCounter" style="margin-top: 8px; font-size: 11px; color: #aaa;">
+                Pasos: 0
+            </div>
+        `;
+        
+        document.body.appendChild(overlay);
+        
+        // Agregar listeners a los botones
+        document.getElementById('confirmPathBtn').addEventListener('click', () => {
+            this.confirmPath();
+        });
+        
+        document.getElementById('cancelPathBtn').addEventListener('click', () => {
+            this.cancelPaintMode();
+        });
+    },
+    
+    /**
+     * Oculta la UI del modo paint
+     */
+    hidePaintModeUI() {
+        const overlay = document.getElementById('paintModeOverlay');
+        if (overlay) {
+            overlay.remove();
+        }
+    },
+    
+    /**
+     * Actualiza el contador de pasos en la UI
+     */
+    updateStepsCounter() {
+        const counter = document.getElementById('pathStepsCounter');
+        if (counter) {
+            counter.textContent = `Pasos: ${Math.max(0, this.paintedPath.length - 1)}`;
+        }
+    },
+    
+    /**
+     * Cancela el modo paint sin confirmar
+     */
+    cancelPaintMode() {
+        logMessage("Modo de ruta automática cancelado", "info");
+        this.deactivatePaintMode()
     /**
      * Soporte para touch - touchcancel
      */
@@ -327,6 +345,7 @@ const AutoMoveManager = {
         // No puede haber unidad en el destino
         const unitOnHex = getUnitOnHex(toHex.r, toHex.c);
         if (unitOnHex) return false;
+        this.updateStepsCounter();
         
         // Verificar terreno transitable
         const unitRegimentData = REGIMENT_TYPES[unit.regiments[0]?.type];
