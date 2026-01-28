@@ -337,14 +337,9 @@ const AutoMoveManager = {
     
     /**
      * Obtiene las coordenadas del hex desde un evento de mouse o touch
+     * Método mejorado: busca el elemento hex en el DOM desde el target del evento
      */
     getHexFromMouseEvent(event) {
-        const gameBoard = document.getElementById('gameBoard');
-        if (!gameBoard) {
-            console.error("[AutoMove] ❌ gameBoard no encontrado");
-            return null;
-        }
-        
         // Determinar si es touch o mouse
         let clientX, clientY;
         if (event.touches && event.touches.length > 0) {
@@ -362,39 +357,110 @@ const AutoMoveManager = {
             return null;
         }
         
-        const rect = gameBoard.getBoundingClientRect();
-        const x = clientX - rect.left + gameBoard.scrollLeft;
-        const y = clientY - rect.top + gameBoard.scrollTop;
-        
         console.log(`[AutoMove] Coordenadas del clic: clientX=${clientX}, clientY=${clientY}`);
-        console.log(`[AutoMove] Coordenadas relativas: x=${x}, y=${y}`);
         
-        return this.pixelToHex(x, y);
+        // Usar elementFromPoint para encontrar el elemento en las coordenadas del clic
+        const elementAtPoint = document.elementFromPoint(clientX, clientY);
+        console.log(`[AutoMove] Elemento en punto:`, elementAtPoint?.className || elementAtPoint?.tagName);
+        
+        // Buscar el hexágono en el elemento o sus ancestros
+        let hexElement = elementAtPoint;
+        let attempts = 0;
+        while (hexElement && attempts < 10) {
+            console.log(`[AutoMove] Intento ${attempts + 1}: elemento`, hexElement.className || hexElement.tagName);
+            
+            // Verificar si este elemento es un hex
+            if (hexElement.classList && hexElement.classList.contains('hex')) {
+                console.log(`[AutoMove] ✓ Elemento hex encontrado en intento ${attempts + 1}`);
+                
+                // Intentar obtener las coordenadas desde atributos data
+                const dataR = hexElement.getAttribute('data-r');
+                const dataC = hexElement.getAttribute('data-c');
+                
+                console.log(`[AutoMove] data-r="${dataR}", data-c="${dataC}"`);
+                
+                if (dataR !== null && dataC !== null) {
+                    const r = parseInt(dataR);
+                    const c = parseInt(dataC);
+                    console.log(`[AutoMove] ✓ Coordenadas obtenidas desde atributos: (${r}, ${c})`);
+                    
+                    // Verificar que existan en el board
+                    if (board[r] && board[r][c]) {
+                        return { r, c };
+                    } else {
+                        console.warn(`[AutoMove] ⚠️ Hex (${r}, ${c}) no existe en board`);
+                    }
+                }
+                
+                // Si el hex no tiene atributos data, buscar por elemento
+                console.log(`[AutoMove] Buscando hex por elemento en board...`);
+                return this.findHexByElement(hexElement);
+            }
+            
+            hexElement = hexElement.parentElement;
+            attempts++;
+        }
+        
+        console.warn(`[AutoMove] ⚠️ No se encontró elemento hex en el punto del clic después de ${attempts} intentos`);
+        return this.findHexInBoard(clientX, clientY);
     },
     
     /**
-     * Convierte coordenadas de píxel a coordenadas de hex
+     * Busca un hex en el board por su elemento DOM
      */
-    pixelToHex(x, y) {
-        if (typeof HEX_WIDTH === 'undefined' || typeof HEX_VERT_SPACING === 'undefined') {
-            console.error("[AutoMove] ❌ Constantes de hex no definidas");
-            return null;
+    findHexByElement(hexElement) {
+        if (!hexElement) return null;
+        
+        for (let r = 0; r < board.length; r++) {
+            for (let c = 0; c < board[r].length; c++) {
+                if (board[r][c] && board[r][c].element === hexElement) {
+                    console.log(`[AutoMove] ✓ Hex encontrado por elemento: (${r}, ${c})`);
+                    return { r, c };
+                }
+            }
         }
         
-        // Cálculo inverso aproximado
-        const row = Math.floor(y / HEX_VERT_SPACING);
-        const col = Math.floor((x - (row % 2 !== 0 ? HEX_WIDTH / 2 : 0)) / HEX_WIDTH);
-        
-        console.log(`[AutoMove] Conversión pixel→hex: (${x},${y}) → row=${row}, col=${col}`);
-        
-        // Verificar que el hex existe en el board
-        if (board[row] && board[row][col]) {
-            console.log(`[AutoMove] ✓ Hex válido encontrado: (${row}, ${col})`);
-            return { r: row, c: col };
-        }
-        
-        console.warn(`[AutoMove] ⚠️ Hex (${row}, ${col}) no existe en el board`);
+        console.warn(`[AutoMove] ⚠️ No se encontró hex por elemento en board`);
         return null;
+    },
+    
+    /**
+     * Busca un hex en el board por coordenadas de pantalla (fallback)
+     */
+    findHexInBoard(clientX, clientY) {
+        console.log(`[AutoMove] Usando método fallback para encontrar hex...`);
+        
+        // Buscar todos los elementos hex y ver cuál está más cerca del clic
+        let closestHex = null;
+        let closestDistance = Infinity;
+        
+        for (let r = 0; r < board.length; r++) {
+            for (let c = 0; c < board[r].length; c++) {
+                if (board[r][c] && board[r][c].element) {
+                    const hexEl = board[r][c].element;
+                    const rect = hexEl.getBoundingClientRect();
+                    const centerX = rect.left + rect.width / 2;
+                    const centerY = rect.top + rect.height / 2;
+                    const distance = Math.sqrt(
+                        Math.pow(clientX - centerX, 2) + 
+                        Math.pow(clientY - centerY, 2)
+                    );
+                    
+                    if (distance < closestDistance) {
+                        closestDistance = distance;
+                        closestHex = { r, c };
+                    }
+                }
+            }
+        }
+        
+        if (closestHex) {
+            console.log(`[AutoMove] ✓ Hex más cercano encontrado: (${closestHex.r}, ${closestHex.c}) a ${Math.round(closestDistance)}px`);
+        } else {
+            console.warn(`[AutoMove] ⚠️ No se pudo encontrar ningún hex cercano`);
+        }
+        
+        return closestHex;
     },
     
     /**
@@ -411,28 +477,62 @@ const AutoMoveManager = {
      * Valida si un paso en la ruta es legal
      */
     isValidPathStep(unit, fromHex, toHex) {
-        if (!unit || !fromHex || !toHex) return false;
-        
-        // Usar la función existente isValidMove
-        if (typeof isValidMove === 'function') {
-            return isValidMove(unit, toHex.r, toHex.c, false);
+        if (!unit || !fromHex || !toHex) {
+            console.log(`[AutoMove] Validación fallida: datos inválidos`);
+            return false;
         }
         
-        // Validación básica si isValidMove no está disponible
         const targetHexData = board[toHex.r]?.[toHex.c];
-        if (!targetHexData) return false;
-        
-        // No puede haber unidad en el destino
-        const unitOnHex = getUnitOnHex(toHex.r, toHex.c);
-        if (unitOnHex) return false;
-        
-        // Verificar terreno transitable
-        const unitRegimentData = REGIMENT_TYPES[unit.regiments[0]?.type];
-        if (unitRegimentData?.is_naval) {
-            return targetHexData.terrain === 'water';
-        } else {
-            return targetHexData.terrain !== 'water';
+        if (!targetHexData) {
+            console.log(`[AutoMove] Validación fallida: hex no existe`);
+            return false;
         }
+        
+        // Verificar que el hex sea adyacente (básico para cada paso)
+        const neighbors = getHexNeighbors(fromHex.r, fromHex.c);
+        const isAdjacent = neighbors.some(n => n.r === toHex.r && n.c === toHex.c);
+        if (!isAdjacent) {
+            console.log(`[AutoMove] Validación fallida: no es adyacente`);
+            return false;
+        }
+        
+        // Verificar terreno transitable (agua vs tierra)
+        const unitRegimentData = REGIMENT_TYPES[unit.regiments[0]?.type];
+        const isNaval = unitRegimentData?.is_naval || false;
+        const isWater = targetHexData.terrain === 'water';
+        
+        if (isNaval && !isWater) {
+            console.log(`[AutoMove] Validación fallida: unidad naval en tierra`);
+            return false;
+        }
+        if (!isNaval && isWater) {
+            console.log(`[AutoMove] Validación fallida: unidad terrestre en agua`);
+            return false;
+        }
+        
+        // Verificar que el terreno sea transitable (no intransitable)
+        const terrainType = TERRAIN_TYPES[targetHexData.terrain];
+        if (terrainType && !terrainType.passable) {
+            console.log(`[AutoMove] Validación fallida: terreno intransitable (${targetHexData.terrain})`);
+            return false;
+        }
+        
+        // Permitir hexágonos con unidades propias (podría moverse antes de que lleguemos)
+        // Solo rechazar si hay una ciudad enemiga o unidad enemiga permanente
+        const unitOnHex = getUnitOnHex(toHex.r, toHex.c);
+        if (unitOnHex && unitOnHex.player !== unit.player) {
+            console.log(`[AutoMove] Validación fallida: unidad enemiga en destino`);
+            return false;
+        }
+        
+        // Verificar si es territorio enemigo con ciudad
+        if (targetHexData.owner && targetHexData.owner !== unit.player && targetHexData.isCity) {
+            console.log(`[AutoMove] Validación fallida: ciudad enemiga`);
+            return false;
+        }
+        
+        console.log(`[AutoMove] ✓ Validación exitosa para (${toHex.r}, ${toHex.c})`);
+        return true;
     },
     
     /**
