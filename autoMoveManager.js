@@ -488,6 +488,9 @@ const AutoMoveManager = {
             return false;
         }
         
+        console.log(`[AutoMove] 🔍 Validando movimiento a (${toHex.r}, ${toHex.c})`);
+        console.log(`[AutoMove] Terreno: ${targetHexData.terrain}`);
+        
         // Verificar que el hex sea adyacente (básico para cada paso)
         const neighbors = getHexNeighbors(fromHex.r, fromHex.c);
         const isAdjacent = neighbors.some(n => n.r === toHex.r && n.c === toHex.c);
@@ -499,13 +502,19 @@ const AutoMoveManager = {
         // Verificar tipo de unidad (naval vs terrestre)
         const unitRegimentData = REGIMENT_TYPES[unit.regiments[0]?.type];
         const isNaval = unitRegimentData?.is_naval || false;
+        console.log(`[AutoMove] Unidad naval: ${isNaval}`);
         
         // Obtener tipo de terreno
         const terrainType = TERRAIN_TYPES[targetHexData.terrain];
+        console.log(`[AutoMove] TerrainType encontrado:`, terrainType);
+        
         if (!terrainType) {
             console.log(`[AutoMove] Validación fallida: tipo de terreno desconocido (${targetHexData.terrain})`);
             return false;
         }
+        
+        console.log(`[AutoMove] isImpassableForLand: ${terrainType.isImpassableForLand}`);
+        console.log(`[AutoMove] isImpassableForNaval: ${terrainType.isImpassableForNaval}`);
         
         // Verificar si el terreno es transitable para este tipo de unidad
         if (isNaval && terrainType.isImpassableForNaval) {
