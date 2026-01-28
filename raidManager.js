@@ -256,6 +256,19 @@ const RaidManager = {
         gameState.deploymentUnitLimit = 1; // Solo 1 división
         gameState.eliminatedPlayers = [];
         
+        // Inicializar playerStats y matchSnapshots para evitar errores en sistema de progresión
+        if (!gameState.playerStats) {
+            gameState.playerStats = {
+                unitsDestroyed: {
+                    player1: 0,
+                    player2: 0
+                }
+            };
+        }
+        if (!gameState.matchSnapshots) {
+            gameState.matchSnapshots = [];
+        }
+        
         console.log("[Raid] gameState inicializado correctamente");
 
         // D. Cargar Mapa Visual - IMPORTANTE: Usar this.currentRaid.stage_data actualizado

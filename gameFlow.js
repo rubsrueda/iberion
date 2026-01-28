@@ -1055,7 +1055,7 @@ async function endTacticalBattle(winningPlayerNumber) {
         turns: gameState.turnNumber,
         duration: 30, // Aquí podrías calcular la diferencia de tiempo real si quieres
         heroes: units.filter(u => u.player === gameState.myPlayerNumber && u.commander).map(u => u.commander),
-        kills: gameState.playerStats.unitsDestroyed[`player${gameState.myPlayerNumber}`] || 0
+        kills: (gameState.playerStats?.unitsDestroyed?.[`player${gameState.myPlayerNumber}`]) || 0
     };
 
     const xpGained = PlayerDataManager.calculateMatchXP(playerWon, matchMetrics.turns, matchMetrics.kills);

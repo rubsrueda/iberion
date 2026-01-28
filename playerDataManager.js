@@ -713,8 +713,8 @@ const PlayerDataManager = {
     },
 
     analyzeMatchEmotion: function() {
-        const history = gameState.matchSnapshots;
-        if (history.length < 2) return "Batalla relámpago.";
+        const history = gameState.matchSnapshots || [];
+        if (!history || history.length < 2) return "Batalla relámpago.";
 
         // Buscamos el turno donde la diferencia de poder cambió más a tu favor
         let bestTurn = 0;
