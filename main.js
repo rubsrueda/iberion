@@ -1608,26 +1608,46 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
 
     if (domElements.floatingTechTreeBtn) {
         domElements.floatingTechTreeBtn.addEventListener('click', () => {
-            if (typeof openTechTreeScreen === "function") {
-                openTechTreeScreen();
-                if (domElements && domElements.floatingMenuPanel && domElements.floatingMenuPanel.style.display !== 'none') {
-                    domElements.floatingMenuPanel.style.display = 'none';
-    }
-                if (domElements && domElements.contextualInfoPanel && domElements.contextualInfoPanel.classList.contains('visible')) {
-                    if (typeof UIManager !== 'undefined' && UIManager.hideContextualPanel) {
-                        UIManager.hideContextualPanel();
+            // Función helper para abrir el árbol tecnológico
+            const tryOpenTechTree = () => {
+                if (typeof openTechTreeScreen === "function") {
+                    openTechTreeScreen();
+                    if (domElements && domElements.floatingMenuPanel && domElements.floatingMenuPanel.style.display !== 'none') {
+                        domElements.floatingMenuPanel.style.display = 'none';
                     }
-                } else {
-                     if(typeof UIManager !== 'undefined' && typeof UIManager.hideAllActionButtons === 'function') UIManager.hideAllActionButtons(); 
-                     if (domElements && domElements.floatingCreateDivisionBtn) {
-                    if (gameState && gameState.currentPhase !== "deployment") {
-                        domElements.floatingCreateDivisionBtn.style.display = 'none';
+                    if (domElements && domElements.contextualInfoPanel && domElements.contextualInfoPanel.classList.contains('visible')) {
+                        if (typeof UIManager !== 'undefined' && UIManager.hideContextualPanel) {
+                            UIManager.hideContextualPanel();
+                        }
+                    } else {
+                        if(typeof UIManager !== 'undefined' && typeof UIManager.hideAllActionButtons === 'function') UIManager.hideAllActionButtons(); 
+                        if (domElements && domElements.floatingCreateDivisionBtn) {
+                            if (gameState && gameState.currentPhase !== "deployment") {
+                                domElements.floatingCreateDivisionBtn.style.display = 'none';
+                            }
+                        }
                     }
-                 }
+                    return true;
                 }
-            } else {
-                console.error("main.js: CRÍTICO: openTechTreeScreen no está definida (de techScreenUI.js).");
-                alert("La pantalla de tecnologías aún no está disponible.");
+                return false;
+            };
+            
+            // Intentar abrir inmediatamente
+            if (!tryOpenTechTree()) {
+                console.log("main.js: openTechTreeScreen no disponible aún, esperando carga...");
+                // Si falla, esperar a que se cargue
+                let attempts = 0;
+                const checkInterval = setInterval(() => {
+                    attempts++;
+                    if (tryOpenTechTree()) {
+                        clearInterval(checkInterval);
+                        console.log("main.js: Árbol tecnológico abierto después de esperar");
+                    } else if (attempts > 20) {
+                        clearInterval(checkInterval);
+                        console.error("main.js: CRÍTICO: openTechTreeScreen no se cargó después de 2 segundos");
+                        alert("La pantalla de tecnologías aún no está disponible. Intenta recargar la página.");
+                    }
+                }, 100);
             }
         });
     } else { console.warn("main.js: floatingTechTreeBtn no encontrado, no se pudo añadir listener."); }

@@ -1,23 +1,20 @@
 // techScreenUI.js
 console.log("techScreenUI.js CARGADO (Versión corregida con DOMContentLoaded)");
 
-// ESPERAMOS A QUE TODO EL HTML ESTÉ LISTO ANTES DE EJECUTAR CUALQUIER COSA
-document.addEventListener('DOMContentLoaded', () => {
+// DEFINIR FUNCIONES GLOBALMENTE (fuera de DOMContentLoaded para que estén disponibles inmediatamente)
+function openTechTreeScreen() {
+    const screen = document.getElementById('techTreeScreen');
+    const container = document.getElementById('techTreeContainer'); 
 
-    // Todas tus funciones van DENTRO de este bloque
-    function openTechTreeScreen() {
-        const screen = document.getElementById('techTreeScreen');
-        const container = document.getElementById('techTreeContainer'); 
+ console.log("--- LOG ESTADO --- techScreenUI.js -> openTechTreeScreen INICIO: researchedTechnologies =", JSON.parse(JSON.stringify(gameState?.playerResources?.[1]?.researchedTechnologies || [])));
 
-     console.log("--- LOG ESTADO --- techScreenUI.js -> openTechTreeScreen INICIO: researchedTechnologies =", JSON.parse(JSON.stringify(gameState?.playerResources?.[1]?.researchedTechnologies || [])));
+    if (!screen || !container || !TECHNOLOGY_TREE_DATA || !gameState || !gameState.playerResources) {
+        console.error("openTechTreeScreen: Faltan dependencias.");
+        return;
+    }
 
-        if (!screen || !container || !TECHNOLOGY_TREE_DATA || !gameState || !gameState.playerResources) {
-            console.error("openTechTreeScreen: Faltan dependencias.");
-            return;
-        }
-
-        container.innerHTML = ''; 
-        const currentPlayer = gameState.currentPlayer;
+    container.innerHTML = ''; 
+    const currentPlayer = gameState.currentPlayer;
         const playerResearchedTechs = gameState.playerResources[currentPlayer]?.researchedTechnologies || [];
 
     // 1. CREAR Y POSICIONAR TODOS LOS NODOS TECNOLÓGICOS (VUELVE A LA NORMALIDAD)
@@ -44,32 +41,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const isResearched = playerResearchedTechs.includes(tech.id);
             const canBeResearched = typeof hasPrerequisites === "function" ? hasPrerequisites(playerResearchedTechs, tech.id) : false;
 
+            // Asignar clases CSS según estado
             if (isResearched) {
                 nodeDiv.classList.add('researched');
             } else if (canBeResearched) {
                 nodeDiv.classList.add('available');
-            //nodeDiv.onclick = () => attemptToResearch(tech.id);
-            //console.error(`¡INTENTO DE ABRIR MODAL DE DETALLE PARA ${techId}!`); 
-            //nodeDiv.onclick = () => openTechDetailModal(tech.id);
-            // En lugar de .onclick, usamos un addEventListener. Es más robusto.
-            // Le damos un ID único al nodo para estar seguros de a qué nos unimos.
-                nodeDiv.setAttribute('data-tech-id', tech.id);
-            
-                nodeDiv.addEventListener('click', function(event) {
-                // Detenemos cualquier otro evento que pueda interferir
-                    event.stopPropagation();
-                
-                // Obtenemos el ID de la tecnología desde el atributo que acabamos de poner
-                    const techIdToOpen = this.getAttribute('data-tech-id');
-                
-                console.log(`Clic detectado en el nodo. Abriendo modal para: ${techIdToOpen}`);
-                
-                // Llamamos a la función
-                    openTechDetailModal(techIdToOpen);
-                });
             } else {
                 nodeDiv.classList.add('locked');
             }
+            
+            // TODAS las tecnologías son clickeables y abren el modal
+            nodeDiv.setAttribute('data-tech-id', tech.id);
+            nodeDiv.style.cursor = 'pointer';
+            
+            nodeDiv.addEventListener('click', function(event) {
+                event.stopPropagation();
+                const techIdToOpen = this.getAttribute('data-tech-id');
+                console.log(`Clic detectado en el nodo. Abriendo modal para: ${techIdToOpen}`);
+                openTechDetailModal(techIdToOpen);
+            });
+            
         let tooltipText = `${tech.description || 'Sin descripción.'}\nCosto: `;
         if (tech.cost) {
             if (tech.cost.researchPoints) tooltipText += `${tech.cost.researchPoints} Puntos Inv.`;
@@ -249,24 +240,25 @@ document.addEventListener('DOMContentLoaded', () => {
         nameSpan.textContent = tech.name;
         nodeDiv.appendChild(nameSpan);
 
-        // --- LA PARTE IMPORTANTE, AHORA ESTÁ IGUAL QUE EN LA OTRA FUNCIÓN ---
+        // --- Asignar clases CSS según estado ---
         const isResearched = playerResearchedTechs.includes(tech.id);
         const canBeResearched = hasPrerequisites(playerResearchedTechs, tech.id);
         if (isResearched) { 
             nodeDiv.classList.add('researched');
         } else if (canBeResearched) { 
             nodeDiv.classList.add('available');
-            
-            // Asignamos el Event Listener correcto, igual que en la otra función
-            nodeDiv.setAttribute('data-tech-id', tech.id);
-            nodeDiv.addEventListener('click', function(event) {
-                event.stopPropagation();
-                const techIdToOpen = this.getAttribute('data-tech-id');
-                openTechDetailModal(techIdToOpen);
-            });
         } else { 
             nodeDiv.classList.add('locked');
         }
+        
+        // TODAS las tecnologías son clickeables
+        nodeDiv.setAttribute('data-tech-id', tech.id);
+        nodeDiv.style.cursor = 'pointer';
+        nodeDiv.addEventListener('click', function(event) {
+            event.stopPropagation();
+            const techIdToOpen = this.getAttribute('data-tech-id');
+            openTechDetailModal(techIdToOpen);
+        });
         
         let tooltipText = `${tech.name}\n${tech.description || ''}\n\nCosto: ...`; // Asume que tienes tu lógica aquí
         nodeDiv.title = tooltipText;
@@ -496,10 +488,5 @@ function RequestResearchTech(techId) {
         console.log("Estilo 'display' cambiado a 'flex'. El modal debería estar visible.");
     }
 
-    // HACEMOS LAS FUNCIONES GLOBALES para que otros scripts puedan llamarlas si es necesario
-    window.openTechTreeScreen = openTechTreeScreen;
-    window.closeTechTreeScreen = closeTechTreeScreen;
-    window._executeResearch = _executeResearch;
-    window.refreshTechTreeContent = refreshTechTreeContent;
-
-}); // Fin del DOMContentLoaded
+// Las funciones ya son globales por estar definidas en el scope global del archivo
+// No necesitamos asignarlas a window explícitamente
