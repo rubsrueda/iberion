@@ -1048,6 +1048,15 @@ async function attackUnit(attackerDivision, defenderDivision) {
         if (!attackerDivision || !defenderDivision) return;
         logMessage(`¡COMBATE! ${attackerDivision.name} (J${attackerDivision.player}) vs ${defenderDivision.name} (J${defenderDivision.player})`);
         
+        // === PROTECCIÓN PARA RAIDS: Bloquear actualizaciones durante combate ===
+        let wasMonitoring = false;
+        if (gameState.isRaid && defenderDivision.isBoss && typeof RaidManager !== 'undefined') {
+            wasMonitoring = !!RaidManager.hpMonitoringInterval;
+            // Activar flag para bloquear monitoreo (sin detener el intervalo)
+            console.log("[Raid Combat] 🔒 Bloqueando actualizaciones de HP durante el combate");
+            RaidManager.isUpdatingHP = true;
+        }
+        
         // === DETECCIÓN DE COMBATE NAVAL ===
         const attackerIsNaval = attackerDivision.regiments.some(r => REGIMENT_TYPES[r.type]?.is_naval);
         const defenderIsNaval = defenderDivision.regiments.some(r => REGIMENT_TYPES[r.type]?.is_naval);
@@ -1360,8 +1369,18 @@ async function attackUnit(attackerDivision, defenderDivision) {
         // === INTEGRACIÓN CON SISTEMA DE RAIDS ===
         // Si estamos en un Raid y atacamos a la caravana (boss), registrar el daño
         if (gameState.isRaid && defenderDivision.isBoss && typeof RaidManager !== 'undefined') {
-            console.log("[Raid Combat] Registrando daño al boss:", damageDealtByAttacker);
-            await RaidManager.recordDamage(damageDealtByAttacker);
+            // IMPORTANTE: Asegurar que el daño sea positivo (el valor puede ser negativo si hay race conditions)
+            const actualDamage = Math.abs(damageDealtByAttacker);
+            console.log("[Raid Combat] Daño calculado:", damageDealtByAttacker, "→ Daño absoluto:", actualDamage);
+            if (actualDamage > 0) {
+                try {
+                    await RaidManager.recordDamage(actualDamage);
+                } catch (err) {
+                    console.error("[Raid Combat] Error al registrar daño:", err);
+                }
+            } else {
+                console.warn("[Raid Combat] ⚠️ Daño es 0, no se registra");
+            }
         }
 
         console.groupEnd();
@@ -1383,6 +1402,12 @@ async function attackUnit(attackerDivision, defenderDivision) {
             attackerDivision.hasAttacked = true;
         }
         if(UIManager) UIManager.updateAllUIDisplays();
+    } finally {
+        // Siempre liberar el flag de actualización si era un combate de raid
+        if (gameState.isRaid && defenderDivision?.isBoss && typeof RaidManager !== 'undefined' && wasMonitoring) {
+            console.log("[Raid Combat] 🔓 Liberando flag de actualización (finally)");
+            RaidManager.isUpdatingHP = false;
+        }
     }
 }
 
@@ -1734,22 +1759,8 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
     const actualDamage = Math.min(targetRegiment.health, damageDealt);
     targetRegiment.health -= actualDamage;
 
-    // === BLOQUE NUEVO PARA RAID ===
-    if (gameState.isRaid && targetDivision.isBoss) {
-        if (typeof RaidManager !== 'undefined') {
-            // Llamada async sin await - capturamos errores para no bloquear
-            RaidManager.recordDamage(actualDamage).catch(err => {
-                console.error("[Raid] Error al registrar daño:", err);
-            });
-            
-            // Actualizar barra de vida del jefe en la UI si existe
-            const hpBar = document.getElementById('raidBossHpBar');
-            if (hpBar) {
-                const pct = (targetDivision.currentHealth / targetDivision.maxHealth) * 100;
-                hpBar.style.width = `${pct}%`;
-            }
-        }
-    }
+    // === RAID: NO registrar daño aquí - se hace una sola vez al final del combate ===
+    // (Eliminado para evitar registro duplicado por cada duelo)
     
     targetRegiment.hitsTakenThisRound = (targetRegiment.hitsTakenThisRound || 0) + 1;
 

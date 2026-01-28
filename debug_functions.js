@@ -148,6 +148,25 @@ const DebugTools = {
         console.log("✅ Monitoreo de HP iniciado");
     },
 
+    /**
+     * Verificar estado del monitoreo
+     * Uso: DebugTools.monitoringStatus()
+     */
+    monitoringStatus: function() {
+        const isMonitoring = !!RaidManager.hpMonitoringInterval;
+        const isUpdating = RaidManager.isUpdatingHP;
+        
+        console.log("%c=== ESTADO DEL MONITOREO ===", 'background: #ff6600; color: #fff; font-weight: bold; padding: 10px;');
+        console.log("🔄 Monitoreo activo:", isMonitoring ? "SÍ" : "NO");
+        console.log("🔒 Actualización en progreso:", isUpdating ? "SÍ" : "NO");
+        
+        if (isMonitoring) {
+            console.log("⏰ Intervalo ejecutándose cada 3 segundos");
+        }
+        
+        return { isMonitoring, isUpdating };
+    },
+
     // ===== JUEGO =====
     
     /**
@@ -243,6 +262,7 @@ const DebugTools = {
         console.log("  DebugTools.resetRaid(allianceId)       - Resetear raid");
         console.log("  DebugTools.stopMonitoring()            - Detener monitoreo de HP");
         console.log("  DebugTools.startMonitoring()           - Iniciar monitoreo de HP");
+        console.log("  DebugTools.monitoringStatus()          - Ver estado del monitoreo");
         
         console.log("\n🎮 JUEGO:");
         console.log("  DebugTools.gameState()                 - Ver gameState");

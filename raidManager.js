@@ -758,8 +758,14 @@ const RaidManager = {
             return;
         }
 
-        // Bloquear monitoreo durante la actualización
-        this.isUpdatingHP = true;
+        // ⚠️ VALIDACIÓN CRÍTICA: Rechazar daño inválido
+        if (typeof damageAmount !== 'number' || damageAmount <= 0) {
+            console.error('%c[Raid] ❌ ERROR: Daño inválido recibido:', 'background: #ff0000; color: #fff;', damageAmount);
+            console.error('[Raid] ❌ Solo se aceptan números positivos. Operación cancelada.');
+            return;
+        }
+
+        // Nota: El flag isUpdatingHP ya está activo desde attackUnit()
         
         const myUid = PlayerDataManager.currentPlayer.auth_id;
         const myName = PlayerDataManager.currentPlayer.username;
@@ -866,10 +872,7 @@ const RaidManager = {
             }
         } catch (error) {
             console.error("[Raid] Error en recordDamage:", error);
-        } finally {
-            // Siempre liberar el flag, incluso si hay error
-            this.isUpdatingHP = false;
-            console.log("[Raid] Flag de actualización liberado");
+            throw error; // Propagar error para que attackUnit() maneje el finally
         }
     },
 
