@@ -18,6 +18,11 @@ const NetworkManager = {
     // Elimina elementos visuales (DOM) y referencias circulares antes de guardar
     // --- FUNCIÓN LIMPIADORA CLAVE ---
     _prepararEstadoParaNube: function() {
+        // Preparar estructuras de datos no serializables
+        if (typeof ResearchRewardsManager !== 'undefined' && ResearchRewardsManager.prepareForSerialization) {
+            ResearchRewardsManager.prepareForSerialization();
+        }
+        
         const replacer = (key, value) => {
             if (key === 'element') return undefined; // Borrar referencias al HTML
             if (key === 'selectedUnit') return null; // La selección es local

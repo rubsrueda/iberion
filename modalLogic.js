@@ -3385,6 +3385,11 @@ function _executeTradeWithBank(payload) {
     if (!gameState.playerStats.sealTrades[playerKey]) gameState.playerStats.sealTrades[playerKey] = 0;
     gameState.playerStats.sealTrades[playerKey]++;
     
+    // Otorgar puntos de investigación por transacción con la banca
+    if (typeof ResearchRewardsManager !== 'undefined' && ResearchRewardsManager.onBankTransaction) {
+        ResearchRewardsManager.onBankTransaction(playerId);
+    }
+    
     return true;
 }
 

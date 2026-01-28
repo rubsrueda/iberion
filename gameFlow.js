@@ -773,7 +773,15 @@ function updateFogOfWar() {
                 if (hexDistance(source.r, source.c, r, c) <= source.range) {
                     const targetHex = board[r]?.[c];
                     if (targetHex) {
+                        // Detectar si la casilla estaba oculta y ahora se revela (exploración)
+                        const wasHidden = !targetHex.visibility[playerKey] || targetHex.visibility[playerKey] === 'hidden';
+                        
                         targetHex.visibility[playerKey] = 'visible';
+                        
+                        // Otorgar puntos de investigación por casilla explorada
+                        if (wasHidden && typeof ResearchRewardsManager !== 'undefined' && ResearchRewardsManager.onHexExplored) {
+                            ResearchRewardsManager.onHexExplored(gameState.currentPlayer, r, c);
+                        }
                         
                         // Revelar unidad enemiga si la hay
                         const unitThere = getUnitOnHex(r, c);
@@ -2141,6 +2149,11 @@ function updateTradeRoutes(playerNum) {
                 if (ownerOfDest !== null && ownerOfDest !== BankManager.PLAYER_ID && route.goldCarried > 0) {
                     gameState.playerResources[ownerOfDest].oro += route.goldCarried;
                     logMessage(`${unit.name} ha entregado ${route.goldCarried} de oro en ${dest.name}.`);
+                    
+                    // Otorgar puntos de investigación por intercambio de caravana
+                    if (typeof ResearchRewardsManager !== 'undefined' && ResearchRewardsManager.onCaravanTrade) {
+                        ResearchRewardsManager.onCaravanTrade(ownerOfDest);
+                    }
                 }
 
                 // Curación y Reparación

@@ -184,6 +184,11 @@ function splitUnit(originalUnit, targetR, targetC) {
 
     placeFinalizedDivision(newUnitData, targetR, targetC);
 
+    // Otorgar puntos de investigación por división creada
+    if (typeof ResearchRewardsManager !== 'undefined' && ResearchRewardsManager.onUnitSplit) {
+        ResearchRewardsManager.onUnitSplit(originalUnit.player);
+    }
+
     if (UIManager) {
         UIManager.updateUnitStrengthDisplay(originalUnit);
         UIManager.showUnitContextualInfo(originalUnit, true);
@@ -1388,6 +1393,12 @@ async function attackUnit(attackerDivision, defenderDivision) {
         }
 
         console.groupEnd();
+        
+        // Otorgar puntos de investigación por batalla ocurrida
+        if (typeof ResearchRewardsManager !== 'undefined' && ResearchRewardsManager.onBattleOccurred) {
+            ResearchRewardsManager.onBattleOccurred(attackerDivision.player, defenderDivision.player);
+        }
+        
         if (UIManager) {
             UIManager.updateAllUIDisplays();
             // Refrescar el panel si la unidad que atacó es la seleccionada
@@ -3078,6 +3089,11 @@ function handleConfirmBuildStructure(actionData) {
         }
     }
 
+    // Otorgar puntos de investigación por estructura construida
+    if (typeof ResearchRewardsManager !== 'undefined' && ResearchRewardsManager.onStructureBuilt) {
+        ResearchRewardsManager.onStructureBuilt(playerId, structureType);
+    }
+
     
     // AUDIO
     if (typeof AudioManager !== 'undefined') {
@@ -3472,6 +3488,11 @@ function _executeExploreRuins(payload) {
     if (!gameState.playerStats.ruinsExplored[pKey]) gameState.playerStats.ruinsExplored[pKey] = 0;
 
     gameState.playerStats.ruinsExplored[pKey]++; // SUMAR AL CONTADOR PARA EL TÍTULO
+    
+    // Otorgar puntos de investigación por ruina explorada
+    if (typeof ResearchRewardsManager !== 'undefined' && ResearchRewardsManager.onRuinExplored) {
+        ResearchRewardsManager.onRuinExplored(playerId);
+    }
     
     // Marcar la ruina como saqueada y actualizar visuales
     hex.feature = null; // Hacemos que la ruina desaparezca por completo

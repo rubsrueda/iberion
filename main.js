@@ -445,6 +445,14 @@ function initApp() {
     } else {
         console.warn("[Main] AutoResearchManager no está disponible");
     }
+    
+    // === INICIALIZAR SISTEMA DE RECOMPENSAS DE INVESTIGACIÓN ===
+    if (typeof ResearchRewardsManager !== 'undefined' && ResearchRewardsManager.init) {
+        ResearchRewardsManager.init();
+        console.log("[Main] Sistema de recompensas de investigación inicializado");
+    } else {
+        console.warn("[Main] ResearchRewardsManager no está disponible");
+    }
 
     if (typeof addModalEventListeners === "function") { addModalEventListeners(); } 
     else { console.error("main.js: CRÍTICO: addModalEventListeners no está definida."); }
@@ -2579,6 +2587,11 @@ function reconstruirJuegoDesdeDatos(datos) {
             unitData.element = null;
             placeFinalizedDivision(unitData, unitData.r, unitData.c);
         });
+        
+        // 6.5 Restaurar estructuras de datos no serializables
+        if (typeof ResearchRewardsManager !== 'undefined' && ResearchRewardsManager.restoreAfterDeserialization) {
+            ResearchRewardsManager.restoreAfterDeserialization();
+        }
 
         // 7. ACTUALIZACIÓN VISUAL MASIVA
         renderFullBoardVisualState();
