@@ -2,6 +2,7 @@
 console.log("tutorialManager.js CARGADO - v.Final Estable");
 
 let tutorialCheckInterval = null;
+let tutorialStepTimeout = null;
 
 const TutorialManager = {
     currentSteps: [],
@@ -26,7 +27,13 @@ const TutorialManager = {
     },
     
 advanceToNextStep: function() {
-    if (tutorialCheckInterval) clearInterval(tutorialCheckInterval);
+    if (typeof window !== 'undefined' && window.intervalManager) {
+        window.intervalManager.clearInterval('tutorial_check');
+        window.intervalManager.clearTimeout('tutorial_stepTimeout');
+    } else {
+        if (tutorialCheckInterval) clearInterval(tutorialCheckInterval);
+        if (tutorialStepTimeout) clearTimeout(tutorialStepTimeout);
+    }
     if (typeof UIManager !== 'undefined') UIManager.clearTutorialHighlights();
 
     this.currentIndex++;
@@ -60,10 +67,17 @@ advanceToNextStep: function() {
     
     // El resto de la lógica de control se mantiene.
     if (step.duration && !step.actionCondition) {
-        setTimeout(() => {
+        const timeoutCallback = () => {
             if (step.onStepComplete) step.onStepComplete();
             this.advanceToNextStep();
-        }, step.duration);
+        };
+
+        if (typeof window !== 'undefined' && window.intervalManager) {
+            tutorialStepTimeout = 'tutorial_stepTimeout';
+            window.intervalManager.setTimeout(tutorialStepTimeout, timeoutCallback, step.duration);
+        } else {
+            tutorialStepTimeout = setTimeout(timeoutCallback, step.duration);
+        }
     } 
     else if (step.actionCondition) {
         this._startCompletionCheck(step);
@@ -78,14 +92,16 @@ _startCompletionCheck: function(step) {
     }
 
     // Limpiamos cualquier intervalo anterior por si acaso.
-    if (tutorialCheckInterval) {
+    if (typeof window !== 'undefined' && window.intervalManager) {
+        window.intervalManager.clearInterval('tutorial_check');
+    } else if (tutorialCheckInterval) {
         clearInterval(tutorialCheckInterval);
     }
 
     console.log(`[TutorialManager] Iniciando comprobación para el paso #${step.id}...`);
 
     // <<== CAMBIO CLAVE: El interior del intervalo ahora es una función 'async' ==>>
-    tutorialCheckInterval = setInterval(async () => {
+    const checkCallback = async () => {
         try {
             // <<== CAMBIO CLAVE: Usamos 'await' para esperar el resultado ==>>
             // Esto funciona tanto para condiciones normales (devuelven true/false)
@@ -93,7 +109,11 @@ _startCompletionCheck: function(step) {
             if (await step.actionCondition()) {
                 console.log(`%c[TutorialManager] ¡Condición CUMPLIDA para el paso #${step.id}!`, "color: lightgreen; font-weight: bold;");
                 
-                clearInterval(tutorialCheckInterval);
+                if (typeof window !== 'undefined' && window.intervalManager) {
+                    window.intervalManager.clearInterval('tutorial_check');
+                } else if (tutorialCheckInterval) {
+                    clearInterval(tutorialCheckInterval);
+                }
                 
                 if (step.onStepComplete) {
                     step.onStepComplete();
@@ -103,14 +123,31 @@ _startCompletionCheck: function(step) {
             }
         } catch (e) {
             console.error(`Error al evaluar la condición del paso #${step.id}:`, e);
-            clearInterval(tutorialCheckInterval);
+            if (typeof window !== 'undefined' && window.intervalManager) {
+                window.intervalManager.clearInterval('tutorial_check');
+            } else if (tutorialCheckInterval) {
+                clearInterval(tutorialCheckInterval);
+            }
         }
-    }, 500); // Comprueba cada medio segundo.
+    };
+
+    if (typeof window !== 'undefined' && window.intervalManager) {
+        tutorialCheckInterval = 'tutorial_check';
+        window.intervalManager.setInterval(tutorialCheckInterval, checkCallback, 500);
+    } else {
+        tutorialCheckInterval = setInterval(checkCallback, 500);
+    }
 },
 
     stop: function() {
         console.log("[TUTORIAL] Finalizado.");
-        if (tutorialCheckInterval) clearInterval(tutorialCheckInterval);
+        if (typeof window !== 'undefined' && window.intervalManager) {
+            window.intervalManager.clearInterval('tutorial_check');
+            window.intervalManager.clearTimeout('tutorial_stepTimeout');
+        } else {
+            if (tutorialCheckInterval) clearInterval(tutorialCheckInterval);
+            if (tutorialStepTimeout) clearTimeout(tutorialStepTimeout);
+        }
         
         window.TUTORIAL_MODE_ACTIVE = false;
         gameState.isTutorialActive = false;

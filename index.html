@@ -1690,9 +1690,22 @@
     <!-- ====================================================================== -->
     <!-- ===================== CARGA DE SCRIPTS ===================== -->
     <!-- ====================================================================== -->
+    
+    <!-- === SISTEMAS CORE - Deben cargarse PRIMERO === -->
+    <script src="logger.js"></script>
+    <script src="eventManager.js"></script>
+    <script src="intervalManager.js"></script>
+    <script src="coordValidator.js"></script>
+    <script src="pathCache.js"></script>
+    <script src="unitGrid.js"></script>
+    
+    <!-- === LIBRERÍAS EXTERNAS === -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- === CONFIGURACIÓN Y DATOS === -->
     <script src="supabaseConfig.js"></script>
+    
     <script src="commanders.js"></script>
     <script src="constants.js"></script>
     <script src="talents.js"></script>

@@ -1767,6 +1767,7 @@ function initializeRaidMap(stageConfig, stageData) {
     
     board = Array(rows).fill(null).map(() => Array(cols).fill(null));
     units = []; 
+    if (typeof UnitGrid !== 'undefined') UnitGrid.clear();
     if (!gameState) gameState = {};
     gameState.cities = []; 
 

@@ -288,7 +288,7 @@ const RaidManager = {
         this.startHPMonitoring();
         
         // G. Mensaje de bienvenida
-        setTimeout(() => {
+        const introMessage = () => {
             alert(
                 "🗡️ FASE DE PREPARACIÓN 🗡️\n\n" +
                 "1. Tienes 250 Puntos de Investigación (💡)\n" +
@@ -296,23 +296,34 @@ const RaidManager = {
                 "3. Una vez lista, pulsa 'Finalizar Turno'\n\n" +
                 "¡Detén la Caravana Imperial!"
             );
-        }, 500);
+        };
+
+        if (typeof window !== 'undefined' && window.intervalManager) {
+            window.intervalManager.setTimeout('raid_introAlert', introMessage, 500);
+        } else {
+            setTimeout(introMessage, 500);
+        }
     },
 
     // Monitoreo en tiempo real del HP de la caravana
     hpMonitoringInterval: null,
+    usingIntervalManager: false,
     isUpdatingHP: false, // Flag para evitar actualizaciones concurrentes
     
     startHPMonitoring: function() {
         // Limpiar intervalo anterior si existe
         if (this.hpMonitoringInterval) {
-            clearInterval(this.hpMonitoringInterval);
+            if (this.usingIntervalManager && typeof window !== 'undefined' && window.intervalManager) {
+                window.intervalManager.clearInterval(this.hpMonitoringInterval);
+            } else {
+                clearInterval(this.hpMonitoringInterval);
+            }
         }
 
         console.log("[Raid] Iniciando monitoreo en tiempo real del HP");
         
         // Verificar HP cada 3 segundos (aumentado de 2 a 3)
-        this.hpMonitoringInterval = setInterval(async () => {
+        const monitorCallback = async () => {
             // No monitorear si estamos en medio de una actualización
             if (this.isUpdatingHP) {
                 console.log("[Raid] Monitoreo saltado - actualización en progreso");
@@ -371,22 +382,42 @@ const RaidManager = {
                             this.stopHPMonitoring();
                             
                             // Delay para asegurar que la animación termine
-                            setTimeout(() => {
+                            const rewardCallback = () => {
                                 this.distributeRewards(fullRaid.global_log.damage_by_user);
-                            }, 1000);
+                            };
+
+                            if (typeof window !== 'undefined' && window.intervalManager) {
+                                window.intervalManager.setTimeout('raid_rewardDelay', rewardCallback, 1000);
+                            } else {
+                                setTimeout(rewardCallback, 1000);
+                            }
                         }
                     }
                 }
             } catch (err) {
                 console.error("[Raid] Error en monitoreo de HP:", err);
             }
-        }, 3000); // Cada 3 segundos
+        };
+
+        if (typeof window !== 'undefined' && window.intervalManager) {
+            this.usingIntervalManager = true;
+            this.hpMonitoringInterval = 'raid_hpMonitoring';
+            window.intervalManager.setInterval(this.hpMonitoringInterval, monitorCallback, 3000);
+        } else {
+            this.usingIntervalManager = false;
+            this.hpMonitoringInterval = setInterval(monitorCallback, 3000);
+        }
     },
     
     stopHPMonitoring: function() {
         if (this.hpMonitoringInterval) {
-            clearInterval(this.hpMonitoringInterval);
+            if (this.usingIntervalManager && typeof window !== 'undefined' && window.intervalManager) {
+                window.intervalManager.clearInterval(this.hpMonitoringInterval);
+            } else {
+                clearInterval(this.hpMonitoringInterval);
+            }
             this.hpMonitoringInterval = null;
+            this.usingIntervalManager = false;
             console.log("[Raid] Monitoreo de HP detenido");
         }
     },

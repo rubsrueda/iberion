@@ -2,7 +2,8 @@
 // Contiene las variables globales que definen el estado del juego.
 console.log("state.js CARGADO (con Proxy de depuración)"); // Modificado log
 
-var gameState = {}; // Variable global para el estado
+// IMPORTANTE: Usar let en lugar de var para prevenir redeclaraciones accidentales
+let gameState = {}; // Variable global para el estado - NUNCA usar var
 let board = [];
 let units = [];
 let selectedUnit = null;
@@ -79,6 +80,7 @@ function resetGameStateForIberiaMagna() {
     // Reseteo de variables globales
     board = [];
     units = [];
+    if (typeof UnitGrid !== 'undefined') UnitGrid.clear();
     selectedUnit = null;
     unitIdCounter = 0;
     
@@ -149,6 +151,7 @@ function resetGameStateVariables(playerCount = 2, turnDuration = Infinity) {
     // Reseteo de variables globales
     board = [];
     units = [];
+    if (typeof UnitGrid !== 'undefined') UnitGrid.clear();
     selectedUnit = null;
     unitIdCounter = 0;
     placementMode = { active: false, unitData: null, unitType: null };
@@ -235,6 +238,7 @@ async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaign
     // Asegurarse de que las variables globales relacionadas con el tablero y unidades estén limpias
     board = [];
     units = [];
+    if (typeof UnitGrid !== 'undefined') UnitGrid.clear();
     selectedUnit = null; // Asegurarnos de que la variable global también se limpia
     unitIdCounter = 0;
     placementMode = { active: false, unitData: null, unitType: null };
@@ -323,6 +327,7 @@ function resetGameStateForIberiaMagna() {
     // 4. Resetear las otras variables globales
     board = [];
     units = [];
+    if (typeof UnitGrid !== 'undefined') UnitGrid.clear();
     selectedUnit = null;
     unitIdCounter = 0;
     

@@ -11,6 +11,7 @@ const AutoMoveManager = {
     // Control de timeout
     lastClickTime: null,
     autoConfirmTimeout: null,
+    autoConfirmUsingManager: false,
     timeoutDuration: 2000, // 2 segundos
     
     // Elementos visuales
@@ -85,8 +86,13 @@ const AutoMoveManager = {
         
         // Cancelar temporizador
         if (this.autoConfirmTimeout) {
-            clearTimeout(this.autoConfirmTimeout);
+            if (this.autoConfirmUsingManager && typeof window !== 'undefined' && window.intervalManager) {
+                window.intervalManager.clearTimeout(this.autoConfirmTimeout);
+            } else {
+                clearTimeout(this.autoConfirmTimeout);
+            }
             this.autoConfirmTimeout = null;
+            this.autoConfirmUsingManager = false;
             console.log("[AutoMove] ✓ Timer cancelado");
         }
         
@@ -223,16 +229,29 @@ const AutoMoveManager = {
     resetAutoConfirmTimer() {
         // Cancelar temporizador anterior
         if (this.autoConfirmTimeout) {
-            clearTimeout(this.autoConfirmTimeout);
+            if (this.autoConfirmUsingManager && typeof window !== 'undefined' && window.intervalManager) {
+                window.intervalManager.clearTimeout(this.autoConfirmTimeout);
+            } else {
+                clearTimeout(this.autoConfirmTimeout);
+            }
         }
         
         // Crear nuevo temporizador
-        this.autoConfirmTimeout = setTimeout(() => {
+        const confirmCallback = () => {
             if (this.isPaintModeActive && this.paintedPath.length > 1) {
                 console.log("[AutoMove] ⏰ Timeout alcanzado, confirmando ruta automáticamente");
                 this.confirmPath();
             }
-        }, this.timeoutDuration);
+        };
+
+        if (typeof window !== 'undefined' && window.intervalManager) {
+            this.autoConfirmUsingManager = true;
+            this.autoConfirmTimeout = 'autoMove_confirm';
+            window.intervalManager.setTimeout(this.autoConfirmTimeout, confirmCallback, this.timeoutDuration);
+        } else {
+            this.autoConfirmUsingManager = false;
+            this.autoConfirmTimeout = setTimeout(confirmCallback, this.timeoutDuration);
+        }
     },
     
     /**

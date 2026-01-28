@@ -3,6 +3,7 @@ console.log("turnTimer.js CARGADO - Gestor de tiempo por turno listo.");
 
 const TurnTimerManager = {
     timerInterval: null,
+    usingIntervalManager: false,
     remainingSeconds: 0,
     
     // Elementos del DOM que usaremos
@@ -44,7 +45,7 @@ const TurnTimerManager = {
         }
         
         // Iniciar el intervalo que se ejecutará cada segundo
-        this.timerInterval = setInterval(() => {
+        const tick = () => {
             this.remainingSeconds--;
             this._updateDisplay();
             
@@ -78,7 +79,16 @@ const TurnTimerManager = {
                     NetworkManager.enviarDatos({ type: 'actionRequest', action: endTurnAction });
                 }
         }
-        }, 1000);
+        };
+
+        if (typeof window !== 'undefined' && window.intervalManager) {
+            this.usingIntervalManager = true;
+            this.timerInterval = 'turnTimer_tick';
+            window.intervalManager.setInterval(this.timerInterval, tick, 1000);
+        } else {
+            this.usingIntervalManager = false;
+            this.timerInterval = setInterval(tick, 1000);
+        }
     },
     
     /**
@@ -86,8 +96,13 @@ const TurnTimerManager = {
      */
     stop: function() {
         if (this.timerInterval) {
-            clearInterval(this.timerInterval);
+            if (this.usingIntervalManager && typeof window !== 'undefined' && window.intervalManager) {
+                window.intervalManager.clearInterval(this.timerInterval);
+            } else {
+                clearInterval(this.timerInterval);
+            }
             this.timerInterval = null;
+            this.usingIntervalManager = false;
             console.log("[TIMER] Temporizador detenido.");
         }
         

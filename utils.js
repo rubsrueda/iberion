@@ -84,6 +84,15 @@ function getUnitOnHex(r, c) {
         return null;
     }
 
+    // Usar UnitGrid si está disponible para acceso O(1)
+    if (typeof UnitGrid !== 'undefined') {
+        if (UnitGrid.grid.size === 0 && units.length > 0) {
+            UnitGrid.initialize();
+        }
+        const unit = UnitGrid.get(r, c);
+        return unit && unit.currentHealth > 0 ? unit : null;
+    }
+
     return units.find(u => u.r === r && u.c === c && u.currentHealth > 0);
 }
 

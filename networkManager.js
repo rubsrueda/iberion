@@ -16,6 +16,7 @@ const NetworkManager = {
 
     // --- FUNCIÓN LIMPIADORA CLAVE ---
     // Elimina elementos visuales (DOM) y referencias circulares antes de guardar
+    // OPTIMIZADA: Una sola pasada de stringify en lugar de doble serialización
     // --- FUNCIÓN LIMPIADORA CLAVE ---
     _prepararEstadoParaNube: function() {
         // Preparar estructuras de datos no serializables
@@ -23,6 +24,7 @@ const NetworkManager = {
             ResearchRewardsManager.prepareForSerialization();
         }
         
+        // Función replacer para limpiar en una sola pasada
         const replacer = (key, value) => {
             if (key === 'element') return undefined; // Borrar referencias al HTML
             if (key === 'selectedUnit') return null; // La selección es local
@@ -35,13 +37,32 @@ const NetworkManager = {
         if (!gameState.playerResources[1]) gameState.playerResources[1] = { oro: 0, comida: 0, madera: 0, piedra: 0, hierro: 0 };
         if (!gameState.playerResources[2]) gameState.playerResources[2] = { oro: 0, comida: 0, madera: 0, piedra: 0, hierro: 0 };
 
-        return {
-            gameState: JSON.parse(JSON.stringify(gameState, replacer)),
-            board: JSON.parse(JSON.stringify(board, replacer)),
-            units: JSON.parse(JSON.stringify(units, replacer)),
+        // OPTIMIZACIÓN: Una sola pasada de stringify + parse
+        // En lugar de JSON.parse(JSON.stringify(x)) para cada propiedad
+        const estadoCompleto = {
+            gameState: gameState,
+            board: board,
+            units: units,
             unitIdCounter: unitIdCounter,
             timestamp: Date.now()
         };
+        
+        // Serializar una sola vez con el replacer
+        const serialized = JSON.stringify(estadoCompleto, replacer);
+        
+        // Parsear para devolver objeto JS limpio
+        const cleaned = JSON.parse(serialized);
+        
+        if (typeof Logger !== 'undefined') {
+            Logger.debug('NetworkManager', 
+                `Estado serializado (${Math.round(serialized.length / 1024)}KB)`, {
+                unitsCount: units.length,
+                boardSize: `${board.length}x${board[0]?.length || 0}`,
+                turnNumber: gameState.turnNumber
+            });
+        }
+        
+        return cleaned;
     },
 
     // 1. CREAR PARTIDA (HOST)
@@ -75,9 +96,13 @@ const NetworkManager = {
         }
 
         // Sistema de Polling (Esperar al J2)
-        if (this.checkInterval) clearInterval(this.checkInterval);
+        if (typeof window !== 'undefined' && window.intervalManager) {
+            window.intervalManager.clearInterval('network_matchPolling');
+        } else if (this.checkInterval) {
+            clearInterval(this.checkInterval);
+        }
         
-        this.checkInterval = setInterval(async () => {
+        const pollingCallback = async () => {
             const { data } = await supabaseClient
                 .from('active_matches')
                 .select('guest_id')
@@ -86,7 +111,11 @@ const NetworkManager = {
 
             if (data && data.guest_id) {
                 console.log("¡JUGADOR 2 CONECTADO!");
-                clearInterval(this.checkInterval);
+                if (typeof window !== 'undefined' && window.intervalManager) {
+                    window.intervalManager.clearInterval('network_matchPolling');
+                } else if (this.checkInterval) {
+                    clearInterval(this.checkInterval);
+                }
                 
                 if (document.getElementById('host-player-list')) {
                     document.getElementById('host-player-list').innerHTML = `<li>J1: Anfitrión</li><li>J2: CONECTADO</li>`;
@@ -104,7 +133,13 @@ const NetworkManager = {
                     }
                 }, 1000);
             }
-        }, 2000);
+        };
+
+        if (typeof window !== 'undefined' && window.intervalManager) {
+            window.intervalManager.setInterval('network_matchPolling', pollingCallback, 2000);
+        } else {
+            this.checkInterval = setInterval(pollingCallback, 2000);
+        }
         
         return matchId;
     },

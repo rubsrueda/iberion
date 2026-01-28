@@ -1645,17 +1645,32 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
                 console.log("main.js: openTechTreeScreen no disponible aún, esperando carga...");
                 // Si falla, esperar a que se cargue
                 let attempts = 0;
-                const checkInterval = setInterval(() => {
+                const checkCallback = () => {
                     attempts++;
                     if (tryOpenTechTree()) {
-                        clearInterval(checkInterval);
+                        if (typeof window !== 'undefined' && window.intervalManager) {
+                            window.intervalManager.clearInterval('techTree_check');
+                        } else {
+                            clearInterval(checkInterval);
+                        }
                         console.log("main.js: Árbol tecnológico abierto después de esperar");
                     } else if (attempts > 20) {
-                        clearInterval(checkInterval);
+                        if (typeof window !== 'undefined' && window.intervalManager) {
+                            window.intervalManager.clearInterval('techTree_check');
+                        } else {
+                            clearInterval(checkInterval);
+                        }
                         console.error("main.js: CRÍTICO: openTechTreeScreen no se cargó después de 2 segundos");
                         alert("La pantalla de tecnologías aún no está disponible. Intenta recargar la página.");
                     }
-                }, 100);
+                };
+
+                let checkInterval = null;
+                if (typeof window !== 'undefined' && window.intervalManager) {
+                    window.intervalManager.setInterval('techTree_check', checkCallback, 100);
+                } else {
+                    checkInterval = setInterval(checkCallback, 100);
+                }
             }
         });
     } else { console.warn("main.js: floatingTechTreeBtn no encontrado, no se pudo añadir listener."); }
@@ -2245,14 +2260,20 @@ const _processedActions = new Map(); // actionId -> timestamp
 const _ACTION_CACHE_DURATION = 5000; // 5 segundos
 
 // Limpiar cache antiguo periódicamente
-setInterval(() => {
+const cleanupActionCache = () => {
     const now = Date.now();
     for (const [actionId, timestamp] of _processedActions.entries()) {
         if (now - timestamp > _ACTION_CACHE_DURATION) {
             _processedActions.delete(actionId);
         }
     }
-}, _ACTION_CACHE_DURATION);
+};
+
+if (typeof window !== 'undefined' && window.intervalManager) {
+    window.intervalManager.setInterval('actionCache_cleanup', cleanupActionCache, _ACTION_CACHE_DURATION);
+} else {
+    setInterval(cleanupActionCache, _ACTION_CACHE_DURATION);
+}
 
 async function processActionRequest(action) { 
     // DIAGNÓSTICO: Log explícito de la acción recibida
@@ -2539,6 +2560,7 @@ function reconstruirJuegoDesdeDatos(datos) {
         if (domElements.gameBoard) domElements.gameBoard.innerHTML = '';
         board = [];
         units = [];
+        if (typeof UnitGrid !== 'undefined') UnitGrid.clear();
 
         // 3. Inyectar los datos del gameState
         if (datos.gameState) {

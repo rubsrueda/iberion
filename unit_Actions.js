@@ -1,8 +1,57 @@
 /// unit_Actions.js
 // Lógica relacionada con las acciones de las unidades (selección, movimiento, ataque, colocación).
 
-// ========== VERSIÓN DE CÓDIGO: v3.1 - DEDUPLICACIÓN ACTIVA ==========
-console.log("%c[SISTEMA] unit_Actions.js v3.1 CARGADO - actionId incluido en todas las acciones", "background: #00FF00; color: #000; font-weight: bold; padding: 4px;");
+// ========== VERSIÓN DE CÓDIGO: v3.2 - ANTI-RACE CONDITION MEJORADA ==========
+console.log("%c[SISTEMA] unit_Actions.js v3.2 CARGADO - actionId con validación de timestamp", "background: #00FF00; color: #000; font-weight: bold; padding: 4px;");
+
+// Sistema de prevención de race conditions
+const ActionValidator = {
+    pendingActions: new Map(), // Key: unitId, Value: {actionId, timestamp}
+    ACTION_TIMEOUT: 1000, // 1 segundo de timeout
+    
+    canPerformAction(unitId, newActionId) {
+        const pending = this.pendingActions.get(unitId);
+        const now = Date.now();
+        
+        if (!pending) return true;
+        
+        // Si la acción pendiente expiró, permitir nueva acción
+        if (now - pending.timestamp > this.ACTION_TIMEOUT) {
+            this.pendingActions.delete(unitId);
+            return true;
+        }
+        
+        // Si es la misma actionId, es duplicada
+        if (pending.actionId === newActionId) {
+            console.warn(`[ActionValidator] Acción duplicada detectada para unidad ${unitId}`);
+            return false;
+        }
+        
+        // Hay otra acción reciente en progreso
+        console.warn(`[ActionValidator] Acción bloqueada: otra acción en progreso para unidad ${unitId}`);
+        return false;
+    },
+    
+    registerAction(unitId, actionId) {
+        this.pendingActions.set(unitId, {
+            actionId,
+            timestamp: Date.now()
+        });
+    },
+    
+    completeAction(unitId) {
+        this.pendingActions.delete(unitId);
+    },
+    
+    cleanup() {
+        const now = Date.now();
+        for (const [unitId, action] of this.pendingActions) {
+            if (now - action.timestamp > this.ACTION_TIMEOUT * 2) {
+                this.pendingActions.delete(unitId);
+            }
+        }
+    }
+};
 
 function showFloatingDamage(target, damageAmount) {
     // Verificación robusta. gameBoard se obtiene directamente del DOM por seguridad.
@@ -111,8 +160,18 @@ function placeFinalizedDivision(unitData, r, c) {
     if (!unitData.id) unitData.id = `u${unitIdCounter++}`;
     unitData.r = r; unitData.c = c; unitData.element = null;
     const existingIndex = units.findIndex(u => u.id === unitData.id);
-    if (existingIndex > -1) { if(units[existingIndex].element) units[existingIndex].element.remove(); units.splice(existingIndex, 1); }
+    if (existingIndex > -1) {
+        if (typeof UnitGrid !== 'undefined') {
+            UnitGrid.unindex(units[existingIndex]);
+        }
+        if(units[existingIndex].element) units[existingIndex].element.remove();
+        units.splice(existingIndex, 1);
+    }
     units.push(unitData);
+
+    if (typeof UnitGrid !== 'undefined') {
+        UnitGrid.index(unitData);
+    }
 
     const targetHexData = board[r]?.[c];
     if (targetHexData) {
@@ -2243,6 +2302,10 @@ function _executeUnitCleanup(unit) {
         hex.unit = null;
     }
 
+    if (typeof UnitGrid !== 'undefined') {
+        UnitGrid.unindex(unit);
+    }
+
     // Eliminación del array global
     const index = units.findIndex(u => u.id === unit.id);
     if (index > -1) units.splice(index, 1);
@@ -2534,25 +2597,39 @@ async function RequestAttackUnit(attacker, defender) {
     const actionId = `attack_${attacker.id}_${defender.id}_${Date.now()}`;
     const action = { type: 'attackUnit', actionId: actionId, payload: { playerId: attacker.player, attackerId: attacker.id, defenderId: defender.id }};
 
-    // 1. Enviar por red si soy Cliente
-    if (isNetworkGame() && !NetworkManager.esAnfitrion) {
-        NetworkManager.enviarDatos({ type: 'actionRequest', action });
+    // Prevención de race conditions: evitar acciones duplicadas del mismo atacante
+    if (typeof ActionValidator !== 'undefined') {
+        if (!ActionValidator.canPerformAction(attacker.id, actionId)) {
+            return;
+        }
+        ActionValidator.registerAction(attacker.id, actionId);
     }
 
-    // 2. Ejecutar localmente si es mi unidad
-    if (NetworkManager.esAnfitrion || attacker.player === gameState.myPlayerNumber) {
-        
-        await attackUnit(attacker, defender);
-        
-        // Actualizamos el reloj
-        gameState.lastActionTimestamp = Date.now();
-
-        if (isNetworkGame() && NetworkManager.esAnfitrion) {
-            NetworkManager.broadcastFullState();
+    try {
+        // 1. Enviar por red si soy Cliente
+        if (isNetworkGame() && !NetworkManager.esAnfitrion) {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action });
         }
-    } else {
-        // AÑADIR ESTE ELSE para saber si está fallando aquí
-        console.warn(`[RequestAttackUnit] BLOQUEADO. Atacante(J${attacker.player}) !== MiJugador(J${gameState.myPlayerNumber}). ¿Eres Anfitrión? ${NetworkManager.esAnfitrion}`);
+
+        // 2. Ejecutar localmente si es mi unidad
+        if (NetworkManager.esAnfitrion || attacker.player === gameState.myPlayerNumber) {
+            
+            await attackUnit(attacker, defender);
+            
+            // Actualizamos el reloj
+            gameState.lastActionTimestamp = Date.now();
+
+            if (isNetworkGame() && NetworkManager.esAnfitrion) {
+                NetworkManager.broadcastFullState();
+            }
+        } else {
+            // AÑADIR ESTE ELSE para saber si está fallando aquí
+            console.warn(`[RequestAttackUnit] BLOQUEADO. Atacante(J${attacker.player}) !== MiJugador(J${gameState.myPlayerNumber}). ¿Eres Anfitrión? ${NetworkManager.esAnfitrion}`);
+        }
+    } finally {
+        if (typeof ActionValidator !== 'undefined') {
+            ActionValidator.completeAction(attacker.id);
+        }
     }
 }
 
@@ -2911,6 +2988,13 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
     unit.c = toC;
     unit.currentMovement = Math.max(0, unit.currentMovement - costOfThisMove);
     unit.hasMoved = true; 
+
+    if (typeof UnitGrid !== 'undefined') {
+        const moved = UnitGrid.move(unit, fromR, fromC);
+        if (!moved) {
+            UnitGrid.index(unit);
+        }
+    }
 
     // --- 3. Actualizar destino ---
     if (targetHexData) {

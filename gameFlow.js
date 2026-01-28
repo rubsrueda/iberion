@@ -32,24 +32,47 @@ function checkSurroundStatus(unit) {
 
 /**
  * Calcula una ruta de escape campo a través (ignorando carreteras, solo terreno físico).
+ * @param {Object} unit - Unidad que busca escapar
+ * @param {number} targetR - Fila destino
+ * @param {number} targetC - Columna destino
+ * @param {number} maxDepth - Profundidad máxima de búsqueda (por defecto 15)
+ * @returns {Array|null} Path de escape o null si no existe
  */
-function findEscapePath(unit, targetR, targetC) {
+function findEscapePath(unit, targetR, targetC, maxDepth = 15) {
+    // Validar coordenadas si CoordValidator está disponible
+    if (typeof CoordValidator !== 'undefined') {
+        if (!CoordValidator.check(unit.r, unit.c, 'findEscapePath_start') ||
+            !CoordValidator.check(targetR, targetC, 'findEscapePath_target')) {
+            return null;
+        }
+    }
+    
     // Algoritmo A* simplificado para supervivencia
     let openSet = [{ r: unit.r, c: unit.c, g: 0, f: 0, path: [] }];
     let visited = new Set([`${unit.r},${unit.c}`]);
+    let iterations = 0;
+    const MAX_ITERATIONS = maxDepth * 10; // Límite absoluto de iteraciones
 
-    while (openSet.length > 0) {
+    while (openSet.length > 0 && iterations < MAX_ITERATIONS) {
+        iterations++;
+        
         // Ordenar por coste estimado (f)
         openSet.sort((a, b) => a.f - b.f);
         let current = openSet.shift();
 
         // Si llegamos al destino (o adyacente si está ocupado por la propia ciudad)
         if (current.r === targetR && current.c === targetC) {
+            if (typeof Logger !== 'undefined') {
+                Logger.debug('Pathfinding', `Ruta de escape encontrada en ${iterations} iteraciones`, {
+                    pathLength: current.path.length,
+                    cost: current.g
+                });
+            }
             return current.path;
         }
 
-        // Limite de seguridad para no colgar el navegador en mapas gigantes
-        if (current.g > 20) continue; 
+        // Límite estricto de profundidad
+        if (current.g >= maxDepth) continue; 
 
         let neighbors = getHexNeighbors(current.r, current.c);
         for (const n of neighbors) {
@@ -59,7 +82,14 @@ function findEscapePath(unit, targetR, targetC) {
             const hex = board[n.r]?.[n.c];
             // Regla de Oro punto 5: Solo terreno físico transitable. Ignoramos si hay carretera.
             const isPassable = hex && !TERRAIN_TYPES[hex.terrain]?.isImpassableForLand;
-            const unitThere = getUnitOnHex(n.r, n.c);
+            
+            // Usar UnitGrid si está disponible para optimización
+            let unitThere;
+            if (typeof UnitGrid !== 'undefined' && UnitGrid.grid.size > 0) {
+                unitThere = UnitGrid.get(n.r, n.c);
+            } else {
+                unitThere = getUnitOnHex(n.r, n.c);
+            }
             
             // No podemos atravesar unidades enemigas
             const blockedByEnemy = unitThere && unitThere.player !== unit.player;
@@ -76,6 +106,20 @@ function findEscapePath(unit, targetR, targetC) {
             }
         }
     }
+    
+    // No se encontró ruta
+    if (typeof Logger !== 'undefined') {
+        Logger.warn('Pathfinding', 
+            `No se encontró ruta de escape después de ${iterations} iteraciones (límite: ${MAX_ITERATIONS})`, {
+            from: {r: unit.r, c: unit.c},
+            to: {r: targetR, c: targetC},
+            maxDepth,
+            visitedNodes: visited.size
+        });
+    } else {
+        console.warn(`[Pathfinding] Límite alcanzado (${iterations} iteraciones)`);
+    }
+    
     return null; // No hay camino físico
 }
 

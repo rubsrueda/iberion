@@ -119,7 +119,13 @@ const UIManager = {
     showCombatPrediction: function(outcome, targetUnit, event) {
         if (!this._combatPredictionPanel) return;
         
-        if (this._hidePredictionTimeout) clearTimeout(this._hidePredictionTimeout);
+        if (this._hidePredictionTimeout) {
+            if (typeof window !== 'undefined' && window.intervalManager) {
+                window.intervalManager.clearTimeout(this._hidePredictionTimeout);
+            } else {
+                clearTimeout(this._hidePredictionTimeout);
+            }
+        }
 
         let html = `<h4>Predicción de Combate</h4><p>Atacando a: <strong>${targetUnit.name} (${targetUnit.currentHealth} HP)</strong></p><p>Daño infligido: <span class="attacker-damage">${outcome.damageToDefender}</span></p>`;
         
@@ -150,10 +156,23 @@ const UIManager = {
     
     hideCombatPrediction: function() {
         if (!this._combatPredictionPanel) return;
-        if (this._hidePredictionTimeout) clearTimeout(this._hidePredictionTimeout);
-        this._hidePredictionTimeout = setTimeout(() => {
+        if (this._hidePredictionTimeout) {
+            if (typeof window !== 'undefined' && window.intervalManager) {
+                window.intervalManager.clearTimeout(this._hidePredictionTimeout);
+            } else {
+                clearTimeout(this._hidePredictionTimeout);
+            }
+        }
+        const hidePrediction = () => {
             if (this._combatPredictionPanel) this._combatPredictionPanel.classList.remove('visible');
-        }, 100);
+        };
+
+        if (typeof window !== 'undefined' && window.intervalManager) {
+            this._hidePredictionTimeout = 'ui_hidePrediction';
+            window.intervalManager.setTimeout(this._hidePredictionTimeout, hidePrediction, 100);
+        } else {
+            this._hidePredictionTimeout = setTimeout(hidePrediction, 100);
+        }
     },
 
     attachAttackPredictionListener: function(selectedUnit) {
@@ -486,7 +505,11 @@ const UIManager = {
 
         // 3. Si hay un mensaje anterior mostrándose, se limpia su temporizador.
         if (this._messageTimeout) {
-            clearTimeout(this._messageTimeout);
+            if (typeof window !== 'undefined' && window.intervalManager) {
+                window.intervalManager.clearTimeout(this._messageTimeout);
+            } else {
+                clearTimeout(this._messageTimeout);
+            }
         }
 
         // 4. Se asigna el contenido y se ajusta el estilo si es un mensaje de error.
@@ -502,15 +525,26 @@ const UIManager = {
         panel.classList.add('visible');
 
         // 6. Se crea un nuevo temporizador para ocultar el panel.
-        this._messageTimeout = setTimeout(() => {
+        const hideMessage = () => {
             panel.classList.remove('visible');
             this._messageTimeout = null;
-        }, duration);
+        };
+
+        if (typeof window !== 'undefined' && window.intervalManager) {
+            this._messageTimeout = 'ui_messageTimeout';
+            window.intervalManager.setTimeout(this._messageTimeout, hideMessage, duration);
+        } else {
+            this._messageTimeout = setTimeout(hideMessage, duration);
+        }
     },
 
     hideContextualPanel: function() {
         if (this._restoreTimeout) {
-            clearTimeout(this._restoreTimeout);
+            if (typeof window !== 'undefined' && window.intervalManager) {
+                window.intervalManager.clearTimeout(this._restoreTimeout);
+            } else {
+                clearTimeout(this._restoreTimeout);
+            }
             this._restoreTimeout = null;
         }
         
@@ -819,7 +853,13 @@ const UIManager = {
         if (!this._domElements.contextualInfoPanel || !unit) return;
 
         // Limpia cualquier temporizador de autocierre anterior.
-        if (this._autoCloseTimeout) clearTimeout(this._autoCloseTimeout);
+        if (this._autoCloseTimeout) {
+            if (typeof window !== 'undefined' && window.intervalManager) {
+                window.intervalManager.clearTimeout(this._autoCloseTimeout);
+            } else {
+                clearTimeout(this._autoCloseTimeout);
+            }
+        }
         this.removeAttackPredictionListener();
         
         // --- Prepara el contenido del panel ---
@@ -838,14 +878,21 @@ const UIManager = {
         this._lastShownInfo = { type: 'unit', data: unit };
         
         // --- Inicia el temporizador de autocierre ---
-        this._autoCloseTimeout = setTimeout(() => {
+        const autocloseUnitPanel = () => {
             console.log("Autocerrando panel contextual de unidad...");
             this._domElements.contextualInfoPanel.classList.remove('visible');
                 // Usa this._reopenBtn para mostrar el botón
             if (this._reopenBtn) this._reopenBtn.style.display = 'block';
             if (gameState.isTutorialActive) return; // Si es el tutorial, no sigas ocultando cosas 
             //this.hideAllActionButtons();
-        }, 3000);
+        };
+
+        if (typeof window !== 'undefined' && window.intervalManager) {
+            this._autoCloseTimeout = 'ui_autoClose';
+            window.intervalManager.setTimeout(this._autoCloseTimeout, autocloseUnitPanel, 3000);
+        } else {
+            this._autoCloseTimeout = setTimeout(autocloseUnitPanel, 3000);
+        }
         
         // --- Lógica para mostrar los botones de acción ---
         this.hideAllActionButtons();
@@ -982,7 +1029,13 @@ const UIManager = {
         if (!this._domElements.contextualInfoPanel || !hexData) return;
 
         // Limpia cualquier temporizador de autocierre anterior.
-        if (this._autoCloseTimeout) clearTimeout(this._autoCloseTimeout);
+        if (this._autoCloseTimeout) {
+            if (typeof window !== 'undefined' && window.intervalManager) {
+                window.intervalManager.clearTimeout(this._autoCloseTimeout);
+            } else {
+                clearTimeout(this._autoCloseTimeout);
+            }
+        }
         this.removeAttackPredictionListener();
 
         // --- Prepara el contenido del panel ---
@@ -1001,13 +1054,20 @@ const UIManager = {
         this._lastShownInfo = { type: 'hex', data: { r, c, hexData } };
         
         // --- Inicia el temporizador de autocierre ---
-        this._autoCloseTimeout = setTimeout(() => {
+        const autocloseHexPanel = () => {
             console.log("Autocerrando panel contextual de hexágono...");
             this._domElements.contextualInfoPanel.classList.remove('visible');
                 // Usa this._reopenBtn para mostrar el botón
             if (this._reopenBtn) this._reopenBtn.style.display = 'block'; 
             //this.hideAllActionButtons();
-        }, 3000);
+        };
+
+        if (typeof window !== 'undefined' && window.intervalManager) {
+            this._autoCloseTimeout = 'ui_autoClose';
+            window.intervalManager.setTimeout(this._autoCloseTimeout, autocloseHexPanel, 3000);
+        } else {
+            this._autoCloseTimeout = setTimeout(autocloseHexPanel, 3000);
+        }
 
         // --- Lógica para mostrar los botones de acción ---
         this.hideAllActionButtons();
@@ -1273,7 +1333,11 @@ const UIManager = {
         if (gameState.isTutorialActive) return;
         // 1. Limpiar cualquier temporizador anterior para evitar cierres conflictivos
         if (this._autoCloseTimeout) {
-            clearTimeout(this._autoCloseTimeout);
+            if (typeof window !== 'undefined' && window.intervalManager) {
+                window.intervalManager.clearTimeout(this._autoCloseTimeout);
+            } else {
+                clearTimeout(this._autoCloseTimeout);
+            }
         }
 
         // 2. Definir la duración del temporizador
@@ -1281,7 +1345,7 @@ const UIManager = {
         const duration = isHexPanel ? 4000 : 8000;
         
         // 3. Crear el nuevo temporizador
-        this._autoCloseTimeout = setTimeout(() => {
+        const autoclosePanel = () => {
             const infoPanel = document.getElementById('contextualInfoPanel');
             if (infoPanel && infoPanel.classList.contains('visible')) {
                 console.log("Cerrando panel contextual automáticamente...");
@@ -1298,7 +1362,14 @@ const UIManager = {
             }
             // Limpiar la referencia al temporizador una vez ejecutado
             this._autoCloseTimeout = null;
-        }, duration);
+        };
+
+        if (typeof window !== 'undefined' && window.intervalManager) {
+            this._autoCloseTimeout = 'ui_autoClose';
+            window.intervalManager.setTimeout(this._autoCloseTimeout, autoclosePanel, duration);
+        } else {
+            this._autoCloseTimeout = setTimeout(autoclosePanel, duration);
+        }
     },
 
     updateVictoryPointsDisplay: function() {
@@ -1535,8 +1606,14 @@ const UIManager = {
         this._suppressRadialHideUntil = Date.now() + 150;
         
         // Actualizar posición Y tamaños continuamente (responde a zoom/pan)
-        const updateInterval = setInterval(updatePositionAndSize, 50); // Cada 50ms
-        this._radialUpdateInterval = updateInterval;
+        if (typeof window !== 'undefined' && window.intervalManager) {
+            this._radialUpdateUsingManager = true;
+            this._radialUpdateInterval = 'ui_radialUpdate';
+            window.intervalManager.setInterval(this._radialUpdateInterval, updatePositionAndSize, 50);
+        } else {
+            this._radialUpdateUsingManager = false;
+            this._radialUpdateInterval = setInterval(updatePositionAndSize, 50); // Cada 50ms
+        }
 
         // Asegurar que está en body
         if (container.parentElement !== document.body) {
@@ -1699,8 +1776,13 @@ const UIManager = {
         
         // Limpiar el interval de actualización de posición
         if (this._radialUpdateInterval) {
-            clearInterval(this._radialUpdateInterval);
+            if (this._radialUpdateUsingManager && typeof window !== 'undefined' && window.intervalManager) {
+                window.intervalManager.clearInterval(this._radialUpdateInterval);
+            } else {
+                clearInterval(this._radialUpdateInterval);
+            }
             this._radialUpdateInterval = null;
+            this._radialUpdateUsingManager = false;
         }
         
         const container = document.getElementById('radialMenuContainer');
