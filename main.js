@@ -423,6 +423,14 @@ function initApp() {
     
     if (typeof MailboxManager !== 'undefined' && MailboxManager.init) MailboxManager.init();
 
+    // === INICIALIZAR SISTEMA DE MOVIMIENTO AUTOMÁTICO ===
+    if (typeof AutoMoveManager !== 'undefined' && AutoMoveManager.init) {
+        AutoMoveManager.init();
+        console.log("[Main] Sistema de movimiento automático inicializado");
+    } else {
+        console.warn("[Main] AutoMoveManager no está disponible");
+    }
+
     if (typeof addModalEventListeners === "function") { addModalEventListeners(); } 
     else { console.error("main.js: CRÍTICO: addModalEventListeners no está definida."); }
     

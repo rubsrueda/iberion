@@ -403,6 +403,15 @@ function resetUnitsForNewTurn(playerNumber) {
         return;
     }
     
+    // === PROCESAR MOVIMIENTOS AUTOMÁTICOS AL INICIO DEL TURNO ===
+    if (typeof AutoMoveManager !== 'undefined') {
+        AutoMoveManager.processAutoMovesForCurrentPlayer().then(() => {
+            console.log("[AutoMove] Movimientos automáticos procesados");
+        }).catch(err => {
+            console.error("[AutoMove] Error al procesar movimientos automáticos:", err);
+        });
+    }
+    
     // Iteramos sobre TODAS las unidades
     units.forEach(unit => {
         // >> INICIO DE LA CORRECCIÓN LÓGICA <<

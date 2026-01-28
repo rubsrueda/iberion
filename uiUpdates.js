@@ -1559,6 +1559,31 @@ const UIManager = {
             });
         }
 
+        // NUEVO: Botón de Modo Paint para rutas automáticas
+        if (!unit.autoMoveActive) {
+            actions.push({ 
+                icon: '🎨', 
+                title: 'Ruta Auto', 
+                onClick: () => {
+                    if (typeof AutoMoveManager !== 'undefined') {
+                        AutoMoveManager.activatePaintMode(unit);
+                        this.hideRadialMenu();
+                    }
+                }
+            });
+        } else {
+            actions.push({ 
+                icon: '🚫', 
+                title: 'Cancelar Ruta', 
+                onClick: () => {
+                    if (typeof AutoMoveManager !== 'undefined') {
+                        AutoMoveManager.cancelAutoMove(unit);
+                        this.hideRadialMenu();
+                    }
+                }
+            });
+        }
+
         if (unit.regiments.length > 1) {
             actions.push({ 
                 icon: '✂️', 
