@@ -412,6 +412,11 @@ function resetUnitsForNewTurn(playerNumber) {
         });
     }
     
+    // === PROCESAR INVESTIGACIÓN AUTOMÁTICA AL INICIO DEL TURNO ===
+    if (typeof AutoResearchManager !== 'undefined') {
+        AutoResearchManager.processAutoResearch(playerNumber);
+    }
+    
     // Iteramos sobre TODAS las unidades
     units.forEach(unit => {
         // >> INICIO DE LA CORRECCIÓN LÓGICA <<

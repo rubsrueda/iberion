@@ -437,6 +437,14 @@ function initApp() {
     } else {
         console.warn("[Main] AutoMoveManager no está disponible");
     }
+    
+    // === INICIALIZAR SISTEMA DE INVESTIGACIÓN AUTOMÁTICA ===
+    if (typeof AutoResearchManager !== 'undefined' && AutoResearchManager.init) {
+        AutoResearchManager.init();
+        console.log("[Main] Sistema de investigación automática inicializado");
+    } else {
+        console.warn("[Main] AutoResearchManager no está disponible");
+    }
 
     if (typeof addModalEventListeners === "function") { addModalEventListeners(); } 
     else { console.error("main.js: CRÍTICO: addModalEventListeners no está definida."); }

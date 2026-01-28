@@ -153,6 +153,11 @@ document.addEventListener('DOMContentLoaded', () => {
             modalContent.scrollLeft = 0;
             modalContent.scrollTop = 0;
         }
+        
+        // 4. ACTUALIZAR VISUALIZACIÓN DEL PLAN DE INVESTIGACIÓN
+        if (typeof AutoResearchManager !== 'undefined') {
+            AutoResearchManager.updateTechTreeVisualization(currentPlayer);
+        }
     }); 
     }
 
@@ -325,6 +330,11 @@ document.addEventListener('DOMContentLoaded', () => {
             modalContent.scrollLeft = 0;
             modalContent.scrollTop = 0;
         }
+    });
+    
+    // Actualizar visualización del plan de investigación si existe
+    if (typeof AutoResearchManager !== 'undefined') {
+        AutoResearchManager.updateTechTreeVisualization(currentPlayer);
     }
 }
 
@@ -423,19 +433,57 @@ function RequestResearchTech(techId) {
         ].join(', ') || 'Ninguno';
         document.getElementById('techDetailUnlocks').textContent = unlocks;
         
-        // --- 2. Configurar el botón de "Investigar" ---
+        // --- 2. Configurar el botón de "Investigar" o "Activar Plan" ---
         const researchBtn = document.getElementById('researchTechBtn');
         const playerResources = gameState.playerResources[gameState.currentPlayer];
+        const playerTechs = playerResources.researchedTechnologies || [];
         const canAfford = playerResources.researchPoints >= cost;
+        const hasPrereqs = hasPrerequisites(playerTechs, techId);
+        const isResearched = playerTechs.includes(techId);
 
-        // Habilitar o deshabilitar el botón según si se puede pagar
-        researchBtn.disabled = !canAfford;
+        // Verificar si ya hay un plan activo para esta tecnología
+        const hasActivePlan = typeof AutoResearchManager !== 'undefined' && 
+                             AutoResearchManager.hasActivePlan(gameState.currentPlayer);
+        const currentPlan = hasActivePlan ? AutoResearchManager.getActivePlan(gameState.currentPlayer) : null;
+        const isPlanTarget = currentPlan && currentPlan.targetTech === techId;
 
-        // Asignar la acción al botón. Usamos .onclick para reemplazar cualquier listener anterior.
-        researchBtn.onclick = () => {
-            RequestResearchTech(techId);
-            modal.style.display = 'none';
-        };
+        if (isResearched) {
+            // Ya investigada
+            researchBtn.textContent = '✓ Ya Investigada';
+            researchBtn.disabled = true;
+            researchBtn.style.background = '#4CAF50';
+        } else if (isPlanTarget) {
+            // Es el objetivo del plan activo
+            researchBtn.textContent = '🔬 Plan Activo';
+            researchBtn.disabled = true;
+            researchBtn.style.background = '#FF9800';
+        } else if (!hasPrereqs) {
+            // No tiene prerequisitos - mostrar botón "Activar Plan"
+            researchBtn.textContent = '🎯 Activar Plan';
+            researchBtn.disabled = false;
+            researchBtn.style.background = '#2196F3';
+            researchBtn.onclick = () => {
+                if (typeof AutoResearchManager !== 'undefined') {
+                    AutoResearchManager.activateResearchPlan(gameState.currentPlayer, techId);
+                    modal.style.display = 'none';
+                    // Actualizar visualización
+                    if (typeof refreshTechTreeContent === 'function') {
+                        refreshTechTreeContent();
+                    }
+                } else {
+                    console.error('AutoResearchManager no está disponible');
+                }
+            };
+        } else {
+            // Puede investigarse ahora
+            researchBtn.textContent = canAfford ? '🔬 Investigar' : '❌ Sin Recursos';
+            researchBtn.disabled = !canAfford;
+            researchBtn.style.background = canAfford ? '#4CAF50' : '#9e9e9e';
+            researchBtn.onclick = () => {
+                RequestResearchTech(techId);
+                modal.style.display = 'none';
+            };
+        }
 
         // Configurar el botón de cierre (la 'x')
         document.getElementById('closeTechDetailBtn').onclick = () => {
