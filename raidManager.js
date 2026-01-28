@@ -1359,98 +1359,11 @@ const RaidManager = {
         
         // Actualizar el currentRaid local
         this.currentRaid.stage_data = stageData;
-    }
-
-};
-
-    ,
-
-    // Verificar recompensas pendientes (llamar al iniciar sesión)
-    checkPendingRewards: async function() {
-        const myUid = PlayerDataManager.currentPlayer?.auth_id;
-        
-        console.log('[Raid] Verificando recompensas pendientes para:', myUid);
-        
-        try {
-            const { data: completedRaids, error } = await supabaseClient
-                .from('alliance_raids')
-                .select('id, rewards_data, current_stage, completed_at')
-                .eq('status', 'completed')
-                .not('rewards_data', 'is', null);
-            
-            
-            let pendingCount = 0;
-            
-            for (let raid of completedRaids) {
-                const myRewards = raid.rewards_data?.[myUid];
-                
-                    pendingCount++;
-                    await this.claimPendingReward(raid.id, myRewards, raid.current_stage, raid.completed_at);
-                }
-            }
-            
-            if (pendingCount > 0) {
-                console.log(`[Raid] ✅ ${pendingCount} recompensa(s) pendiente(s) entregada(s)`);
-            }
-        } catch (error) {
-            console.error('[Raid] Error verificando recompensas pendientes:', error);
-        }
     },
-    
-    claimPendingReward: async function(raidId, rewards, stage, completedAt) {
-        try {
-            PlayerDataManager.currentPlayer.currencies.gems += rewards.gems;
-            PlayerDataManager.currentPlayer.currencies.gold += rewards.gold;
-            
-            if (typeof PlayerDataManager.addWarSeals === 'function') {
-                PlayerDataManager.addWarSeals(rewards.seals);
-            }
-            
-            if (typeof BattlePassManager !== 'undefined' && BattlePassManager.addMatchXp) {
-                await BattlePassManager.addMatchXp(rewards.xp).catch(e => console.error(e));
-            }
-            
-            await PlayerDataManager.saveCurrentPlayer();
-            
-            const { data: raid } = await supabaseClient
-                .from('alliance_raids')
-                .select('rewards_data')
-                .eq('id', raidId)
-                .single();
-            
-            if (raid?.rewards_data) {
-                raid.rewards_data[PlayerDataManager.currentPlayer.auth_id].claimed = true;
-                raid.rewards_data[PlayerDataManager.currentPlayer.auth_id].claimed_at = new Date().toISOString();
-                
-                await supabaseClient
-                    .from('alliance_raids')
-                    .update({ rewards_data: raid.rewards_data })
-                    .eq('id', raidId);
-            }
-            
-            const date = new Date(completedAt).toLocaleDateString();
-            alert(
-                `✨ ¡RECOMPENSAS DE RAID PENDIENTES! ✨\n\n` +
-                `Raid Fase ${stage} (${date})\n` +
-                `Contribución: ${(rewards.contribution_pct * 100).toFixed(1)}%\n\n` +
-                `💎 ${rewards.gems} Gemas\n` +
-                `🏆 ${rewards.seals} Sellos\n` +
-                `⭐ ${rewards.xp} XP\n` +
-                `💰 ${rewards.gold} Oro`
-            );
-        } catch (error) {
-            console.error('[Raid] Error reclamando recompensa:', error);
-        }
-    }
-
-};
-
-    ,
 
     // Verificar recompensas pendientes (llamar al iniciar sesión)
     checkPendingRewards: async function() {
         const myUid = PlayerDataManager.currentPlayer?.auth_id;
-        if (!myUid) return;
         
         console.log('[Raid] Verificando recompensas pendientes para:', myUid);
         
@@ -1461,7 +1374,6 @@ const RaidManager = {
                 .eq('status', 'completed')
                 .not('rewards_data', 'is', null);
             
-            if (error || !completedRaids || completedRaids.length === 0) return;
             
             let pendingCount = 0;
             
