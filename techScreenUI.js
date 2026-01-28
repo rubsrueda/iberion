@@ -15,7 +15,7 @@ function openTechTreeScreen() {
 
     container.innerHTML = ''; 
     const currentPlayer = gameState.currentPlayer;
-        const playerResearchedTechs = gameState.playerResources[currentPlayer]?.researchedTechnologies || [];
+    const playerResearchedTechs = gameState.playerResources[currentPlayer]?.researchedTechnologies || [];
 
     // 1. CREAR Y POSICIONAR TODOS LOS NODOS TECNOLÓGICOS (VUELVE A LA NORMALIDAD)
         for (const techId in TECHNOLOGY_TREE_DATA) {
@@ -151,6 +151,9 @@ function openTechTreeScreen() {
         }
     }); 
     }
+    
+// Exportar openTechTreeScreen a window
+window.openTechTreeScreen = openTechTreeScreen;
 
     function closeTechTreeScreen() {
         const screen = document.getElementById('techTreeScreen');
@@ -158,6 +161,9 @@ function openTechTreeScreen() {
         console.log("[TechTree] Pantalla del árbol de tecnologías cerrada.");
         console.log("--- LOG ESTADO --- techScreenUI.js -> closeTechTreeScreen FIN: researchedTechnologies =", JSON.parse(JSON.stringify(gameState?.playerResources?.[1]?.researchedTechnologies || [])));
     }
+    
+    // Exportar a window
+    window.closeTechTreeScreen = closeTechTreeScreen;
 
 // ===== FUNCIÓN MODIFICADA PARA USAR UIManager.showMessageTemporarily =====
 // En techScreenUI.js
@@ -196,6 +202,9 @@ function openTechTreeScreen() {
         // Si llegamos hasta aquí, la investigación fue un éxito.
         return true; 
     }
+    
+    // Exportar a window
+    window._executeResearch = _executeResearch;
 
     function refreshTechTreeContent() {
     const container = document.getElementById('techTreeContainer');
@@ -322,13 +331,16 @@ function openTechTreeScreen() {
             modalContent.scrollLeft = 0;
             modalContent.scrollTop = 0;
         }
-    });
+    }
     
     // Actualizar visualización del plan de investigación si existe
     if (typeof AutoResearchManager !== 'undefined') {
         AutoResearchManager.updateTechTreeVisualization(currentPlayer);
     }
 }
+
+// Exportar a window
+window.refreshTechTreeContent = refreshTechTreeContent;
 
 function RequestAttemptToResearch(techId) {
     // Toda la validación local (prerrequisitos, coste) se hace PRIMERO
@@ -487,6 +499,14 @@ function RequestResearchTech(techId) {
         modal.style.display = 'flex';
         console.log("Estilo 'display' cambiado a 'flex'. El modal debería estar visible.");
     }
+    
+    // Exportar a window
+    window.openTechDetailModal = openTechDetailModal;
 
-// Las funciones ya son globales por estar definidas en el scope global del archivo
-// No necesitamos asignarlas a window explícitamente
+// Todas las funciones principales están exportadas a window
+console.log("✅ techScreenUI.js: Todas las funciones exportadas correctamente");
+console.log("   - openTechTreeScreen:", typeof window.openTechTreeScreen);
+console.log("   - closeTechTreeScreen:", typeof window.closeTechTreeScreen);
+console.log("   - _executeResearch:", typeof window._executeResearch);
+console.log("   - refreshTechTreeContent:", typeof window.refreshTechTreeContent);
+console.log("   - openTechDetailModal:", typeof window.openTechDetailModal);
