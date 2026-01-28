@@ -271,7 +271,10 @@ const RaidManager = {
         
         console.log("[Raid] Posición después de calcular:", JSON.stringify(stageData.caravan_pos));
         
-        // F. Mensaje de bienvenida
+        // F. Iniciar monitoreo en tiempo real del HP
+        this.startHPMonitoring();
+        
+        // G. Mensaje de bienvenida
         setTimeout(() => {
             alert(
                 "🗡️ FASE DE PREPARACIÓN 🗡️\n\n" +
@@ -281,6 +284,74 @@ const RaidManager = {
                 "¡Detén la Caravana Imperial!"
             );
         }, 500);
+    },
+
+    // Monitoreo en tiempo real del HP de la caravana
+    hpMonitoringInterval: null,
+    
+    startHPMonitoring: function() {
+        // Limpiar intervalo anterior si existe
+        if (this.hpMonitoringInterval) {
+            clearInterval(this.hpMonitoringInterval);
+        }
+
+        console.log("[Raid] Iniciando monitoreo en tiempo real del HP");
+        
+        // Verificar HP cada 2 segundos
+        this.hpMonitoringInterval = setInterval(async () => {
+            if (!this.currentRaid || !gameState.isRaid) {
+                this.stopHPMonitoring();
+                return;
+            }
+
+            try {
+                const { data: raid, error } = await supabaseClient
+                    .from('alliance_raids')
+                    .select('stage_data')
+                    .eq('id', this.currentRaid.id)
+                    .single();
+
+                if (error || !raid) return;
+
+                const remoteHP = raid.stage_data.caravan_hp;
+                const localHP = this.currentRaid.stage_data.caravan_hp;
+
+                // Si el HP remoto es diferente al local, actualizar
+                if (remoteHP !== localHP) {
+                    console.log(`%c[Raid] HP actualizado: ${localHP} → ${remoteHP}`, 'background: #00ccff; color: #000;');
+                    
+                    this.currentRaid.stage_data.caravan_hp = remoteHP;
+
+                    // Actualizar visual del boss
+                    const bossUnit = units.find(u => u.id === 'boss_caravan' || u.isBoss);
+                    if (bossUnit) {
+                        bossUnit.currentHealth = remoteHP;
+                        if (bossUnit.element) {
+                            const hpBar = bossUnit.element.querySelector('.unit-strength');
+                            if (hpBar && bossUnit.maxHealth > 0) {
+                                const hpPercent = Math.ceil((remoteHP / bossUnit.maxHealth) * 100);
+                                hpBar.textContent = hpPercent + '%';
+                            }
+                        }
+                    }
+
+                    // Si llegó a 0, verificar victoria
+                    if (remoteHP <= 0 && !raid.stage_data.is_victory) {
+                        console.log("[Raid] ¡Caravana destruida detectada!");
+                    }
+                }
+            } catch (err) {
+                console.error("[Raid] Error en monitoreo de HP:", err);
+            }
+        }, 2000); // Cada 2 segundos
+    },
+    
+    stopHPMonitoring: function() {
+        if (this.hpMonitoringInterval) {
+            clearInterval(this.hpMonitoringInterval);
+            this.hpMonitoringInterval = null;
+            console.log("[Raid] Monitoreo de HP detenido");
+        }
     },
 
     // 3. MOSTRAR MAPA
@@ -683,19 +754,13 @@ const RaidManager = {
         const myUid = PlayerDataManager.currentPlayer.auth_id;
         const myName = PlayerDataManager.currentPlayer.username;
         
-        console.log("[Raid] Registrando daño:", damageAmount, "por", myName);
+        console.log("%c[Raid] === REGISTRANDO DAÑO ===", 'background: #ff6600; color: #fff; font-weight: bold;');
+        console.log("[Raid] Jugador:", myName);
+        console.log("[Raid] Daño infligido:", damageAmount);
         
-        // 1. Actualizar HP localmente
-        const previousHp = this.currentRaid.stage_data.caravan_hp;
-        this.currentRaid.stage_data.caravan_hp = Math.max(0, previousHp - damageAmount);
-        
-        console.log("[Raid] HP de caravana:", previousHp, "->", this.currentRaid.stage_data.caravan_hp);
-        
-        // 2. Actualizar Log de Daño en DB
-        // Usamos una llamada RPC (Stored Procedure) o actualización directa JSON si Supabase lo permite fácil.
-        // Aquí hacemos un fetch + update simple por seguridad.
-        
+        // CRÍTICO: NO calcular HP localmente, leer siempre el valor más reciente de la BD
         try {
+            // 1. PRIMERO: Leer el estado ACTUAL del raid desde la BD
             const { data: raid, error: fetchError } = await supabaseClient
                 .from('alliance_raids')
                 .select('global_log, stage_data')
@@ -708,6 +773,15 @@ const RaidManager = {
             }
                 
             if (raid) {
+                // 2. Usar el HP MÁS RECIENTE de la BD (no el local)
+                const hpBeforeAttack = raid.stage_data.caravan_hp;
+                const hpAfterAttack = Math.max(0, hpBeforeAttack - damageAmount);
+                
+                console.log("[Raid] HP en BD (antes del ataque):", hpBeforeAttack);
+                console.log("[Raid] HP después de restar daño:", hpAfterAttack);
+                console.log("[Raid] Diferencia:", hpBeforeAttack - hpAfterAttack);
+                
+                // 3. Actualizar log de daño acumulado
                 const log = raid.global_log || { damage_by_user: {} };
                 const currentDmg = log.damage_by_user[myUid]?.amount || 0;
                 
@@ -718,8 +792,8 @@ const RaidManager = {
                 
                 console.log("[Raid] Daño acumulado de", myName, ":", log.damage_by_user[myUid].amount);
                 
-                // Actualizamos HP y Log
-                raid.stage_data.caravan_hp = this.currentRaid.stage_data.caravan_hp;
+                // 4. Actualizar HP con el valor calculado desde la BD
+                raid.stage_data.caravan_hp = hpAfterAttack;
                 
                 // Si la caravana fue destruida, marcar victoria
                 if (raid.stage_data.caravan_hp <= 0) {
@@ -742,19 +816,14 @@ const RaidManager = {
                 
                 console.log("[Raid] Daño registrado exitosamente en la base de datos");
                 
-                // Chequear victoria
-                if (raid.stage_data.caravan_hp <= 0) {
-                    console.log("[Raid] Iniciando distribución de recompensas...");
-                    // Delay pequeño para asegurar que la animación de combate termine
-                    setTimeout(() => {
-                        this.distributeRewards(log.damage_by_user);
-                    }, 1000);
-                }
+                // CRÍTICO: Actualizar this.currentRaid con el nuevo HP
+                this.currentRaid.stage_data.caravan_hp = hpAfterAttack;
+                console.log("%c[Raid] ✅ HP actualizado en currentRaid local", 'background: #00ff00; color: #000;');
                 
                 // Actualizar visualmente la vida de la caravana en el mapa
                 const bossUnit = units.find(u => u.id === 'boss_caravan' || u.isBoss);
                 if (bossUnit) {
-                    bossUnit.currentHealth = this.currentRaid.stage_data.caravan_hp;
+                    bossUnit.currentHealth = hpAfterAttack;
                     // Actualizar la barra de vida
                     if (bossUnit.element) {
                         const hpBar = bossUnit.element.querySelector('.unit-strength');
@@ -764,6 +833,15 @@ const RaidManager = {
                             console.log("[Raid] Barra de vida actualizada:", hpPercent + "%");
                         }
                     }
+                }
+                
+                // Chequear victoria
+                if (hpAfterAttack <= 0) {
+                    console.log("[Raid] ¡VICTORIA! Iniciando distribución de recompensas...");
+                    // Delay pequeño para asegurar que la animación de combate termine
+                    setTimeout(() => {
+                        this.distributeRewards(log.damage_by_user);
+                    }, 1000);
                 }
             }
         } catch (error) {
