@@ -3,6 +3,13 @@
 
 function onHexClick(r, c) {
 
+    // === GUARDIÁN: MODO PAINT ACTIVO ===
+    // Si el sistema de movimiento automático está en modo paint, no procesar clics
+    if (typeof AutoMoveManager !== 'undefined' && AutoMoveManager.isPaintModeActive) {
+        console.log(`[Main] onHexClick bloqueado - Modo Paint activo`);
+        return; // El AutoMoveManager manejará el clic
+    }
+
     // Obtenemos los datos del hexágono en el que se hizo clic.
     const hexDataClicked = board[r]?.[c];
 

@@ -1,6 +1,5 @@
 // autoMoveManager.js
 // Sistema de movimiento automático con modo "paint" para unidades
-// Versión con logs extensivos de depuración
 
 const AutoMoveManager = {
     // Estado del modo paint
@@ -16,7 +15,6 @@ const AutoMoveManager = {
     // Elementos visuales
     pathElements: [],
     confirmButton: null,
-    clickHandler: null,
     
     /**
      * Inicializa el sistema de movimiento automático
@@ -31,12 +29,9 @@ const AutoMoveManager = {
      */
     activatePaintMode(unit) {
         if (!unit) {
-            console.error("[AutoMove] ❌ No se puede activar modo paint sin unidad");
+            console.error("[AutoMove] No se puede activar modo paint sin unidad");
             return false;
         }
-        
-        console.log(`%c[AutoMove] 🎨 ACTIVANDO MODO PAINT`, 'background: #4CAF50; color: white; font-weight: bold; padding: 5px;');
-        console.log(`[AutoMove] Unidad: ${unit.name} (ID: ${unit.id}) en posición (${unit.r}, ${unit.c})`);
         
         this.isPaintModeActive = true;
         this.currentPaintingUnit = unit;
@@ -44,41 +39,18 @@ const AutoMoveManager = {
         this.lastClickTime = Date.now();
         this.clearPathVisuals();
         
-        console.log(`[AutoMove] ✓ Estado isPaintModeActive: ${this.isPaintModeActive}`);
-        console.log(`[AutoMove] ✓ Ruta inicial: 1 paso en (${unit.r}, ${unit.c})`);
-        
         // Crear overlay de instrucciones
         this.showPaintModeUI();
-        console.log(`[AutoMove] ✓ UI overlay creada`);
         
         // Iniciar temporizador de auto-confirmación
         this.resetAutoConfirmTimer();
-        console.log(`[AutoMove] ✓ Timer de auto-confirmación iniciado (${this.timeoutDuration}ms)`);
         
         // Instalar interceptor de clics en el mapa
         this.installClickInterceptor();
-        console.log(`[AutoMove] ✓ Interceptor de clics instalado`);
         
         logMessage(`Modo Ruta Automática: Haz clic en cada hexágono. Auto-confirma en 2s sin clics.`, "info");
-        
-        // Actualizar visualización inicial
-        this.updatePathVisuals();
-        console.log(`[AutoMove] ✓ Visualización inicial actualizada`);
-        
-        console.log(`%c[AutoMove] ✅ MODO PAINT COMPLETAMENTE ACTIVO`, 'background: #4CAF50; color: white; font-weight: bold; padding: 5px;');
-        
-        return true;
-    },
-    
-    /**
-     * Desactiva el modo paint
-     */
-    deactivatePaintMode() {
-        console.log(`%c[AutoMove] 🛑 DESACTIVANDO MODO PAINT`, 'background: #f44336; color: white; font-weight: bold; padding: 5px;');
-        
-        this.isPaintModeActive = false;
-        this.currentPaintingUnit = null;
-        this.lastClickTime = null;
+        console.log(`[AutoMove] Modo paint activado para unidad ${unit.id}`);
+        lastClickTime = null;
         this.clearPathVisuals();
         this.hidePaintModeUI();
         this.removeClickInterceptor();
@@ -87,31 +59,26 @@ const AutoMoveManager = {
         if (this.autoConfirmTimeout) {
             clearTimeout(this.autoConfirmTimeout);
             this.autoConfirmTimeout = null;
-            console.log("[AutoMove] ✓ Timer cancelado");
         }
         
-        console.log("[AutoMove] ✓ Modo paint desactivado completamente");
+        return true;
     },
     
     /**
-     * Instala un interceptor de clics en el mapa
+     * Desactiva el modo paint
+     */
+    deactivatePaintMode() {
+        this.isPaintModeActive = false;
+        this.currentPaintingUnit = null;
+        this.isDragging = false;
+       Instala un interceptor de clics en el mapa
      */
     installClickInterceptor() {
         const gameBoard = document.getElementById('gameBoard');
-        if (!gameBoard) {
-            console.error("[AutoMove] ❌ No se encontró gameBoard, no se puede instalar interceptor");
-            return;
-        }
+        if (!gameBoard) return;
         
-        console.log("[AutoMove] Instalando interceptor de clics...");
         this.clickHandler = this.handlePaintClick.bind(this);
-        
-        // Instalar en múltiples eventos para máxima captura
-        gameBoard.addEventListener('click', this.clickHandler, true); // true = fase de captura
-        gameBoard.addEventListener('mousedown', this.clickHandler, true);
-        gameBoard.addEventListener('touchstart', this.clickHandler, true);
-        
-        console.log("[AutoMove] ✓ Interceptor instalado en click, mousedown y touchstart");
+        gameBoard.addEventListener('click', this.clickHandler, true); // true = captura
     },
     
     /**
@@ -229,7 +196,7 @@ const AutoMoveManager = {
         // Crear nuevo temporizador
         this.autoConfirmTimeout = setTimeout(() => {
             if (this.isPaintModeActive && this.paintedPath.length > 1) {
-                console.log("[AutoMove] ⏰ Timeout alcanzado, confirmando ruta automáticamente");
+                console.log("[AutoMove] Timeout alcanzado, confirmando ruta automáticamente");
                 this.confirmPath();
             }
         }, this.timeoutDuration);
@@ -294,12 +261,10 @@ const AutoMoveManager = {
         
         // Agregar listeners a los botones
         document.getElementById('confirmPathBtn').addEventListener('click', () => {
-            console.log("[AutoMove] 🔘 Botón Confirmar presionado");
             this.confirmPath();
         });
         
         document.getElementById('cancelPathBtn').addEventListener('click', () => {
-            console.log("[AutoMove] 🔘 Botón Cancelar presionado");
             this.cancelPaintMode();
         });
     },
@@ -311,7 +276,6 @@ const AutoMoveManager = {
         const overlay = document.getElementById('paintModeOverlay');
         if (overlay) {
             overlay.remove();
-            console.log("[AutoMove] ✓ UI overlay removida");
         }
     },
     
@@ -321,8 +285,7 @@ const AutoMoveManager = {
     updateStepsCounter() {
         const counter = document.getElementById('pathStepsCounter');
         if (counter) {
-            const steps = Math.max(0, this.paintedPath.length - 1);
-            counter.textContent = `Pasos: ${steps}`;
+            counter.textContent = `Pasos: ${Math.max(0, this.paintedPath.length - 1)}`;
         }
     },
     
@@ -330,9 +293,15 @@ const AutoMoveManager = {
      * Cancela el modo paint sin confirmar
      */
     cancelPaintMode() {
-        console.log("[AutoMove] ❌ Modo de ruta cancelado por el usuario");
         logMessage("Modo de ruta automática cancelado", "info");
-        this.deactivatePaintMode();
+        this.deactivatePaintMode()
+    /**
+     * Soporte para touch - touchcancel
+     */
+    onTouchCancel(event) {
+        this.isDragging = false;
+        this.clearPathVisuals();
+        this.paintedPath = [];
     },
     
     /**
@@ -340,17 +309,28 @@ const AutoMoveManager = {
      */
     getHexFromMouseEvent(event) {
         const gameBoard = document.getElementById('gameBoard');
-        if (!gameBoard) {
-            console.error("[AutoMove] ❌ gameBoard no encontrado");
-            return null;
-        }
+        if (!gameBoard) return null;
         
         const rect = gameBoard.getBoundingClientRect();
         const x = event.clientX - rect.left + gameBoard.scrollLeft;
         const y = event.clientY - rect.top + gameBoard.scrollTop;
         
-        console.log(`[AutoMove] Coordenadas del clic: clientX=${event.clientX}, clientY=${event.clientY}`);
-        console.log(`[AutoMove] Coordenadas relativas: x=${x}, y=${y}`);
+        return this.pixelToHex(x, y);
+    },
+    
+    /**
+     * Obtiene las coordenadas del hex desde un evento de touch
+     */
+    getHexFromTouchEvent(event) {
+        if (!event.touches || event.touches.length === 0) return null;
+        
+        const gameBoard = document.getElementById('gameBoard');
+        if (!gameBoard) return null;
+        
+        const touch = event.touches[0];
+        const rect = gameBoard.getBoundingClientRect();
+        const x = touch.clientX - rect.left + gameBoard.scrollLeft;
+        const y = touch.clientY - rect.top + gameBoard.scrollTop;
         
         return this.pixelToHex(x, y);
     },
@@ -360,7 +340,7 @@ const AutoMoveManager = {
      */
     pixelToHex(x, y) {
         if (typeof HEX_WIDTH === 'undefined' || typeof HEX_VERT_SPACING === 'undefined') {
-            console.error("[AutoMove] ❌ Constantes de hex no definidas");
+            console.error("[AutoMove] Constantes de hex no definidas");
             return null;
         }
         
@@ -368,15 +348,11 @@ const AutoMoveManager = {
         const row = Math.floor(y / HEX_VERT_SPACING);
         const col = Math.floor((x - (row % 2 !== 0 ? HEX_WIDTH / 2 : 0)) / HEX_WIDTH);
         
-        console.log(`[AutoMove] Conversión pixel→hex: (${x},${y}) → row=${row}, col=${col}`);
-        
         // Verificar que el hex existe en el board
         if (board[row] && board[row][col]) {
-            console.log(`[AutoMove] ✓ Hex válido encontrado: (${row}, ${col})`);
             return { r: row, c: col };
         }
         
-        console.warn(`[AutoMove] ⚠️ Hex (${row}, ${col}) no existe en el board`);
         return null;
     },
     
@@ -408,6 +384,7 @@ const AutoMoveManager = {
         // No puede haber unidad en el destino
         const unitOnHex = getUnitOnHex(toHex.r, toHex.c);
         if (unitOnHex) return false;
+        this.updateStepsCounter();
         
         // Verificar terreno transitable
         const unitRegimentData = REGIMENT_TYPES[unit.regiments[0]?.type];
@@ -423,7 +400,6 @@ const AutoMoveManager = {
      */
     updatePathVisuals() {
         this.clearPathVisuals();
-        this.updateStepsCounter();
         
         for (let i = 0; i < this.paintedPath.length; i++) {
             const hex = this.paintedPath[i];
@@ -486,12 +462,9 @@ const AutoMoveManager = {
      */
     confirmPath() {
         if (!this.currentPaintingUnit || this.paintedPath.length < 2) {
-            console.error("[AutoMove] ❌ No se puede confirmar ruta inválida");
-            logMessage("Ruta demasiado corta. Necesitas al menos 2 hexágonos.", "warning");
+            console.error("[AutoMove] No se puede confirmar ruta inválida");
             return;
         }
-        
-        console.log(`%c[AutoMove] ✅ CONFIRMANDO RUTA`, 'background: #4CAF50; color: white; font-weight: bold; padding: 5px;');
         
         const unit = this.currentPaintingUnit;
         
@@ -500,10 +473,8 @@ const AutoMoveManager = {
         unit.autoMoveCurrentStep = 0;
         unit.autoMoveActive = true;
         
-        console.log(`[AutoMove] Ruta guardada en unidad:`, unit.autoMovePath);
-        console.log(`[AutoMove] Total de pasos: ${unit.autoMovePath.length}`);
-        
         logMessage(`Ruta automática confirmada para ${unit.name} (${unit.autoMovePath.length} pasos)`, "success");
+        console.log(`[AutoMove] Ruta confirmada:`, unit.autoMovePath);
         
         // Visualizar la ruta confirmada de forma permanente
         this.showConfirmedPath(unit);
@@ -522,8 +493,6 @@ const AutoMoveManager = {
      */
     showConfirmedPath(unit) {
         if (!unit || !unit.autoMovePath || unit.autoMovePath.length === 0) return;
-        
-        console.log(`[AutoMove] Mostrando ruta confirmada para ${unit.name}`);
         
         // Limpiar visualización anterior
         this.clearConfirmedPathVisuals(unit);
@@ -561,8 +530,6 @@ const AutoMoveManager = {
                 unit.autoMoveVisuals.push(marker);
             }
         }
-        
-        console.log(`[AutoMove] ✓ Visualización de ruta confirmada completada`);
     },
     
     /**
@@ -585,8 +552,6 @@ const AutoMoveManager = {
     cancelAutoMove(unit) {
         if (!unit) return;
         
-        console.log(`[AutoMove] Cancelando ruta automática de ${unit.name}`);
-        
         unit.autoMovePath = null;
         unit.autoMoveCurrentStep = 0;
         unit.autoMoveActive = false;
@@ -594,7 +559,7 @@ const AutoMoveManager = {
         this.clearConfirmedPathVisuals(unit);
         
         logMessage(`Ruta automática cancelada para ${unit.name}`, "info");
-        console.log(`[AutoMove] ✓ Ruta cancelada`);
+        console.log(`[AutoMove] Ruta cancelada para unidad ${unit.id}`);
     },
     
     /**
@@ -605,17 +570,14 @@ const AutoMoveManager = {
             return false;
         }
         
-        console.log(`[AutoMove] ⚙️ Ejecutando paso automático para ${unit.name}`);
-        
         // Verificar que es el turno del jugador
         if (unit.player !== gameState.currentPlayer) {
-            console.log(`[AutoMove] ⏸️ No es el turno del jugador ${unit.player}`);
             return false;
         }
         
         // Verificar que la unidad no ha actuado este turno
         if (unit.hasMoved || unit.hasAttacked) {
-            console.log(`[AutoMove] ⏸️ Unidad ${unit.id} ya ha actuado este turno`);
+            console.log(`[AutoMove] Unidad ${unit.id} ya ha actuado este turno`);
             return false;
         }
         
@@ -623,17 +585,15 @@ const AutoMoveManager = {
         const nextStep = unit.autoMovePath[unit.autoMoveCurrentStep];
         if (!nextStep) {
             // Ruta completada
-            console.log(`[AutoMove] 🏁 Ruta completada para ${unit.name}`);
             this.cancelAutoMove(unit);
             logMessage(`${unit.name} ha completado su ruta automática`, "success");
             return false;
         }
         
-        console.log(`[AutoMove] Paso ${unit.autoMoveCurrentStep + 1}/${unit.autoMovePath.length}: (${nextStep.r}, ${nextStep.c})`);
+        console.log(`[AutoMove] Ejecutando paso ${unit.autoMoveCurrentStep + 1}/${unit.autoMovePath.length} para ${unit.name}`);
         
         // Validar que el movimiento sigue siendo válido
         if (!this.isValidPathStep(unit, { r: unit.r, c: unit.c }, nextStep)) {
-            console.warn(`[AutoMove] ⚠️ Ruta bloqueada en paso ${unit.autoMoveCurrentStep + 1}`);
             logMessage(`Ruta bloqueada para ${unit.name}. Movimiento automático cancelado.`, "warning");
             this.cancelAutoMove(unit);
             return false;
@@ -648,12 +608,10 @@ const AutoMoveManager = {
             } else if (typeof moveUnit === 'function') {
                 await moveUnit(unit, nextStep.r, nextStep.c);
             } else {
-                console.error("[AutoMove] ❌ No hay función de movimiento disponible");
+                console.error("[AutoMove] No hay función de movimiento disponible");
                 this.cancelAutoMove(unit);
                 return false;
             }
-            
-            console.log(`[AutoMove] ✅ Movimiento ejecutado exitosamente`);
             
             // Avanzar al siguiente paso
             unit.autoMoveCurrentStep++;
@@ -663,7 +621,7 @@ const AutoMoveManager = {
             
             return true;
         } catch (error) {
-            console.error(`[AutoMove] ❌ Error al mover unidad:`, error);
+            console.error(`[AutoMove] Error al mover unidad:`, error);
             this.cancelAutoMove(unit);
             return false;
         }
@@ -701,7 +659,7 @@ const AutoMoveManager = {
         
         if (currentPlayerUnits.length === 0) return;
         
-        console.log(`%c[AutoMove] 🔄 Procesando ${currentPlayerUnits.length} unidades con movimiento automático`, 'background: #FF9800; color: white; font-weight: bold; padding: 5px;');
+        console.log(`[AutoMove] Procesando ${currentPlayerUnits.length} unidades con movimiento automático`);
         
         for (const unit of currentPlayerUnits) {
             const success = await this.executeAutoMoveStep(unit);
@@ -710,8 +668,6 @@ const AutoMoveManager = {
                 await new Promise(resolve => setTimeout(resolve, 300));
             }
         }
-        
-        console.log(`[AutoMove] ✅ Procesamiento de movimientos automáticos completado`);
     },
     
     /**
@@ -783,4 +739,4 @@ if (typeof document !== 'undefined') {
     document.head.appendChild(styleSheet);
 }
 
-console.log("autoMoveManager.js CARGADO ✅");
+console.log("autoMoveManager.js CARGADO");
