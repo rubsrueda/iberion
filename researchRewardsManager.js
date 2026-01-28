@@ -8,12 +8,12 @@ console.log("researchRewardsManager.js CARGADO");
  */
 const RESEARCH_REWARDS = {
     hexExplored: 1,          // Cada casilla explorada (fog of war revelado por primera vez)
-    ruinExplored: 10,        // Cada ruina explorada y saqueada
-    unitSplit: 3,            // Cada división creada (split de unidad)
-    structureBuilt: 5,       // Cada infraestructura creada (caminos, fuertes, etc)
-    battleOccurred: 8,       // Cada batalla (combate entre unidades)
-    bankTransaction: 2,      // Cada transacción con la banca (compra/venta de recursos)
-    caravanTradeInterval: 5, // Cada 5 intercambios completados por caravanas
+    ruinExplored: 1,        // Cada ruina explorada y saqueada
+    unitSplit: 1,            // Cada división creada (split de unidad)
+    structureBuilt: 1,       // Cada infraestructura creada (caminos, fuertes, etc)
+    battleOccurred: 1,       // Cada batalla (combate entre unidades)
+    bankTransaction: 1,      // Cada transacción con la banca (compra/venta de recursos)
+    caravanTradeInterval: 1, // Cada 5 intercambios completados por caravanas
 };
 
 /**
