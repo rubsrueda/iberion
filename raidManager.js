@@ -288,6 +288,7 @@ const RaidManager = {
 
     // Monitoreo en tiempo real del HP de la caravana
     hpMonitoringInterval: null,
+    isUpdatingHP: false, // Flag para evitar actualizaciones concurrentes
     
     startHPMonitoring: function() {
         // Limpiar intervalo anterior si existe
@@ -297,8 +298,14 @@ const RaidManager = {
 
         console.log("[Raid] Iniciando monitoreo en tiempo real del HP");
         
-        // Verificar HP cada 2 segundos
+        // Verificar HP cada 3 segundos (aumentado de 2 a 3)
         this.hpMonitoringInterval = setInterval(async () => {
+            // No monitorear si estamos en medio de una actualización
+            if (this.isUpdatingHP) {
+                console.log("[Raid] Monitoreo saltado - actualización en progreso");
+                return;
+            }
+
             if (!this.currentRaid || !gameState.isRaid) {
                 this.stopHPMonitoring();
                 return;
@@ -343,7 +350,7 @@ const RaidManager = {
             } catch (err) {
                 console.error("[Raid] Error en monitoreo de HP:", err);
             }
-        }, 2000); // Cada 2 segundos
+        }, 3000); // Cada 3 segundos
     },
     
     stopHPMonitoring: function() {
@@ -750,6 +757,9 @@ const RaidManager = {
             console.warn("[Raid] No hay raid activo para registrar daño");
             return;
         }
+
+        // Bloquear monitoreo durante la actualización
+        this.isUpdatingHP = true;
         
         const myUid = PlayerDataManager.currentPlayer.auth_id;
         const myName = PlayerDataManager.currentPlayer.username;
@@ -769,6 +779,7 @@ const RaidManager = {
                 
             if (fetchError) {
                 console.error("[Raid] Error al obtener datos del raid:", fetchError);
+                this.isUpdatingHP = false; // Liberar flag
                 return;
             }
                 
@@ -780,6 +791,14 @@ const RaidManager = {
                 console.log("[Raid] HP en BD (antes del ataque):", hpBeforeAttack);
                 console.log("[Raid] HP después de restar daño:", hpAfterAttack);
                 console.log("[Raid] Diferencia:", hpBeforeAttack - hpAfterAttack);
+                
+                // Validación: Detectar valores anómalos
+                if (hpAfterAttack > hpBeforeAttack) {
+                    console.error("%c[Raid] ERROR CRÍTICO: HP aumentó en lugar de disminuir!", 'background: #ff0000; color: #fff; font-weight: bold;');
+                    console.error("[Raid] Esto NO debería ocurrir. Cancelando operación.");
+                    this.isUpdatingHP = false;
+                    return;
+                }
                 
                 // 3. Actualizar log de daño acumulado
                 const log = raid.global_log || { damage_by_user: {} };
@@ -811,6 +830,7 @@ const RaidManager = {
                 
                 if (updateError) {
                     console.error("[Raid] Error al actualizar raid:", updateError);
+                    this.isUpdatingHP = false; // Liberar flag
                     return;
                 }
                 
@@ -846,6 +866,10 @@ const RaidManager = {
             }
         } catch (error) {
             console.error("[Raid] Error en recordDamage:", error);
+        } finally {
+            // Siempre liberar el flag, incluso si hay error
+            this.isUpdatingHP = false;
+            console.log("[Raid] Flag de actualización liberado");
         }
     },
 
