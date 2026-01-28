@@ -496,29 +496,30 @@ const AutoMoveManager = {
             return false;
         }
         
-        // Verificar terreno transitable (agua vs tierra)
+        // Verificar tipo de unidad (naval vs terrestre)
         const unitRegimentData = REGIMENT_TYPES[unit.regiments[0]?.type];
         const isNaval = unitRegimentData?.is_naval || false;
-        const isWater = targetHexData.terrain === 'water';
         
-        if (isNaval && !isWater) {
-            console.log(`[AutoMove] Validación fallida: unidad naval en tierra`);
-            return false;
-        }
-        if (!isNaval && isWater) {
-            console.log(`[AutoMove] Validación fallida: unidad terrestre en agua`);
-            return false;
-        }
-        
-        // Verificar que el terreno sea transitable (no intransitable)
+        // Obtener tipo de terreno
         const terrainType = TERRAIN_TYPES[targetHexData.terrain];
-        if (terrainType && !terrainType.passable) {
-            console.log(`[AutoMove] Validación fallida: terreno intransitable (${targetHexData.terrain})`);
+        if (!terrainType) {
+            console.log(`[AutoMove] Validación fallida: tipo de terreno desconocido (${targetHexData.terrain})`);
+            return false;
+        }
+        
+        // Verificar si el terreno es transitable para este tipo de unidad
+        if (isNaval && terrainType.isImpassableForNaval) {
+            console.log(`[AutoMove] Validación fallida: terreno intransitable para unidades navales (${targetHexData.terrain})`);
+            return false;
+        }
+        
+        if (!isNaval && terrainType.isImpassableForLand) {
+            console.log(`[AutoMove] Validación fallida: terreno intransitable para unidades terrestres (${targetHexData.terrain})`);
             return false;
         }
         
         // Permitir hexágonos con unidades propias (podría moverse antes de que lleguemos)
-        // Solo rechazar si hay una ciudad enemiga o unidad enemiga permanente
+        // Solo rechazar si hay una unidad enemiga
         const unitOnHex = getUnitOnHex(toHex.r, toHex.c);
         if (unitOnHex && unitOnHex.player !== unit.player) {
             console.log(`[AutoMove] Validación fallida: unidad enemiga en destino`);
