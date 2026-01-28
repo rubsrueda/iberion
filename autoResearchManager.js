@@ -303,8 +303,8 @@ const AutoResearchManager = {
             nodeEl.appendChild(marker);
         });
         
-        // Mostrar info del plan en la UI
-        this.showPlanInfo(playerId);
+        // NO mostrar el banner de información del plan (ocupa mucho espacio en móviles)
+        // this.showPlanInfo(playerId);
     },
     
     /**
