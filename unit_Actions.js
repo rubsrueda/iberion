@@ -1377,7 +1377,8 @@ async function attackUnit(attackerDivision, defenderDivision) {
             console.log("[Raid Combat] Daño calculado:", damageDealtByAttacker, "→ Daño absoluto:", actualDamage);
             if (actualDamage > 0) {
                 try {
-                    await RaidManager.recordDamage(actualDamage);
+                    // CRÍTICO: Pasar los regimientos actualizados para persistir el daño real
+                    await RaidManager.recordDamage(actualDamage, defenderDivision.regiments);
                 } catch (err) {
                     console.error("[Raid Combat] Error al registrar daño:", err);
                 }

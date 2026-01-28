@@ -769,7 +769,7 @@ const RaidManager = {
     },
 
     // Función para registrar daño (Llamar desde attackUnit en unit_Actions.js si gameState.isRaid es true)
-    recordDamage: async function(damageAmount) {
+    recordDamage: async function(damageAmount, updatedBossRegiments = null) {
         if (!this.currentRaid) {
             console.warn("[Raid] No hay raid activo para registrar daño");
             return;
@@ -787,9 +787,10 @@ const RaidManager = {
         const myUid = PlayerDataManager.currentPlayer.auth_id;
         const myName = PlayerDataManager.currentPlayer.username;
         
-        console.log("%c[Raid] === REGISTRANDO DAÑO ===", 'background: #ff6600; color: #fff; font-weight: bold;');
+        console.log("%c[Raid] === REGISTRANDO DAÑO Y ACTUALIZANDO REGIMIENTOS ===", 'background: #ff6600; color: #fff; font-weight: bold;');
         console.log("[Raid] Jugador:", myName);
         console.log("[Raid] Daño infligido:", damageAmount);
+        console.log("[Raid] Regimientos actualizados recibidos:", updatedBossRegiments ? updatedBossRegiments.length : 'ninguno');
         
         // CRÍTICO: NO calcular HP localmente, leer siempre el valor más reciente de la BD
         try {
@@ -823,7 +824,25 @@ const RaidManager = {
                     return;
                 }
                 
-                // 3. Actualizar log de daño acumulado
+                // 3. CRÍTICO: Actualizar boss_regiments con los regimientos debilitados
+                if (updatedBossRegiments && Array.isArray(updatedBossRegiments)) {
+                    console.log("%c[Raid] 🔧 ACTUALIZANDO boss_regiments con HP reducido", 'background: #00ffff; color: #000; font-weight: bold;');
+                    // Limpiar campos innecesarios de los regimientos antes de guardar
+                    raid.stage_data.boss_regiments = updatedBossRegiments.map(reg => ({
+                        type: reg.type,
+                        health: reg.health,
+                        maxHealth: reg.maxHealth || reg.health
+                    }));
+                    
+                    // Log para depuración
+                    const totalRegHP = raid.stage_data.boss_regiments.reduce((sum, r) => sum + r.health, 0);
+                    console.log("[Raid] Total HP de regimientos guardados:", totalRegHP);
+                    console.log("[Raid] Primer regimiento HP:", raid.stage_data.boss_regiments[0]?.health);
+                } else {
+                    console.warn("[Raid] ⚠️ No se recibieron regimientos actualizados, solo se actualiza HP total");
+                }
+                
+                // 4. Actualizar log de daño acumulado
                 const log = raid.global_log || { damage_by_user: {} };
                 const currentDmg = log.damage_by_user[myUid]?.amount || 0;
                 
@@ -834,7 +853,7 @@ const RaidManager = {
                 
                 console.log("[Raid] Daño acumulado de", myName, ":", log.damage_by_user[myUid].amount);
                 
-                // 4. Actualizar HP con el valor calculado desde la BD
+                // 5. Actualizar HP con el valor calculado desde la BD
                 raid.stage_data.caravan_hp = hpAfterAttack;
                 
                 // Si la caravana fue destruida, marcar victoria
