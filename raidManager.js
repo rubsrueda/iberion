@@ -342,9 +342,26 @@ const RaidManager = {
                         }
                     }
 
-                    // Si llegó a 0, verificar victoria
+                    // Si llegó a 0, iniciar distribución de recompensas
                     if (remoteHP <= 0 && !raid.stage_data.is_victory) {
-                        console.log("[Raid] ¡Caravana destruida detectada!");
+                        console.log("[Raid] ¡Caravana destruida detectada! Iniciando recompensas...");
+                        
+                        // Obtener el log completo para distribuir recompensas
+                        const { data: fullRaid } = await supabaseClient
+                            .from('alliance_raids')
+                            .select('global_log, stage_data')
+                            .eq('id', this.currentRaid.id)
+                            .single();
+                        
+                        if (fullRaid && fullRaid.global_log && fullRaid.global_log.damage_by_user) {
+                            // Detener monitoreo antes de distribuir
+                            this.stopHPMonitoring();
+                            
+                            // Delay para asegurar que la animación termine
+                            setTimeout(() => {
+                                this.distributeRewards(fullRaid.global_log.damage_by_user);
+                            }, 1000);
+                        }
                     }
                 }
             } catch (err) {
@@ -878,6 +895,13 @@ const RaidManager = {
 
     // Lógica de Reparto de Botín
     distributeRewards: async function(damageMap) {
+        // Prevenir ejecución duplicada
+        if (this._rewardsDistributed) {
+            console.log("[Raid Rewards] Recompensas ya distribuidas, ignorando llamada duplicada");
+            return;
+        }
+        this._rewardsDistributed = true;
+        
         console.log("¡VICTORIA EN RAID! Calculando recompensas...");
         console.log("[Raid Rewards] Mapa de daño:", damageMap);
         
@@ -886,108 +910,137 @@ const RaidManager = {
         
         console.log("[Raid Rewards] Daño total:", totalDamage);
         
-        // Si yo soy quien dio el golpe final (o el líder que lo procesa), 
-        // calculo mi parte. (Idealmente esto se haría en servidor, pero aquí lo hacemos local).
-        // Para simplificar: Cada cliente calcula SU propia recompensa y la reclama.
+        // Pool de Premios Base (Escala según etapa)
+        const stageMultiplier = this.currentRaid?.current_stage || 1;
+        const baseGems = 300 * stageMultiplier;
+        const baseXp = 3000 * stageMultiplier;
+        const baseSeals = 3 * stageMultiplier;
+        const baseGold = 5000 * stageMultiplier;
         
+        // PASO 1: Calcular recompensas para TODOS los jugadores
+        const allRewards = {};
+        for (let uid in damageMap) {
+            const contributionPct = damageMap[uid].amount / totalDamage;
+            allRewards[uid] = {
+                player_uid: uid,
+                player_name: damageMap[uid].name,
+                damage_dealt: damageMap[uid].amount,
+                contribution_pct: contributionPct,
+                gems: Math.floor(baseGems * contributionPct),
+                seals: Math.max(1, Math.floor(baseSeals * contributionPct)),
+                xp: Math.floor(baseXp * contributionPct),
+                gold: Math.floor(baseGold * contributionPct),
+                claimed: false
+            };
+        }
+        
+        console.log("[Raid Rewards] Recompensas calculadas para todos:", allRewards);
+        
+        // PASO 2: Guardar en la BD (estructura nueva: raid.rewards_data)
+        try {
+            await supabaseClient
+                .from('alliance_raids')
+                .update({ 
+                    status: 'completed',
+                    'stage_data.is_victory': true,
+                    rewards_data: allRewards,
+                    completed_at: new Date().toISOString()
+                })
+                .eq('id', this.currentRaid.id);
+            
+            console.log("[Raid Rewards] ✅ Recompensas guardadas en BD para TODOS los jugadores");
+        } catch (dbError) {
+            console.error("[Raid Rewards] Error guardando recompensas:", dbError);
+        }
+        
+        // PASO 3: Reclamar MIS recompensas (si participé)
         const myUid = PlayerDataManager.currentPlayer.auth_id;
-        const myData = damageMap[myUid];
+        const myRewards = allRewards[myUid];
         
-        console.log("[Raid Rewards] Mi UID:", myUid, "Mis datos:", myData);
-        
-        if (myData && totalDamage > 0) {
-            const contributionPct = myData.amount / totalDamage;
-            
-            console.log("[Raid Rewards] Mi contribución:", (contributionPct * 100).toFixed(1) + "%");
-            
-            // Pool de Premios Base (Escala según etapa)
-            const stageMultiplier = this.currentRaid?.current_stage || 1;
-            const baseGems = 300 * stageMultiplier;
-            const baseXp = 3000 * stageMultiplier;
-            const baseSeals = 3 * stageMultiplier;
-            const baseGold = 5000 * stageMultiplier;
-            
-            const myGems = Math.floor(baseGems * contributionPct);
-            const mySeals = Math.max(1, Math.floor(baseSeals * contributionPct)); // Mínimo 1 sello si participaste
-            const myXp = Math.floor(baseXp * contributionPct);
-            const myGold = Math.floor(baseGold * contributionPct);
-            
-            console.log("[Raid Rewards] Calculadas:", { myGems, mySeals, myXp, myGold });
-            
-            // Otorgar con manejo de errores
+        if (myRewards && totalDamage > 0) {
             try {
-                PlayerDataManager.currentPlayer.currencies.gems += myGems;
-                PlayerDataManager.currentPlayer.currencies.gold += myGold;
-                
-                if (typeof PlayerDataManager.addWarSeals === 'function') {
-                    PlayerDataManager.addWarSeals(mySeals);
-                } else {
-                    console.warn("[Raid Rewards] Función addWarSeals no disponible");
-                }
-                
-                // Agregar XP de Battle Pass con retry
-                if (typeof BattlePassManager !== 'undefined' && BattlePassManager.addMatchXp) {
-                    try {
-                        const xpResult = await BattlePassManager.addMatchXp(myXp);
-                        if (!xpResult || !xpResult.success) {
-                            console.warn("[Raid Rewards] Error al agregar XP de Battle Pass:", xpResult?.error);
-                            // Re-intentar una vez
-                            await new Promise(r => setTimeout(r, 1000));
-                            await BattlePassManager.addMatchXp(myXp);
-                        }
-                    } catch (bpError) {
-                        console.error("[Raid Rewards] Error en Battle Pass:", bpError);
-                    }
-                } else {
-                    console.warn("[Raid Rewards] BattlePassManager no disponible");
-                }
-                
-                await PlayerDataManager.saveCurrentPlayer();
-                
-                console.log("[Raid Rewards] Recompensas guardadas exitosamente");
-                
-                // Mostrar resumen detallado
-                alert(
-                    `🎉 ¡VICTORIA EN EL RAID! 🎉\n\n` +
-                    `Tu Contribución: ${(contributionPct*100).toFixed(1)}%\n` +
-                    `Daño Total: ${myData.amount.toLocaleString()}\n\n` +
-                    `RECOMPENSAS:\n` +
-                    `💎 ${myGems} Gemas\n` +
-                    `🏆 ${mySeals} Sellos de Guerra\n` +
-                    `⭐ ${myXp} XP de Pase de Batalla\n` +
-                    `💰 ${myGold} Oro\n\n` +
-                    `¡Buen trabajo, comandante!`
-                );
-                
-                // Marcar raid como completado
-                if (this.currentRaid) {
-                    await supabaseClient
-                        .from('alliance_raids')
-                        .update({ 
-                            status: 'completed',
-                            'stage_data.is_victory': true
-                        })
-                        .eq('id', this.currentRaid.id);
-                }
-                
-                // Volver al HQ
-                setTimeout(() => {
-                    if (this.allianceId) {
-                        this.openRaidWindow(this.allianceId);
-                    } else {
-                        // Cerrar juego y volver a menú principal
-                        if (domElements.gameContainer) domElements.gameContainer.style.display = 'none';
-                        if (domElements.mainMenu) domElements.mainMenu.style.display = 'flex';
-                    }
-                }, 500);
+                await this.claimMyRewards(myRewards);
             } catch (error) {
-                console.error("[Raid Rewards] Error procesando recompensas:", error);
-                alert("Error al procesar recompensas. Tus recompensas se guardarán cuando vuelvas a conectarte.");
+                console.error("[Raid Rewards] Error reclamando mis recompensas:", error);
+                alert("Error al procesar recompensas. Tus recompensas estarán disponibles cuando vuelvas a conectarte.");
             }
         } else {
-            console.warn("[Raid Rewards] No hay datos de daño para este jugador o daño total es 0");
+            console.warn("[Raid Rewards] No participé en este raid");
             alert("No participaste en el daño a la caravana. ¡Necesitas atacarla para obtener recompensas!");
         }
+    },
+    
+    // Nueva función: Reclamar recompensas de un raid
+    claimMyRewards: async function(rewardsData) {
+        console.log("[Raid Rewards] Reclamando mis recompensas:", rewardsData);
+        
+        // Otorgar recompensas
+        PlayerDataManager.currentPlayer.currencies.gems += rewardsData.gems;
+        PlayerDataManager.currentPlayer.currencies.gold += rewardsData.gold;
+        
+        if (typeof PlayerDataManager.addWarSeals === 'function') {
+            PlayerDataManager.addWarSeals(rewardsData.seals);
+        }
+        
+        // Agregar XP de Battle Pass
+        if (typeof BattlePassManager !== 'undefined' && BattlePassManager.addMatchXp) {
+            try {
+                await BattlePassManager.addMatchXp(rewardsData.xp);
+            } catch (bpError) {
+                console.error("[Raid Rewards] Error en Battle Pass:", bpError);
+            }
+        }
+        
+        await PlayerDataManager.saveCurrentPlayer();
+        
+        console.log("[Raid Rewards] ✅ Recompensas aplicadas y guardadas");
+        
+        // Marcar como reclamadas en la BD
+        try {
+            const { data: raid } = await supabaseClient
+                .from('alliance_raids')
+                .select('rewards_data')
+                .eq('id', this.currentRaid.id)
+                .single();
+            
+            if (raid && raid.rewards_data) {
+                const myUid = PlayerDataManager.currentPlayer.auth_id;
+                raid.rewards_data[myUid].claimed = true;
+                raid.rewards_data[myUid].claimed_at = new Date().toISOString();
+                
+                await supabaseClient
+                    .from('alliance_raids')
+                    .update({ rewards_data: raid.rewards_data })
+                    .eq('id', this.currentRaid.id);
+                
+                console.log("[Raid Rewards] ✅ Marcado como reclamado en BD");
+            }
+        } catch (err) {
+            console.error("[Raid Rewards] Error marcando como reclamado:", err);
+        }
+        
+        // Mostrar resumen
+        alert(
+            `🎉 ¡VICTORIA EN EL RAID! 🎉\n\n` +
+            `Tu Contribución: ${(rewardsData.contribution_pct * 100).toFixed(1)}%\n` +
+            `Daño Total: ${rewardsData.damage_dealt.toLocaleString()}\n\n` +
+            `RECOMPENSAS:\n` +
+            `💎 ${rewardsData.gems} Gemas\n` +
+            `🏆 ${rewardsData.seals} Sellos de Guerra\n` +
+            `⭐ ${rewardsData.xp} XP de Pase de Batalla\n` +
+            `💰 ${rewardsData.gold} Oro\n\n` +
+            `¡Buen trabajo, comandante!`
+        );
+        
+        // Volver al HQ
+        setTimeout(() => {
+            if (this.allianceId) {
+                this.openRaidWindow(this.allianceId);
+            } else {
+                if (domElements.gameContainer) domElements.gameContainer.style.display = 'none';
+                if (domElements.mainMenu) domElements.mainMenu.style.display = 'flex';
+            }
+        }, 500);
     }, 
 
     // En raidManager.js, añade al objeto RaidManager:
@@ -1306,6 +1359,173 @@ const RaidManager = {
         
         // Actualizar el currentRaid local
         this.currentRaid.stage_data = stageData;
+    }
+
+};
+
+    ,
+
+    // Verificar recompensas pendientes (llamar al iniciar sesión)
+    checkPendingRewards: async function() {
+        const myUid = PlayerDataManager.currentPlayer?.auth_id;
+        
+        console.log('[Raid] Verificando recompensas pendientes para:', myUid);
+        
+        try {
+            const { data: completedRaids, error } = await supabaseClient
+                .from('alliance_raids')
+                .select('id, rewards_data, current_stage, completed_at')
+                .eq('status', 'completed')
+                .not('rewards_data', 'is', null);
+            
+            
+            let pendingCount = 0;
+            
+            for (let raid of completedRaids) {
+                const myRewards = raid.rewards_data?.[myUid];
+                
+                    pendingCount++;
+                    await this.claimPendingReward(raid.id, myRewards, raid.current_stage, raid.completed_at);
+                }
+            }
+            
+            if (pendingCount > 0) {
+                console.log(`[Raid] ✅ ${pendingCount} recompensa(s) pendiente(s) entregada(s)`);
+            }
+        } catch (error) {
+            console.error('[Raid] Error verificando recompensas pendientes:', error);
+        }
+    },
+    
+    claimPendingReward: async function(raidId, rewards, stage, completedAt) {
+        try {
+            PlayerDataManager.currentPlayer.currencies.gems += rewards.gems;
+            PlayerDataManager.currentPlayer.currencies.gold += rewards.gold;
+            
+            if (typeof PlayerDataManager.addWarSeals === 'function') {
+                PlayerDataManager.addWarSeals(rewards.seals);
+            }
+            
+            if (typeof BattlePassManager !== 'undefined' && BattlePassManager.addMatchXp) {
+                await BattlePassManager.addMatchXp(rewards.xp).catch(e => console.error(e));
+            }
+            
+            await PlayerDataManager.saveCurrentPlayer();
+            
+            const { data: raid } = await supabaseClient
+                .from('alliance_raids')
+                .select('rewards_data')
+                .eq('id', raidId)
+                .single();
+            
+            if (raid?.rewards_data) {
+                raid.rewards_data[PlayerDataManager.currentPlayer.auth_id].claimed = true;
+                raid.rewards_data[PlayerDataManager.currentPlayer.auth_id].claimed_at = new Date().toISOString();
+                
+                await supabaseClient
+                    .from('alliance_raids')
+                    .update({ rewards_data: raid.rewards_data })
+                    .eq('id', raidId);
+            }
+            
+            const date = new Date(completedAt).toLocaleDateString();
+            alert(
+                `✨ ¡RECOMPENSAS DE RAID PENDIENTES! ✨\n\n` +
+                `Raid Fase ${stage} (${date})\n` +
+                `Contribución: ${(rewards.contribution_pct * 100).toFixed(1)}%\n\n` +
+                `💎 ${rewards.gems} Gemas\n` +
+                `🏆 ${rewards.seals} Sellos\n` +
+                `⭐ ${rewards.xp} XP\n` +
+                `💰 ${rewards.gold} Oro`
+            );
+        } catch (error) {
+            console.error('[Raid] Error reclamando recompensa:', error);
+        }
+    }
+
+};
+
+    ,
+
+    // Verificar recompensas pendientes (llamar al iniciar sesión)
+    checkPendingRewards: async function() {
+        const myUid = PlayerDataManager.currentPlayer?.auth_id;
+        if (!myUid) return;
+        
+        console.log('[Raid] Verificando recompensas pendientes para:', myUid);
+        
+        try {
+            const { data: completedRaids, error } = await supabaseClient
+                .from('alliance_raids')
+                .select('id, rewards_data, current_stage, completed_at')
+                .eq('status', 'completed')
+                .not('rewards_data', 'is', null);
+            
+            if (error || !completedRaids || completedRaids.length === 0) return;
+            
+            let pendingCount = 0;
+            
+            for (let raid of completedRaids) {
+                const myRewards = raid.rewards_data?.[myUid];
+                
+                if (myRewards && !myRewards.claimed) {
+                    pendingCount++;
+                    await this.claimPendingReward(raid.id, myRewards, raid.current_stage, raid.completed_at);
+                }
+            }
+            
+            if (pendingCount > 0) {
+                console.log(`[Raid] ✅ ${pendingCount} recompensa(s) pendiente(s) entregada(s)`);
+            }
+        } catch (error) {
+            console.error('[Raid] Error verificando recompensas pendientes:', error);
+        }
+    },
+    
+    claimPendingReward: async function(raidId, rewards, stage, completedAt) {
+        try {
+            PlayerDataManager.currentPlayer.currencies.gems += rewards.gems;
+            PlayerDataManager.currentPlayer.currencies.gold += rewards.gold;
+            
+            if (typeof PlayerDataManager.addWarSeals === 'function') {
+                PlayerDataManager.addWarSeals(rewards.seals);
+            }
+            
+            if (typeof BattlePassManager !== 'undefined' && BattlePassManager.addMatchXp) {
+                await BattlePassManager.addMatchXp(rewards.xp).catch(e => console.error(e));
+            }
+            
+            await PlayerDataManager.saveCurrentPlayer();
+            
+            const { data: raid } = await supabaseClient
+                .from('alliance_raids')
+                .select('rewards_data')
+                .eq('id', raidId)
+                .single();
+            
+            if (raid?.rewards_data) {
+                raid.rewards_data[PlayerDataManager.currentPlayer.auth_id].claimed = true;
+                raid.rewards_data[PlayerDataManager.currentPlayer.auth_id].claimed_at = new Date().toISOString();
+                
+                await supabaseClient
+                    .from('alliance_raids')
+                    .update({ rewards_data: raid.rewards_data })
+                    .eq('id', raidId);
+            }
+            
+            const date = new Date(completedAt).toLocaleDateString();
+            alert(
+                `✨ ¡RECOMPENSAS DE RAID PENDIENTES! ✨\n\n` +
+                `Raid Fase ${stage} (${date})\n` +
+                `Contribución: ${(rewards.contribution_pct * 100).toFixed(1)}%\n\n` +
+                `💎 ${rewards.gems} Gemas\n` +
+                `🏆 ${rewards.seals} Sellos\n` +
+                `⭐ ${rewards.xp} XP\n` +
+                `💰 ${rewards.gold} Oro`
+            );
+        } catch (error) {
+            console.error('[Raid] Error reclamando recompensa:', error);
+        }
     }
 
 };

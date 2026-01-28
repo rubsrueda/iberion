@@ -1044,12 +1044,14 @@ async function attackUnit(attackerDivision, defenderDivision) {
         Chronicle.logEvent('battle_start', { attacker: attackerDivision, defender: defenderDivision });
     }
 
+    // Declarar fuera del try para que esté disponible en finally
+    let wasMonitoring = false;
+
     try {
         if (!attackerDivision || !defenderDivision) return;
         logMessage(`¡COMBATE! ${attackerDivision.name} (J${attackerDivision.player}) vs ${defenderDivision.name} (J${defenderDivision.player})`);
         
         // === PROTECCIÓN PARA RAIDS: Bloquear actualizaciones durante combate ===
-        let wasMonitoring = false;
         if (gameState.isRaid && defenderDivision.isBoss && typeof RaidManager !== 'undefined') {
             wasMonitoring = !!RaidManager.hpMonitoringInterval;
             // Activar flag para bloquear monitoreo (sin detener el intervalo)
@@ -1369,6 +1371,7 @@ async function attackUnit(attackerDivision, defenderDivision) {
         // === INTEGRACIÓN CON SISTEMA DE RAIDS ===
         // Si estamos en un Raid y atacamos a la caravana (boss), registrar el daño
         if (gameState.isRaid && defenderDivision.isBoss && typeof RaidManager !== 'undefined') {
+            console.log("%c[Raid Combat v2.0] === REGISTRO FINAL DE DAÑO ===", 'background: #ff00ff; color: #fff; font-weight: bold;');
             // IMPORTANTE: Asegurar que el daño sea positivo (el valor puede ser negativo si hay race conditions)
             const actualDamage = Math.abs(damageDealtByAttacker);
             console.log("[Raid Combat] Daño calculado:", damageDealtByAttacker, "→ Daño absoluto:", actualDamage);

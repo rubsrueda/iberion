@@ -56,6 +56,15 @@ const PlayerDataManager = {
                     this.currentPlayer = profile.profile_data;
                     this.currentPlayer.auth_id = userId;
                     console.log("✅ Perfil recuperado de la nube correctamente.");
+                    
+                    // Verificar recompensas pendientes de raids
+                    if (typeof RaidManager !== 'undefined' && RaidManager.checkPendingRewards) {
+                        setTimeout(() => {
+                            RaidManager.checkPendingRewards().catch(err => 
+                                console.error("[Login] Error verificando recompensas:", err)
+                            );
+                        }, 2000); // Esperar 2s para que todo se cargue
+                    }
                 } else {
                     console.log("Creando nuevo perfil de General...");
                     const username = session.user.email.split('@')[0];
