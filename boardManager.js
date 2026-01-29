@@ -2078,7 +2078,7 @@ function updateCaravanPosition(newR, newC) {
     console.log("[Raid] Actualizando posición de caravana a:", {r: newR, c: newC});
     
     // Buscar la unidad boss en el array
-    const bossUnit = units.find(u => u.id === 'boss_caravan' || u.isBoss);
+    const bossUnit = getUnitById('boss_caravan') || units.find(u => u.isBoss);
     if (!bossUnit) {
         console.error("[Raid] No se encontró la unidad boss para actualizar");
         return;

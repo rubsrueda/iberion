@@ -666,16 +666,18 @@ function initApp() {
         domElements.barracksBtn.hasListener = true;
     }
 
-    if (domElements.importProfileInput) {
+    if (domElements.importProfileInput && !domElements.importProfileInput.hasListener) {
         domElements.importProfileInput.addEventListener('change', (event) => {
             importProfile(event);
         });
+        domElements.importProfileInput.hasListener = true;
     }
 
-    if (domElements.exportProfileBtn_float) {
+    if (domElements.exportProfileBtn_float && !domElements.exportProfileBtn_float.hasListener) {
         domElements.exportProfileBtn_float.addEventListener('click', () => {
             exportProfile();
         });
+        domElements.exportProfileBtn_float.hasListener = true;
     }
 
     // <<== "Forja" ==>>
@@ -717,21 +719,6 @@ function initApp() {
         domElements.barracksBtn.hasListener = true; // Previene añadir múltiples listeners
     }
    
-    // <<==botón de IMPORTAR Perfil==>>
-    if (domElements.importProfileInput) {
-        domElements.importProfileInput.addEventListener('change', (event) => {
-            importProfile(event);
-        });
-    }
-
-    // <<== botón de EXPORTAR Perfil==>>
-    if (domElements.exportProfileBtn_float) {
-        domElements.exportProfileBtn_float.addEventListener('click', () => {
-            exportProfile();
-        });
-    }
-
-
     // Configuración de Audio
     if (typeof AudioManager !== 'undefined' && AudioManager.preload) {
         AudioManager.preload();
@@ -2314,8 +2301,8 @@ async function processActionRequest(action) {
             break;    
 
         case 'attackUnit': 
-            const attacker = units.find(u => u.id === payload.attackerId);
-            const defender = units.find(u => u.id === payload.defenderId);
+            const attacker = getUnitById(payload.attackerId);
+            const defender = getUnitById(payload.defenderId);
             if (attacker && defender && isValidAttack(attacker, defender)) {
                 await attackUnit(attacker, defender); 
                 actionExecuted = true;
@@ -2332,7 +2319,7 @@ async function processActionRequest(action) {
             break;
 
         case 'moveUnit':
-            const unitToMove = units.find(u => u.id === payload.unitId);
+            const unitToMove = getUnitById(payload.unitId);
             if (unitToMove && isValidMove(unitToMove, payload.toR, payload.toC)) {
                 const fromR = unitToMove.r;
                 const fromC = unitToMove.c;
@@ -2340,7 +2327,7 @@ async function processActionRequest(action) {
                 await _executeMoveUnit(unitToMove, payload.toR, payload.toC);
 
                 // Blindaje de datos para retransmisión
-                const movedUnit = units.find(u => u.id === payload.unitId);
+                const movedUnit = getUnitById(payload.unitId);
                 if (movedUnit) {
                     movedUnit.lastMove = {
                         fromR: fromR,
@@ -2356,8 +2343,8 @@ async function processActionRequest(action) {
             break;
 
         case 'mergeUnits': 
-            const mergingUnit = units.find(u => u.id === payload.mergingUnitId); 
-            const targetUnitMerge = units.find(u => u.id === payload.targetUnitId); 
+            const mergingUnit = getUnitById(payload.mergingUnitId); 
+            const targetUnitMerge = getUnitById(payload.targetUnitId); 
             
             if (mergingUnit && targetUnitMerge) {
                 const esElMismoJugador = mergingUnit.player === payload.playerId && targetUnitMerge.player === payload.playerId;
@@ -2374,7 +2361,7 @@ async function processActionRequest(action) {
             break;
             
         case 'splitUnit': 
-            const originalUnit = units.find(u => u.id === payload.originalUnitId); 
+            const originalUnit = getUnitById(payload.originalUnitId); 
             gameState.preparingAction = { newUnitRegiments: payload.newUnitRegiments, remainingOriginalRegiments: payload.remainingOriginalRegiments }; 
             if (originalUnit) {
                  splitUnit(originalUnit, payload.targetR, payload.targetC);
@@ -2385,7 +2372,7 @@ async function processActionRequest(action) {
 
         // --- CORRECCIÓN CRÍTICA ERROR 2 (SAQUEO) ---
         case 'pillageHex': 
-            const pillager = units.find(u => u.id === payload.unitId); 
+            const pillager = getUnitById(payload.unitId); 
             if(pillager && pillager.player === payload.playerId) {
                 // Usamos la función pura _executePillageAction
                 _executePillageAction(pillager);
@@ -2397,7 +2384,7 @@ async function processActionRequest(action) {
         // -------------------------------------------
 
         case 'disbandUnit': 
-            const unitToDisband = units.find(u => u.id === payload.unitId); 
+            const unitToDisband = getUnitById(payload.unitId); 
             if(unitToDisband){
                 actionExecuted = await _executeDisbandUnit(unitToDisband);
              }
@@ -2441,7 +2428,7 @@ async function processActionRequest(action) {
             break;
 
         case 'reinforceRegiment': 
-            const divisionToReinforce = units.find(u => u.id === payload.divisionId); 
+            const divisionToReinforce = getUnitById(payload.divisionId); 
             const regimentToReinforce = divisionToReinforce?.regiments.find(r => r.id === payload.regimentId); 
             if(divisionToReinforce && regimentToReinforce) {
                  handleReinforceRegiment(divisionToReinforce, regimentToReinforce);
@@ -2450,7 +2437,7 @@ async function processActionRequest(action) {
             break;
 
         case 'undoMove':
-            const unitToUndo = units.find(u => u.id === payload.unitId);
+            const unitToUndo = getUnitById(payload.unitId);
             if (unitToUndo && unitToUndo.player === payload.playerId) {
                 await undoLastUnitMove(unitToUndo);
                 actionExecuted = true;
@@ -2460,7 +2447,7 @@ async function processActionRequest(action) {
         case 'razeStructure':
             // Restaurado el log de diagnóstico original
             console.groupCollapsed("%c[DIAGNÓSTICO HOST - RAZE]", "background: #e67e22; color: white;");
-            const unitToRaze = units.find(u => u.id === payload.unitId);
+            const unitToRaze = getUnitById(payload.unitId);
             const hexToRaze = board[payload.r]?.[payload.c];
 
             console.log(`- ¿Se encontró la unidad? (${payload.unitId}):`, !!unitToRaze, unitToRaze);
@@ -2479,7 +2466,7 @@ async function processActionRequest(action) {
 
 
         case 'exploreRuins':
-            const unitToExplore = units.find(u => u.id === payload.unitId);
+            const unitToExplore = getUnitById(payload.unitId);
             const hexToExplore = board[payload.r]?.[payload.c];
             if (unitToExplore && hexToExplore && !unitToExplore.hasAttacked && hexToExplore.feature === 'ruins') {
                 _executeExploreRuins(payload);
@@ -2488,7 +2475,7 @@ async function processActionRequest(action) {
             break;
 
         case 'assignGeneral':
-            const unitToAssign = units.find(u => u.id === payload.unitId);
+            const unitToAssign = getUnitById(payload.unitId);
             if (unitToAssign && unitToAssign.player === payload.playerId) {
                 _executeAssignGeneral(payload);
                 actionExecuted = true;
@@ -2678,40 +2665,6 @@ function reconstruirJuegoDesdeDatos(datos) {
 document.addEventListener('DOMContentLoaded', initApp);
 
 // En main.js (Al final del archivo, fuera de cualquier función)
-
-document.addEventListener("visibilitychange", async () => {
-    // Si el usuario vuelve a la pestaña (ej: cuelga el teléfono)
-    if (document.visibilityState === "visible") {
-        console.log("⚡ [Sistema] Regreso detectado (visibilitychange). Verificando estado...");
-        
-        // Verificamos si estábamos en una partida online como CLIENTE
-        if (typeof NetworkManager !== 'undefined' && NetworkManager.idRemoto && !NetworkManager.esAnfitrion) {
-            
-            // Comprobamos si la conexión está muerta o cerrada
-            if (!NetworkManager.conn || !NetworkManager.conn.open) {
-                console.warn("⚠️ [Sistema] La conexión se perdió durante la inactividad. RECONECTANDO...");
-                
-                // Le damos un pequeño respiro al navegador para que recupere el Wifi/Datos
-                setTimeout(() => {
-                    const cleanId = NetworkManager.idRemoto.replace(GAME_ID_PREFIX, '');
-                    NetworkManager.unirseAPartida(cleanId);
-                    
-                    // Notificamos al usuario visualmente
-                    if(typeof showToast === 'function') showToast("Recuperando conexión...", "warning");
-                }, 500);
-            } else {
-                // Si parece estar viva, enviamos un ping de prueba. Si falla, el sistema de error reconectará.
-                console.log("ℹ️ [Sistema] La conexión parece activa. Enviando Ping de verificación.");
-                try {
-                    NetworkManager.conn.send({ type: 'HEARTBEAT' });
-                } catch (e) {
-                    console.log("❌ [Sistema] Ping fallido. Forzando reconexión.");
-                    NetworkManager.unirseAPartida(NetworkManager.idRemoto.replace(GAME_ID_PREFIX, ''));
-                }
-            }
-        }
-    }
-});
 
 console.log("main.js: Archivo cargado y listo.");
 

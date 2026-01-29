@@ -333,8 +333,20 @@ const Logger = {
 };
 
 // Configuración según entorno
-// Detectar si estamos en desarrollo (localhost, 127.0.0.1, etc.)
-if (window.location.hostname === 'localhost' || 
+// Permite forzar nivel vía query (?log=debug|info|warn|error|none) o localStorage (iberion_log_level)
+let forcedLevel = null;
+try {
+    const urlParams = new URLSearchParams(window.location.search);
+    forcedLevel = urlParams.get('log') || localStorage.getItem('iberion_log_level');
+} catch (e) {
+    forcedLevel = null;
+}
+
+if (forcedLevel) {
+    Logger.setLevel(forcedLevel);
+    Logger.configure({ colorize: true, saveToStorage: true });
+    console.log(`[Logger] Nivel forzado: ${forcedLevel}`);
+} else if (window.location.hostname === 'localhost' || 
     window.location.hostname === '127.0.0.1' ||
     window.location.hostname.includes('dev') ||
     window.location.hostname.includes('staging')) {

@@ -2597,6 +2597,15 @@ async function RequestAttackUnit(attacker, defender) {
     const actionId = `attack_${attacker.id}_${defender.id}_${Date.now()}`;
     const action = { type: 'attackUnit', actionId: actionId, payload: { playerId: attacker.player, attackerId: attacker.id, defenderId: defender.id }};
 
+    // Bloqueo simple por acción pendiente (doble clic / doble envío)
+    const now = Date.now();
+    if (attacker.pendingActionId && now - (attacker.pendingActionTimestamp || 0) < 1000) {
+        console.warn(`[RequestAttackUnit] Acción duplicada detectada para unidad ${attacker.id}, ignorando.`);
+        return;
+    }
+    attacker.pendingActionId = actionId;
+    attacker.pendingActionTimestamp = now;
+
     // Prevención de race conditions: evitar acciones duplicadas del mismo atacante
     if (typeof ActionValidator !== 'undefined') {
         if (!ActionValidator.canPerformAction(attacker.id, actionId)) {
@@ -2629,6 +2638,11 @@ async function RequestAttackUnit(attacker, defender) {
     } finally {
         if (typeof ActionValidator !== 'undefined') {
             ActionValidator.completeAction(attacker.id);
+        }
+
+        if (attacker.pendingActionId === actionId) {
+            attacker.pendingActionId = null;
+            attacker.pendingActionTimestamp = null;
         }
     }
 }
@@ -2835,7 +2849,7 @@ function RequestAssignGeneral(unit, generalId) {
  */
 function _executeRazeStructure(payload) {
     const { playerId, unitId, r, c } = payload;
-    const unit = units.find(u => u.id === unitId);
+    const unit = getUnitById(unitId);
     const hex = board[r]?.[c];
 
     if (!unit || !hex) return;
@@ -2941,7 +2955,7 @@ function _executePillageAction(pillagerUnit) {
 // Función de ejecución pura (también nueva)
 function _executeAssignGeneral(payload) {
     const { unitId, generalId } = payload;
-    const unit = units.find(u => u.id === unitId);
+    const unit = getUnitById(unitId);
     
     // Simplemente llamamos a la función principal que tiene toda la lógica.
     if (unit) {
@@ -3523,7 +3537,7 @@ function requestExploreRuins() {
  */
 function _executeExploreRuins(payload) {
     const { playerId, unitId, r, c } = payload;
-    const unit = units.find(u => u.id === unitId);
+    const unit = getUnitById(unitId);
     const hex = board[r]?.[c];
     const playerResources = gameState.playerResources[playerId];
 
@@ -3932,7 +3946,7 @@ function requestEstablishTradeRoute() {
  */
 function _executeEstablishTradeRoute(payload) {
     const { unitId, origin, destination, path } = payload;
-    const unit = units.find(u => u.id === unitId);
+    const unit = getUnitById(unitId);
     if (!unit) return false;
 
     const isNaval = unit.regiments.some(r => REGIMENT_TYPES[r.type].is_naval);

@@ -182,7 +182,9 @@ function buildTree(talentIds) {
     const tree = { nodes: [] };
     if (talentIds.length !== 18) { console.error(`Error: Árbol debe tener 18 talentos, pero recibió ${talentIds.length}`); return tree; }
     TREE_TEMPLATE.forEach((templateNode, index) => {
-        const newNode = JSON.parse(JSON.stringify(templateNode));
+        const newNode = (typeof structuredClone === 'function')
+            ? structuredClone(templateNode)
+            : JSON.parse(JSON.stringify(templateNode));
         newNode.talentId = talentIds[index];
         tree.nodes.push(newNode);
     });

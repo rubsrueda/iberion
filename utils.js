@@ -44,12 +44,15 @@ function hexDistance(r1, c1, r2, c2) {
 }
 
 function getHexNeighbors(r, c) {
-    // --- NUEVA GUARDA DE SEGURIDAD ---
-    // Si 'r' o 'c' no son números válidos, no podemos calcular vecinos.
-    // Devolvemos un array vacío para que cualquier código que intente iterarlo no falle.
-    if (typeof r !== 'number' || typeof c !== 'number' || isNaN(r) || isNaN(c)) {
-        console.error(`getHexNeighbors fue llamado con coordenadas inválidas: r=${r}, c=${c}`);
-        return [];
+    // --- GUARDA DE SEGURIDAD ---
+    // Si las coordenadas no son válidas, devolvemos un array vacío.
+    if (typeof CoordValidator !== 'undefined') {
+        if (!CoordValidator.check(r, c, 'getHexNeighbors')) return [];
+    } else {
+        if (typeof r !== 'number' || typeof c !== 'number' || isNaN(r) || isNaN(c)) {
+            console.error(`getHexNeighbors fue llamado con coordenadas inválidas: r=${r}, c=${c}`);
+            return [];
+        }
     }
 
     const neighbor_directions = [
@@ -94,6 +97,17 @@ function getUnitOnHex(r, c) {
     }
 
     return units.find(u => u.r === r && u.c === c && u.currentHealth > 0);
+}
+
+function getUnitById(unitId) {
+    if (!unitId || !units) return null;
+
+    if (typeof UnitGrid !== 'undefined') {
+        const unit = UnitGrid.getById(unitId);
+        if (unit) return unit;
+    }
+
+    return units.find(u => u.id === unitId) || null;
 }
 
 function isHexSupplied(startR, startC, playerId) {

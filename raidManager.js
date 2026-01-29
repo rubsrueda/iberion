@@ -354,7 +354,7 @@ const RaidManager = {
                     this.currentRaid.stage_data.caravan_hp = remoteHP;
 
                     // Actualizar visual del boss
-                    const bossUnit = units.find(u => u.id === 'boss_caravan' || u.isBoss);
+                    const bossUnit = getUnitById('boss_caravan') || units.find(u => u.isBoss);
                     if (bossUnit) {
                         bossUnit.currentHealth = remoteHP;
                         if (bossUnit.element) {
@@ -927,7 +927,7 @@ const RaidManager = {
                 console.log("%c[Raid] ✅ HP actualizado en currentRaid local", 'background: #00ff00; color: #000;');
                 
                 // Actualizar visualmente la vida de la caravana en el mapa
-                const bossUnit = units.find(u => u.id === 'boss_caravan' || u.isBoss);
+                const bossUnit = getUnitById('boss_caravan') || units.find(u => u.isBoss);
                 if (bossUnit) {
                     bossUnit.currentHealth = hpAfterAttack;
                     // Actualizar la barra de vida

@@ -54,7 +54,7 @@ const AiGameplayManager = {
         unitsToAction.sort((a, b) => (b.currentMovement || b.movement) - (a.currentMovement || a.movement));
 
         for (const unit of unitsToAction) {
-            const unitInMemory = units.find(u => u.id === unit.id);
+            const unitInMemory = getUnitById(unit.id);
                 // Comprobamos de nuevo por si una acción anterior (ej. fusión) ya la ha hecho actuar.
             if (unitInMemory?.currentHealth > 0 && !unitInMemory.hasMoved) {
 
@@ -491,8 +491,9 @@ const AiGameplayManager = {
         console.groupCollapsed(`Decidiendo para ${unit.name} (Misión: ${mission.type})`);
         try {
             if (mission.type === 'URGENT_DEFENSE') {
-                const threat = units.find(u => u.id === mission.objective.id && u.currentHealth > 0);
-                if (threat) {
+                const threat = getUnitById(mission.objective.id);
+                const validThreat = threat && threat.currentHealth > 0;
+                if (validThreat) {
                     console.log(`[IA URGENT DEFENSE] ${unit.name} tiene orden de atacar a ${threat.name}.`);
                     await this._executeCombatLogic(unit, [threat]); // Forzar combate solo contra esa amenaza
                     return; // Acción completada
@@ -557,7 +558,7 @@ const AiGameplayManager = {
             if (mergePlan && mergePlan.merged) {
                 console.log(`[IA Combat] ¡Fusión reactiva exitosa! ${unit.name} se unió a otra división.`);
                 // La nueva super-división ahora re-evalúa el ataque.
-                const unitAfterMerge = units.find(u => u.id === mergePlan.targetUnitId);
+                const unitAfterMerge = getUnitById(mergePlan.targetUnitId);
                 if (unitAfterMerge && !unitAfterMerge.hasAttacked) {
                     console.log(`[IA Combat] La nueva división "${unitAfterMerge.name}" ahora intenta el ataque.`);
                     // Atacamos desde la posición actual de la nueva unidad, sin movernos.

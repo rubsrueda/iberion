@@ -7,6 +7,15 @@ const NetworkManager = {
     checkInterval: null,
     subscription: null,
 
+    _clearMatchPolling: function() {
+        if (typeof window !== 'undefined' && window.intervalManager) {
+            window.intervalManager.clearInterval('network_matchPolling');
+        } else if (this.checkInterval) {
+            clearInterval(this.checkInterval);
+        }
+        this.checkInterval = null;
+    },
+
     _generarCodigoCorto: function() {
         const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; 
         let result = "";
@@ -96,11 +105,7 @@ const NetworkManager = {
         }
 
         // Sistema de Polling (Esperar al J2)
-        if (typeof window !== 'undefined' && window.intervalManager) {
-            window.intervalManager.clearInterval('network_matchPolling');
-        } else if (this.checkInterval) {
-            clearInterval(this.checkInterval);
-        }
+        this._clearMatchPolling();
         
         const pollingCallback = async () => {
             const { data } = await supabaseClient
@@ -111,11 +116,7 @@ const NetworkManager = {
 
             if (data && data.guest_id) {
                 console.log("¡JUGADOR 2 CONECTADO!");
-                if (typeof window !== 'undefined' && window.intervalManager) {
-                    window.intervalManager.clearInterval('network_matchPolling');
-                } else if (this.checkInterval) {
-                    clearInterval(this.checkInterval);
-                }
+                this._clearMatchPolling();
                 
                 if (document.getElementById('host-player-list')) {
                     document.getElementById('host-player-list').innerHTML = `<li>J1: Anfitrión</li><li>J2: CONECTADO</li>`;

@@ -20,18 +20,30 @@ const RESEARCH_REWARDS = {
  * Manager principal para otorgar puntos de investigación.
  */
 const ResearchRewardsManager = {
+    _ensureResearchRewardsState: function() {
+        if (!gameState.researchRewards) {
+            gameState.researchRewards = {
+                hexesExploredByPlayer: {},
+                caravanTradeCountByPlayer: {}
+            };
+            return;
+        }
+
+        if (!gameState.researchRewards.hexesExploredByPlayer) {
+            gameState.researchRewards.hexesExploredByPlayer = {};
+        }
+
+        if (!gameState.researchRewards.caravanTradeCountByPlayer) {
+            gameState.researchRewards.caravanTradeCountByPlayer = {};
+        }
+    },
     /**
      * Inicializa el sistema de recompensas.
      * Debe llamarse al inicio del juego.
      */
     init: function() {
         // Inicializar contadores si no existen
-        if (!gameState.researchRewards) {
-            gameState.researchRewards = {
-                hexesExploredByPlayer: {}, // { player1: Set(), player2: Set(), ... }
-                caravanTradeCountByPlayer: {} // { player1: 0, player2: 0, ... }
-            };
-        }
+        this._ensureResearchRewardsState();
         
         console.log("[ResearchRewards] Sistema de recompensas de investigación inicializado.");
     },
@@ -74,6 +86,7 @@ const ResearchRewardsManager = {
      * @param {number} c - Columna del hex
      */
     onHexExplored: function(playerId, r, c) {
+        this._ensureResearchRewardsState();
         // Inicializar el Set de hexes explorados si no existe
         const playerKey = `player${playerId}`;
         if (!gameState.researchRewards.hexesExploredByPlayer[playerKey]) {
@@ -147,6 +160,7 @@ const ResearchRewardsManager = {
      * @param {number} playerId - ID del jugador dueño de la caravana
      */
     onCaravanTrade: function(playerId) {
+        this._ensureResearchRewardsState();
         const playerKey = `player${playerId}`;
         
         // Inicializar contador si no existe
@@ -187,10 +201,7 @@ const ResearchRewardsManager = {
      * Restaura los Sets después de deserialización.
      */
     restoreAfterDeserialization: function() {
-        if (!gameState.researchRewards) {
-            this.init();
-            return;
-        }
+        this._ensureResearchRewardsState();
 
         // Convertir Arrays de vuelta a Sets
         const hexesExplored = gameState.researchRewards.hexesExploredByPlayer;

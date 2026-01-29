@@ -166,7 +166,7 @@ function checkAndProcessBrokenUnit(unit) {
 
     logMessage(`¡${unit.name} tiene la moral rota y no puede ser controlada!`, "error");
 
-    const originalUnit = units.find(u => u.id === unit.id);
+    const originalUnit = getUnitById(unit.id);
     if (!originalUnit) return true; // La unidad ya no existe
 
     originalUnit.hasMoved = true;
@@ -396,7 +396,7 @@ async function handleBrokenUnits(playerNum) {
     }
 
     for (const unit of disorganizedUnits) {
-        const originalUnit = units.find(u => u.id === unit.id);
+        const originalUnit = getUnitById(unit.id);
         if (!originalUnit) continue; 
 
         // Consumir acciones (el jugador no puede usarlas)
@@ -2076,7 +2076,7 @@ async function handleEndTurn(isHostProcessing = false) {
             }
         });
         unitsDestroyedByAttrition.forEach(unitId => { 
-            const unit = units.find(u => u.id === unitId); 
+            const unit = getUnitById(unitId); 
             if (unit) handleUnitDestroyed(unit, null); 
         });
             if (foodActuallyConsumed > 0 || unitsSufferingAttrition > 0) logMessage(`Comida consumida: ${foodActuallyConsumed}.`);

@@ -311,6 +311,22 @@ const UIManager = {
     },
 
     updateAllUIDisplays: function() {
+        if (this._updateAllScheduled) return;
+        this._updateAllScheduled = true;
+
+        const runUpdate = () => {
+            this._updateAllScheduled = false;
+            this._doUpdateAllUIDisplays();
+        };
+
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(runUpdate);
+        } else {
+            setTimeout(runUpdate, 16);
+        }
+    },
+
+    _doUpdateAllUIDisplays: function() {
         // Si no hay juego o estamos en una fase sin jugador (como el menú), no hacer nada.
         if (!gameState || !gameState.currentPlayer) {
             return;
@@ -357,8 +373,8 @@ const UIManager = {
 
         //--- 5. Niebla de guerra
         this.updatePlayerAndPhaseInfo();
-            if (typeof updateFogOfWar === "function") updateFogOfWar(); 
-            this.updateActionButtonsBasedOnPhase();
+        if (typeof updateFogOfWar === "function") updateFogOfWar(); 
+        this.updateActionButtonsBasedOnPhase();
 
         // Puedes añadir aquí cualquier otra llamada de actualización específica que necesites
         // Por ejemplo:
