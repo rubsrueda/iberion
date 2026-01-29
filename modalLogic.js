@@ -3300,7 +3300,8 @@ function updateBankTradeUI() {
     if (!playerRes || !domElements.bankOfferResourceSelect) return;
 
     const offerResource = domElements.bankOfferResourceSelect.value;
-    const offerAmount = parseInt(domElements.bankOfferAmountInput.value, 10);
+    const parsedOfferAmount = parseInt(domElements.bankOfferAmountInput.value, 10);
+    const offerAmount = Number.isFinite(parsedOfferAmount) ? parsedOfferAmount : 0;
     
     // Muestra cuánto tiene el jugador del recurso que está ofreciendo
     domElements.bankPlayerResourceAmount.textContent = playerRes[offerResource] || 0;
@@ -3318,14 +3319,15 @@ function updateBankTradeUI() {
  */
 function handleBankTrade() {
     const offerResource = domElements.bankOfferResourceSelect.value;
-    const offerAmount = parseInt(domElements.bankOfferAmountInput.value, 10);
+    const parsedOfferAmount = parseInt(domElements.bankOfferAmountInput.value, 10);
+    const offerAmount = Number.isFinite(parsedOfferAmount) ? parsedOfferAmount : 0;
     const requestResource = domElements.bankRequestResourceSelect.value;
-    const requestAmount = parseInt(domElements.bankRequestAmountInput.value, 10);
+    const requestAmount = Math.floor(offerAmount / 4);
 
     const playerRes = gameState.playerResources[gameState.currentPlayer];
 
     // Doble validación
-    if (!playerRes || (playerRes[offerResource] || 0) < offerAmount || requestAmount < 1) {
+    if (!playerRes || (playerRes[offerResource] || 0) < offerAmount || offerAmount < 4 || requestAmount < 1) {
         logMessage("Intercambio inválido o fondos insuficientes.", "error");
         return;
     }
@@ -3355,13 +3357,16 @@ function _executeTradeWithBank(payload) {
     const playerKey = `player${playerId}`;
     // -----------------------------------------------------------------
 
-    if (!playerRes || (playerRes[offerResource] || 0) < offerAmount) {
+    const safeOfferAmount = Number.isFinite(offerAmount) ? Math.floor(offerAmount) : 0;
+    const computedRequestAmount = Math.floor(safeOfferAmount / 4);
+
+    if (!playerRes || safeOfferAmount < 4 || computedRequestAmount < 1 || (playerRes[offerResource] || 0) < safeOfferAmount) {
         return false; // Falló la validación final en el Host
     }
 
     // 1. Ejecutar el intercambio lógico
-    playerRes[offerResource] -= offerAmount;
-    playerRes[requestResource] = (playerRes[requestResource] || 0) + requestAmount;
+    playerRes[offerResource] -= safeOfferAmount;
+    playerRes[requestResource] = (playerRes[requestResource] || 0) + computedRequestAmount;
 
     // 2. Incrementar la estadística de Comercio para los Puntos de Victoria (PV)
     // Usamos el "Escudo" de seguridad por si el objeto no existe
@@ -3370,7 +3375,7 @@ function _executeTradeWithBank(payload) {
     
     gameState.playerStats.sealTrades[playerKey] = (gameState.playerStats.sealTrades[playerKey] || 0) + 1;
 
-    logMessage(`Intercambio completado: ${offerAmount} de ${offerResource} por ${requestAmount} de ${requestResource}.`);
+    logMessage(`Intercambio completado: ${safeOfferAmount} de ${offerResource} por ${computedRequestAmount} de ${requestResource}.`);
     
     // 3. Actualizar la interfaz
     if (UIManager) {
@@ -3381,10 +3386,6 @@ function _executeTradeWithBank(payload) {
         }
     }
 
-    // puntos de victoria
-    if (!gameState.playerStats.sealTrades[playerKey]) gameState.playerStats.sealTrades[playerKey] = 0;
-    gameState.playerStats.sealTrades[playerKey]++;
-    
     // Otorgar puntos de investigación por transacción con la banca
     if (typeof ResearchRewardsManager !== 'undefined' && ResearchRewardsManager.onBankTransaction) {
         ResearchRewardsManager.onBankTransaction(playerId);

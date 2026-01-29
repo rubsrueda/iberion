@@ -2369,6 +2369,13 @@ async function undoLastUnitMove(unit) {
     
     unit.lastMove = null;
 
+    if (typeof UnitGrid !== 'undefined') {
+        const moved = UnitGrid.move(unit, currentR, currentC);
+        if (!moved) {
+            UnitGrid.index(unit);
+        }
+    }
+
     if (typeof positionUnitElement === "function") positionUnitElement(unit);
     if (typeof UIManager !== 'undefined' && UIManager.updateSelectedUnitInfoPanel) UIManager.updateSelectedUnitInfoPanel();
     if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) UIManager.updateAllUIDisplays();
