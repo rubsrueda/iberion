@@ -1,5 +1,5 @@
 // Service Worker con versión dinámica - Iberion
-const CACHE_VERSION = 'iberion-v1.003'; // Se actualiza automáticamente con ./version
+const CACHE_VERSION = 'iberion-v1.004'; // Se actualiza automáticamente con ./version
 const FORCE_UPDATE = true; // Cambiar a false en producción
 
 self.addEventListener('install', (e) => {

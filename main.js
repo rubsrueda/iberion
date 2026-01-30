@@ -193,6 +193,14 @@ const showMainMenu = () => {
 };
 
 const showLoginScreen = () => {
+    // Prevenir mostrar login múltiples veces
+    if (window.loginScreenShown) {
+        console.log('⚠️  Login ya mostrado, ignorando llamada duplicada');
+        return;
+    }
+    window.loginScreenShown = true;
+    
+    console.log('🔑 Mostrando pantalla de login...');
     showScreen(domElements.loginScreen);
     const lastUser = localStorage.getItem('lastUser');
     
@@ -2021,29 +2029,52 @@ if (newGeneralNameDisplay && PlayerDataManager.currentPlayer) {
     // 4. LÓGICA DE ARRANQUE
     // ======================================================================
     
+    console.log('🚀 Iniciando lógica de arranque...');
+    
     // Inicializar auth listener PRIMERO
     PlayerDataManager.initAuthListener();
     
-    // Si ya hay usuario guardado, entra directo (Auto-login)
-    const lastUser = localStorage.getItem('lastUser');
+    // Resetear flag de login mostrado
+    window.loginScreenShown = false;
     
-    if (lastUser && PlayerDataManager.autoLogin(lastUser)) {
-        console.log('✅ Auto-login exitoso');
-        showMainMenu();
-    } else {
-        // SI NO HAY USUARIO -> Muestra la WEB (Landing Page) primero
-        openLandingPage(false); 
+    // Verificar si hay sesión guardada en Supabase
+    supabaseClient.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+            console.log('✅ Sesión de Supabase detectada, esperando carga de perfil...');
+            // El auth listener se encargará de cargar el perfil
+            return;
+        }
         
-        // Dar tiempo a Supabase para restaurar sesión antes de mostrar login
+        // No hay sesión de Supabase, intentar auto-login local
+        const lastUser = localStorage.getItem('lastUser');
+        
+        if (lastUser && PlayerDataManager.autoLogin(lastUser)) {
+            console.log('✅ Auto-login local exitoso');
+            showMainMenu();
+        } else {
+            // No hay usuario ni local ni en Supabase
+            console.log('⚠️  No hay sesión, mostrando landing page...');
+            openLandingPage(false);
+            
+            // Dar tiempo para que Supabase termine de verificar sesión
+            setTimeout(() => {
+                if (!PlayerDataManager.currentPlayer && !PlayerDataManager.isProcessingAuth) {
+                    console.log('🔑 No hay sesión activa después de espera, mostrando login...');
+                    showLoginScreen();
+                } else {
+                    console.log('⚡ Sesión detectada durante espera, cancelando login');
+                }
+            }, 2000); // Reducido a 2 segundos
+        }
+    }).catch(err => {
+        console.error('❌ Error verificando sesión:', err);
+        openLandingPage(false);
         setTimeout(() => {
-            if (!PlayerDataManager.currentPlayer && !PlayerDataManager.isProcessingAuth) {
-                console.log('🔑 No hay sesión activa, mostrando login...');
+            if (!PlayerDataManager.currentPlayer) {
                 showLoginScreen();
-            } else {
-                console.log('⚡ Sesión detectada o en proceso, esperando...');
             }
-        }, 3000); // Dar 3 segundos para que Supabase restaure la sesión
-    }
+        }, 2000);
+    });
 
     // --- PARCHE DE EMERGENCIA: RECARGAR PERFIL ---
     if (PlayerDataManager.currentPlayer) {
