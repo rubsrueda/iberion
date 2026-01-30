@@ -15,26 +15,23 @@ const PlayerDataManager = {
     authInitialized: false,  // Flag para saber si ya se inicializó auth
 
     loginWithGoogle: async function() {
-        // Detectar URL base correcta (funciona en GitHub Pages y localhost)
-        let redirectUrl = window.location.origin;
+        // URL fija para Iberion en GitHub Pages (configurada en Supabase)
+        let redirectUrl;
         
-        // Si estamos en un subdirectorio (como GitHub Pages /iberion/)
-        const pathname = window.location.pathname;
-        if (pathname && pathname !== '/' && !pathname.endsWith('.html')) {
-            // Extraer el directorio base
-            const basePath = pathname.split('/').filter(p => p).slice(0, 1).join('/');
-            if (basePath) {
-                redirectUrl += '/' + basePath;
-            }
-        }
-        
-        // Asegurar que termina con /
-        if (!redirectUrl.endsWith('/')) {
-            redirectUrl += '/';
+        if (window.location.hostname === 'rubsrueda.github.io') {
+            // Producción: Usar la URL exacta configurada en Supabase
+            redirectUrl = 'https://rubsrueda.github.io/iberion/';
+        } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            // Local: Usar localhost
+            redirectUrl = window.location.origin + '/';
+        } else {
+            // Fallback: Detectar automáticamente
+            redirectUrl = window.location.origin + '/iberion/';
         }
         
         console.log('🔐 Iniciando login con Google...');
-        console.log('📍 Redirect URL:', redirectUrl);
+        console.log('📍 Hostname:', window.location.hostname);
+        console.log('📍 Redirect URL configurada:', redirectUrl);
 
         const { data, error } = await supabaseClient.auth.signInWithOAuth({
             provider: 'google',
