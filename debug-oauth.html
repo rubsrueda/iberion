@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 Debug OAuth - Iberion</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #000;
+            padding: 30px;
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+        }
+        h1 { color: #ffff00; }
+        .info { 
+            background: #1a3a1a;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #00ff00;
+        }
+        .warning {
+            background: #3a3a1a;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #ffff00;
+        }
+        .error {
+            background: #3a1a1a;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #ff0000;
+            color: #ff6666;
+        }
+        code {
+            background: #2a2a2a;
+            padding: 2px 8px;
+            border-radius: 3px;
+            color: #00ffff;
+        }
+        button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover { background: #00cc00; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug de OAuth Redirect</h1>
+        
+        <div class="info">
+            <strong>📍 URLs Detectadas:</strong>
+            <div id="urls"></div>
+        </div>
+        
+        <div class="warning">
+            <strong>⚠️ URL que se usará para OAuth:</strong>
+            <div id="redirect-url" style="font-size: 18px; color: #ffff00; margin-top: 10px;"></div>
+        </div>
+        
+        <div class="error" id="config-needed" style="display: none;">
+            <strong>❌ IMPORTANTE: Debes configurar esta URL en Supabase</strong>
+            <ol>
+                <li>Ve a: <code>https://app.supabase.com/</code></li>
+                <li>Selecciona tu proyecto</li>
+                <li>Authentication → URL Configuration</li>
+                <li>En "Redirect URLs" añade esta URL exacta:</li>
+                <li style="color: #ff0; font-size: 16px; margin: 10px 0;" id="url-to-add"></li>
+                <li>Guarda los cambios</li>
+            </ol>
+        </div>
+        
+        <div class="info">
+            <strong>🔧 Copiar para Supabase:</strong>
+            <textarea id="copy-urls" readonly style="width: 100%; height: 80px; background: #2a2a2a; color: #00ff00; border: 1px solid #00ff00; padding: 10px; font-family: monospace;"></textarea>
+            <button onclick="copyToClipboard()">📋 Copiar URLs</button>
+        </div>
+        
+        <button onclick="window.location.href='index.html'">🎮 Volver al Juego</button>
+    </div>
+
+    <script>
+        // Simular la misma lógica que playerDataManager.js
+        function detectRedirectUrl() {
+            let redirectUrl = window.location.origin;
+            const pathname = window.location.pathname;
+            
+            console.log('Origin:', window.location.origin);
+            console.log('Pathname:', pathname);
+            console.log('Full href:', window.location.href);
+            
+            if (pathname && pathname !== '/' && !pathname.endsWith('.html')) {
+                const basePath = pathname.split('/').filter(p => p).slice(0, 1).join('/');
+                console.log('Base path detected:', basePath);
+                if (basePath) {
+                    redirectUrl += '/' + basePath;
+                }
+            }
+            
+            if (!redirectUrl.endsWith('/')) {
+                redirectUrl += '/';
+            }
+            
+            return redirectUrl;
+        }
+        
+        const redirectUrl = detectRedirectUrl();
+        
+        // Mostrar información
+        document.getElementById('urls').innerHTML = `
+            <div>Origin: <code>${window.location.origin}</code></div>
+            <div>Pathname: <code>${window.location.pathname}</code></div>
+            <div>Full URL: <code>${window.location.href}</code></div>
+        `;
+        
+        document.getElementById('redirect-url').innerHTML = `<code>${redirectUrl}</code>`;
+        document.getElementById('url-to-add').textContent = redirectUrl;
+        
+        // Preparar todas las URLs para copiar
+        const urlsToCopy = `
+Añadir estas URLs en Supabase → Authentication → URL Configuration → Redirect URLs:
+
+${redirectUrl}
+${window.location.origin}/
+${window.location.origin}/iberion/
+
+Site URL:
+${redirectUrl}
+        `.trim();
+        
+        document.getElementById('copy-urls').value = urlsToCopy;
+        
+        // Mostrar advertencia si no es localhost
+        if (!window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
+            document.getElementById('config-needed').style.display = 'block';
+        }
+        
+        function copyToClipboard() {
+            const textarea = document.getElementById('copy-urls');
+            textarea.select();
+            document.execCommand('copy');
+            alert('✅ URLs copiadas al portapapeles!\n\nPégalas en Supabase Dashboard → Authentication → URL Configuration');
+        }
+        
+        console.log('=== DEBUG OAUTH ===');
+        console.log('Redirect URL que se usará:', redirectUrl);
+        console.log('Configurar en Supabase:', urlsToCopy);
+    </script>
+</body>
+</html>
