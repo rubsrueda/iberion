@@ -11,6 +11,8 @@ function getXpForNextLevel(currentLevel) {
 
 const PlayerDataManager = {
     currentPlayer: null,
+    isProcessingAuth: false, // Flag para prevenir loops
+    authInitialized: false,  // Flag para saber si ya se inicializó auth
 
     loginWithGoogle: async function() {
         // Detectar URL base correcta (funciona en GitHub Pages y localhost)
@@ -52,12 +54,19 @@ const PlayerDataManager = {
 
     // respuesta de Google y manejo de OAuth callback
     initAuthListener: function() {
+        if (this.authInitialized) {
+            console.log('⚠️  Auth listener ya inicializado, ignorando...');
+            return;
+        }
+        this.authInitialized = true;
+        
         // Manejar el callback de OAuth (cuando vuelve de Google)
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const accessToken = hashParams.get('access_token');
         
         if (accessToken) {
             console.log('🔑 Token OAuth detectado en URL, procesando callback...');
+            this.isProcessingAuth = true;
             // Limpiar el hash de la URL después de procesar
             setTimeout(() => {
                 window.history.replaceState(null, '', window.location.pathname);
@@ -65,16 +74,33 @@ const PlayerDataManager = {
         }
         
         supabaseClient.auth.onAuthStateChange(async (event, session) => {
-            console.log("🔔 Evento Supabase:", event);
+            console.log("🔔 Evento Supabase:", event, "| Processing:", this.isProcessingAuth);
 
-            if (session && session.user) {
+            // Manejar cierre de sesión
+            if (event === 'SIGNED_OUT') {
+                console.log('🚪 Usuario desconectado');
+                this.currentPlayer = null;
+                this.isProcessingAuth = false;
+                if (typeof showLoginScreen === 'function') {
+                    showLoginScreen();
+                }
+                return;
+            }
+
+            // Solo procesar si hay sesión Y no estamos ya procesando
+            if (session && session.user && !this.isProcessingAuth) {
+                this.isProcessingAuth = true;
                 const userId = session.user.id;
                 console.log('👤 Usuario autenticado:', session.user.email);
 
                 // 🛡️ ESCUDO: Si ya tenemos el jugador cargado y es el mismo ID,
                 // NO descargues nada de la nube. Deja que el flujo local mande.
                 if (this.currentPlayer && this.currentPlayer.auth_id === userId) {
-                    console.log("⚡ Refresco de sesión detectado. Escudo activo: No se sobreescribirán los datos locales.");
+                    console.log("⚡ Usuario ya cargado en memoria, usando datos locales.");
+                    this.isProcessingAuth = false;
+                    if (typeof showMainMenu === 'function') {
+                        showMainMenu();
+                    }
                     return;
                 }
 
@@ -107,7 +133,16 @@ const PlayerDataManager = {
                     await this.saveCurrentPlayer();
                 }
 
-                if (typeof showMainMenu === "function") showMainMenu();
+                console.log('✅ Autenticación completada, mostrando menú...');
+                this.isProcessingAuth = false;
+                
+                if (typeof showMainMenu === "function") {
+                    showMainMenu();
+                }
+            } else if (!session && event === 'INITIAL_SESSION') {
+                // No hay sesión inicial
+                console.log('⚠️  No hay sesión guardada');
+                this.isProcessingAuth = false;
             }
         });
     },

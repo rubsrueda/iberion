@@ -332,7 +332,7 @@ function initApp() {
         });
     }
 
-    // ACTIVAMOS EL ESCUCHADOR DE SUPABASE
+    // ACTIVAMOS EL ESCUCHADOR DE SUPABASE (solo se inicializa una vez gracias al flag)
     if (PlayerDataManager.initAuthListener) {
         PlayerDataManager.initAuthListener();
     }
@@ -2020,23 +2020,30 @@ if (newGeneralNameDisplay && PlayerDataManager.currentPlayer) {
     // ======================================================================
     // 4. LÓGICA DE ARRANQUE
     // ======================================================================
+    
+    // Inicializar auth listener PRIMERO
+    PlayerDataManager.initAuthListener();
+    
     // Si ya hay usuario guardado, entra directo (Auto-login)
     const lastUser = localStorage.getItem('lastUser');
     
     if (lastUser && PlayerDataManager.autoLogin(lastUser)) {
+        console.log('✅ Auto-login exitoso');
         showMainMenu();
     } else {
         // SI NO HAY USUARIO -> Muestra la WEB (Landing Page) primero
         openLandingPage(false); 
-        // showLoginScreen(); <--- Borra o comenta esto, ya no es lo primero
+        
+        // Dar tiempo a Supabase para restaurar sesión antes de mostrar login
+        setTimeout(() => {
+            if (!PlayerDataManager.currentPlayer && !PlayerDataManager.isProcessingAuth) {
+                console.log('🔑 No hay sesión activa, mostrando login...');
+                showLoginScreen();
+            } else {
+                console.log('⚡ Sesión detectada o en proceso, esperando...');
+            }
+        }, 3000); // Dar 3 segundos para que Supabase restaure la sesión
     }
-    
-     // Si en 2 segundos no se ha detectado sesión automática, mostramos el login
-    setTimeout(() => {
-        if (!PlayerDataManager.currentPlayer) {
-            showLoginScreen();
-        }
-    }, 2000); // Damos 2 segundos a Supabase para recuperar la sesión
 
     // --- PARCHE DE EMERGENCIA: RECARGAR PERFIL ---
     if (PlayerDataManager.currentPlayer) {
