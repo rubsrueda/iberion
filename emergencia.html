@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚨 RESCATE DE EMERGENCIA - Iberion</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #000;
+            color: #0f0;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #111;
+            padding: 30px;
+            border: 2px solid #0f0;
+        }
+        h1 { color: #ff0; text-align: center; }
+        button {
+            background: #f00;
+            color: #fff;
+            border: none;
+            padding: 15px 30px;
+            margin: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            display: block;
+            width: 100%;
+        }
+        button:hover { background: #a00; }
+        #log {
+            background: #000;
+            color: #0f0;
+            padding: 15px;
+            border: 1px solid #0f0;
+            height: 300px;
+            overflow-y: auto;
+            font-size: 12px;
+            margin: 20px 0;
+        }
+        .success { color: #0f0; }
+        .error { color: #f00; }
+        .warning { color: #ff0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚨 RESCATE DE EMERGENCIA 🚨</h1>
+        <h2 style="color: #f00;">Sistema Atrapado en Loop - Limpieza Forzada</h2>
+        
+        <button onclick="emergencyClean()">🔥 LIMPIEZA DE EMERGENCIA TOTAL</button>
+        <button onclick="killServiceWorker()">💀 MATAR SERVICE WORKER</button>
+        <button onclick="clearEverything()">🧹 BORRAR TODO (Storage + Cache + SW)</button>
+        <button onclick="reloadHard()">🔄 RECARGA NUCLEAR</button>
+        
+        <div id="log"></div>
+        
+        <h3 style="color: #ff0;">⚠️ INSTRUCCIONES DE RESCATE</h3>
+        <div style="color: #fff; line-height: 1.8;">
+            <p><strong>OPCIÓN 1: Esta Página (Recomendado)</strong></p>
+            <ol>
+                <li>Click en "🔥 LIMPIEZA DE EMERGENCIA TOTAL"</li>
+                <li>Espera 5 segundos</li>
+                <li>Cierra TODAS las pestañas del juego</li>
+                <li>Cierra el navegador completamente</li>
+                <li>Abre el navegador de nuevo</li>
+                <li>Abre index.html</li>
+            </ol>
+            
+            <p><strong>OPCIÓN 2: Modo Incógnito</strong></p>
+            <ol>
+                <li>Abre ventana incógnito (Ctrl+Shift+N)</li>
+                <li>Abre index.html en incógnito</li>
+                <li>Debería funcionar sin caché</li>
+                <li>Desde ahí, ve a diagnostico-cache.html</li>
+                <li>Click "Limpieza Completa"</li>
+            </ol>
+            
+            <p><strong>OPCIÓN 3: Manual (DevTools)</strong></p>
+            <ol>
+                <li>F12 (abrir DevTools)</li>
+                <li>Ve a Application (Chrome) o Storage (Firefox)</li>
+                <li>Service Workers → Click cada uno → Unregister</li>
+                <li>Storage → Clear site data</li>
+                <li>Cache Storage → Delete all</li>
+                <li>Cierra DevTools</li>
+                <li>Cierra todas las pestañas</li>
+                <li>Cierra el navegador</li>
+                <li>Abre de nuevo</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        const log = document.getElementById('log');
+        
+        function addLog(message, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : type === 'warning' ? 'warning' : '';
+            log.innerHTML += `<div class="${className}">[${time}] ${message}</div>`;
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        async function emergencyClean() {
+            addLog('🚨 INICIANDO LIMPIEZA DE EMERGENCIA...', 'warning');
+            
+            try {
+                // 1. Desregistrar todos los Service Workers
+                await killServiceWorker();
+                
+                // 2. Limpiar todo el caché
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    for (const name of cacheNames) {
+                        await caches.delete(name);
+                        addLog(`🗑️ Caché eliminado: ${name}`, 'success');
+                    }
+                }
+                
+                // 3. Limpiar Storage
+                localStorage.clear();
+                sessionStorage.clear();
+                addLog('🗑️ LocalStorage y SessionStorage limpiados', 'success');
+                
+                // 4. Limpiar cookies de este dominio
+                document.cookie.split(";").forEach(c => {
+                    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+                });
+                addLog('🗑️ Cookies limpiadas', 'success');
+                
+                // 5. Limpiar IndexedDB
+                if (window.indexedDB) {
+                    const databases = await window.indexedDB.databases();
+                    for (const db of databases) {
+                        window.indexedDB.deleteDatabase(db.name);
+                        addLog(`🗑️ IndexedDB eliminado: ${db.name}`, 'success');
+                    }
+                }
+                
+                addLog('✅ LIMPIEZA COMPLETA EXITOSA', 'success');
+                addLog('⚠️ AHORA: Cierra TODAS las pestañas del navegador', 'warning');
+                addLog('⚠️ Cierra el navegador completamente', 'warning');
+                addLog('⚠️ Abre de nuevo y carga index.html', 'warning');
+                
+                // Intentar recargar después de 5 segundos
+                setTimeout(() => {
+                    addLog('🔄 Recargando en 3...', 'warning');
+                    setTimeout(() => addLog('🔄 2...', 'warning'), 1000);
+                    setTimeout(() => addLog('🔄 1...', 'warning'), 2000);
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 3000);
+                }, 2000);
+                
+            } catch (err) {
+                addLog('❌ Error: ' + err.message, 'error');
+                addLog('⚠️ USA LA OPCIÓN MANUAL (DevTools)', 'warning');
+            }
+        }
+        
+        async function killServiceWorker() {
+            addLog('💀 Matando Service Workers...', 'warning');
+            
+            if ('serviceWorker' in navigator) {
+                try {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    
+                    if (registrations.length === 0) {
+                        addLog('ℹ️ No hay Service Workers registrados', 'info');
+                        return;
+                    }
+                    
+                    for (const registration of registrations) {
+                        await registration.unregister();
+                        addLog(`✅ SW desregistrado: ${registration.scope}`, 'success');
+                    }
+                    
+                    // Enviar mensaje para detener SW activo
+                    if (navigator.serviceWorker.controller) {
+                        navigator.serviceWorker.controller.postMessage('CLEAR_CACHE');
+                    }
+                    
+                    addLog('✅ Todos los Service Workers eliminados', 'success');
+                    
+                } catch (err) {
+                    addLog('❌ Error eliminando SW: ' + err.message, 'error');
+                }
+            } else {
+                addLog('ℹ️ Service Workers no soportados', 'info');
+            }
+        }
+        
+        async function clearEverything() {
+            addLog('🧹 BORRANDO TODO...', 'warning');
+            
+            await killServiceWorker();
+            
+            // Cachés
+            if ('caches' in window) {
+                const names = await caches.keys();
+                for (const name of names) {
+                    await caches.delete(name);
+                    addLog(`🗑️ Cache: ${name}`, 'success');
+                }
+            }
+            
+            // Storage
+            localStorage.clear();
+            sessionStorage.clear();
+            addLog('🗑️ Storage limpiado', 'success');
+            
+            // IndexedDB
+            if (window.indexedDB) {
+                try {
+                    const dbs = await window.indexedDB.databases();
+                    for (const db of dbs) {
+                        window.indexedDB.deleteDatabase(db.name);
+                    }
+                    addLog('🗑️ IndexedDB limpiado', 'success');
+                } catch (e) {
+                    addLog('⚠️ Error limpiando IndexedDB (puede ser normal)', 'warning');
+                }
+            }
+            
+            addLog('✅ TODO ELIMINADO', 'success');
+            addLog('⚠️ Cierra el navegador completamente y vuelve a abrir', 'warning');
+        }
+        
+        function reloadHard() {
+            addLog('🔄 Ejecutando recarga nuclear...', 'warning');
+            addLog('⚠️ Si no funciona, cierra el navegador manualmente', 'warning');
+            
+            setTimeout(() => {
+                // Intentar múltiples formas de recargar
+                try {
+                    window.location.reload(true);
+                } catch (e) {
+                    window.location.href = window.location.href + '?nocache=' + Date.now();
+                }
+            }, 1000);
+        }
+        
+        // Auto-ejecutar diagnóstico al cargar
+        window.addEventListener('DOMContentLoaded', async () => {
+            addLog('=== SISTEMA DE RESCATE CARGADO ===', 'warning');
+            addLog('Esta página NO usa Service Worker', 'info');
+            addLog('Es segura para limpiar el sistema', 'info');
+            
+            // Verificar estado
+            if ('serviceWorker' in navigator) {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                addLog(`⚠️ Service Workers activos: ${regs.length}`, 'warning');
+            }
+            
+            if ('caches' in window) {
+                const names = await caches.keys();
+                addLog(`⚠️ Cachés almacenados: ${names.length}`, 'warning');
+            }
+            
+            addLog('=== PRESIONA EL BOTÓN DE LIMPIEZA ===', 'success');
+        });
+    </script>
+</body>
+</html>
