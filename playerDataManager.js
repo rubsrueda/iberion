@@ -13,34 +13,68 @@ const PlayerDataManager = {
     currentPlayer: null,
 
     loginWithGoogle: async function() {
-    // Detecta automáticamente si estás en LOCAL o en GITHUB
-        const siteUrl = window.location.origin + '/';
+        // Detectar URL base correcta (funciona en GitHub Pages y localhost)
+        let redirectUrl = window.location.origin;
+        
+        // Si estamos en un subdirectorio (como GitHub Pages /iberion/)
+        const pathname = window.location.pathname;
+        if (pathname && pathname !== '/' && !pathname.endsWith('.html')) {
+            // Extraer el directorio base
+            const basePath = pathname.split('/').filter(p => p).slice(0, 1).join('/');
+            if (basePath) {
+                redirectUrl += '/' + basePath;
+            }
+        }
+        
+        // Asegurar que termina con /
+        if (!redirectUrl.endsWith('/')) {
+            redirectUrl += '/';
+        }
+        
+        console.log('🔐 Iniciando login con Google...');
+        console.log('📍 Redirect URL:', redirectUrl);
 
         const { data, error } = await supabaseClient.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: siteUrl
+                redirectTo: redirectUrl,
+                skipBrowserRedirect: false
             }
         });
 
         if (error) {
+            console.error('❌ Error OAuth:', error);
             logMessage("Error al conectar con Google: " + error.message, "error");
+        } else {
+            console.log('✅ Redirigiendo a Google para autenticación...');
         }
     },
 
-    // respuesta de Google
-    // Busca initAuthListener en playerDataManager.js y cámbiala por esta:
+    // respuesta de Google y manejo de OAuth callback
     initAuthListener: function() {
+        // Manejar el callback de OAuth (cuando vuelve de Google)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        
+        if (accessToken) {
+            console.log('🔑 Token OAuth detectado en URL, procesando callback...');
+            // Limpiar el hash de la URL después de procesar
+            setTimeout(() => {
+                window.history.replaceState(null, '', window.location.pathname);
+            }, 100);
+        }
+        
         supabaseClient.auth.onAuthStateChange(async (event, session) => {
-            console.log("Evento Supabase detectado:", event);
+            console.log("🔔 Evento Supabase:", event);
 
             if (session && session.user) {
                 const userId = session.user.id;
+                console.log('👤 Usuario autenticado:', session.user.email);
 
                 // 🛡️ ESCUDO: Si ya tenemos el jugador cargado y es el mismo ID,
                 // NO descargues nada de la nube. Deja que el flujo local mande.
                 if (this.currentPlayer && this.currentPlayer.auth_id === userId) {
-                    console.log("Refresco de sesión detectado. Escudo activo: No se sobreescribirán los datos locales.");
+                    console.log("⚡ Refresco de sesión detectado. Escudo activo: No se sobreescribirán los datos locales.");
                     return;
                 }
 

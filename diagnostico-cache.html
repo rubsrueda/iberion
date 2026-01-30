@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnóstico de Caché - Iberion</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #fff;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+        h1 { color: #ffd700; text-align: center; }
+        h2 { color: #87ceeb; margin-top: 30px; }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .ok { border-left: 5px solid #00ff00; }
+        .warning { border-left: 5px solid #ffaa00; }
+        .error { border-left: 5px solid #ff0000; }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            margin: 10px 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: scale(1.05);
+        }
+        button:active {
+            transform: scale(0.95);
+        }
+        #log {
+            background: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        .info { color: #87ceeb; }
+        .success { color: #00ff00; }
+        .danger { color: #ff6b6b; }
+        code {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Diagnóstico de Caché - Iberion</h1>
+        
+        <div id="version-info" class="status"></div>
+        <div id="sw-info" class="status"></div>
+        <div id="cache-info" class="status"></div>
+        
+        <h2>🛠️ Acciones de Limpieza</h2>
+        
+        <button onclick="hardReload()">🔄 Recarga Forzada</button>
+        <button onclick="unregisterSW()">🗑️ Desregistrar Service Worker</button>
+        <button onclick="clearAllCaches()">🧹 Limpiar Todo el Caché</button>
+        <button onclick="clearAndReload()">⚡ Limpieza Completa + Recarga</button>
+        <button onclick="window.location.href='index.html'">🎮 Volver al Juego</button>
+        
+        <h2>📋 Log de Actividad</h2>
+        <div id="log"></div>
+        
+        <h2>💡 Instrucciones Manuales</h2>
+        <div class="status info">
+            <strong>Método 1: Recarga Forzada</strong><br>
+            • Chrome/Edge: <code>Ctrl+Shift+R</code> o <code>Ctrl+F5</code><br>
+            • Firefox: <code>Ctrl+Shift+R</code><br>
+            • Safari: <code>Cmd+Shift+R</code><br><br>
+            
+            <strong>Método 2: DevTools (F12)</strong><br>
+            1. Abre DevTools (F12)<br>
+            2. Ve a <code>Application</code> (Chrome) o <code>Storage</code> (Firefox)<br>
+            3. En "Service Workers" → Click "Unregister"<br>
+            4. En "Storage" → Click "Clear site data"<br>
+            5. Recarga la página<br><br>
+            
+            <strong>Método 3: Modo Incógnito</strong><br>
+            • Abre el juego en ventana de incógnito/privada<br>
+            • <code>Ctrl+Shift+N</code> (Chrome) o <code>Ctrl+Shift+P</code> (Firefox)
+        </div>
+    </div>
+
+    <script>
+        const log = document.getElementById('log');
+        
+        function addLog(message, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            const className = type === 'success' ? 'success' : type === 'error' ? 'danger' : 'info';
+            log.innerHTML += `<div class="${className}">[${time}] ${message}</div>`;
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        async function checkVersion() {
+            try {
+                const response = await fetch('version.js', { cache: 'no-store' });
+                const content = await response.text();
+                const match = content.match(/current:\s*"([^"]+)"/);
+                const version = match ? match[1] : 'Desconocida';
+                
+                document.getElementById('version-info').innerHTML = 
+                    `<strong>Versión del Juego:</strong> v${version}`;
+                document.getElementById('version-info').className = 'status ok';
+                
+                addLog(`Versión detectada: v${version}`, 'success');
+                return version;
+            } catch (err) {
+                document.getElementById('version-info').innerHTML = 
+                    `<strong>Error:</strong> No se pudo leer la versión`;
+                document.getElementById('version-info').className = 'status error';
+                addLog('Error al leer versión: ' + err.message, 'error');
+            }
+        }
+        
+        async function checkServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                const swDiv = document.getElementById('sw-info');
+                
+                if (registrations.length > 0) {
+                    const reg = registrations[0];
+                    const state = reg.active ? reg.active.state : 'instalando';
+                    swDiv.innerHTML = `
+                        <strong>Service Worker:</strong> Registrado (${registrations.length})<br>
+                        Estado: ${state}<br>
+                        Scope: ${reg.scope}
+                    `;
+                    swDiv.className = 'status warning';
+                    addLog(`Service Worker activo: ${state}`, 'info');
+                } else {
+                    swDiv.innerHTML = `<strong>Service Worker:</strong> No registrado`;
+                    swDiv.className = 'status ok';
+                    addLog('No hay Service Workers registrados', 'success');
+                }
+            } else {
+                document.getElementById('sw-info').innerHTML = 
+                    `<strong>Service Worker:</strong> No soportado`;
+                addLog('Service Workers no soportados en este navegador', 'error');
+            }
+        }
+        
+        async function checkCaches() {
+            if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                const cacheDiv = document.getElementById('cache-info');
+                
+                if (cacheNames.length > 0) {
+                    let totalSize = 0;
+                    for (const name of cacheNames) {
+                        const cache = await caches.open(name);
+                        const keys = await cache.keys();
+                        totalSize += keys.length;
+                    }
+                    
+                    cacheDiv.innerHTML = `
+                        <strong>Cachés Almacenados:</strong> ${cacheNames.length}<br>
+                        Nombres: ${cacheNames.join(', ')}<br>
+                        Total de archivos: ${totalSize}
+                    `;
+                    cacheDiv.className = 'status warning';
+                    addLog(`Cachés encontrados: ${cacheNames.join(', ')}`, 'info');
+                } else {
+                    cacheDiv.innerHTML = `<strong>Cachés:</strong> No hay cachés almacenados`;
+                    cacheDiv.className = 'status ok';
+                    addLog('No hay cachés almacenados', 'success');
+                }
+            }
+        }
+        
+        function hardReload() {
+            addLog('Ejecutando recarga forzada...', 'info');
+            window.location.reload(true);
+        }
+        
+        async function unregisterSW() {
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for (const reg of registrations) {
+                    await reg.unregister();
+                    addLog('Service Worker desregistrado', 'success');
+                }
+                await checkServiceWorker();
+            }
+        }
+        
+        async function clearAllCaches() {
+            if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                for (const name of cacheNames) {
+                    await caches.delete(name);
+                    addLog(`Caché eliminado: ${name}`, 'success');
+                }
+                await checkCaches();
+            }
+        }
+        
+        async function clearAndReload() {
+            addLog('Iniciando limpieza completa...', 'info');
+            await unregisterSW();
+            await clearAllCaches();
+            
+            // Limpiar localStorage y sessionStorage
+            localStorage.clear();
+            sessionStorage.clear();
+            addLog('Storage limpiado', 'success');
+            
+            addLog('Recargando en 2 segundos...', 'info');
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 2000);
+        }
+        
+        // Ejecutar diagnóstico al cargar
+        window.addEventListener('DOMContentLoaded', async () => {
+            addLog('=== Iniciando diagnóstico ===', 'info');
+            await checkVersion();
+            await checkServiceWorker();
+            await checkCaches();
+            addLog('=== Diagnóstico completado ===', 'success');
+        });
+    </script>
+</body>
+</html>

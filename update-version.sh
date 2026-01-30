@@ -57,6 +57,16 @@ awk -v entry="$NEW_ENTRY" '
 
 echo "✅ CHANGELOG.md actualizado"
 
+# Actualizar Service Worker con nueva versión
+if [ -f "sw.js" ]; then
+    sed -i "s/const CACHE_VERSION = 'iberion-v[^']*'/const CACHE_VERSION = 'iberion-v${NEW_VERSION}'/" sw.js
+    echo "✅ sw.js actualizado (caché invalidado)"
+fi
+
 echo ""
 echo "🎉 ¡Versión actualizada exitosamente a V${NEW_VERSION}!"
 echo "📝 Cambio registrado: ${CHANGE_DESC}"
+echo ""
+echo "⚠️  IMPORTANTE: Para ver los cambios en el navegador:"
+echo "   - Recarga forzada: Ctrl+Shift+R (Chrome/Firefox)"
+echo "   - O ejecuta: ./clear-cache.sh para más opciones"

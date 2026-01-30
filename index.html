@@ -14,10 +14,41 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <script>
-    // Registra el Service Worker para habilitar la instalación
+    // Service Worker con detección de actualizaciones automática
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js')
-        .then(() => console.log("Iberion Service Worker registrado"));
+        navigator.serviceWorker.register('./sw.js?v=' + Date.now())
+        .then(registration => {
+            console.log("✅ Iberion Service Worker registrado");
+            
+            // Verificar actualizaciones cada 5 segundos durante los primeros 30 seg
+            let checkCount = 0;
+            const checkInterval = setInterval(() => {
+                registration.update();
+                checkCount++;
+                if (checkCount > 6) clearInterval(checkInterval);
+            }, 5000);
+            
+            // Detectar nueva versión del SW
+            registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        console.log('🔄 Nueva versión disponible, recargando...');
+                        // Forzar activación del nuevo SW
+                        newWorker.postMessage('SKIP_WAITING');
+                        // Recargar página después de 500ms
+                        setTimeout(() => window.location.reload(), 500);
+                    }
+                });
+            });
+        })
+        .catch(err => console.error('❌ Error registrando SW:', err));
+        
+        // Recargar cuando el SW tome control
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            console.log('🔄 SW actualizado, recargando página...');
+            window.location.reload();
+        });
     }
     </script>
 
@@ -194,7 +225,7 @@
     </div>
     
     <!-- versión -->
-    <div class="version-watermark" id="version-display">v1.001</div>
+    <div class="version-watermark" id="version-display">v1.002</div>
 
     <!-- El resto de tus elementos como #combatPredictionPanel y los scripts van después -->
     <div id="combatPredictionPanel" style="display: none;"></div>
