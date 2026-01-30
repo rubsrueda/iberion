@@ -14,7 +14,7 @@ const PlayerDataManager = {
 
     loginWithGoogle: async function() {
     // Detecta automáticamente si estás en LOCAL o en GITHUB
-        const siteUrl = window.location.origin + window.location.pathname;
+        const siteUrl = window.location.origin + '/';
 
         const { data, error } = await supabaseClient.auth.signInWithOAuth({
             provider: 'google',
