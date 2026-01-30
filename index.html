@@ -14,7 +14,22 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <script>
-    // Service Worker con detección de actualizaciones automática
+    // Service Worker DESACTIVADO TEMPORALMENTE para evitar loops de recarga
+    // TODO: Reactivar cuando se solucione el problema de recargas infinitas
+    
+    console.log('⚠️  Service Worker desactivado en esta versión');
+    
+    // Si hay SW activo, desregistrarlo
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+            registrations.forEach(registration => {
+                registration.unregister();
+                console.log('🗑️  Service Worker desregistrado');
+            });
+        });
+    }
+    
+    /* DESACTIVADO - Causaba recargas infinitas
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js?v=' + Date.now())
         .then(registration => {
@@ -50,6 +65,7 @@
             window.location.reload();
         });
     }
+    */
     </script>
 
     <!-- 1. Google AdSense for Games (H5) API -->
@@ -225,7 +241,7 @@
     </div>
     
     <!-- versión -->
-    <div class="version-watermark" id="version-display">v1.004</div>
+    <div class="version-watermark" id="version-display">v1.005</div>
 
     <!-- El resto de tus elementos como #combatPredictionPanel y los scripts van después -->
     <div id="combatPredictionPanel" style="display: none;"></div>

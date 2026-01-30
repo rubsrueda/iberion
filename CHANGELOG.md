@@ -25,5 +25,9 @@ Corregido loop infinito en pantalla de login - añadidos flags de control
 ## V1.004 - 2026-01-30
 Corregido loop de carga - añadido flag loginScreenShown y verificación de sesión
 
+
+## V1.005 - 2026-01-30
+CRÍTICO - Desactivado Service Worker que causaba recargas infinitas
+
 ---
 **Nota**: A partir de ahora, cada cambio incrementará automáticamente la versión y se documentará aquí.
