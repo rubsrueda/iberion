@@ -1,41 +1,34 @@
-# Historial de Cambios - Iberion (Hex General Evolved)
+# Registro de Cambios - Iberion
 
-## V1.000 - Versión Inicial
-- Sistema base del juego implementado
-- Mecánicas de combate táctico hexagonal
-- Sistema multijugador con Supabase
-- Modo campaña con 8 jugadores
-- Sistema de progresión de héroes
-- Battle Pass estacional
-- Tutorial para nuevos jugadores
+Todas las modificaciones importantes al juego serán documentadas en este archivo.
 
-
-## V1.001 - 2026-01-30
-Implementado sistema de versionado automático con CHANGELOG.md
-
-
-## V1.002 - 2026-01-30
-Corregido problema de OAuth redirect - mejora detección de URL base
-
-
-## V1.003 - 2026-01-30
-Corregido loop infinito en pantalla de login - añadidos flags de control
-
-
-## V1.004 - 2026-01-30
-Corregido loop de carga - añadido flag loginScreenShown y verificación de sesión
-
-
-## V1.005 - 2026-01-30
-CRÍTICO - Desactivado Service Worker que causaba recargas infinitas
-
-
-## V1.006 - 2026-01-30
-Corregido OAuth redirect para usar URL fija de Supabase /iberion/
-
-
-## V1.007 - 2026-01-30
-Corregido flujo OAuth para evitar volver a pantalla de login tras autenticación
+**Sistema de versionado híbrido:**
+- **V1.001, V1.002, V1.003...** = Features completos o cambios funcionales
+- **V1.001a, V1.001b...** = Hotfixes o debugging de la versión base
 
 ---
-**Nota**: A partir de ahora, cada cambio incrementará automáticamente la versión y se documentará aquí.
+
+## V1.001 - 2026-01-30
+### Sistema de Versionado + OAuth Funcional
+- Implementado sistema de versionado automático (V1.XXX)
+- Script `update-version.sh` para incrementar versión con soporte de hotfixes
+- Marca de agua en pantalla con versión actual
+- Login con Google OAuth completamente funcional
+- Redirect URLs configuradas para GitHub Pages
+- Prevención de loops infinitos en autenticación
+- Service Worker temporalmente deshabilitado
+- Herramientas de diagnóstico: hola.html, diagnostico-cache.html, emergencia.html, debug-oauth.html
+
+**Iteraciones de debugging consolidadas:**
+- Mejorada detección de URL de redirect OAuth
+- Agregados flags para prevenir loops de autenticación (isProcessingAuth, authInitialized, oauthCallbackDetected)
+- Mejorada lógica de startup con verificación de sesión
+- Service Worker deshabilitado temporalmente por bugs de cache
+- URL de redirect fija según configuración Supabase
+- Flujo OAuth completo sin volver a pantalla de login
+
+---
+
+## V1.000 - Versión Inicial
+Sistema base del juego implementado antes de versionado automatizado.
+

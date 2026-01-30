@@ -1,35 +1,66 @@
 #!/bin/bash
-# update-version.sh - Script para actualizar la versión del juego
+# update-version.sh - Script para actualizar la versión del juego (Sistema Híbrido)
 # 
-# Uso: ./update-version.sh "Descripción del cambio"
-# Ejemplo: ./update-version.sh "Se resuelve problema de intercambio con la banca 4:1"
+# Uso: 
+#   ./update-version.sh "Descripción"          → Feature completo (V1.001 → V1.002)
+#   ./update-version.sh --hotfix "Descripción" → Bugfix (V1.001 → V1.001a)
+#   ./update-version.sh --patch "Descripción"  → Bugfix secuencial (V1.001a → V1.001b)
+# 
+# Ejemplo: ./update-version.sh "Nueva funcionalidad de batalla"
+# Ejemplo: ./update-version.sh --hotfix "Corregido crash en red"
 
 set -e
+
+# Detectar modo
+MODE="feature"
+if [ "$1" == "--hotfix" ] || [ "$1" == "--patch" ]; then
+    MODE="hotfix"
+    shift
+fi
 
 # Verificar que se proporcionó una descripción
 if [ $# -eq 0 ]; then
     echo "❌ Error: Debes proporcionar una descripción del cambio"
-    echo "Uso: ./update-version.sh \"Descripción del cambio\""
+    echo "Uso: ./update-version.sh [--hotfix] \"Descripción del cambio\""
     exit 1
 fi
 
 CHANGE_DESC="$*"
 
 # Leer versión actual desde version.js
-CURRENT_VERSION=$(grep -oP 'current:\s*"\K[\d.]+' version.js)
+CURRENT_VERSION=$(grep -oP 'current:\s*"\K[^"]+' version.js)
 
 if [ -z "$CURRENT_VERSION" ]; then
     echo "❌ Error: No se pudo encontrar la versión actual"
     exit 1
 fi
 
-# Calcular nueva versión
-IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
-MAJOR="${VERSION_PARTS[0]}"
-MINOR="${VERSION_PARTS[1]}"
-
-NEW_MINOR=$(printf "%03d" $((10#$MINOR + 1)))
-NEW_VERSION="${MAJOR}.${NEW_MINOR}"
+# Calcular nueva versión según el modo
+if [ "$MODE" == "feature" ]; then
+    # Modo feature: V1.001 → V1.002 (ignora letras si las hay)
+    BASE_VERSION=$(echo "$CURRENT_VERSION" | grep -oP '[\d.]+')
+    IFS='.' read -ra VERSION_PARTS <<< "$BASE_VERSION"
+    MAJOR="${VERSION_PARTS[0]}"
+    MINOR="${VERSION_PARTS[1]}"
+    
+    NEW_MINOR=$(printf "%03d" $((10#$MINOR + 1)))
+    NEW_VERSION="${MAJOR}.${NEW_MINOR}"
+else
+    # Modo hotfix: V1.001 → V1.001a, V1.001a → V1.001b
+    if [[ "$CURRENT_VERSION" =~ ([0-9.]+)([a-z]?)$ ]]; then
+        BASE="${BASH_REMATCH[1]}"
+        LETTER="${BASH_REMATCH[2]}"
+        
+        if [ -z "$LETTER" ]; then
+            NEW_VERSION="${BASE}a"
+        else
+            NEXT_LETTER=$(echo "$LETTER" | tr "a-z" "b-za")
+            NEW_VERSION="${BASE}${NEXT_LETTER}"
+        fi
+    else
+        NEW_VERSION="${CURRENT_VERSION}a"
+    fi
+fi
 
 echo "📦 Versión actual: V${CURRENT_VERSION}"
 echo "📦 Nueva versión: V${NEW_VERSION}"
