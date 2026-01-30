@@ -33,5 +33,9 @@ CRÍTICO - Desactivado Service Worker que causaba recargas infinitas
 ## V1.006 - 2026-01-30
 Corregido OAuth redirect para usar URL fija de Supabase /iberion/
 
+
+## V1.007 - 2026-01-30
+Corregido flujo OAuth para evitar volver a pantalla de login tras autenticación
+
 ---
 **Nota**: A partir de ahora, cada cambio incrementará automáticamente la versión y se documentará aquí.

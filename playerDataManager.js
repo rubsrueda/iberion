@@ -64,6 +64,7 @@ const PlayerDataManager = {
         if (accessToken) {
             console.log('🔑 Token OAuth detectado en URL, procesando callback...');
             this.isProcessingAuth = true;
+            window.oauthCallbackDetected = true; // Flag global para main.js
             // Limpiar el hash de la URL después de procesar
             setTimeout(() => {
                 window.history.replaceState(null, '', window.location.pathname);
@@ -78,6 +79,7 @@ const PlayerDataManager = {
                 console.log('🚪 Usuario desconectado');
                 this.currentPlayer = null;
                 this.isProcessingAuth = false;
+                window.oauthCallbackDetected = false;
                 if (typeof showLoginScreen === 'function') {
                     showLoginScreen();
                 }
@@ -128,10 +130,18 @@ const PlayerDataManager = {
                     this.currentPlayer = this.createNewPlayer(username, "google-auth");
                     this.currentPlayer.auth_id = userId;
                     await this.saveCurrentPlayer();
+                    console.log("✅ Nuevo perfil creado en la nube.");
                 }
 
-                console.log('✅ Autenticación completada, mostrando menú...');
+                console.log('✅ Autenticación completada, cerrando login y mostrando menú...');
+                
+                // Ocultar pantalla de login si está visible
+                if (typeof domElements !== 'undefined' && domElements.loginScreen) {
+                    domElements.loginScreen.style.display = 'none';
+                }
+                
                 this.isProcessingAuth = false;
+                window.oauthCallbackDetected = false;
                 
                 if (typeof showMainMenu === "function") {
                     showMainMenu();

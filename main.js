@@ -2034,8 +2034,9 @@ if (newGeneralNameDisplay && PlayerDataManager.currentPlayer) {
     // Inicializar auth listener PRIMERO
     PlayerDataManager.initAuthListener();
     
-    // Resetear flag de login mostrado
+    // Resetear flags
     window.loginScreenShown = false;
+    window.oauthCallbackDetected = false;
     
     // Verificar si hay sesión guardada en Supabase
     supabaseClient.auth.getSession().then(({ data: { session } }) => {
@@ -2058,19 +2059,25 @@ if (newGeneralNameDisplay && PlayerDataManager.currentPlayer) {
             
             // Dar tiempo para que Supabase termine de verificar sesión
             setTimeout(() => {
+                // NO mostrar login si estamos procesando OAuth callback
+                if (window.oauthCallbackDetected) {
+                    console.log('🔐 OAuth callback en proceso, esperando...');
+                    return;
+                }
+                
                 if (!PlayerDataManager.currentPlayer && !PlayerDataManager.isProcessingAuth) {
                     console.log('🔑 No hay sesión activa después de espera, mostrando login...');
                     showLoginScreen();
                 } else {
                     console.log('⚡ Sesión detectada durante espera, cancelando login');
                 }
-            }, 2000); // Reducido a 2 segundos
+            }, 2000);
         }
     }).catch(err => {
         console.error('❌ Error verificando sesión:', err);
         openLandingPage(false);
         setTimeout(() => {
-            if (!PlayerDataManager.currentPlayer) {
+            if (!PlayerDataManager.currentPlayer && !window.oauthCallbackDetected) {
                 showLoginScreen();
             }
         }, 2000);
