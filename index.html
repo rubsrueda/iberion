@@ -194,7 +194,7 @@
     </div>
     
     <!-- versión -->
-    <div class="version-watermark">v1.0</div>
+    <div class="version-watermark" id="version-display">v1.001</div>
 
     <!-- El resto de tus elementos como #combatPredictionPanel y los scripts van después -->
     <div id="combatPredictionPanel" style="display: none;"></div>
@@ -1748,6 +1748,7 @@
     <script src="scenarios/test_C1_MergeToAttack_scenario.js"></script>
     
     <!-- === LÓGICA PRINCIPAL DEL JUEGO (orden existente) === -->
+    <script src="version.js"></script>
     <script src="adManager.js"></script>
     <script src="storeManager.js"></script>
     <script src="domElements.js"></script> 
@@ -1777,6 +1778,16 @@
     <script src="campaignManager.js"></script>
     <script src="inventoryLogic.js"></script>
     <script src="main.js?v=1738082100"></script>
+    
+    <!-- Actualizar marca de agua con versión dinámica -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const versionDisplay = document.getElementById('version-display');
+            if (versionDisplay && window.VERSION_CONFIG) {
+                versionDisplay.textContent = 'v' + VERSION_CONFIG.get();
+            }
+        });
+    </script>
     
     <!-- Menú Radial Dinámico -->
     <div id="radialMenuContainer"></div>

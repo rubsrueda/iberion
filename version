@@ -1,0 +1,6 @@
+#!/bin/bash
+# version - Atajo rápido para actualizar versión
+# Uso: ./version "descripción del cambio"
+
+cd "$(dirname "$0")"
+./update-version.sh "$@"
