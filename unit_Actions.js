@@ -941,11 +941,12 @@ function isValidAttack(attacker, defender) {
     // Las unidades navales solo pueden ser atacadas por unidades a rango > 1, EXCEPTO si ambas son navales
     const attackerRegimentData = REGIMENT_TYPES[attacker.regiments[0]?.type];
     const defenderRegimentData = REGIMENT_TYPES[defender.regiments[0]?.type];
-    const attackerIsNaval = attackerRegimentData?.is_naval;
-    const defenderIsNaval = defenderRegimentData?.is_naval;
+    const attackerIsNaval = attacker.regiments?.some(reg => REGIMENT_TYPES[reg.type]?.is_naval);
+    const defenderIsNaval = defender.regiments?.some(reg => REGIMENT_TYPES[reg.type]?.is_naval);
+    const defenderHasRangedOnly = defender.regiments?.some(reg => REGIMENT_TYPES[reg.type]?.canOnlyBeAttackedByRanged);
     
     // Si el defensor es naval y SOLO puede ser atacado por rango, verificar
-    if (defenderRegimentData?.canOnlyBeAttackedByRanged && defenderIsNaval) {
+    if ((defenderRegimentData?.canOnlyBeAttackedByRanged || defenderHasRangedOnly) && defenderIsNaval) {
         // Permitir si ambas unidades son navales (combate naval 1v1)
         if (attackerIsNaval) {
             // Combate naval, permitido a cualquier rango
