@@ -938,11 +938,22 @@ function isValidAttack(attacker, defender) {
     const distance = hexDistance(attacker.r, attacker.c, defender.r, defender.c);
 
     // --- 4. LÓGICA NAVAL ---
+    // Las unidades navales solo pueden ser atacadas por unidades a rango > 1, EXCEPTO si ambas son navales
     const attackerRegimentData = REGIMENT_TYPES[attacker.regiments[0]?.type];
     const defenderRegimentData = REGIMENT_TYPES[defender.regiments[0]?.type];
-    if (attackerRegimentData && !attackerRegimentData.is_naval && defenderRegimentData?.is_naval) {
-        if (defenderRegimentData?.canOnlyBeAttackedByRanged && finalRange <= 1) { // Usa finalRange aquí
-            return false; 
+    const attackerIsNaval = attackerRegimentData?.is_naval;
+    const defenderIsNaval = defenderRegimentData?.is_naval;
+    
+    // Si el defensor es naval y SOLO puede ser atacado por rango, verificar
+    if (defenderRegimentData?.canOnlyBeAttackedByRanged && defenderIsNaval) {
+        // Permitir si ambas unidades son navales (combate naval 1v1)
+        if (attackerIsNaval) {
+            // Combate naval, permitido a cualquier rango
+        } else {
+            // Atacante terrestre contra defensor naval: debe estar a rango > 1
+            if (finalRange <= 1) {
+                return false;
+            }
         }
     }
     
