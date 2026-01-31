@@ -63,7 +63,6 @@ const PlayerDataManager = {
         
         if (accessToken) {
             console.log('🔑 Token OAuth detectado en URL, procesando callback...');
-            this.isProcessingAuth = true;
             window.oauthCallbackDetected = true; // Flag global para main.js
             // Limpiar el hash de la URL después de procesar
             setTimeout(() => {
@@ -86,8 +85,8 @@ const PlayerDataManager = {
                 return;
             }
 
-            // Solo procesar si hay sesión Y no estamos ya procesando
-            if (session && session.user && !this.isProcessingAuth) {
+            // Solo procesar si hay sesión (permitimos OAuth callback aunque esté marcado como procesando)
+            if (session && session.user && (!this.isProcessingAuth || window.oauthCallbackDetected)) {
                 this.isProcessingAuth = true;
                 const userId = session.user.id;
                 console.log('👤 Usuario autenticado:', session.user.email);

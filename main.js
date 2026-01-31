@@ -181,7 +181,7 @@ function showScreen(screenElement) {
             screenElement.style.setProperty('display', 'flex');
             // Asegurar que la pantalla mostrada tenga un z-index apropiado
             if (screenElement.id === 'mainMenuScreen') {
-                screenElement.style.setProperty('z-index', '1001');
+                screenElement.style.setProperty('z-index', '900');
             }
         }
     }
@@ -215,7 +215,9 @@ const showMainMenu = () => {
 
 const showLoginScreen = () => {
     // Prevenir mostrar login múltiples veces
-    if (window.loginScreenShown) {
+    const loginEl = domElements.loginScreen || document.getElementById('loginScreen');
+    const isLoginVisible = loginEl && window.getComputedStyle(loginEl).display !== 'none';
+    if (window.loginScreenShown && isLoginVisible) {
         console.log('⚠️  Login ya mostrado, ignorando llamada duplicada');
         return;
     }
@@ -546,8 +548,9 @@ function initApp() {
             const result = await PlayerDataManager.login(username, password);
             
             if (result.success) {
-                showScreen(null);
-                showMainMenu();
+                domElements.loginErrorMessage.textContent = result.message || "Iniciando sesión...";
+                // El auth listener se encargará de cerrar login y mostrar el menú
+                return;
             } else {
                 domElements.loginErrorMessage.textContent = result.message;
             }
@@ -1868,6 +1871,9 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
 
             if (requiresLoginActions.has(action) && !PlayerDataManager.currentPlayer) {
                 console.warn("Acción requiere login. Redirigiendo a login...");
+                if (typeof showToast === 'function') {
+                    showToast("Debes iniciar sesión para acceder a esta sección.", "info");
+                }
                 if (typeof showLoginScreen === 'function') {
                     showLoginScreen();
                 }
