@@ -150,11 +150,14 @@ function onHexClick(r, c) {
 function showScreen(screenElement) {
     console.log(`[showScreen] Intentando mostrar: ${screenElement ? screenElement.id : 'ninguna pantalla (ocultar todo)'}.`);
 
-    // Oculta TODAS las pantallas, incluyendo el login explícitamente
+    // Oculta TODAS las pantallas EXCEPTO mainMenuScreen cuando sea necesario
     document.querySelectorAll('.modal, .modal-overlay').forEach(el => {
         if (el.classList.contains('modal-overlay')) {
             el.classList.remove('active');
-        } else if (!el.classList.contains('no-auto-hide')) {
+        } else if (!el.classList.contains('no-auto-hide') && !el.classList.contains('no-close-on-click')) {
+            el.style.display = 'none !important';
+        } else if (el.id === 'mainMenuScreen' && screenElement?.id !== 'mainMenuScreen') {
+            // Si mainMenuScreen tiene la clase no-close-on-click pero NO es la pantalla que queremos mostrar, ocúltala
             el.style.display = 'none !important';
         }
     });

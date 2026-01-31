@@ -2154,8 +2154,25 @@ function updateTradeRoutes(playerNum) {
 
         let movesLeft = unit.movement;
         
+        // Validación de seguridad: Si unit.movement no está definido, usar valor por defecto
+        if (typeof movesLeft !== 'number' || movesLeft <= 0) {
+            // Calcular movement del regimiento más rápido
+            const maxRegimentMovement = unit.regiments.reduce((max, reg) => {
+                const regType = REGIMENT_TYPES[reg.type];
+                return Math.max(max, regType ? regType.movement : 0);
+            }, 0);
+            movesLeft = maxRegimentMovement || 3; // Default 3 si no se encuentra
+            unit.movement = movesLeft; // Guardar para futuro uso
+            console.warn(`[TradeRoute] unit.movement no definido para ${unit.name}. Usando ${movesLeft} del regimiento.`);
+        }
+        
+        // Guardar posición anterior para debugging
+        const previousPos = { r: unit.r, c: unit.c };
+        
         // Quitar de la rejilla para evitar auto-bloqueo durante el bucle
-        if (board[unit.r]?.[unit.c]) board[unit.r][unit.c].unit = null;
+        if (board[unit.r] && board[unit.r][unit.c]) {
+            board[unit.r][unit.c].unit = null;
+        }
 
         while (movesLeft > 0) {
             // Si la ruta se ha borrado en una iteración anterior del while (por llegar a destino y fallar la vuelta), salimos.
@@ -2245,15 +2262,21 @@ function updateTradeRoutes(playerNum) {
             if (finalCoords) {
                 unit.r = finalCoords.r;
                 unit.c = finalCoords.c;
+                console.log(`[TradeRoute] ${unit.name} movida a (${unit.r},${unit.c}), position=${unit.tradeRoute.position}/${unit.tradeRoute.path.length}`);
+            } else {
+                console.warn(`[TradeRoute] ADVERTENCIA: finalCoords es undefined para ${unit.name} en position ${unit.tradeRoute.position}`);
             }
         } else {
             // Si la ruta se borró, la unidad se queda donde estaba en la última iteración válida (currentPos)
-            // No necesitamos hacer nada, unit.r y unit.c ya tienen valores, pero debemos asegurarnos
-            // de que se pinte en el tablero.
+            console.warn(`[TradeRoute] ADVERTENCIA: Ruta borrada para ${unit.name}. Queda en (${unit.r},${unit.c})`);
         }
 
-        // Reinsertar en el tablero lógico
-        if (board[unit.r]?.[unit.c]) board[unit.r][unit.c].unit = unit;
+        // Reinsertar en el tablero lógico - CORRECCIÓN: Verificar que board[unit.r] existe
+        if (board[unit.r] && board[unit.r][unit.c]) {
+            board[unit.r][unit.c].unit = unit;
+        } else {
+            console.error(`[TradeRoute] ERROR: No se pudo reinsertar ${unit.name} en tablero. board[${unit.r}][${unit.c}] no existe`);
+        }
 
         unit.hasMoved = true;
         unit.hasAttacked = true;

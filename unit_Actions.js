@@ -3972,14 +3972,21 @@ function _executeEstablishTradeRoute(payload) {
         forward: true
     };
 
+    // Debug: Verificar path
+    if (!path || path.length === 0) {
+        console.error(`[TradeRoute] ERROR: Path vacío o inválido para ${unit.name}. Path length: ${path ? path.length : 'null'}`);
+    } else {
+        console.log(`[TradeRoute] ${unit.name} iniciada con path de ${path.length} elementos: ${origin.name} → ${destination.name}`);
+    }
+
     // --- CORRECCIÓN CRÍTICA ---
     // Si NO es naval, lo movemos al centro de la ciudad de origen.
     // SI ES NAVAL, se queda en su hexágono de agua actual (no tocamos unit.r/c)
     if (!isNaval) {
-        if (board[unit.r]?.[unit.c]) board[unit.r][unit.c].unit = null;
+        if (board[unit.r] && board[unit.r][unit.c]) board[unit.r][unit.c].unit = null;
         unit.r = origin.r;
         unit.c = origin.c;
-        if (board[unit.r]?.[unit.c]) board[unit.r][unit.c].unit = unit;
+        if (board[unit.r] && board[unit.r][unit.c]) board[unit.r][unit.c].unit = unit;
         positionUnitElement(unit);
     }
 
