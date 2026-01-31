@@ -1859,6 +1859,21 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
             const action = hotspot.dataset.action;
             console.log("Hotspot presionado:", action);
 
+            const requiresLoginActions = new Set([
+                'openProfile',
+                'openAltar',
+                'openBarracks',
+                'openForge'
+            ]);
+
+            if (requiresLoginActions.has(action) && !PlayerDataManager.currentPlayer) {
+                console.warn("Acción requiere login. Redirigiendo a login...");
+                if (typeof showLoginScreen === 'function') {
+                    showLoginScreen();
+                }
+                return;
+            }
+
             switch(action) {
                 case 'openGameModes':
                     document.getElementById('gameModesModal').style.display = 'flex';
@@ -2044,6 +2059,23 @@ if (newLogoutBtn) {
 const newGeneralNameDisplay = document.getElementById('currentGeneralName_main');
 if (newGeneralNameDisplay && PlayerDataManager.currentPlayer) {
     newGeneralNameDisplay.textContent = PlayerDataManager.currentPlayer.username;
+}
+if (newGeneralNameDisplay) {
+    newGeneralNameDisplay.style.cursor = 'pointer';
+    newGeneralNameDisplay.addEventListener('click', () => {
+        if (!PlayerDataManager.currentPlayer) {
+            if (typeof showLoginScreen === 'function') {
+                showLoginScreen();
+            }
+            return;
+        }
+        if (typeof openProfileModal === 'function') {
+            openProfileModal();
+        }
+    });
+    if (!PlayerDataManager.currentPlayer) {
+        newGeneralNameDisplay.textContent = 'Ninguno';
+    }
 }
 
     // ======================================================================
