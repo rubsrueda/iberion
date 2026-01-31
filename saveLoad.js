@@ -21,6 +21,50 @@
 // - handleLoadGame() - Carga partidas con información del tipo de juego
 //
 
+// --- Guardado Local (fallback/offline) ---
+const LOCAL_SAVE_KEY = 'iberion_local_saves';
+
+function _readLocalSaves() {
+    try {
+        const raw = localStorage.getItem(LOCAL_SAVE_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+        console.warn("[LocalSave] Error leyendo localStorage:", e);
+        return [];
+    }
+}
+
+function _writeLocalSaves(list) {
+    try {
+        localStorage.setItem(LOCAL_SAVE_KEY, JSON.stringify(list));
+        return true;
+    } catch (e) {
+        console.warn("[LocalSave] Error escribiendo localStorage:", e);
+        return false;
+    }
+}
+
+function _saveToLocalStorage(saveData) {
+    const list = _readLocalSaves();
+    const existingIndex = list.findIndex(s => s.save_name === saveData.save_name);
+    if (existingIndex !== -1) {
+        list[existingIndex] = { ...list[existingIndex], ...saveData, updated_at: new Date().toISOString() };
+    } else {
+        list.unshift(saveData);
+    }
+    _writeLocalSaves(list);
+}
+
+function getLocalSavedGames() {
+    return _readLocalSaves();
+}
+
+function deleteLocalSavedGame(saveId) {
+    const list = _readLocalSaves();
+    const newList = list.filter(s => s.id !== saveId);
+    _writeLocalSaves(newList);
+}
+
 /**
  * Función auxiliar para preparar el estado del juego para guardado
  * Extrae solo los datos necesarios, sin referencias a DOM ni circulares
@@ -60,11 +104,51 @@ function _prepareGameDataForSave() {
 async function saveGameUnified(saveName, isAutoSave = false) {
     // Validación: jugador debe estar autenticado
     if (!PlayerDataManager.currentPlayer || !PlayerDataManager.currentPlayer.auth_id) {
-        console.error("[SaveGame] Error: Jugador no autenticado");
-        if (!isAutoSave) {
-            logMessage("Debes estar conectado para guardar la partida.", "error");
+        console.warn("[SaveGame] Jugador no autenticado. Guardando localmente.");
+        // Permitir guardado local si no hay login
+        const { boardState, unitsState } = _prepareGameDataForSave();
+
+        let localGameType = "local_vs_ai";
+        if (gameState.playerTypes && gameState.playerTypes.player2 === 'human') {
+            localGameType = "local_multiplayer";
         }
-        return false;
+
+        const localSave = {
+            id: `local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            save_name: saveName || `Partida Guardada ${new Date().toLocaleDateString('es-ES')}`,
+            user_id: null,
+            board_state: boardState,
+            game_state: {
+                gameState: gameState,
+                units: unitsState,
+                unitIdCounter: unitIdCounter,
+                metadata: {
+                    gameType: localGameType,
+                    turnNumber: gameState.turnNumber || 0,
+                    currentPlayer: gameState.currentPlayer || 1,
+                    numPlayers: gameState.numPlayers || 2,
+                    isCampaignBattle: gameState.isCampaignBattle || false,
+                    winner: gameState.winner || null,
+                    gamePhase: gameState.currentPhase || "play",
+                    savedAt: new Date().toISOString(),
+                    isAutoSave: isAutoSave
+                },
+                playerInfo: {
+                    playerTypes: gameState.playerTypes,
+                    playerCivilizations: gameState.playerCivilizations,
+                    playerResources: gameState.playerResources
+                }
+            },
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            is_local: true
+        };
+
+        _saveToLocalStorage(localSave);
+        if (!isAutoSave) {
+            logMessage("Partida guardada localmente.", "success");
+        }
+        return true;
     }
 
     // Generar nombre automático si no se proporciona uno
@@ -144,10 +228,13 @@ async function saveGameUnified(saveName, isAutoSave = false) {
 
         if (error) {
             console.error("[SaveGame] Error al guardar:", error);
+            // Fallback a guardado local si falla la nube
+            const localFallback = { ...saveData, id: `local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, is_local: true };
+            _saveToLocalStorage(localFallback);
             if (!isAutoSave) {
-                logMessage("Error al guardar: " + error.message, "error");
+                logMessage("Error en la nube. Guardado local realizado.", "warning");
             }
-            return false;
+            return true;
         } else {
             console.log(`[SaveGame] '${saveName}' guardada exitosamente (${gameType})`);
             if (!isAutoSave) {
@@ -178,8 +265,32 @@ async function handleSaveGame() {
 }
 
 async function handleLoadGame() {
-    if (!PlayerDataManager.currentPlayer || !PlayerDataManager.currentPlayer.auth_id) {
-        logMessage("Inicia sesión para cargar tus partidas de la nube.", "error");
+    const hasAuth = PlayerDataManager.currentPlayer && PlayerDataManager.currentPlayer.auth_id;
+    if (!hasAuth) {
+        const localSaves = getLocalSavedGames();
+        if (!localSaves || localSaves.length === 0) {
+            logMessage("No hay partidas locales para cargar.", "warning");
+            return;
+        }
+        let message = "Selecciona el número de la partida local a cargar:\n\n";
+        localSaves.forEach((s, i) => {
+            const createdDate = new Date(s.created_at || s.updated_at || Date.now()).toLocaleDateString('es-ES');
+            const state = s.game_state?.gameState || {};
+            const turn = state.turnNumber || 1;
+            const gamePhase = state.currentPhase || 'play';
+            message += `${i + 1}. [LOCAL] ${s.save_name} (Turno ${turn}, ${gamePhase}) - ${createdDate}\n`;
+        });
+        const choice = prompt(message);
+        const index = parseInt(choice) - 1;
+        if (localSaves[index]) {
+            const localSave = localSaves[index];
+            let dataToRestore = localSave.game_state;
+            if (!dataToRestore.board && localSave.board_state) dataToRestore.board = localSave.board_state;
+            if (typeof reconstruirJuegoDesdeDatos === 'function') {
+                reconstruirJuegoDesdeDatos(dataToRestore);
+                logMessage("Partida local cargada.", "success");
+            }
+        }
         return;
     }
 
@@ -193,7 +304,31 @@ async function handleLoadGame() {
         .order('created_at', { ascending: false });
 
     if (error || !saves || saves.length === 0) {
-        logMessage("No se han encontrado partidas guardadas.", "warning");
+        // Fallback a locales si la nube está vacía
+        const localSaves = getLocalSavedGames();
+        if (!localSaves || localSaves.length === 0) {
+            logMessage("No se han encontrado partidas guardadas.", "warning");
+            return;
+        }
+        let message = "Selecciona el número de la partida local a cargar:\n\n";
+        localSaves.forEach((s, i) => {
+            const createdDate = new Date(s.created_at || s.updated_at || Date.now()).toLocaleDateString('es-ES');
+            const state = s.game_state?.gameState || {};
+            const turn = state.turnNumber || 1;
+            const gamePhase = state.currentPhase || 'play';
+            message += `${i + 1}. [LOCAL] ${s.save_name} (Turno ${turn}, ${gamePhase}) - ${createdDate}\n`;
+        });
+        const choice = prompt(message);
+        const index = parseInt(choice) - 1;
+        if (localSaves[index]) {
+            const localSave = localSaves[index];
+            let dataToRestore = localSave.game_state;
+            if (!dataToRestore.board && localSave.board_state) dataToRestore.board = localSave.board_state;
+            if (typeof reconstruirJuegoDesdeDatos === 'function') {
+                reconstruirJuegoDesdeDatos(dataToRestore);
+                logMessage("Partida local cargada.", "success");
+            }
+        }
         return;
     }
 
@@ -335,6 +470,12 @@ function importProfile(event) {
         }
     };
     reader.readAsText(file);
+}
+
+// Exponer helpers locales para UI
+if (typeof window !== 'undefined') {
+    window.getLocalSavedGames = getLocalSavedGames;
+    window.deleteLocalSavedGame = deleteLocalSavedGame;
 }
 
 /**

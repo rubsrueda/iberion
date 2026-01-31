@@ -1469,6 +1469,19 @@ function updateTerritoryMetrics(playerEndingTurn) {
                             console.log(`%cHex (${r},${c}): ¡CONQUISTADO por J${unitOnHex.player}!`, 'color: orange; font-weight:bold;');
                             hex.owner = unitOnHex.player;
                             hex.nacionalidad[unitOnHex.player] = 1;
+
+                            // Sincronizar ciudad si aplica (evita desajustes en comercio)
+                            if (hex.isCity) {
+                                const cityEntry = gameState.cities?.find(ci => ci.r === r && ci.c === c);
+                                const cityName = hex.cityName || cityEntry?.name || hex.structure || `Ciudad (${r},${c})`;
+                                if (cityEntry) {
+                                    cityEntry.owner = unitOnHex.player;
+                                    if (cityName) cityEntry.name = cityName;
+                                } else if (gameState.cities) {
+                                    gameState.cities.push({ r, c, owner: unitOnHex.player, name: cityName, isCapital: false });
+                                }
+                            }
+
                             // La estabilidad NO se resetea.
                             renderSingleHexVisuals(r, c);
                         }
@@ -2093,6 +2106,14 @@ async function handleEndTurn(isHostProcessing = false) {
      // 3. GESTIÓN DEL SIGUIENTE TURNO (IA vs HUMANO vs RELOJ)
     const isNextPlayerAI = gameState.playerTypes[`player${gameState.currentPlayer}`]?.startsWith('ai_');
     
+    const isNetworkMatch = (typeof NetworkManager !== 'undefined' && NetworkManager.miId);
+
+    // --- AUTOSAVE AUTOMÁTICO: Cada turno para partidas locales ---
+    if (!isNetworkMatch && typeof saveGameUnified === 'function' && gameState.currentPhase !== "gameOver") {
+        saveGameUnified("AUTOSAVE_RECENT", true)
+            .catch(err => console.warn("[AutoSave] Error (local):", err));
+    }
+
     // --- AUTOSAVE AUTOMÁTICO: Cada 5 turnos ---
     if (gameState.turnNumber % 5 === 0 && PlayerDataManager.currentPlayer && typeof saveGameUnified === 'function') {
         console.log(`[AutoSave] Guardando en turno ${gameState.turnNumber}...`);

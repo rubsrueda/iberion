@@ -3995,8 +3995,21 @@ async function openMyGamesModal() {
     list.innerHTML = '<p style="text-align:center; color:#ccc; font-size:0.9em; margin-top:20px;">Sincronizando operaciones...</p>';
 
     const uid = PlayerDataManager.currentPlayer?.auth_id;
+    const localSaves = (typeof window.getLocalSavedGames === 'function') ? window.getLocalSavedGames() : [];
     if (!uid) {
-        list.innerHTML = '<p style="text-align:center; color:#e74c3c;">Debes iniciar sesión.</p>';
+        list.innerHTML = '';
+        if (!localSaves || localSaves.length === 0) {
+            list.innerHTML = '<p style="text-align:center; color:#e74c3c;">Debes iniciar sesión o no tienes guardados locales.</p>';
+            return;
+        }
+
+        const separator = document.createElement('div');
+        separator.innerHTML = "<small style='color:#555; display:block; margin:10px 0; border-bottom:1px solid #333;'>GUARDADAS / LOCAL</small>";
+        list.appendChild(separator);
+
+        localSaves.forEach(save => {
+            renderMatchCard(save, list, uid, 'save');
+        });
         return;
     }
 
@@ -4023,10 +4036,11 @@ async function openMyGamesModal() {
 
         const activeData = activeRes.data || [];
         const savedData = savedRes.data || [];
+        const combinedSaved = [...savedData, ...(localSaves || [])];
 
         list.innerHTML = ''; // Limpiar mensaje de carga
 
-        if (activeData.length === 0 && savedData.length === 0) {
+        if (activeData.length === 0 && combinedSaved.length === 0) {
             list.innerHTML = '<p style="text-align:center; color:#888; font-size:0.9em;">No tienes partidas registradas.</p>';
             return;
         }
@@ -4075,14 +4089,14 @@ async function openMyGamesModal() {
         });
 
         // --- RENDERIZADO: PARTIDAS GUARDADAS / IA LOCAL ---
-        if (savedData.length > 0) {
+        if (combinedSaved.length > 0) {
             // Separador visual
             const separator = document.createElement('div');
             separator.innerHTML = "<small style='color:#555; display:block; margin:10px 0; border-bottom:1px solid #333;'>GUARDADAS / IA</small>";
             list.appendChild(separator);
 
             // CORRECCIÓN: Usar renderMatchCard para tener menú contextual también
-            savedData.forEach(save => {
+            combinedSaved.forEach(save => {
                 renderMatchCard(save, list, uid, 'save');
             });
         }
@@ -4098,6 +4112,7 @@ async function openMyGamesModal() {
 
 function renderMatchCard(match, container, uid, type) {
     const isLocal = (type === 'save');
+    const isLocalStorage = isLocal && match.is_local;
     
     // --- 1. DATOS ---
     const rawState = isLocal ? match.game_state : match.game_state;
@@ -4196,7 +4211,7 @@ function renderMatchCard(match, container, uid, type) {
         e.stopPropagation();
         const idParaAccion = isLocal ? match.id : match.match_id;
         if (typeof window.showMatchContext === 'function') {
-            window.showMatchContext(e, idParaAccion, isAbandoned, isLocal);
+            window.showMatchContext(e, idParaAccion, isAbandoned, isLocal, isLocalStorage);
         }
     };
 
@@ -4332,7 +4347,7 @@ window.publishToMarket = async function(matchId) {
 
 // 3. Menú Contextual (Lógica visual)
 // --- GESTIÓN DE MENÚ CONTEXTUAL (Adaptada para Local y Online) ---
-window.showMatchContext = function(event, matchId, rivalIsAbandoned, isLocal = false) {
+window.showMatchContext = function(event, matchId, rivalIsAbandoned, isLocal = false, isLocalStorage = false) {
     const menu = document.getElementById('matchContextMenu');
     
     // 1. Posicionamiento
@@ -4354,12 +4369,24 @@ window.showMatchContext = function(event, matchId, rivalIsAbandoned, isLocal = f
         btnMainAction.textContent = "🗑️ Borrar Partida";
         btnMainAction.onclick = () => {
             document.getElementById('matchContextMenu').style.display = 'none';
-            deleteSavedGame(matchId); // Llama a la función de borrado de DB
+            if (isLocalStorage && typeof window.deleteLocalSavedGame === 'function') {
+                window.deleteLocalSavedGame(matchId);
+                openMyGamesModal();
+            } else {
+                deleteSavedGame(matchId); // Llama a la función de borrado de DB
+            }
         };
         
-        // Ocultar opciones de red
+        // Opciones de red (publicar guardado)
         btnAI.style.display = 'none';
-        btnShare.style.display = 'none';
+        btnShare.style.display = 'block';
+        btnShare.textContent = "🌍 Ofrecer en Mercado";
+        btnShare.onclick = () => {
+            document.getElementById('matchContextMenu').style.display = 'none';
+            if (typeof window.publishSavedGameToMarket === 'function') {
+                window.publishSavedGameToMarket(matchId, isLocalStorage);
+            }
+        };
 
     } else {
         // --- MODO ONLINE ---
@@ -4390,6 +4417,78 @@ window.showMatchContext = function(event, matchId, rivalIsAbandoned, isLocal = f
             btnShare.style.display = 'none';
         }
     }
+};
+
+// Publicar un guardado (local o nube) como partida en mercado
+window.publishSavedGameToMarket = async function(saveId, isLocalStorage = false) {
+    if (!confirm("¿Publicar esta partida para que otro jugador tome el control?")) return;
+
+    const uid = PlayerDataManager.currentPlayer?.auth_id;
+    if (!uid) {
+        alert("Debes iniciar sesión para publicar en el mercado.");
+        return;
+    }
+
+    let save = null;
+    if (isLocalStorage && typeof window.getLocalSavedGames === 'function') {
+        const localSaves = window.getLocalSavedGames();
+        save = localSaves.find(s => s.id === saveId);
+    } else {
+        const { data } = await supabaseClient
+            .from('game_saves')
+            .select('*')
+            .eq('id', saveId)
+            .single();
+        save = data;
+    }
+
+    if (!save) {
+        alert("No se encontró el guardado.");
+        return;
+    }
+
+    const matchId = (typeof NetworkManager !== 'undefined' && NetworkManager._generarCodigoCorto)
+        ? NetworkManager._generarCodigoCorto()
+        : Math.random().toString(36).substring(2, 6).toUpperCase();
+
+    const cloudState = {
+        gameState: save.game_state?.gameState || save.game_state || {},
+        board: save.board_state || save.game_state?.board,
+        units: save.game_state?.units || [],
+        unitIdCounter: save.game_state?.unitIdCounter || 0,
+        timestamp: Date.now()
+    };
+
+    if (!cloudState.board) {
+        alert("El guardado no contiene tablero. No se puede publicar.");
+        return;
+    }
+
+    // Forzar rival humano para mercado
+    if (cloudState.gameState?.playerTypes) {
+        cloudState.gameState.playerTypes.player2 = 'human';
+    }
+
+    const { error } = await supabaseClient
+        .from('active_matches')
+        .upsert({
+            match_id: matchId,
+            host_id: uid,
+            guest_id: null,
+            status: 'OPEN_MARKET',
+            current_turn_player: cloudState.gameState?.currentPlayer || 1,
+            game_state: cloudState,
+            updated_at: new Date()
+        });
+
+    if (error) {
+        console.error("Error publicando guardado:", error);
+        alert("Error al publicar en el mercado.");
+        return;
+    }
+
+    alert(`Partida publicada. Código: ${matchId}`);
+    openMyGamesModal();
 };
 
 // --- CORRECCIÓN MERCADO PÚBLICO ---
