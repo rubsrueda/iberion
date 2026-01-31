@@ -85,8 +85,8 @@ const PlayerDataManager = {
                 return;
             }
 
-            // Solo procesar si hay sesión (permitimos OAuth callback aunque esté marcado como procesando)
-            if (session && session.user && (!this.isProcessingAuth || window.oauthCallbackDetected)) {
+            // Solo procesar si hay sesión Y no estamos ya procesando
+            if (session && session.user && !this.isProcessingAuth) {
                 this.isProcessingAuth = true;
                 const userId = session.user.id;
                 console.log('👤 Usuario autenticado:', session.user.email);

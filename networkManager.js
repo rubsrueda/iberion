@@ -85,8 +85,14 @@ const NetworkManager = {
         // Preparamos los datos limpios para subir
         const estadoInicial = this._prepararEstadoParaNube();
         const hostUuid = PlayerDataManager.currentPlayer?.auth_id || crypto.randomUUID();
-
-        console.log(`[Host] Subiendo partida ${matchId}...`);
+        
+        console.log(`[Host] Subiendo partida ${matchId} con host ID: ${hostUuid}`);
+        
+        if (!hostUuid) {
+            console.error("[Host] Error: No hay auth_id disponible. PlayerDataManager:", PlayerDataManager.currentPlayer);
+            alert("Error: Usuario no autenticado correctamente. Recarga la página.");
+            return null;
+        }
 
         const { error } = await supabaseClient
             .from('active_matches')
@@ -99,10 +105,12 @@ const NetworkManager = {
             });
 
         if (error) {
-            console.error("Error Supabase:", error);
-            alert("Error al crear partida.");
+            console.error("Error Supabase al crear partida:", error);
+            alert("Error al crear partida: " + error.message);
             return null;
         }
+        
+        console.log(`[Host] Partida ${matchId} creada exitosamente en Supabase.`);
 
         // Sistema de Polling (Esperar al J2)
         this._clearMatchPolling();
@@ -153,14 +161,33 @@ const NetworkManager = {
         const { data, error } = await supabaseClient.from('active_matches').select('*').eq('match_id', matchId).single();
 
         if (error || !data) {
-            alert("Partida no encontrada.");
+            console.error("[Cliente] Error al buscar partida:", error);
+            alert("Partida no encontrada o código incorrecto.");
+            return false;
+        }
+        
+        console.log(`[Cliente] Partida encontrada. Host: ${data.host_id}`);
+
+        const guestUuid = PlayerDataManager.currentPlayer?.auth_id || crypto.randomUUID();
+        
+        if (!guestUuid) {
+            console.error("[Cliente] Error: No hay auth_id disponible. PlayerDataManager:", PlayerDataManager.currentPlayer);
+            alert("Error: Usuario no autenticado correctamente. Recarga la página.");
+            return false;
+        }
+        
+        const { error: updateError } = await supabaseClient
+            .from('active_matches')
+            .update({ guest_id: guestUuid })
+            .eq('match_id', matchId);
+        
+        if (updateError) {
+            console.error("[Cliente] Error al unirse:", updateError);
+            alert("Error al conectarse a la partida: " + updateError.message);
             return false;
         }
 
-        const guestUuid = PlayerDataManager.currentPlayer?.auth_id || crypto.randomUUID();
-        await supabaseClient.from('active_matches').update({ guest_id: guestUuid }).eq('match_id', matchId);
-
-        console.log("[Cliente] Datos recibidos. Reconstruyendo...");
+        console.log("[Cliente] Unido exitosamente. Reconstruyendo...");
 
         // --- ORDEN DE CARGA CORREGIDO ---
         // 1. Establecer identidad ANTES de cargar datos para que la UI sepa quién soy

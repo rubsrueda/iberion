@@ -383,6 +383,23 @@ function initApp() {
             // Habilitar Wake Lock de nuevo
             if(typeof enableMobileWakeLock === 'function') enableMobileWakeLock();
 
+            // CRÍTICO: Si estamos en una partida en red, asegurarse que el juego esté visible
+            // y que el menú principal no bloquee la interfaz
+            if (gameState && gameState.currentPhase && gameState.currentPhase !== 'gameOver') {
+                console.log("🎮 Partida activa detectada. Mostrando interfaz de juego...");
+                
+                // Ocultar explícitamente el menú principal
+                const mainMenu = document.getElementById('mainMenuScreen');
+                if (mainMenu) mainMenu.style.display = 'none';
+                
+                // Mostrar el contenedor del juego
+                const gameContainer = document.querySelector('.game-container') || domElements.gameContainer;
+                if (gameContainer) gameContainer.style.display = 'flex';
+                
+                const tacticalUI = document.getElementById('tactical-ui-container') || domElements.tacticalUiContainer;
+                if (tacticalUI) tacticalUI.style.display = 'block';
+            }
+
             // 1. ¿Estábamos en una partida Online?
             // Obtenemos el ID limpio sin prefijo 'hge-'
             const rawId = NetworkManager.miId || NetworkManager.idRemoto;
@@ -961,6 +978,15 @@ function initApp() {
         nuevoBtn.addEventListener('click', async () => {
             console.log("BOTÓN CREAR PULSADO (SUPABASE)");
             
+            // VERIFICACIÓN CRÍTICA: El usuario DEBE estar autenticado para jugar en red
+            if (!PlayerDataManager.currentPlayer || !PlayerDataManager.currentPlayer.auth_id) {
+                alert("⚠️ Debes iniciar sesión para crear una partida en línea.");
+                if (typeof showLoginScreen === 'function') {
+                    showLoginScreen();
+                }
+                return;
+            }
+            
             // 1. RECUPERAR CONFIGURACIÓN REAL (De la memoria o del HTML)
             let settings = gameState.setupTempSettings;
             
@@ -1036,6 +1062,16 @@ function initApp() {
         
         nuevoBtn.addEventListener('click', async () => {
             console.log("BOTÓN UNIRSE PULSADO (SUPABASE)");
+            
+            // VERIFICACIÓN CRÍTICA: El usuario DEBE estar autenticado para jugar en red
+            if (!PlayerDataManager.currentPlayer || !PlayerDataManager.currentPlayer.auth_id) {
+                alert("⚠️ Debes iniciar sesión para unirte a una partida en línea.");
+                if (typeof showLoginScreen === 'function') {
+                    showLoginScreen();
+                }
+                return;
+            }
+            
             const codigo = prompt("Introduce el Código de 4 letras:");
             if (!codigo) return;
 
@@ -2090,12 +2126,12 @@ if (newGeneralNameDisplay) {
     
     console.log('🚀 Iniciando lógica de arranque...');
     
-    // Inicializar auth listener PRIMERO
-    PlayerDataManager.initAuthListener();
-    
-    // Resetear flags
+    // Resetear flags ANTES de inicializar auth listener
     window.loginScreenShown = false;
     window.oauthCallbackDetected = false;
+    
+    // Inicializar auth listener DESPUÉS de resetear flags
+    PlayerDataManager.initAuthListener();
     
     // Verificar si hay sesión guardada en Supabase
     supabaseClient.auth.getSession().then(({ data: { session } }) => {
