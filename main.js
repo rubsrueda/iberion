@@ -153,31 +153,35 @@ function showScreen(screenElement) {
     // Oculta TODAS las pantallas EXCEPTO mainMenuScreen cuando sea necesario
     document.querySelectorAll('.modal, .modal-overlay').forEach(el => {
         if (el.classList.contains('modal-overlay')) {
-            el.classList.remove('active');
+            if (el !== screenElement) {
+                el.classList.remove('active');
+                el.style.setProperty('display', 'none');
+            }
         } else if (!el.classList.contains('no-auto-hide') && !el.classList.contains('no-close-on-click')) {
-            el.style.display = 'none !important';
+            el.style.setProperty('display', 'none');
         } else if (el.id === 'mainMenuScreen' && screenElement?.id !== 'mainMenuScreen') {
             // Si mainMenuScreen tiene la clase no-close-on-click pero NO es la pantalla que queremos mostrar, ocúltala
-            el.style.display = 'none !important';
+            el.style.setProperty('display', 'none');
         }
     });
     
     // Forzar ocultar el login específicamente para evitar z-index issues
     const loginScreen = document.getElementById('loginScreen');
     if (loginScreen && screenElement?.id !== 'loginScreen') {
-        loginScreen.style.display = 'none !important';
-        loginScreen.style.zIndex = '1000';
+        loginScreen.style.setProperty('display', 'none');
+        loginScreen.style.setProperty('z-index', '2000');
     }
 
     // Muestra la pantalla solicitada
     if (screenElement) {
         if (screenElement.classList.contains('modal-overlay')) {
             screenElement.classList.add('active');
+            screenElement.style.setProperty('display', 'flex');
         } else {
-            screenElement.style.display = 'flex !important';
+            screenElement.style.setProperty('display', 'flex');
             // Asegurar que la pantalla mostrada tenga un z-index apropiado
             if (screenElement.id === 'mainMenuScreen') {
-                screenElement.style.zIndex = '100';
+                screenElement.style.setProperty('z-index', '1001');
             }
         }
     }
@@ -202,7 +206,7 @@ const showMainMenu = () => {
 
     // Asegurarse de ocultar explícitamente la pantalla de login
     if (domElements.loginScreen) {
-        domElements.loginScreen.style.display = 'none !important';
+        domElements.loginScreen.style.setProperty('display', 'none');
     }
 
     // Forzamos que se muestre directamente el nuevo menú principal
