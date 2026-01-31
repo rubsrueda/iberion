@@ -2166,6 +2166,13 @@ function placeBossUnitDirectly(unit) {
     unit.element = unitEl;
     units.push(unit);
     hex.unit = unit;
+
+    if (typeof UnitGrid !== 'undefined') {
+        if (UnitGrid.grid.size === 0 && units.length > 0) {
+            UnitGrid.initialize();
+        }
+        UnitGrid.index(unit);
+    }
     
     const xPos = unit.c * HEX_WIDTH + (unit.r % 2 !== 0 ? HEX_WIDTH / 2 : 0) + (HEX_WIDTH - 60) / 2;
     const yPos = unit.r * HEX_VERT_SPACING + (HEX_HEIGHT - 60) / 2;
