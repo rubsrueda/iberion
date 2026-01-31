@@ -3992,9 +3992,13 @@ function _executeEstablishTradeRoute(payload) {
     }
 
     // --- CORRECCIÓN CRÍTICA ---
+    // Guardar posición antigua para actualizar UnitGrid
+    const oldR = unit.r;
+    const oldC = unit.c;
+
     // SIEMPRE limpiamos la posición actual del tablero lógico primero
-    if (board[unit.r] && board[unit.r][unit.c]) {
-        board[unit.r][unit.c].unit = null;
+    if (board[oldR] && board[oldR][oldC]) {
+        board[oldR][oldC].unit = null;
     }
 
     // Si NO es naval, lo movemos al centro de la ciudad de origen.
@@ -4008,6 +4012,11 @@ function _executeEstablishTradeRoute(payload) {
     // Actualizar tablero lógico con nueva posición
     if (board[unit.r] && board[unit.r][unit.c]) {
         board[unit.r][unit.c].unit = unit;
+    }
+
+    // CRÍTICO: Actualizar UnitGrid para que getUnitOnHex encuentre la unidad en su nueva posición
+    if (typeof UnitGrid !== 'undefined') {
+        UnitGrid.move(unit, oldR, oldC);
     }
 
     unit.hasMoved = true;
