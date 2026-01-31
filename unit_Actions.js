@@ -3992,14 +3992,22 @@ function _executeEstablishTradeRoute(payload) {
     }
 
     // --- CORRECCIÓN CRÍTICA ---
+    // SIEMPRE limpiamos la posición actual del tablero lógico primero
+    if (board[unit.r] && board[unit.r][unit.c]) {
+        board[unit.r][unit.c].unit = null;
+    }
+
     // Si NO es naval, lo movemos al centro de la ciudad de origen.
-    // SI ES NAVAL, se queda en su hexágono de agua actual (no tocamos unit.r/c)
+    // SI ES NAVAL, se queda en su hexágono de agua actual
     if (!isNaval) {
-        if (board[unit.r] && board[unit.r][unit.c]) board[unit.r][unit.c].unit = null;
         unit.r = origin.r;
         unit.c = origin.c;
-        if (board[unit.r] && board[unit.r][unit.c]) board[unit.r][unit.c].unit = unit;
-        positionUnitElement(unit);
+    }
+    // Si ES naval, mantenemos unit.r y unit.c donde está (en agua)
+
+    // Actualizar tablero lógico con nueva posición
+    if (board[unit.r] && board[unit.r][unit.c]) {
+        board[unit.r][unit.c].unit = unit;
     }
 
     unit.hasMoved = true;
@@ -4007,6 +4015,11 @@ function _executeEstablishTradeRoute(payload) {
 
     logMessage(`¡"${unit.name}" ha comenzado la ruta hacia ${destination.name}!`);
     if (UIManager) UIManager.hideContextualPanel();
+
+    // CRÍTICO: Re-renderizar todas las unidades para evitar fantasmas visuales
+    if (UIManager && UIManager.renderAllUnitsFromData) {
+        UIManager.renderAllUnitsFromData();
+    }
 
     return true;
 }
