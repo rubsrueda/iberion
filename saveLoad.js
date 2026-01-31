@@ -207,9 +207,14 @@ async function handleLoadGame() {
         
         // Mapear tipo de partida a etiqueta legible
         let typeLabel = gameType;
-        if (gameType === 'network_multiplayer') typeLabel = "🌐 En Línea";
+        if (gameType === 'network') typeLabel = "🌐 En Línea";
+        else if (gameType === 'network_multiplayer') typeLabel = "🌐 En Línea";
+        else if (gameType === 'skirmish_local') typeLabel = "👥 Local";
         else if (gameType === 'local_multiplayer') typeLabel = "👥 Local";
+        else if (gameType === 'skirmish_ai') typeLabel = "🤖 vs IA";
         else if (gameType === 'local_vs_ai') typeLabel = "🤖 vs IA";
+        else if (gameType === 'campaign') typeLabel = "🗺️ Campaña";
+        else if (gameType === 'raid') typeLabel = "⚔️ Raid";
         
         message += `${i + 1}. [${typeLabel}] ${s.save_name} (Turno ${turn}, ${gamePhase}) - ${createdDate}\n`;
     });
@@ -243,9 +248,11 @@ async function handleLoadGame() {
             // Mostrar información sobre qué tipo de partida se cargó
             const gameType = fullSave.game_state?.metadata?.gameType || "desconocida";
             let typeMsg = "";
-            if (gameType === 'network_multiplayer') typeMsg = " (Partida en línea)";
-            else if (gameType === 'local_multiplayer') typeMsg = " (Partida local multijugador)";
-            else if (gameType === 'local_vs_ai') typeMsg = " (Partida vs IA)";
+            if (gameType === 'network' || gameType === 'network_multiplayer') typeMsg = " (Partida en línea)";
+            else if (gameType === 'skirmish_local' || gameType === 'local_multiplayer') typeMsg = " (Partida local multijugador)";
+            else if (gameType === 'skirmish_ai' || gameType === 'local_vs_ai') typeMsg = " (Partida vs IA)";
+            else if (gameType === 'campaign') typeMsg = " (Campaña)";
+            else if (gameType === 'raid') typeMsg = " (Raid)";
             
             // Cerrar menús y mostrar juego
             if (domElements.setupScreen) domElements.setupScreen.style.display = 'none';
