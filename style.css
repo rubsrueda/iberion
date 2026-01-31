@@ -1247,6 +1247,11 @@ body {
 /* --- Modal: Menú Principal --- */
 #mainMenuScreen.modal {
     background-color: transparent;
+    position: fixed !important;
+    overflow: hidden !important;
+    z-index: 100 !important;
+    top: 0 !important;
+    left: 0 !important;
 }
 
 /* Elimina el fondo, borde y sombra de la caja de contenido. */
@@ -2120,6 +2125,8 @@ body {
     left: 0;
     width: 100vw;
     height: 100vh;
+    pointer-events: auto;
+    z-index: 10;
 }
 
 .main-menu-hotspot {
