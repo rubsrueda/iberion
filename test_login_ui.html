@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Login UI</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+        .pass { background-color: #d4edda; color: #155724; }
+        .fail { background-color: #f8d7da; color: #721c24; }
+        .log { 
+            background-color: #f0f0f0; 
+            padding: 10px; 
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        button { 
+            padding: 10px 15px; 
+            margin: 5px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>Test: Login UI Logic</h1>
+    
+    <div class="test">
+        <h3>Initial State Test</h3>
+        <button onclick="testInitialState()">Run Test</button>
+        <div id="test1-result" class="log"></div>
+    </div>
+
+    <div class="test">
+        <h3>showScreen() Function Test</h3>
+        <button onclick="testShowScreen()">Run Test</button>
+        <div id="test2-result" class="log"></div>
+    </div>
+
+    <div class="test">
+        <h3>showMainMenu() Function Test</h3>
+        <button onclick="testShowMainMenu()">Run Test</button>
+        <div id="test3-result" class="log"></div>
+    </div>
+
+    <div class="test">
+        <h3>showLoginScreen() Function Test</h3>
+        <button onclick="testShowLoginScreen()">Run Test</button>
+        <div id="test4-result" class="log"></div>
+    </div>
+
+    <!-- Minimal HTML structure for testing -->
+    <div id="loginScreen" class="modal" style="display: none; text-align: center; align-items: center; justify-content: center; background-color: rgba(0,0,0,0.9); z-index: 2000; position: fixed; top: 0; left: 0; width: 100%; height: 100%">
+        <div class="modal-content">
+            <h1>LOGIN</h1>
+        </div>
+    </div>
+
+    <div id="mainMenuScreen" class="modal no-close-on-click" style="display: flex; z-index: 100; position: relative; width: 100%; height: 100%;">
+        <div id="interactiveBoardContainer">
+            <div id="hotspotMap" class="main-menu-hotspot" data-action="openGameModes">Game Modes</div>
+        </div>
+    </div>
+
+    <script>
+        // Create mock domElements for testing
+        var domElements = {
+            loginScreen: null,
+            mainMenuScreenEl: null,
+            currentGeneralName: null
+        };
+
+        // Copy of the showScreen function from main.js
+        function showScreen(screenElement) {
+            const log = `[showScreen] Intentando mostrar: ${screenElement ? screenElement.id : 'ninguna pantalla'}.`;
+            console.log(log);
+            
+            // Oculta TODAS las pantallas
+            document.querySelectorAll('.modal, .modal-overlay').forEach(el => {
+                if (el.classList.contains('modal-overlay')) {
+                    el.classList.remove('active');
+                } else if (!el.classList.contains('no-auto-hide')) {
+                    el.style.display = 'none !important';
+                }
+            });
+            
+            // Forzar ocultar el login
+            const loginScreen = document.getElementById('loginScreen');
+            if (loginScreen && screenElement?.id !== 'loginScreen') {
+                loginScreen.style.display = 'none !important';
+                loginScreen.style.zIndex = '1000';
+            }
+
+            // Muestra la pantalla solicitada
+            if (screenElement) {
+                if (screenElement.classList.contains('modal-overlay')) {
+                    screenElement.classList.add('active');
+                } else {
+                    screenElement.style.display = 'flex !important';
+                    if (screenElement.id === 'mainMenuScreen') {
+                        screenElement.style.zIndex = '100';
+                    }
+                }
+            }
+        }
+
+        // Mock PlayerDataManager
+        var PlayerDataManager = {
+            currentPlayer: { username: 'TestUser' }
+        };
+
+        // showMainMenu function
+        const showMainMenu = () => {
+            window.loginScreenShown = false;
+            if (domElements.loginScreen) {
+                domElements.loginScreen.style.display = 'none !important';
+            }
+            showScreen(domElements.mainMenuScreenEl);
+        };
+
+        // showLoginScreen function  
+        const showLoginScreen = () => {
+            if (window.loginScreenShown) {
+                console.log('⚠️  Login ya mostrado, ignorando llamada duplicada');
+                return;
+            }
+            window.loginScreenShown = true;
+            console.log('🔑 Mostrando pantalla de login...');
+            showScreen(domElements.loginScreen);
+        };
+
+        function testInitialState() {
+            const result = document.getElementById('test1-result');
+            let output = 'Testing initial HTML state:\n\n';
+            
+            const loginScreen = document.getElementById('loginScreen');
+            const mainMenuScreen = document.getElementById('mainMenuScreen');
+            
+            const loginDisplay = window.getComputedStyle(loginScreen).display;
+            const mainMenuDisplay = window.getComputedStyle(mainMenuScreen).display;
+            
+            output += `LoginScreen computed display: ${loginDisplay}\n`;
+            output += `MainMenuScreen computed display: ${mainMenuDisplay}\n`;
+            
+            const passed = loginDisplay === 'none' && mainMenuDisplay === 'flex';
+            
+            output += `\n${passed ? '✓ PASS' : '✗ FAIL'}: Login should start hidden (display: none), Main Menu should start visible (display: flex)`;
+            
+            result.textContent = output;
+            result.className = passed ? 'pass' : 'fail';
+        }
+
+        function testShowScreen() {
+            const result = document.getElementById('test2-result');
+            let output = 'Testing showScreen() function:\n\n';
+            
+            // Initialize domElements
+            domElements.loginScreen = document.getElementById('loginScreen');
+            domElements.mainMenuScreenEl = document.getElementById('mainMenuScreen');
+            
+            // Start with both visible
+            domElements.loginScreen.style.display = 'flex';
+            domElements.mainMenuScreenEl.style.display = 'flex';
+            
+            output += 'Initial state: Both visible\n';
+            output += `  LoginScreen: ${domElements.loginScreen.style.display}\n`;
+            output += `  MainMenuScreen: ${domElements.mainMenuScreenEl.style.display}\n\n`;
+            
+            // Call showScreen with mainMenuScreen
+            showScreen(domElements.mainMenuScreenEl);
+            
+            output += 'After showScreen(mainMenuScreen):\n';
+            output += `  LoginScreen: ${domElements.loginScreen.style.display} (computed: ${window.getComputedStyle(domElements.loginScreen).display})\n`;
+            output += `  MainMenuScreen: ${domElements.mainMenuScreenEl.style.display} (computed: ${window.getComputedStyle(domElements.mainMenuScreenEl).display})\n`;
+            
+            const loginHidden = window.getComputedStyle(domElements.loginScreen).display === 'none';
+            const menuVisible = window.getComputedStyle(domElements.mainMenuScreenEl).display === 'flex';
+            const passed = loginHidden && menuVisible;
+            
+            output += `\n${passed ? '✓ PASS' : '✗ FAIL'}: Login should be hidden, Main Menu should be visible`;
+            
+            result.textContent = output;
+            result.className = passed ? 'pass' : 'fail';
+        }
+
+        function testShowMainMenu() {
+            const result = document.getElementById('test3-result');
+            let output = 'Testing showMainMenu() function:\n\n';
+            
+            // Initialize domElements
+            domElements.loginScreen = document.getElementById('loginScreen');
+            domElements.mainMenuScreenEl = document.getElementById('mainMenuScreen');
+            
+            // Start with login visible
+            domElements.loginScreen.style.display = 'flex';
+            domElements.mainMenuScreenEl.style.display = 'none';
+            window.loginScreenShown = false;
+            
+            output += 'Initial state: Login visible, Menu hidden\n';
+            output += `  LoginScreen: ${domElements.loginScreen.style.display}\n`;
+            output += `  MainMenuScreen: ${domElements.mainMenuScreenEl.style.display}\n`;
+            output += `  loginScreenShown flag: ${window.loginScreenShown}\n\n`;
+            
+            // Call showMainMenu
+            showMainMenu();
+            
+            output += 'After showMainMenu():\n';
+            output += `  LoginScreen: ${domElements.loginScreen.style.display} (computed: ${window.getComputedStyle(domElements.loginScreen).display})\n`;
+            output += `  MainMenuScreen: ${domElements.mainMenuScreenEl.style.display} (computed: ${window.getComputedStyle(domElements.mainMenuScreenEl).display})\n`;
+            output += `  loginScreenShown flag: ${window.loginScreenShown}\n`;
+            
+            const loginHidden = window.getComputedStyle(domElements.loginScreen).display === 'none';
+            const menuVisible = window.getComputedStyle(domElements.mainMenuScreenEl).display === 'flex';
+            const flagReset = window.loginScreenShown === false;
+            const passed = loginHidden && menuVisible && flagReset;
+            
+            output += `\n${passed ? '✓ PASS' : '✗ FAIL'}: showMainMenu should hide login, show menu, and reset flag`;
+            
+            result.textContent = output;
+            result.className = passed ? 'pass' : 'fail';
+        }
+
+        function testShowLoginScreen() {
+            const result = document.getElementById('test4-result');
+            let output = 'Testing showLoginScreen() function:\n\n';
+            
+            // Initialize domElements
+            domElements.loginScreen = document.getElementById('loginScreen');
+            domElements.mainMenuScreenEl = document.getElementById('mainMenuScreen');
+            
+            // Reset flags and state
+            window.loginScreenShown = false;
+            domElements.loginScreen.style.display = 'none';
+            domElements.mainMenuScreenEl.style.display = 'none';
+            
+            output += 'Initial state: Login hidden, Menu hidden, flag=false\n\n';
+            
+            // Call showLoginScreen
+            showLoginScreen();
+            
+            output += 'After showLoginScreen():\n';
+            output += `  LoginScreen: ${domElements.loginScreen.style.display} (computed: ${window.getComputedStyle(domElements.loginScreen).display})\n`;
+            output += `  MainMenuScreen: ${domElements.mainMenuScreenEl.style.display} (computed: ${window.getComputedStyle(domElements.mainMenuScreenEl).display})\n`;
+            output += `  loginScreenShown flag: ${window.loginScreenShown}\n\n`;
+            
+            const loginVisible = window.getComputedStyle(domElements.loginScreen).display === 'flex';
+            const flagSet = window.loginScreenShown === true;
+            
+            output += 'Calling showLoginScreen() again (should be ignored):\n';
+            showLoginScreen();
+            
+            output += `  LoginScreen still: ${domElements.loginScreen.style.display} (computed: ${window.getComputedStyle(domElements.loginScreen).display})\n`;
+            
+            const passed = loginVisible && flagSet;
+            
+            output += `\n${passed ? '✓ PASS' : '✗ FAIL'}: showLoginScreen should show login and set flag, prevent duplicates`;
+            
+            result.textContent = output;
+            result.className = passed ? 'pass' : 'fail';
+        }
+
+        // Run tests on page load
+        window.addEventListener('load', () => {
+            testInitialState();
+        });
+    </script>
+</body>
+</html>

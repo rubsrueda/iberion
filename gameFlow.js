@@ -1166,34 +1166,25 @@ async function endTacticalBattle(winningPlayerNumber) {
         }
     }
 
-    // Si NO es una partida de red (no tiene miId), es local.
-    // Guardamos automáticamente en 'game_saves' para no perder el progreso si se cierra el navegador.
-    if ((typeof NetworkManager === 'undefined' || !NetworkManager.miId) && PlayerDataManager.currentPlayer) {
-        console.log("[Autosave] Guardando partida local contra la IA...");
+    // --- GUARDADO UNIFICADO: Todas las partidas se guardan igual ---
+    // El tipo de oponente (IA, jugador local, red) no afecta el sistema de guardado
+    // Esto simplifica la lógica y garantiza consistencia
+    if (PlayerDataManager.currentPlayer && typeof saveGameUnified === 'function') {
+        console.log("[GameFlow] Guardando partida (sistema unificado)...");
         
-        const saveName = `AUTOSAVE_LOCAL_VS_AI`;
-        const estadoGuardar = {
-            gameState: gameState,
-            board: board.map(row => row.map(hex => ({...hex, element: undefined}))),
-            units: units.map(u => ({...u, element: undefined})),
-            unitIdCounter: unitIdCounter,
-            timestamp: Date.now()
-        };
-
-        // Guardamos sin await para no bloquear la UI
-        supabaseClient
-            .from('game_saves')
-            .upsert({
-                save_name: saveName,
-                user_id: PlayerDataManager.currentPlayer.auth_id,
-                game_state: estadoGuardar,
-                board_state: estadoGuardar.board,
-                created_at: new Date().toISOString()
+        // El autosave toma un nombre genérico - UPSERT lo sobrescribe si existe
+        // Así no se acumulan autosaves, solo se guarda el más reciente
+        const autoSaveName = "AUTOSAVE_RECENT";
+        
+        saveGameUnified(autoSaveName, true)
+            .then(success => {
+                if (success) {
+                    console.log("[GameFlow] Partida guardada exitosamente (unificado)");
+                } else {
+                    console.warn("[GameFlow] Error al guardar partida en autosave unificado");
+                }
             })
-            .then(({ error }) => {
-                if(error) console.error("Error en autosave local:", error);
-                else console.log("Autosave local completado.");
-            });
+            .catch(err => console.error("[GameFlow] Excepción en autosave:", err));
     }
     
     // Sincronización con la nube al terminar
@@ -2101,6 +2092,13 @@ async function handleEndTurn(isHostProcessing = false) {
 
      // 3. GESTIÓN DEL SIGUIENTE TURNO (IA vs HUMANO vs RELOJ)
     const isNextPlayerAI = gameState.playerTypes[`player${gameState.currentPlayer}`]?.startsWith('ai_');
+    
+    // --- AUTOSAVE AUTOMÁTICO: Cada 5 turnos ---
+    if (gameState.turnNumber % 5 === 0 && PlayerDataManager.currentPlayer && typeof saveGameUnified === 'function') {
+        console.log(`[AutoSave] Guardando en turno ${gameState.turnNumber}...`);
+        saveGameUnified(`AUTOSAVE_TURN_${gameState.turnNumber}`, true)
+            .catch(err => console.warn("[AutoSave] Error:", err));
+    }
     
     if (isNextPlayerAI && gameState.currentPhase !== "gameOver") {
         // --- TURNO DE IA ---

@@ -4645,12 +4645,20 @@ input[type="range"] {
 
 .version-watermark {
     position: absolute;
-    top: 10px;
+    bottom: 10px;
     right: 15px;
     font-size: 14px;
     color: rgba(240, 230, 210, 0.4);
     pointer-events: none;
     z-index: 1000;
+    display: none; /* Oculto por defecto (móvil) */
+}
+
+/* Mostrar marca de agua solo en pantallas grandes */
+@media (min-width: 1024px) {
+    .version-watermark {
+        display: block;
+    }
 }
 
 /* Ajuste de legibilidad para la lista de construcción en tema oscuro */
@@ -5453,7 +5461,7 @@ body {
 }
 
 #loginScreen {
-    z-index: 99999 !important; /* Capa extrema para asegurar clic */
+    /* z-index management now handled by showScreen() function - DO NOT override here */
 }
 #loginScreen button {
     pointer-events: all !important; /* Forzar interactividad */

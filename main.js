@@ -150,21 +150,32 @@ function onHexClick(r, c) {
 function showScreen(screenElement) {
     console.log(`[showScreen] Intentando mostrar: ${screenElement ? screenElement.id : 'ninguna pantalla (ocultar todo)'}.`);
 
-    // Oculta todas las pantallas de ambos sistemas
+    // Oculta TODAS las pantallas, incluyendo el login explícitamente
     document.querySelectorAll('.modal, .modal-overlay').forEach(el => {
         if (el.classList.contains('modal-overlay')) {
             el.classList.remove('active');
-        } else if (!el.classList.contains('no-auto-hide')) { // Respeta los modales secundarios
-            el.style.display = 'none';
+        } else if (!el.classList.contains('no-auto-hide')) {
+            el.style.display = 'none !important';
         }
     });
+    
+    // Forzar ocultar el login específicamente para evitar z-index issues
+    const loginScreen = document.getElementById('loginScreen');
+    if (loginScreen && screenElement?.id !== 'loginScreen') {
+        loginScreen.style.display = 'none !important';
+        loginScreen.style.zIndex = '1000';
+    }
 
     // Muestra la pantalla solicitada
     if (screenElement) {
         if (screenElement.classList.contains('modal-overlay')) {
             screenElement.classList.add('active');
         } else {
-            screenElement.style.display = 'flex';
+            screenElement.style.display = 'flex !important';
+            // Asegurar que la pantalla mostrada tenga un z-index apropiado
+            if (screenElement.id === 'mainMenuScreen') {
+                screenElement.style.zIndex = '100';
+            }
         }
     }
 }
@@ -174,6 +185,9 @@ function showScreen(screenElement) {
 // ======================================================================
 
 const showMainMenu = () => {
+    // Reset the login screen flag to allow showing it again if needed
+    window.loginScreenShown = false;
+    
     if (PlayerDataManager.currentPlayer) {
         const newGeneralNameDisplay = document.getElementById('currentGeneralName_main');
         if (newGeneralNameDisplay) newGeneralNameDisplay.textContent = PlayerDataManager.currentPlayer.username;
@@ -183,9 +197,9 @@ const showMainMenu = () => {
         AudioManager.playMusic('menu_theme');
     }
 
-    //audio
-    if (typeof AudioManager !== 'undefined') {
-        AudioManager.playMusic('menu_theme');
+    // Asegurarse de ocultar explícitamente la pantalla de login
+    if (domElements.loginScreen) {
+        domElements.loginScreen.style.display = 'none !important';
     }
 
     // Forzamos que se muestre directamente el nuevo menú principal

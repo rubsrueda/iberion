@@ -314,7 +314,7 @@
     <!-- ====================================================================== -->
     <!-- ======================== PANTALLA DE LOGIN ========================= -->
     <!-- ====================================================================== -->
-    <div id="loginScreen" class="modal" style="display: flex; text-align: center; align-items: center; justify-content: center; background-color: rgba(0,0,0,0.9); z-index: 2000;">
+    <div id="loginScreen" class="modal" style="display: none; text-align: center; align-items: center; justify-content: center; background-color: rgba(0,0,0,0.9); z-index: 2000; position: fixed; top: 0; left: 0; width: 100%; height: 100%">
         <div class="modal-content" style="width: auto; min-width: 320px; max-width: 400px; padding: 40px 30px; border: 2px solid #ffd700; background: #1a1a1a; color: white;">
             
             <h1 style="color: #f1c40f; margin-bottom: 30px; letter-spacing: 2px; font-size: 2em;">IBERION</h1>
@@ -389,7 +389,7 @@
     <!-- ===================== PANTALLA DE MENÚ PRINCIPAL ===================== -->
     <!-- ====================================================================== -->
 
-    <div id="mainMenuScreen" class="modal no-close-on-click" style="display: flex;">
+    <div id="mainMenuScreen" class="modal no-close-on-click" style="display: flex; z-index: 100; position: relative; width: 100%; height: 100%;">
     <!-- Contenedor para los "Hotspots" o botones invisibles -->
         <div id="interactiveBoardContainer">
         <!-- Partida Rápida: Tablero hexagonal central -->
