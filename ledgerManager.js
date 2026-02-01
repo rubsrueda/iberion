@@ -13,17 +13,34 @@ const LedgerManager = {
      */
     open: function() {
         console.log('[LedgerManager] Abriendo cuaderno de estado...');
-        console.log('[LedgerManager] LedgerUI existe:', typeof LedgerUI !== 'undefined');
         this.isOpen = true;
         
+        // Método directo: buscar el modal y mostrarlo
+        const modal = document.getElementById('ledgerModal');
+        if (!modal) {
+            console.error('[LedgerManager] ❌ Modal #ledgerModal no existe en HTML');
+            return;
+        }
+        
+        console.log('[LedgerManager] Modal encontrado. Mostrando...');
+        modal.style.display = 'flex';
+        modal.style.position = 'fixed';
+        modal.style.left = '0';
+        modal.style.top = '0';
+        modal.style.width = '100%';
+        modal.style.height = '100%';
+        modal.style.zIndex = '9999';
+        modal.style.justifyContent = 'center';
+        modal.style.alignItems = 'center';
+        
+        console.log('[LedgerManager] ✅ Modal mostrado. Display:', modal.style.display);
+        
+        // También usar LedgerUI si está disponible
         if (typeof LedgerUI !== 'undefined') {
-            console.log('[LedgerManager] Llamando a LedgerUI.showModal()');
-            LedgerUI.showModal();
-            console.log('[LedgerManager] Llamando a updateAllDisplays()');
+            console.log('[LedgerManager] LedgerUI disponible, actualizando pantallas...');
             this.updateAllDisplays();
-            console.log('[LedgerManager] ✅ Cuaderno abierto');
         } else {
-            console.error('[LedgerManager] ❌ LedgerUI no está definido');
+            console.warn('[LedgerManager] ⚠️ LedgerUI no está disponible, pero modal está visible');
         }
     },
 
@@ -31,9 +48,14 @@ const LedgerManager = {
      * Cierra el cuaderno
      */
     close: function() {
+        console.log('[LedgerManager] Cerrando cuaderno de estado...');
         this.isOpen = false;
-        if (typeof LedgerUI !== 'undefined') {
-            LedgerUI.hideModal();
+        
+        // Método directo
+        const modal = document.getElementById('ledgerModal');
+        if (modal) {
+            modal.style.display = 'none';
+            console.log('[LedgerManager] ✅ Cuaderno cerrado');
         }
     },
 

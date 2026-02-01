@@ -76,13 +76,21 @@ const LedgerIntegration = {
         });
         ledgerBtn.addEventListener('click', () => {
             console.log('[LedgerIntegration] Botón Cuaderno clickeado');
-            console.log('[LedgerIntegration] LedgerManager existe:', typeof LedgerManager !== 'undefined');
-            console.log('[LedgerIntegration] LedgerUI existe:', typeof LedgerUI !== 'undefined');
+            // Método robusto: abrir modal directamente
+            const modal = document.getElementById('ledgerModal');
+            if (modal) {
+                console.log('[LedgerIntegration] Mostrando modal directamente...');
+                modal.style.display = 'flex';
+                modal.style.position = 'fixed';
+                console.log('[LedgerIntegration] ✅ Modal mostrado');
+            } else {
+                console.error('[LedgerIntegration] ❌ Modal #ledgerModal no encontrado');
+            }
+            
+            // También llamar a LedgerManager si está disponible
             if (typeof LedgerManager !== 'undefined') {
                 console.log('[LedgerIntegration] Llamando a LedgerManager.open()');
                 LedgerManager.open();
-            } else {
-                console.error('[LedgerIntegration] ❌ LedgerManager NO ESTÁ DEFINIDO');
             }
         });
 
