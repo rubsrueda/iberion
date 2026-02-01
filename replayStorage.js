@@ -19,6 +19,29 @@ const ReplayStorage = {
         return fallbackJson;
     },
 
+    _clampStringToMaxBytes: function(value, maxBytes, fallbackValue) {
+        const str = String(value ?? '');
+        return this._getByteLength(str) <= maxBytes ? str : fallbackValue;
+    },
+
+    _hashString: function(str) {
+        // FNV-1a 32-bit
+        let hash = 2166136261;
+        for (let i = 0; i < str.length; i++) {
+            hash ^= str.charCodeAt(i);
+            hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+        }
+        return (hash >>> 0).toString(36);
+    },
+
+    _normalizeId: function(id, prefix) {
+        if (!id) return `${prefix || 'id'}_${Date.now()}`;
+        const str = String(id);
+        if (this._getByteLength(str) <= 250) return str;
+        const hash = this._hashString(str);
+        return `${prefix || 'id'}_${hash}`;
+    },
+
     /**
      * Guarda un replay completo en Supabase
      */
@@ -52,22 +75,68 @@ const ReplayStorage = {
                 compressedTimeline = JSON.stringify({ t: replayData.timeline?.length || 0 });
             }
             
+            const safeMatchId = this._normalizeId(replayData.match_id, 'match');
+            const userId = String(PlayerDataManager.currentPlayer.auth_id || '');
+            const createdAt = new Date().toISOString();
+
+            const fieldSizes = {
+                match_id: this._getByteLength(safeMatchId),
+                user_id: this._getByteLength(userId),
+                metadata: this._getByteLength(finalMetadata),
+                timeline_compressed: this._getByteLength(compressedTimeline),
+                created_at: this._getByteLength(createdAt)
+            };
+            console.log('[ReplayStorage] Tamaños (bytes):', fieldSizes);
+
+            if (fieldSizes.user_id > 250) {
+                console.error('[ReplayStorage] user_id demasiado largo. Requiere ajuste de esquema o auth_id válido.');
+                return false;
+            }
+
+            const payload = {
+                match_id: safeMatchId,
+                user_id: userId,
+                metadata: finalMetadata,
+                timeline_compressed: compressedTimeline,
+                created_at: createdAt
+            };
+
             const { data, error } = await supabaseClient
                 .from('game_replays')
-                .insert([{
-                    match_id: replayData.match_id,
-                    user_id: PlayerDataManager.currentPlayer.auth_id,
-                    metadata: finalMetadata,
-                    timeline_compressed: compressedTimeline,
-                    created_at: new Date().toISOString()
-                }]);
+                .insert([payload]);
 
             if (error) {
                 console.error('[ReplayStorage] Error guardando replay:', error);
                 console.error('[ReplayStorage] Detalles:', error.details, error.message);
                 
                 if (error.code === '22001') {
-                    console.error('[ReplayStorage] Error por tamaño de datos. Revisa los campos de la tabla.');
+                    console.error('[ReplayStorage] Error por tamaño de datos. Reintento ultra-minimalista...');
+
+                    const ultraPayload = {
+                        match_id: this._normalizeId(safeMatchId, 'match'),
+                        user_id: userId,
+                        metadata: this._clampStringToMaxBytes(JSON.stringify({ t: Date.now() }), 250, '{}'),
+                        timeline_compressed: this._clampStringToMaxBytes(JSON.stringify({ t: replayData.timeline?.length || 0 }), 250, '{}'),
+                        created_at: this._clampStringToMaxBytes(createdAt, 250, '')
+                    };
+
+                    const { error: retryError } = await supabaseClient
+                        .from('game_replays')
+                        .insert([ultraPayload]);
+
+                    if (retryError) {
+                        console.error('[ReplayStorage] Reintento fallido:', retryError);
+                        console.error('[ReplayStorage] Tamaños reintento (bytes):', {
+                            match_id: this._getByteLength(ultraPayload.match_id),
+                            user_id: this._getByteLength(ultraPayload.user_id),
+                            metadata: this._getByteLength(ultraPayload.metadata),
+                            timeline_compressed: this._getByteLength(ultraPayload.timeline_compressed),
+                            created_at: this._getByteLength(ultraPayload.created_at)
+                        });
+                    } else {
+                        console.log('[ReplayStorage] Replay guardado con payload ultra-minimalista');
+                        return true;
+                    }
                 }
                 return false;
             }
