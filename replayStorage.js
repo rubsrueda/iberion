@@ -6,6 +6,19 @@
 
 const ReplayStorage = {
 
+    _getByteLength: function(str) {
+        try {
+            return new TextEncoder().encode(str).length;
+        } catch (err) {
+            return (str || '').length;
+        }
+    },
+
+    _clampJsonToMax: function(json, maxBytes, fallbackJson) {
+        if (this._getByteLength(json) <= maxBytes) return json;
+        return fallbackJson;
+    },
+
     /**
      * Guarda un replay completo en Supabase
      */
@@ -17,9 +30,9 @@ const ReplayStorage = {
 
         try {
             // Comprimir datos antes de guardar
-            const compressedTimeline = this.compressTimeline(replayData.timeline);
+            let compressedTimeline = this.compressTimeline(replayData.timeline);
             
-            console.log(`[ReplayStorage] Tamaño del timeline comprimido: ${compressedTimeline.length} bytes`);
+            console.log(`[ReplayStorage] Tamaño del timeline comprimido: ${this._getByteLength(compressedTimeline)} bytes`);
             
             // Metadata ya viene como string desde replayEngine.js
             let finalMetadata = replayData.metadata;
@@ -27,15 +40,16 @@ const ReplayStorage = {
                 finalMetadata = JSON.stringify(finalMetadata);
             }
             
-            // Truncar metadata a 250 caracteres por seguridad
-            finalMetadata = finalMetadata.substring(0, 250);
+            // Asegurar metadata <= 250 bytes (UTF-8)
+            if (this._getByteLength(finalMetadata) > 250) {
+                finalMetadata = JSON.stringify({ t: Date.now() });
+            }
             
             console.log(`[ReplayStorage] Tamaño de metadata: ${finalMetadata.length} bytes`);
             
             // Validar tamaños antes de insertar
-            if (compressedTimeline.length > 65000) {
-                console.error(`[ReplayStorage] Timeline demasiado grande (${compressedTimeline.length} bytes). No se guardará.`);
-                return false;
+            if (this._getByteLength(compressedTimeline) > 250) {
+                compressedTimeline = JSON.stringify({ t: replayData.timeline?.length || 0 });
             }
             
             const { data, error } = await supabaseClient
@@ -232,7 +246,7 @@ const ReplayStorage = {
             let json = JSON.stringify(compact);
 
             // Si sigue siendo muy largo después de limitar, reducir más
-            if (json.length > MAX_VARCHAR_LEN) {
+            if (this._getByteLength(json) > MAX_VARCHAR_LEN) {
                 // Usar solo turn, action, player (sin data)
                 const minimal = limited.map(event => [
                     event.turn || 0,
@@ -243,12 +257,12 @@ const ReplayStorage = {
             }
 
             // Si aún no cabe en VARCHAR(255), usar resumen ultra-compacto
-            if (json.length > MAX_VARCHAR_LEN) {
+            if (this._getByteLength(json) > MAX_VARCHAR_LEN) {
                 json = this.getUltraCompactTimeline(timeline);
             }
 
             // Fallback extremo: solo contar eventos
-            if (json.length > MAX_VARCHAR_LEN) {
+            if (this._getByteLength(json) > MAX_VARCHAR_LEN) {
                 json = JSON.stringify({ t: timeline.length });
             }
 
