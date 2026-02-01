@@ -275,7 +275,8 @@ async function mergeUnits(mergingUnit, targetUnit) {
     }
     const isEmbarking = REGIMENT_TYPES[targetUnit.regiments[0]?.type]?.is_naval && !REGIMENT_TYPES[mergingUnit.regiments[0]?.type]?.is_naval;
     const isLandMerge = !REGIMENT_TYPES[targetUnit.regiments[0]?.type]?.is_naval && !REGIMENT_TYPES[mergingUnit.regiments[0]?.type]?.is_naval;
-    if (!isEmbarking && !isLandMerge) {
+    const isNavalMerge = REGIMENT_TYPES[targetUnit.regiments[0]?.type]?.is_naval && REGIMENT_TYPES[mergingUnit.regiments[0]?.type]?.is_naval;
+    if (!isEmbarking && !isLandMerge && !isNavalMerge) {
         logMessage("Esta combinación de unidades no se puede fusionar.", "warning");
         return false;
     }

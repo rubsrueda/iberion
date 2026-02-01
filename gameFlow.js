@@ -1130,8 +1130,12 @@ async function endTacticalBattle(winningPlayerNumber) {
     const progress = await PlayerDataManager.syncMatchResult(xpGained, matchMetrics);
 
     // Llamar a la nueva pantalla de resultados
-    if (UIManager && UIManager.showPostMatchSummary) {
+    console.log("[endTacticalBattle] Verificando UIManager...", { hasUIManager: !!UIManager, hasMethod: !!(UIManager && UIManager.showPostMatchSummary) });
+    if (UIManager && typeof UIManager.showPostMatchSummary === 'function') {
+        console.log("[endTacticalBattle] Mostrando pantalla de resultados...");
         UIManager.showPostMatchSummary(playerWon, xpGained, progress, matchMetrics);
+    } else {
+        console.error("[endTacticalBattle] ¡ERROR! UIManager no tiene showPostMatchSummary. UIManager:", UIManager);
     }
 
     if (!gameState.isCampaignBattle) { 
@@ -1820,6 +1824,9 @@ function handleChangeCapital(r, c) {
 let handleEndTurnCallCount = 0; // Se pondría fuera de la función
 
 async function handleEndTurn(isHostProcessing = false) {
+
+async function handleEndTurn(isHostProcessing = false) {
+    try {
     
     // ESCUDO: Si por algún motivo el cajón no existe, lo creamos ahora mismo
     if (!gameState.matchSnapshots) gameState.matchSnapshots = [];
@@ -2175,6 +2182,12 @@ async function handleEndTurn(isHostProcessing = false) {
             
             if (typeof checkVictory === 'function') checkVictory();
         }
+    
+    } catch (err) {
+        console.error("[handleEndTurn] ERROR CRÍTICO DURANTE CAMBIO DE TURNO:", err);
+        console.error("[handleEndTurn] Stack:", err.stack);
+        logMessage(`⚠️ ERROR durante el cambio de turno: ${err.message}`, "error");
+    }
 }
 
 
