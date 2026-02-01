@@ -1832,6 +1832,14 @@
     <script src="replayStorage.js"></script>
     <script src="replayIntegration.js"></script>
     <script src="replayApi.js"></script>
+
+    <!-- NUEVOS SCRIPTS: CUADERNO DE ESTADO Y CRÓNICA -->
+    <script src="statTracker.js"></script>
+    <script src="ledgerManager.js"></script>
+    <script src="ledgerUI.js"></script>
+    <script src="ledgerIntegration.js"></script>
+    <script src="legacyManager.js"></script>
+    <script src="legacyUI.js"></script>
     
     <script src="main.js?v=1738082100"></script>
     
@@ -2107,6 +2115,391 @@
     
     <!-- Menú Radial Dinámico -->
     <div id="radialMenuContainer"></div>
-    
+
+    <!-- MODAL DEL CUADERNO DE ESTADO -->
+    <div id="ledgerModal" class="modal" style="display: none; background: rgba(0,0,0,0.95); z-index: 9999;">
+        <div style="
+            width: 95vw;
+            height: 95vh;
+            background: linear-gradient(135deg, #1a252f, #0f1a27);
+            border: 2px solid #00f3ff;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-shadow: 0 0 20px rgba(0,243,255,0.3);
+        ">
+            <div style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 20px;
+                border-bottom: 1px solid #00f3ff;
+            ">
+                <h2 style="color: #00f3ff; margin: 0; text-shadow: 0 0 10px #00f3ff;">📖 CUADERNO DE ESTADO</h2>
+                <button class="ledger-close" style="
+                    background: none;
+                    border: none;
+                    color: #00f3ff;
+                    font-size: 24px;
+                    cursor: pointer;
+                ">✕</button>
+            </div>
+
+            <!-- Pestañas -->
+            <div style="
+                display: flex;
+                gap: 10px;
+                padding: 15px 20px;
+                border-bottom: 1px solid #333;
+                background: rgba(0,0,0,0.3);
+            ">
+                <button data-tab="resumen" class="active ledger-tab" style="
+                    padding: 10px 20px;
+                    background: #00f3ff;
+                    color: #000;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-weight: bold;
+                    transition: all 0.2s;
+                ">📊 Resumen Nacional</button>
+                <button data-tab="demografia" class="ledger-tab" style="
+                    padding: 10px 20px;
+                    background: transparent;
+                    color: #00f3ff;
+                    border: 1px solid #00f3ff;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                ">📈 Demografía</button>
+                <button data-tab="militar" class="ledger-tab" style="
+                    padding: 10px 20px;
+                    background: transparent;
+                    color: #00f3ff;
+                    border: 1px solid #00f3ff;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                ">⚔️ Militar</button>
+                <button data-tab="economia" class="ledger-tab" style="
+                    padding: 10px 20px;
+                    background: transparent;
+                    color: #00f3ff;
+                    border: 1px solid #00f3ff;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                ">💰 Economía</button>
+            </div>
+
+            <!-- Contenido -->
+            <div style="
+                flex: 1;
+                overflow-y: auto;
+                padding: 20px;
+                color: #fff;
+            ">
+                <div data-content="resumen" style="display: block;"></div>
+                <div data-content="demografia" style="display: none;"></div>
+                <div data-content="militar" style="display: none;"></div>
+                <div data-content="economia" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE LA CRÓNICA (End Game Analysis) -->
+    <div id="legacyModal" class="modal" style="display: none; background: rgba(0,0,0,0.95); z-index: 9998;">
+        <div style="
+            width: 95vw;
+            height: 95vh;
+            background: linear-gradient(135deg, #2a1a0f, #1a0f05);
+            border: 3px solid #d4a574;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-shadow: 0 0 30px rgba(212,165,116,0.4);
+        ">
+            <div style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 20px;
+                border-bottom: 2px solid #d4a574;
+                background: linear-gradient(135deg, rgba(212,165,116,0.1), transparent);
+            ">
+                <h2 style="color: #d4a574; margin: 0; text-shadow: 0 0 15px #d4a574; font-family: Georgia, serif;">👑 LA CRÓNICA DEL IMPERIO 👑</h2>
+                <button class="legacy-close" style="
+                    background: none;
+                    border: none;
+                    color: #d4a574;
+                    font-size: 24px;
+                    cursor: pointer;
+                ">✕</button>
+            </div>
+
+            <!-- Pestañas -->
+            <div style="
+                display: flex;
+                gap: 10px;
+                padding: 15px 20px;
+                border-bottom: 1px solid #444;
+                background: rgba(0,0,0,0.5);
+                flex-wrap: wrap;
+            ">
+                <button data-legacy-tab="timeline" class="active" style="
+                    padding: 10px 20px;
+                    background: #d4a574;
+                    color: #2a1a0f;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-weight: bold;
+                    transition: all 0.2s;
+                ">📈 Línea de Tiempo</button>
+                <button data-legacy-tab="heatmap" style="
+                    padding: 10px 20px;
+                    background: transparent;
+                    color: #d4a574;
+                    border: 1px solid #d4a574;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                ">🗺️ Mapa de Expansión</button>
+                <button data-legacy-tab="narrative" style="
+                    padding: 10px 20px;
+                    background: transparent;
+                    color: #d4a574;
+                    border: 1px solid #d4a574;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                ">📖 Crónica Narrativa</button>
+                <button data-legacy-tab="combat" style="
+                    padding: 10px 20px;
+                    background: transparent;
+                    color: #d4a574;
+                    border: 1px solid #d4a574;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                ">⚔️ Análisis de Combate</button>
+            </div>
+
+            <!-- Contenido -->
+            <div style="
+                flex: 1;
+                overflow-y: auto;
+                padding: 20px;
+                color: #e8dcc0;
+                font-family: Georgia, serif;
+            ">
+                <div data-legacy-content="timeline" style="display: block;"></div>
+                <div data-legacy-content="heatmap" style="display: none;"></div>
+                <div data-legacy-content="narrative" style="display: none;"></div>
+                <div data-legacy-content="combat" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ESTILOS PARA CUADERNO Y CRÓNICA -->
+    <style>
+        .ledger-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            background: rgba(0,243,255,0.05);
+            border-left: 3px solid #00f3ff;
+            border-radius: 4px;
+        }
+
+        .ledger-section h3 {
+            color: #00f3ff;
+            margin-top: 0;
+            text-shadow: 0 0 5px #00f3ff;
+        }
+
+        .ledger-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .ledger-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid #00f3ff;
+            border-radius: 4px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            text-align: center;
+        }
+
+        .ledger-card.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .ledger-card .label {
+            font-size: 0.9em;
+            color: #aaa;
+        }
+
+        .ledger-card .value {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #00f3ff;
+        }
+
+        .ledger-card .value.income {
+            color: #4caf50;
+        }
+
+        .ledger-card .value.expense {
+            color: #f44336;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 5px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4caf50, #00f3ff);
+            transition: width 0.3s;
+        }
+
+        .progress-mini {
+            height: 4px;
+            background: #4caf50;
+            border-radius: 2px;
+            display: inline-block;
+        }
+
+        .ledger-table-container {
+            overflow-x: auto;
+            border: 1px solid #00f3ff;
+            border-radius: 4px;
+        }
+
+        .ledger-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9em;
+        }
+
+        .ledger-table th {
+            background: rgba(0,243,255,0.2);
+            color: #00f3ff;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+            border-bottom: 1px solid #00f3ff;
+        }
+
+        .ledger-table td {
+            padding: 10px;
+            border-bottom: 1px solid #333;
+            color: #ddd;
+        }
+
+        .ledger-table tr:hover {
+            background: rgba(0,243,255,0.1);
+        }
+
+        .ledger-table tr.highlight-row {
+            background: rgba(76,175,80,0.1);
+            font-weight: bold;
+        }
+
+        /* Estilos para Crónica */
+        .narrative-log {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .narrative-entry {
+            padding: 12px;
+            background: rgba(212,165,116,0.1);
+            border-left: 3px solid #d4a574;
+            border-radius: 4px;
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        .narrative-icon {
+            font-size: 1.3em;
+            min-width: 30px;
+            text-align: center;
+        }
+
+        .narrative-text {
+            flex: 1;
+            line-height: 1.4;
+        }
+
+        .legacy-chart {
+            margin: 20px 0;
+        }
+
+        .legacy-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 4px;
+        }
+
+        .legacy-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85em;
+        }
+
+        .legacy-table th {
+            background: rgba(212,165,116,0.2);
+            color: #d4a574;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+            border-bottom: 2px solid #d4a574;
+        }
+
+        .legacy-table td {
+            padding: 10px;
+            border-bottom: 1px solid #444;
+            color: #e8dcc0;
+        }
+
+        .legacy-table tr:hover {
+            background: rgba(212,165,116,0.1);
+        }
+
+        .heatmap-hex:hover {
+            opacity: 0.8 !important;
+            box-shadow: 0 0 10px rgba(255,255,255,0.3) !important;
+        }
+
+        .ledger-tab.active {
+            background: #00f3ff !important;
+            color: #000 !important;
+        }
+
+        [data-legacy-tab].active {
+            background: #d4a574 !important;
+            color: #2a1a0f !important;
+        }
+    </style>
+
 </body>
 </html>

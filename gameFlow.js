@@ -1180,6 +1180,19 @@ async function endTacticalBattle(winningPlayerNumber) {
         replayData = await ReplayIntegration.finishGameRecording(winningPlayerNumber, gameState.turnNumber);
         console.log('[endTacticalBattle] Replay guardado:', replayData ? 'exitoso' : 'fallido');
     }
+
+    // <<== FINALIZAR ESTADÍSTICAS Y MOSTRAR CRÓNICA ==>>
+    if (typeof StatTracker !== 'undefined') {
+        const gameStats = StatTracker.finalize(winningPlayerNumber);
+        console.log('[endTacticalBattle] Estadísticas finalizadas:', gameStats ? 'exitoso' : 'fallido');
+        
+        // Mostrar La Crónica
+        if (typeof LegacyManager !== 'undefined') {
+            setTimeout(() => {
+                LegacyManager.open(winningPlayerNumber);
+            }, 500);
+        }
+    }
     
     if (PlayerDataManager.currentPlayer && typeof saveGameUnified === 'function') {
         console.log("[GameFlow] Guardando partida (sistema unificado)...");
@@ -2010,6 +2023,11 @@ async function handleEndTurn(isHostProcessing = false) {
             // 2. Si volvemos al jugador 1, es una nueva ronda. (Se comprueba solo al principio del ciclo)
             if (nextPlayer === 1 && attempts === 0) { 
                 gameState.turnNumber++;
+                
+                // <<== REGISTRAR ESTADÍSTICAS DEL TURNO ==>>
+                if (typeof StatTracker !== 'undefined') {
+                    StatTracker.recordTurnStats(gameState.turnNumber, playerEndingTurn);
+                }
                 
                 // Snapshot de poder para gráficas
                 const p1Power = units.filter(u => u.player === 1).reduce((sum, u) => sum + u.currentHealth, 0);

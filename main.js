@@ -1262,6 +1262,24 @@ function initApp() {
                 console.log('[Main] ReplayEngine inicializado');
             }
 
+            // <<== INICIALIZAR STAT TRACKER ==>>
+            if (typeof StatTracker !== 'undefined') {
+                StatTracker.initialize(numPlayers);
+                console.log('[Main] StatTracker inicializado');
+            }
+
+            // <<== INICIALIZAR LEDGER UI ==>>
+            if (typeof LedgerUI !== 'undefined') {
+                LedgerUI.initialize();
+                console.log('[Main] LedgerUI inicializado');
+            }
+
+            // <<== INICIALIZAR LEGACY UI ==>>
+            if (typeof LegacyUI !== 'undefined') {
+                LegacyUI.initialize();
+                console.log('[Main] LegacyUI inicializado');
+            }
+
                 // 5. Transición de Pantalla
                 if (typeof showScreen === "function" && domElements.gameContainer) { 
             showScreen(domElements.gameContainer);
