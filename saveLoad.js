@@ -317,6 +317,13 @@ async function saveGameUnifiedInternal(saveName, isAutoSave = false) {
             }
             return false;
         }
+    } catch (error) {
+        console.error("[SaveGame] Error inesperado en saveGameUnifiedInternal:", error);
+        if (!isAutoSave) {
+            logMessage("Error inesperado al guardar: " + error.message, "error");
+        }
+        return false;
+    }
 }
 
 /**
