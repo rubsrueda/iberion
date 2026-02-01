@@ -208,7 +208,8 @@ const ReplayStorage = {
      */
     compressTimeline: function(timeline) {
         try {
-            // Limitar a máximo 100 eventos para reduce tamaño
+            const MAX_VARCHAR_LEN = 250;
+            // Limitar a máximo 100 eventos para reducir tamaño
             const limited = timeline.slice(0, 100);
             
             // Crear representación ultra-compacta del timeline
@@ -228,19 +229,29 @@ const ReplayStorage = {
             ]);
             
             // Serializar a JSON lo más compacto posible
-            const json = JSON.stringify(compact);
-            
+            let json = JSON.stringify(compact);
+
             // Si sigue siendo muy largo después de limitar, reducir más
-            if (json.length > 200) {
+            if (json.length > MAX_VARCHAR_LEN) {
                 // Usar solo turn, action, player (sin data)
                 const minimal = limited.map(event => [
                     event.turn || 0,
                     event.action || '',
                     event.player || 0
                 ]);
-                return JSON.stringify(minimal);
+                json = JSON.stringify(minimal);
             }
-            
+
+            // Si aún no cabe en VARCHAR(255), usar resumen ultra-compacto
+            if (json.length > MAX_VARCHAR_LEN) {
+                json = this.getUltraCompactTimeline(timeline);
+            }
+
+            // Fallback extremo: solo contar eventos
+            if (json.length > MAX_VARCHAR_LEN) {
+                json = JSON.stringify({ t: timeline.length });
+            }
+
             return json;
         } catch (err) {
             console.error('[ReplayStorage] Error comprimiendo timeline:', err);
