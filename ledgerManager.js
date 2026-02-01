@@ -13,54 +13,33 @@ const LedgerManager = {
      */
     open: function() {
         console.log('[LedgerManager] Abriendo cuaderno de estado...');
-        console.log('[LedgerManager] document ready:', document.readyState);
         this.isOpen = true;
         
-        try {
-            // Método directo: buscar el modal y mostrarlo
-            console.log('[LedgerManager] Buscando modal #ledgerModal...');
-            const modal = document.getElementById('ledgerModal');
-            console.log('[LedgerManager] Resultado de getElementById:', modal);
-            console.log('[LedgerManager] Modal es null:', modal === null);
-            console.log('[LedgerManager] Modal es undefined:', modal === undefined);
-            
-            if (!modal) {
-                console.error('[LedgerManager] ❌ Modal #ledgerModal NO EXISTE en HTML');
-                console.error('[LedgerManager] Intentando encontrar CUALQUIER elemento con "ledger"');
-                const allElements = document.querySelectorAll('[id*="ledger"]');
-                console.log('[LedgerManager] Elementos con "ledger" en id:', allElements.length);
-                allElements.forEach((el, i) => {
-                    console.log(`  [${i}] ${el.id}: ${el.tagName}`);
-                });
-                return;
-            }
-            
-            console.log('[LedgerManager] ✅ Modal encontrado!');
-            console.log('[LedgerManager] Modal HTML:', modal.outerHTML.substring(0, 100));
-            
-            console.log('[LedgerManager] Aplicando estilos...');
-            modal.style.display = 'flex';
-            modal.style.position = 'fixed';
-            modal.style.left = '0';
-            modal.style.top = '0';
-            modal.style.width = '100%';
-            modal.style.height = '100%';
-            modal.style.zIndex = '9999';
-            modal.style.justifyContent = 'center';
-            modal.style.alignItems = 'center';
-            
-            console.log('[LedgerManager] ✅ Estilos aplicados. Display final:', modal.style.display);
-            
-            // También usar LedgerUI si está disponible
-            if (typeof LedgerUI !== 'undefined') {
-                console.log('[LedgerManager] LedgerUI disponible, actualizando pantallas...');
-                this.updateAllDisplays();
-            } else {
-                console.warn('[LedgerManager] ⚠️ LedgerUI no está disponible, pero modal está visible');
-            }
-        } catch (error) {
-            console.error('[LedgerManager] ❌ ERROR CAPTURADO:', error);
-            console.error(error.stack);
+        const modal = document.getElementById('ledgerModal');
+        if (!modal) {
+            console.error('[LedgerManager] ❌ Modal #ledgerModal no existe en HTML');
+            return;
+        }
+        
+        console.log('[LedgerManager] Modal encontrado. Aplicando estilos con !important...');
+        
+        // Usar !important para anular el CSS global .modal { display: none }
+        modal.style.setProperty('display', 'flex', 'important');
+        modal.style.setProperty('position', 'fixed', 'important');
+        modal.style.setProperty('left', '0', 'important');
+        modal.style.setProperty('top', '0', 'important');
+        modal.style.setProperty('width', '100%', 'important');
+        modal.style.setProperty('height', '100%', 'important');
+        modal.style.setProperty('z-index', '9999', 'important');
+        modal.style.setProperty('justify-content', 'center', 'important');
+        modal.style.setProperty('align-items', 'center', 'important');
+        
+        console.log('[LedgerManager] ✅ Modal mostrado con !important');
+        
+        // También usar LedgerUI si está disponible
+        if (typeof LedgerUI !== 'undefined') {
+            console.log('[LedgerManager] Actualizando pantallas...');
+            this.updateAllDisplays();
         }
     },
 
@@ -74,7 +53,7 @@ const LedgerManager = {
         // Método directo
         const modal = document.getElementById('ledgerModal');
         if (modal) {
-            modal.style.display = 'none';
+            modal.style.setProperty('display', 'none', 'important');
             console.log('[LedgerManager] ✅ Cuaderno cerrado');
         }
     },

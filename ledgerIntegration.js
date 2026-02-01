@@ -77,37 +77,32 @@ const LedgerIntegration = {
         ledgerBtn.addEventListener('click', () => {
             console.log('[LedgerIntegration.onclick] Botón Cuaderno clickeado');
             try {
-                // Método robusto: abrir modal directamente
-                console.log('[LedgerIntegration.onclick] Buscando modal #ledgerModal...');
                 const modal = document.getElementById('ledgerModal');
                 console.log('[LedgerIntegration.onclick] Modal encontrado:', !!modal);
                 
                 if (modal) {
-                    console.log('[LedgerIntegration.onclick] Mostrando modal directamente...');
-                    modal.style.display = 'flex';
-                    modal.style.position = 'fixed';
-                    modal.style.left = '0';
-                    modal.style.top = '0';
-                    modal.style.width = '100%';
-                    modal.style.height = '100%';
-                    modal.style.zIndex = '9999';
-                    modal.style.justifyContent = 'center';
-                    modal.style.alignItems = 'center';
-                    console.log('[LedgerIntegration.onclick] ✅ Modal mostrado. Display:', modal.style.display);
+                    console.log('[LedgerIntegration.onclick] Aplicando estilos con !important...');
+                    // Usar setProperty con !important para anular el CSS global
+                    modal.style.setProperty('display', 'flex', 'important');
+                    modal.style.setProperty('position', 'fixed', 'important');
+                    modal.style.setProperty('left', '0', 'important');
+                    modal.style.setProperty('top', '0', 'important');
+                    modal.style.setProperty('width', '100%', 'important');
+                    modal.style.setProperty('height', '100%', 'important');
+                    modal.style.setProperty('z-index', '9999', 'important');
+                    modal.style.setProperty('justify-content', 'center', 'important');
+                    modal.style.setProperty('align-items', 'center', 'important');
+                    console.log('[LedgerIntegration.onclick] ✅ Modal mostrado');
                 } else {
-                    console.error('[LedgerIntegration.onclick] ❌ Modal #ledgerModal no encontrado');
+                    console.error('[LedgerIntegration.onclick] ❌ Modal no encontrado');
                 }
                 
-                // También llamar a LedgerManager si está disponible
                 if (typeof LedgerManager !== 'undefined') {
                     console.log('[LedgerIntegration.onclick] Llamando a LedgerManager.open()');
                     LedgerManager.open();
-                } else {
-                    console.error('[LedgerIntegration.onclick] ❌ LedgerManager no está disponible');
                 }
             } catch (error) {
                 console.error('[LedgerIntegration.onclick] ❌ ERROR:', error);
-                console.error(error.stack);
             }
         });
 
