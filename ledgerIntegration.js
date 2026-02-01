@@ -59,6 +59,7 @@ const LedgerIntegration = {
         `;
 
         // Botón del Cuaderno de Estado
+        console.log('%c[LedgerIntegration._addButtonToUI] 🎨 CREANDO BOTÓN...', 'background: cyan; color: black; font-size: 14px;');
         const ledgerBtn = document.createElement('button');
         ledgerBtn.id = 'btn-open-ledger';
         ledgerBtn.textContent = '📖 Cuaderno';
@@ -72,7 +73,11 @@ const LedgerIntegration = {
             font-weight: bold;
             font-size: 0.9em;
             transition: all 0.2s;
+            pointer-events: auto;
         `;
+        console.log('[LedgerIntegration._addButtonToUI] Botón creado:', ledgerBtn);
+        console.log('[LedgerIntegration._addButtonToUI] Botón ID:', ledgerBtn.id);
+        console.log('[LedgerIntegration._addButtonToUI] Botón textContent:', ledgerBtn.textContent);
         ledgerBtn.addEventListener('mouseover', (e) => {
             e.target.style.background = '#00ddee';
             e.target.style.boxShadow = '0 0 10px rgba(0,243,255,0.5)';
@@ -81,9 +86,17 @@ const LedgerIntegration = {
             e.target.style.background = '#00f3ff';
             e.target.style.boxShadow = 'none';
         });
-        ledgerBtn.addEventListener('click', () => {
-            console.log('%c[LedgerIntegration.onclick] 🔥 BOTÓN CUADERNO CLICKEADO 🔥', 'background: orange; color: black; font-size: 18px; padding: 10px;');
+        ledgerBtn.addEventListener('click', (e) => {
+            console.log('%c🚨🚨🚨 CLICK DETECTADO EN BOTÓN CUADERNO 🚨🚨🚨', 'background: red; color: yellow; font-size: 24px; padding: 20px; border: 5px solid yellow;');
+            alert('CLICK EN BOTÓN CUADERNO - VER CONSOLA');
+            console.log('[LedgerIntegration.onclick] Event:', e);
             console.log('[LedgerIntegration.onclick] Timestamp:', new Date().toISOString());
+            console.log('[LedgerIntegration.onclick] Target:', e.target);
+            
+            // PARAR TODO PROPAGACIÓN
+            e.stopPropagation();
+            e.preventDefault();
+            
             try {
                 console.log('[LedgerIntegration.onclick] Buscando modal...');
                 const modal = document.getElementById('ledgerModal');
@@ -107,8 +120,10 @@ const LedgerIntegration = {
                         overflow: auto !important;
                     `);
                     console.log('[LedgerIntegration.onclick] ✅ Modal mostrado (NUCLEAR)');
+                    alert('MODAL MOSTRADO - VERIFICAR PANTALLA');
                 } else {
                     console.error('[LedgerIntegration.onclick] ❌ Modal no encontrado');
+                    alert('ERROR: Modal no encontrado');
                 }
                 
                 console.log('[LedgerIntegration.onclick] Verificando LedgerManager...');
