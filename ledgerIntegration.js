@@ -4,6 +4,9 @@
  * Agrega botón de acceso sin modificar archivos existentes
  */
 
+console.log('%c🔥🔥🔥 LEDGER INTEGRATION CARGADO 🔥🔥🔥', 'background: purple; color: yellow; font-size: 20px; padding: 10px;');
+console.log('[ledgerIntegration.js] Archivo cargado en:', new Date().toISOString());
+
 const LedgerIntegration = {
     initialized: false,
 
@@ -11,9 +14,13 @@ const LedgerIntegration = {
      * Inicializa la integración - llamar después de que DOM esté listo
      */
     initialize: function() {
-        if (this.initialized) return;
+        console.log('%c[LedgerIntegration.initialize] 🚀 INICIANDO INTEGRACIÓN', 'background: blue; color: white; font-size: 16px; padding: 5px;');
+        if (this.initialized) {
+            console.log('[LedgerIntegration.initialize] Ya inicializado, saliendo...');
+            return;
+        }
         
-        console.log('[LedgerIntegration] Inicializando...');
+        console.log('[LedgerIntegration.initialize] Primera inicialización...');
         
         // Esperar a que el DOM esté listo
         if (document.readyState === 'loading') {
@@ -75,10 +82,13 @@ const LedgerIntegration = {
             e.target.style.boxShadow = 'none';
         });
         ledgerBtn.addEventListener('click', () => {
-            console.log('[LedgerIntegration.onclick] Botón Cuaderno clickeado');
+            console.log('%c[LedgerIntegration.onclick] 🔥 BOTÓN CUADERNO CLICKEADO 🔥', 'background: orange; color: black; font-size: 18px; padding: 10px;');
+            console.log('[LedgerIntegration.onclick] Timestamp:', new Date().toISOString());
             try {
+                console.log('[LedgerIntegration.onclick] Buscando modal...');
                 const modal = document.getElementById('ledgerModal');
                 console.log('[LedgerIntegration.onclick] Modal encontrado:', !!modal);
+                console.log('[LedgerIntegration.onclick] Modal object:', modal);
                 
                 if (modal) {
                     console.log('[LedgerIntegration.onclick] Aplicando estilos NUCLEARES...');
@@ -101,12 +111,20 @@ const LedgerIntegration = {
                     console.error('[LedgerIntegration.onclick] ❌ Modal no encontrado');
                 }
                 
+                console.log('[LedgerIntegration.onclick] Verificando LedgerManager...');
+                console.log('[LedgerIntegration.onclick] LedgerManager definido?', typeof LedgerManager !== 'undefined');
                 if (typeof LedgerManager !== 'undefined') {
-                    console.log('[LedgerIntegration.onclick] Llamando a LedgerManager.open()');
+                    console.log('[LedgerIntegration.onclick] ✅ LedgerManager disponible');
+                    console.log('[LedgerIntegration.onclick] Llamando a LedgerManager.open()...');
                     LedgerManager.open();
+                    console.log('[LedgerIntegration.onclick] ✅ LedgerManager.open() ejecutado');
+                } else {
+                    console.error('[LedgerIntegration.onclick] ❌ LedgerManager NO DISPONIBLE');
                 }
             } catch (error) {
-                console.error('[LedgerIntegration.onclick] ❌ ERROR:', error);
+                console.error('%c[LedgerIntegration.onclick] ❌ ERROR FATAL', 'background: red; color: white; font-size: 16px; padding: 5px;');
+                console.error('[LedgerIntegration.onclick] Error:', error);
+                console.error('[LedgerIntegration.onclick] Stack:', error.stack);
             }
         });
 
@@ -115,12 +133,16 @@ const LedgerIntegration = {
         // Insertar al inicio del top-bar-menu (o antes de otros elementos)
         const infoContainer = topBar.querySelector('#top-bar-info');
         if (infoContainer) {
+            console.log('[LedgerIntegration._addButtonToUI] Insertando antes de #top-bar-info');
             topBar.insertBefore(ledgerButtonsDiv, infoContainer);
         } else {
+            console.log('[LedgerIntegration._addButtonToUI] Insertando al inicio de top-bar-menu');
             topBar.insertBefore(ledgerButtonsDiv, topBar.firstChild);
         }
 
-        console.log('[LedgerIntegration] Botón del Cuaderno agregado al menú superior');
+        console.log('%c[LedgerIntegration._addButtonToUI] ✅ BOTÓN CREADO Y AÑADIDO', 'background: green; color: white; font-size: 14px; padding: 5px;');
+        console.log('[LedgerIntegration._addButtonToUI] Botón ID:', ledgerBtn.id);
+        console.log('[LedgerIntegration._addButtonToUI] Botón en DOM:', document.getElementById('btn-open-ledger'));
     },
 
     /**

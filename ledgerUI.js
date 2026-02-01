@@ -4,6 +4,9 @@
  * Modal con 4 pestañas con diseño premium
  */
 
+console.log('%c🔥🔥🔥 LEDGER UI CARGADO 🔥🔥🔥', 'background: green; color: yellow; font-size: 20px; padding: 10px;');
+console.log('[ledgerUI.js] Archivo cargado en:', new Date().toISOString());
+
 const LedgerUI = {
     modalElement: null,
     isVisible: false,
