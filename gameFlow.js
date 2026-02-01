@@ -1670,8 +1670,8 @@ function selectNextIdleUnit() {
 
     // Selecciona la unidad y centra la vista (necesitaremos una función para centrar)
     if (nextUnitToSelect) {
-        // 1. Forzar el cierre de cualquier modal abierto (Reforzar, Construir, etc.)
-        document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+        // 1. Forzar el cierre de cualquier modal abierto (Reforzar, Construir, etc.) EXCEPTO ledgerModal y legacyModal
+        document.querySelectorAll('.modal:not(#ledgerModal):not(#legacyModal)').forEach(m => m.style.display = 'none');
         
         // 2. Si el panel contextual está oculto por el botón ▲, lo preparamos para que se vea
         const reopenBtn = document.getElementById('reopenContextualPanelBtn');

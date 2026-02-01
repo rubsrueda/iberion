@@ -435,8 +435,8 @@ const RaidManager = {
             
             // Mostrar pantalla de juego
             if (domElements.gameContainer) {
-                // Ocultar todos los modales
-                document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+                // Ocultar todos los modales EXCEPTO ledgerModal y legacyModal
+                document.querySelectorAll('.modal:not(#ledgerModal):not(#legacyModal)').forEach(m => m.style.display = 'none');
                 
                 // Mostrar juego
                 showScreen(domElements.gameContainer);
@@ -596,8 +596,8 @@ const RaidManager = {
         
         console.log("[Raid] Cargando mapa de incursión. Etapa:", stageNum, "Config:", config);
         
-        // Cerrar todos los modales
-        document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+        // Cerrar todos los modales EXCEPTO ledgerModal y legacyModal
+        document.querySelectorAll('.modal:not(#ledgerModal):not(#legacyModal)').forEach(m => m.style.display = 'none');
         
         // Iniciar mapa
         if (typeof initializeRaidMap === 'function') {
