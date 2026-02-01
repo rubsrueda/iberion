@@ -32,9 +32,13 @@ const ReplayIntegration = {
      * Inicia el registro de una partida
      */
     startGameRecording: function(matchId, mapSeed, playersInfo) {
+        console.log('[ReplayIntegration] startGameRecording llamado con:', { matchId, mapSeed, playersInfoLength: playersInfo?.length });
+        
         if (typeof ReplayEngine !== 'undefined') {
             ReplayEngine.initialize(matchId, mapSeed, playersInfo);
-            console.log('[ReplayIntegration] Grabación iniciada para:', matchId);
+            console.log('[ReplayIntegration] ✅ ReplayEngine.initialize() ejecutado. isEnabled:', ReplayEngine.isEnabled);
+        } else {
+            console.error('[ReplayIntegration] ❌ ReplayEngine NO ESTÁ DEFINIDO');
         }
     },
 
@@ -96,17 +100,29 @@ const ReplayIntegration = {
      * Finaliza la grabación al terminar la partida
      */
     finishGameRecording: async function(winner, totalTurns) {
+        console.log('[ReplayIntegration] finishGameRecording llamado con:', { winner, totalTurns, replayEnabled: ReplayEngine?.isEnabled });
+        
         if (typeof ReplayEngine !== 'undefined' && ReplayEngine.isEnabled) {
             const replayData = ReplayEngine.finalize(winner, totalTurns);
+            console.log('[ReplayIntegration] ReplayEngine finalizado. replayData:', replayData);
             
             // Guardar en Supabase
             if (typeof ReplayStorage !== 'undefined') {
+                console.log('[ReplayIntegration] Llamando a ReplayStorage.saveReplay...');
                 const saved = await ReplayStorage.saveReplay(replayData);
+                console.log('[ReplayIntegration] saveReplay retornó:', saved);
+                
                 if (saved) {
-                    console.log('[ReplayIntegration] Replay guardado en Supabase');
+                    console.log('[ReplayIntegration] ✅ Replay guardado exitosamente en Supabase');
                     return replayData;
+                } else {
+                    console.error('[ReplayIntegration] ❌ saveReplay retornó false');
                 }
+            } else {
+                console.error('[ReplayIntegration] ❌ ReplayStorage NO está definido');
             }
+        } else {
+            console.warn('[ReplayIntegration] ReplayEngine no está habilitado o no definido');
         }
         return null;
     }

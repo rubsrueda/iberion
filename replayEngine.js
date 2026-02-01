@@ -17,6 +17,8 @@ const ReplayEngine = {
      * Inicializa el motor de replay al comenzar una partida
      */
     initialize: function(matchId, mapSeed, playersInfo) {
+        console.log('[ReplayEngine] initialize() llamado con matchId:', matchId);
+        
         this.matchId = matchId;
         this.mapSeed = mapSeed;
         this.players = playersInfo || [];
@@ -25,7 +27,7 @@ const ReplayEngine = {
         this.isEnabled = true;
         this.startTime = Date.now();
         
-        console.log(`[ReplayEngine] Inicializado para partida ${matchId}`);
+        console.log(`[ReplayEngine] ✅ Inicializado. isEnabled=${this.isEnabled}, matchId=${matchId}, players=${this.players.length}`);
     },
 
     /**
@@ -135,7 +137,12 @@ const ReplayEngine = {
      * Finaliza el registro al terminar la partida
      */
     finalize: function(winner, totalTurns) {
-        if (!this.isEnabled) return;
+        console.log('[ReplayEngine] finalize() llamado con:', { winner, totalTurns, isEnabled: this.isEnabled });
+        
+        if (!this.isEnabled) {
+            console.warn('[ReplayEngine] ReplayEngine NO ESTÁ HABILITADO');
+            return null;
+        }
         
         // Crear metadata ULTRA-MINIMALISTA para caber en VARCHAR(255)
         const metadataObj = {
@@ -149,6 +156,7 @@ const ReplayEngine = {
         const metadataStr = JSON.stringify(metadataObj);
         
         console.log(`[ReplayEngine] Tamaño de metadata: ${metadataStr.length} bytes`);
+        console.log(`[ReplayEngine] matchId: ${this.matchId}, timeline.length: ${this.timeline.length}`);
         
         const replayData = {
             match_id: this.matchId,
@@ -156,7 +164,8 @@ const ReplayEngine = {
             timeline: this.timeline
         };
         
-        console.log(`[ReplayEngine] Replay finalizado: ${this.timeline.length} turnos registrados`);
+        console.log(`[ReplayEngine] ✅ Replay finalizado: ${this.timeline.length} turnos registrados`);
+        console.log('[ReplayEngine] replayData completo:', replayData);
         
         this.isEnabled = false;
         return replayData;

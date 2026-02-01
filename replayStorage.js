@@ -134,14 +134,15 @@ const ReplayStorage = {
                             created_at: this._getByteLength(ultraPayload.created_at)
                         });
                     } else {
-                        console.log('[ReplayStorage] Replay guardado con payload ultra-minimalista');
+                        console.log('[ReplayStorage] ✅ Replay guardado con payload ultra-minimalista');
                         return true;
                     }
                 }
                 return false;
             }
 
-            console.log(`[ReplayStorage] Replay ${replayData.match_id} guardado exitosamente`);
+            console.log(`[ReplayStorage] ✅ Replay ${safeMatchId} guardado exitosamente en Supabase`);
+            console.log(`[ReplayStorage] Payload enviado:`, payload);
             return true;
 
         } catch (err) {
