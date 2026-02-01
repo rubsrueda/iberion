@@ -2219,12 +2219,20 @@ function updateTradeRoutes(playerNum) {
             console.warn(`[TradeRoute] unit.movement no definido para ${unit.name}. Usando ${movesLeft} del regimiento.`);
         }
         
-        // Guardar posición anterior para debugging
+        // Guardar posición anterior para debugging Y para limpiar correctamente
         const previousPos = { r: unit.r, c: unit.c };
+        const oldR = unit.r;
+        const oldC = unit.c;
         
         // Quitar de la rejilla para evitar auto-bloqueo durante el bucle
         if (board[unit.r] && board[unit.r][unit.c]) {
             board[unit.r][unit.c].unit = null;
+        }
+        
+        // También limpiar de UnitGrid para evitar auto-bloqueo
+        if (typeof UnitGrid !== 'undefined') {
+            const key = UnitGrid._toKey ? UnitGrid._toKey(unit.r, unit.c) : `${unit.r},${unit.c}`;
+            UnitGrid.grid.delete(key);
         }
 
         while (movesLeft > 0) {
@@ -2306,9 +2314,6 @@ function updateTradeRoutes(playerNum) {
         }
 
         // --- PASO 3: FINALIZAR POSICIÓN ---
-        const oldR = unit.r;
-        const oldC = unit.c;
-        
         // <<== CORRECCIÓN CRÍTICA: Verificar que la ruta aún existe antes de leerla ==>>
         if (unit.tradeRoute && unit.tradeRoute.path) {
             const finalCoords = unit.tradeRoute.path[unit.tradeRoute.position];
@@ -2317,23 +2322,18 @@ function updateTradeRoutes(playerNum) {
             if (finalCoords) {
                 unit.r = finalCoords.r;
                 unit.c = finalCoords.c;
-                console.log(`[TradeRoute] ${unit.name} movida a (${unit.r},${unit.c}), position=${unit.tradeRoute.position}/${unit.tradeRoute.path.length}`);
+                console.log(`[TradeRoute] ${unit.name} movida de (${oldR},${oldC}) a (${unit.r},${unit.c}), position=${unit.tradeRoute.position}/${unit.tradeRoute.path.length}`);
             } else {
                 console.warn(`[TradeRoute] ADVERTENCIA: finalCoords es undefined para ${unit.name} en position ${unit.tradeRoute.position}`);
+                // Restaurar posición original si no hay coordenadas válidas
+                unit.r = oldR;
+                unit.c = oldC;
             }
         } else {
-            // Si la ruta se borró, la unidad se queda donde estaba en la última iteración válida (currentPos)
-            console.warn(`[TradeRoute] ADVERTENCIA: Ruta borrada para ${unit.name}. Queda en (${unit.r},${unit.c})`);
-        }
-
-        // Limpiar posición anterior en tablero lógico
-        if (board[oldR]?.[oldC]?.unit?.id === unit.id) {
-            board[oldR][oldC].unit = null;
-        }
-
-        // Sincronizar índice espacial
-        if (typeof UnitGrid !== 'undefined') {
-            UnitGrid.move(unit, oldR, oldC);
+            // Si la ruta se borró, la unidad se queda donde estaba al inicio de este turno
+            console.warn(`[TradeRoute] ADVERTENCIA: Ruta borrada para ${unit.name}. Se mantiene en (${oldR},${oldC})`);
+            unit.r = oldR;
+            unit.c = oldC;
         }
 
         // Reinsertar en el tablero lógico - CORRECCIÓN: Verificar que board[unit.r] existe
@@ -2341,6 +2341,12 @@ function updateTradeRoutes(playerNum) {
             board[unit.r][unit.c].unit = unit;
         } else {
             console.error(`[TradeRoute] ERROR: No se pudo reinsertar ${unit.name} en tablero. board[${unit.r}][${unit.c}] no existe`);
+        }
+        
+        // Sincronizar índice espacial - SIEMPRE después de actualizar unit.r y unit.c
+        if (typeof UnitGrid !== 'undefined') {
+            // Indexar la unidad en su nueva posición
+            UnitGrid.index(unit);
         }
 
         unit.hasMoved = true;
