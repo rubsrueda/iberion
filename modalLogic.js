@@ -3692,6 +3692,13 @@ async function openFullCodex() {
     const player = PlayerDataManager.currentPlayer;
     if (!player) return;
 
+    // Usar el nuevo sistema integrado de crónicas
+    if (typeof ChronicleIntegration !== 'undefined') {
+        ChronicleIntegration.showReplaysInCodexModal();
+        return;
+    }
+
+    // Fallback al sistema antiguo
     const modal = document.getElementById('fullCodexModal');
     const listContainer = document.getElementById('fullCodexList');
 

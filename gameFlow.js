@@ -1179,6 +1179,12 @@ async function endTacticalBattle(winningPlayerNumber) {
     if (typeof ReplayIntegration !== 'undefined') {
         replayData = await ReplayIntegration.finishGameRecording(winningPlayerNumber, gameState.turnNumber);
         console.log('[endTacticalBattle] Replay guardado:', replayData ? 'exitoso' : 'fallido');
+        
+        // Mostrar notificación con link al replay
+        if (replayData && typeof ChronicleIntegration !== 'undefined') {
+            ChronicleIntegration.saveReplayLink(replayData.match_id, replayData);
+            ChronicleIntegration.showReplayNotification(replayData.match_id);
+        }
     }
 
     // <<== FINALIZAR ESTADÍSTICAS Y MOSTRAR CRÓNICA ==>>

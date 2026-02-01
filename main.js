@@ -1274,6 +1274,12 @@ function initApp() {
                 console.log('[Main] LedgerUI inicializado');
             }
 
+            // <<== INICIALIZAR LEDGER INTEGRATION (Botón en UI) ==>>
+            if (typeof LedgerIntegration !== 'undefined') {
+                LedgerIntegration.initialize();
+                console.log('[Main] LedgerIntegration inicializado');
+            }
+
             // <<== INICIALIZAR LEGACY UI ==>>
             if (typeof LegacyUI !== 'undefined') {
                 LegacyUI.initialize();

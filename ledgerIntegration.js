@@ -31,7 +31,14 @@ const LedgerIntegration = {
     _addButtonToUI: function() {
         const topBar = document.getElementById('top-bar-menu');
         if (!topBar) {
-            console.warn('[LedgerIntegration] top-bar-menu no encontrado');
+            console.warn('[LedgerIntegration] top-bar-menu no encontrado - reintentando en 500ms');
+            setTimeout(() => this._addButtonToUI(), 500);
+            return;
+        }
+        
+        // Verificar si ya existe el botón (evitar duplicados)
+        if (document.getElementById('btn-open-ledger')) {
+            console.log('[LedgerIntegration] Botón ya existe, omitiendo creación');
             return;
         }
 

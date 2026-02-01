@@ -44,9 +44,56 @@ Cuando terminas una partida, **en orden** deberías ver estos logs:
 
 1. Abre DevTools (F12)
 2. Pestaña "Console"
-3. Inicia una partida (deberías ver logs de inicialización)
-4. Termina la partida (deberías ver logs de fin)
-5. **Copia TODOS los logs** que veas entre `[ReplayEngine]`, `[ReplayIntegration]`, `[ReplayStorage]`, `[endTacticalBattle]`
+3. **PRIMERO**: Ejecuta el diagnóstico completo copiando todo el contenido de `test-systems.js` en la consola
+4. Inicia una partida (deberías ver logs de inicialización)
+5. Termina la partida (deberías ver logs de fin)
+6. **Copia TODOS los logs** que veas entre `[ReplayEngine]`, `[ReplayIntegration]`, `[ReplayStorage]`, `[endTacticalBattle]`
+
+## PROBLEMAS IDENTIFICADOS (Feb 1, 2026)
+
+### 🔴 PROBLEMA 1: Botón del Cuaderno no aparece
+**Causa**: `LedgerIntegration.initialize()` se ejecuta antes de que `top-bar-menu` esté en el DOM
+**Fix aplicado**: 
+- Agregado reintentos automáticos cada 500ms si no encuentra el elemento
+- Agregada llamada explícita desde `main.js` después de inicializar la UI
+- Agregada verificación para evitar duplicados
+
+### 🔴 PROBLEMA 2: Replays no aparecen en "Crónicas Históricas"
+**Causa**: `openFullCodex()` busca en tabla `match_history`, pero replays se guardan en `game_replays`
+**Solución pendiente**: Necesita integración entre ambas tablas o consulta unificada
+
+### 🔴 PROBLEMA 3: No se genera link de replay al terminar partida
+**Causa**: `endTacticalBattle()` llama a `finishGameRecording()` pero no muestra UI de resultado
+**Solución pendiente**: Agregar pantalla post-partida con link al replay
+
+## PRUEBAS MANUALES RECOMENDADAS
+
+### Test 1: Verificar que el botón aparece
+```javascript
+// En consola, después de iniciar partida:
+document.getElementById('btn-open-ledger')
+// Debería devolver: <button id="btn-open-ledger">📖 Cuaderno</button>
+// Si devuelve null, el botón NO se creó
+```
+
+### Test 2: Abrir Cuaderno manualmente
+```javascript
+LedgerIntegration.openLedger()
+// Debería abrir el modal del Cuaderno
+```
+
+### Test 3: Verificar que replay se guardó
+```javascript
+await ReplayStorage.listReplays()
+// Debería devolver array con tus replays guardados
+```
+
+### Test 4: Verificar eventos capturados
+```javascript
+// Durante la partida:
+console.log(ReplayEngine.timeline.length)
+// Debería ir aumentando con cada turno
+```
 
 ## Logs Actualizados en
 
