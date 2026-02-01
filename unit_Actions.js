@@ -3142,6 +3142,19 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
 
     positionUnitElement(unit);
     
+    // <<== CAPTURA DE EVENTO PARA REPLAY ==>>
+    if (typeof ReplayIntegration !== 'undefined') {
+        ReplayIntegration.recordUnitMove(
+            unit.id, 
+            unit.name, 
+            unit.player, 
+            fromR, 
+            fromC, 
+            toR, 
+            toC
+        );
+    }
+    
     if (UIManager) { 
         UIManager.updateSelectedUnitInfoPanel(); 
         UIManager.updatePlayerAndPhaseInfo(); 

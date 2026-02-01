@@ -1169,6 +1169,14 @@ async function endTacticalBattle(winningPlayerNumber) {
     // --- GUARDADO UNIFICADO: Todas las partidas se guardan igual ---
     // El tipo de oponente (IA, jugador local, red) no afecta el sistema de guardado
     // Esto simplifica la lógica y garantiza consistencia
+    
+    // <<== CAPTURA DE FIN DE PARTIDA PARA REPLAY ==>>
+    let replayData = null;
+    if (typeof ReplayIntegration !== 'undefined') {
+        replayData = await ReplayIntegration.finishGameRecording(winningPlayerNumber, gameState.turnNumber);
+        console.log('[endTacticalBattle] Replay guardado:', replayData ? 'exitoso' : 'fallido');
+    }
+    
     if (PlayerDataManager.currentPlayer && typeof saveGameUnified === 'function') {
         console.log("[GameFlow] Guardando partida (sistema unificado)...");
         
@@ -1970,6 +1978,14 @@ async function handleEndTurn(isHostProcessing = false) {
             gameState.currentPlayer = 1; 
             gameState.turnNumber = 1;
             
+            // 🎬 INICIAR SISTEMA DE REPLAY
+            if (typeof ReplayEngine !== 'undefined' && ReplayEngine.initialize) {
+                const boardCopy = board.map(row => [...row]);
+                const unitsCopy = units.map(u => ({...u}));
+                ReplayEngine.initialize(gameState, boardCopy, unitsCopy);
+                console.log('[GameFlow] ReplayEngine inicializado al comenzar la partida');
+            }
+            
             // Importante: Resetear unidades para el combate
             resetUnitsForNewTurn(1); 
             
@@ -2150,6 +2166,11 @@ async function handleEndTurn(isHostProcessing = false) {
                     // Si es infinito, aseguramos que se pare cualquier reloj previo
                     if(typeof TurnTimerManager !== 'undefined') TurnTimerManager.stop(); 
                 }
+            }
+            
+            // <<== CAPTURA DE EVENTO DE FIN DE TURNO PARA REPLAY ==>>
+            if (typeof ReplayIntegration !== 'undefined' && gameState.currentPhase === 'play') {
+                ReplayIntegration.recordTurnEnd(gameState.turnNumber, gameState.currentPlayer);
             }
             
             if (typeof checkVictory === 'function') checkVictory();

@@ -1246,6 +1246,22 @@ function initApp() {
                 return;
             }
 
+            // <<== INICIALIZAR REPLAY ENGINE ==>>
+            if (typeof ReplayIntegration !== 'undefined' && typeof ReplayEngine !== 'undefined') {
+                const matchId = gameState.matchId || `match_${Date.now()}`;
+                const mapSeed = gameState.mapSeed || Math.random().toString(36).substring(7);
+                const playersInfo = gameState.players || Object.entries(gameState.playerCivilizations || {}).map((k, v) => ({
+                    id: k,
+                    player_number: parseInt(k),
+                    name: `Jugador ${k}`,
+                    civ: v,
+                    color: ['#FF0000', '#0000FF', '#00FF00', '#FFFF00'][parseInt(k)-1] || '#888'
+                }));
+                
+                ReplayIntegration.startGameRecording(matchId, mapSeed, playersInfo);
+                console.log('[Main] ReplayEngine inicializado');
+            }
+
                 // 5. Transición de Pantalla
                 if (typeof showScreen === "function" && domElements.gameContainer) { 
             showScreen(domElements.gameContainer);
