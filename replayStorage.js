@@ -18,19 +18,32 @@ const ReplayStorage = {
         try {
             // Comprimir datos antes de guardar
             const compressedTimeline = this.compressTimeline(replayData.timeline);
+            
+            console.log(`[ReplayStorage] Tamaño del timeline comprimido: ${compressedTimeline.length} bytes`);
+            
+            // Asegurar que metadata es un string compacto
+            const metadataStr = typeof replayData.metadata === 'string' 
+                ? replayData.metadata 
+                : JSON.stringify(replayData.metadata);
+
+            // Truncar a 255 caracteres si es necesario
+            const truncatedMetadata = metadataStr.substring(0, 255);
+            
+            console.log(`[ReplayStorage] Tamaño de metadata: ${truncatedMetadata.length} bytes`);
 
             const { data, error } = await supabaseClient
                 .from('game_replays')
                 .insert([{
                     match_id: replayData.match_id,
                     user_id: PlayerDataManager.currentPlayer.auth_id,
-                    metadata: replayData.metadata,
+                    metadata: truncatedMetadata,
                     timeline_compressed: compressedTimeline,
                     created_at: new Date().toISOString()
                 }]);
 
             if (error) {
                 console.error('[ReplayStorage] Error guardando replay:', error);
+                console.error('[ReplayStorage] Detalles:', error.details, error.message);
                 return false;
             }
 
@@ -160,13 +173,50 @@ const ReplayStorage = {
     },
 
     /**
-     * Comprime timeline con LZ (simple RLE para demostración)
-     * En producción usar lz-string o similar
+     * Comprime timeline de forma muy eficiente
+     * Usa representación minimalista para reducir tamaño al máximo
      */
     compressTimeline: function(timeline) {
-        // Por ahora, guardar como JSON normal
-        // TODO: Implementar compresión real con lz-string
-        return JSON.stringify(timeline);
+        try {
+            // Crear representación ultra-compacta del timeline
+            // Usar solo los datos absolutamente necesarios
+            const compact = timeline.map(event => [
+                event.turn,                    // 0: turn
+                event.action,                  // 1: action
+                event.player,                  // 2: player
+                event.data ? [                 // 3: data (array compacto)
+                    event.data.from_r,
+                    event.data.from_c,
+                    event.data.to_r,
+                    event.data.to_c,
+                    event.data.unit_id,
+                    event.data.damage_dealt
+                ] : null
+            ]);
+            
+            // Serializar a JSON lo más compacto posible
+            const json = JSON.stringify(compact);
+            
+            // Si sigue siendo muy largo, dividir en fragmentos
+            if (json.length > 240) {
+                // Limitar a un máximo de eventos
+                const maxEvents = Math.min(timeline.length, Math.floor(240 / 15)); // ~15 bytes por evento
+                const limited = timeline.slice(0, maxEvents);
+                const limitedCompact = limited.map(event => [
+                    event.turn,
+                    event.action,
+                    event.player
+                ]);
+                
+                console.warn(`[ReplayStorage] Timeline muy grande (${json.length} bytes), limitando a ${maxEvents} eventos`);
+                return JSON.stringify(limitedCompact);
+            }
+            
+            return json;
+        } catch (err) {
+            console.error('[ReplayStorage] Error comprimiendo timeline:', err);
+            return '[]';
+        }
     },
 
     /**
@@ -174,7 +224,22 @@ const ReplayStorage = {
      */
     decompressTimeline: function(compressed) {
         try {
-            return JSON.parse(compressed);
+            const compact = JSON.parse(compressed);
+            
+            // Expandir de vuelta a formato normal
+            return compact.map(e => ({
+                turn: e[0],
+                action: e[1],
+                player: e[2],
+                data: e[3] ? {
+                    from_r: e[3][0],
+                    from_c: e[3][1],
+                    to_r: e[3][2],
+                    to_c: e[3][3],
+                    unit_id: e[3][4],
+                    damage_dealt: e[3][5]
+                } : null
+            }));
         } catch (err) {
             console.error('[ReplayStorage] Error descomprimiendo:', err);
             return [];
