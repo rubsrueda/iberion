@@ -137,16 +137,22 @@ const ReplayEngine = {
     finalize: function(winner, totalTurns) {
         if (!this.isEnabled) return;
         
+        // Crear metadata ULTRA-MINIMALISTA para caber en VARCHAR(255)
+        const metadataObj = {
+            w: winner,                                          // winner_id (muy corto)
+            t: totalTurns,                                      // total_turns
+            d: new Date().toISOString().substring(0, 10),      // date (YYYY-MM-DD)
+            m: Math.round((Date.now() - this.startTime) / 60000) // duration_minutes
+        };
+        
+        // Serializar metadata a string
+        const metadataStr = JSON.stringify(metadataObj);
+        
+        console.log(`[ReplayEngine] Tamaño de metadata: ${metadataStr.length} bytes`);
+        
         const replayData = {
             match_id: this.matchId,
-            metadata: {
-                map_seed: this.mapSeed,
-                players: this.players,
-                winner_id: winner,
-                total_turns: totalTurns,
-                date_ended: new Date().toISOString(),
-                duration_minutes: Math.round((Date.now() - this.startTime) / 60000)
-            },
+            metadata: metadataStr,  // Guardar como STRING, no como objeto
             timeline: this.timeline
         };
         
