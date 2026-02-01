@@ -537,7 +537,10 @@ const PlayerDataManager = {
      * Guarda el progreso en Supabase y actualiza el nivel si es necesario
      */
     syncMatchResult: async function(xpGained, matchData) {
-        if (!this.currentPlayer) return;
+        if (!this.currentPlayer) {
+            console.warn('[syncMatchResult] No hay currentPlayer, retornando valores por defecto');
+            return { level: 1, xp: 0, xpNext: 1000 };
+        }
 
         // 1. Actualizar XP y Nivel localmente
         this.currentPlayer.xp = (this.currentPlayer.xp || 0) + xpGained;

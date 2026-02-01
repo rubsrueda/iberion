@@ -218,13 +218,34 @@ async function saveGameUnified(saveName, isAutoSave = false) {
             logMessage("Guardando en la nube...");
         }
 
-        // Usar UPSERT para que si el nombre ya existe, se actualiza
-        // (Permite sobrescribir autosaves con el mismo nombre)
-        const { error } = await supabaseClient
+        // Primero verificar si existe una partida con ese nombre
+        const { data: existing } = await supabaseClient
             .from('game_saves')
-            .upsert(saveData, { 
-                onConflict: 'user_id,save_name'
-            });
+            .select('id')
+            .eq('user_id', saveData.user_id)
+            .eq('save_name', saveData.save_name)
+            .maybeSingle();
+
+        let error = null;
+        
+        if (existing) {
+            // Actualizar la partida existente
+            const result = await supabaseClient
+                .from('game_saves')
+                .update({
+                    game_state: saveData.game_state,
+                    board_state: saveData.board_state,
+                    created_at: saveData.created_at
+                })
+                .eq('id', existing.id);
+            error = result.error;
+        } else {
+            // Insertar nueva partida
+            const result = await supabaseClient
+                .from('game_saves')
+                .insert([saveData]);
+            error = result.error;
+        }
 
         if (error) {
             console.error("[SaveGame] Error al guardar:", error);

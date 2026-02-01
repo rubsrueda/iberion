@@ -1469,6 +1469,12 @@ const UIManager = {
         const modal = document.getElementById('postMatchModal');
         if (!modal) return;
 
+        // Validación: Si progress es undefined, usar valores por defecto
+        if (!progress) {
+            console.warn('[showPostMatchSummary] progress es undefined, usando valores por defecto');
+            progress = { level: 1, xp: 0, xpNext: 1000 };
+        }
+
         // 1. ACTIVAR EL BOTÓN PRIMERO (Para que nunca se quede bloqueado)
         const closeBtn = document.getElementById('closePostMatchBtn');
         if (closeBtn) {
