@@ -81,18 +81,22 @@ const LedgerIntegration = {
                 console.log('[LedgerIntegration.onclick] Modal encontrado:', !!modal);
                 
                 if (modal) {
-                    console.log('[LedgerIntegration.onclick] Aplicando estilos con !important...');
-                    // Usar setProperty con !important para anular el CSS global
-                    modal.style.setProperty('display', 'flex', 'important');
-                    modal.style.setProperty('position', 'fixed', 'important');
-                    modal.style.setProperty('left', '0', 'important');
-                    modal.style.setProperty('top', '0', 'important');
-                    modal.style.setProperty('width', '100%', 'important');
-                    modal.style.setProperty('height', '100%', 'important');
-                    modal.style.setProperty('z-index', '9999', 'important');
-                    modal.style.setProperty('justify-content', 'center', 'important');
-                    modal.style.setProperty('align-items', 'center', 'important');
-                    console.log('[LedgerIntegration.onclick] ✅ Modal mostrado');
+                    console.log('[LedgerIntegration.onclick] Aplicando estilos NUCLEARES...');
+                    // MÉTODO NUCLEAR: Reescribir el atributo style completamente
+                    modal.setAttribute('style', `
+                        display: flex !important;
+                        position: fixed !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        height: 100% !important;
+                        z-index: 99999 !important;
+                        justify-content: center !important;
+                        align-items: center !important;
+                        background: rgba(0,0,0,0.95) !important;
+                        overflow: auto !important;
+                    `);
+                    console.log('[LedgerIntegration.onclick] ✅ Modal mostrado (NUCLEAR)');
                 } else {
                     console.error('[LedgerIntegration.onclick] ❌ Modal no encontrado');
                 }
