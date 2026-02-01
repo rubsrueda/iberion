@@ -605,9 +605,16 @@ function isValidMove(unit, toR, toC, isPotentialMerge = false) {
 
     // Regla #1: Unidades navales
     if (unitRegimentData?.is_naval) {
-        // Solo pueden moverse a casillas de agua vacías
-        if (targetHexData.terrain !== 'water' || targetUnitOnHex) {
-            return false;
+        if (isPotentialMerge) {
+            if (!targetUnitOnHex || targetUnitOnHex.player !== unit.player) return false;
+            const targetIsNaval = REGIMENT_TYPES[targetUnitOnHex.regiments[0]?.type]?.is_naval;
+            if (!targetIsNaval) return false;
+            if (targetHexData.terrain !== 'water') return false;
+        } else {
+            // Solo pueden moverse a casillas de agua vacías
+            if (targetHexData.terrain !== 'water' || targetUnitOnHex) {
+                return false;
+            }
         }
     } 
 

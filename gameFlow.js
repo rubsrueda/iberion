@@ -1824,8 +1824,6 @@ function handleChangeCapital(r, c) {
 let handleEndTurnCallCount = 0; // Se pondría fuera de la función
 
 async function handleEndTurn(isHostProcessing = false) {
-
-async function handleEndTurn(isHostProcessing = false) {
     try {
     
     // ESCUDO: Si por algún motivo el cajón no existe, lo creamos ahora mismo
@@ -2308,6 +2306,8 @@ function updateTradeRoutes(playerNum) {
         }
 
         // --- PASO 3: FINALIZAR POSICIÓN ---
+        const oldR = unit.r;
+        const oldC = unit.c;
         
         // <<== CORRECCIÓN CRÍTICA: Verificar que la ruta aún existe antes de leerla ==>>
         if (unit.tradeRoute && unit.tradeRoute.path) {
@@ -2324,6 +2324,16 @@ function updateTradeRoutes(playerNum) {
         } else {
             // Si la ruta se borró, la unidad se queda donde estaba en la última iteración válida (currentPos)
             console.warn(`[TradeRoute] ADVERTENCIA: Ruta borrada para ${unit.name}. Queda en (${unit.r},${unit.c})`);
+        }
+
+        // Limpiar posición anterior en tablero lógico
+        if (board[oldR]?.[oldC]?.unit?.id === unit.id) {
+            board[oldR][oldC].unit = null;
+        }
+
+        // Sincronizar índice espacial
+        if (typeof UnitGrid !== 'undefined') {
+            UnitGrid.move(unit, oldR, oldC);
         }
 
         // Reinsertar en el tablero lógico - CORRECCIÓN: Verificar que board[unit.r] existe

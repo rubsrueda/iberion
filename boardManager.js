@@ -88,7 +88,7 @@ generateInitialRuins();
 initializeTerritoryData(); 
 
 renderFullBoardVisualState(); 
-updateFogOfWar(); 
+if (typeof updateFogOfWar === "function") updateFogOfWar();
 initializeBoardPanning(); 
 console.log("boardManager.js: initializeNewGameBoardDOMAndData completada.");
 }
@@ -1133,7 +1133,7 @@ if (gameState.currentPhase !== "deployment") {
 
 initializeTerritoryData(); 
 renderFullBoardVisualState();
-updateFogOfWar();
+if (typeof updateFogOfWar === "function") updateFogOfWar();
 initializeBoardPanning(); 
 console.log("boardManager.js: initializeGameBoardForScenario completada.");
 }
@@ -1548,7 +1548,7 @@ if (hexConfig.cityName) {
 
 initializeTerritoryData();
 renderFullBoardVisualState();
-updateFogOfWar();
+if (typeof updateFogOfWar === "function") updateFogOfWar();
 initializeBoardPanning();
 logMessage("¡Bienvenido a Iberia Magna!");
 }
