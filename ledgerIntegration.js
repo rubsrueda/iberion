@@ -75,22 +75,39 @@ const LedgerIntegration = {
             e.target.style.boxShadow = 'none';
         });
         ledgerBtn.addEventListener('click', () => {
-            console.log('[LedgerIntegration] Botón Cuaderno clickeado');
-            // Método robusto: abrir modal directamente
-            const modal = document.getElementById('ledgerModal');
-            if (modal) {
-                console.log('[LedgerIntegration] Mostrando modal directamente...');
-                modal.style.display = 'flex';
-                modal.style.position = 'fixed';
-                console.log('[LedgerIntegration] ✅ Modal mostrado');
-            } else {
-                console.error('[LedgerIntegration] ❌ Modal #ledgerModal no encontrado');
-            }
-            
-            // También llamar a LedgerManager si está disponible
-            if (typeof LedgerManager !== 'undefined') {
-                console.log('[LedgerIntegration] Llamando a LedgerManager.open()');
-                LedgerManager.open();
+            console.log('[LedgerIntegration.onclick] Botón Cuaderno clickeado');
+            try {
+                // Método robusto: abrir modal directamente
+                console.log('[LedgerIntegration.onclick] Buscando modal #ledgerModal...');
+                const modal = document.getElementById('ledgerModal');
+                console.log('[LedgerIntegration.onclick] Modal encontrado:', !!modal);
+                
+                if (modal) {
+                    console.log('[LedgerIntegration.onclick] Mostrando modal directamente...');
+                    modal.style.display = 'flex';
+                    modal.style.position = 'fixed';
+                    modal.style.left = '0';
+                    modal.style.top = '0';
+                    modal.style.width = '100%';
+                    modal.style.height = '100%';
+                    modal.style.zIndex = '9999';
+                    modal.style.justifyContent = 'center';
+                    modal.style.alignItems = 'center';
+                    console.log('[LedgerIntegration.onclick] ✅ Modal mostrado. Display:', modal.style.display);
+                } else {
+                    console.error('[LedgerIntegration.onclick] ❌ Modal #ledgerModal no encontrado');
+                }
+                
+                // También llamar a LedgerManager si está disponible
+                if (typeof LedgerManager !== 'undefined') {
+                    console.log('[LedgerIntegration.onclick] Llamando a LedgerManager.open()');
+                    LedgerManager.open();
+                } else {
+                    console.error('[LedgerIntegration.onclick] ❌ LedgerManager no está disponible');
+                }
+            } catch (error) {
+                console.error('[LedgerIntegration.onclick] ❌ ERROR:', error);
+                console.error(error.stack);
             }
         });
 
