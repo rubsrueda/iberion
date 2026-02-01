@@ -482,11 +482,39 @@ const PlayerDataManager = {
                 profile_data: p 
             };
 
-            // Ejecutamos la llamada a Supabase
-            const { data, error } = await supabaseClient
+            // Ejecutamos la llamada a Supabase - sin usar upsert, sino select + update/insert
+            const { data: existing, error: selectError } = await supabaseClient
                 .from('profiles')
-                .upsert(cleanPayload, { onConflict: 'id' })
-                .select();
+                .select('id')
+                .eq('id', uid)
+                .maybeSingle();
+
+            if (selectError) {
+                console.error("❌ ERROR al buscar perfil:", selectError);
+                return;
+            }
+
+            let data = null;
+            let error = null;
+
+            if (existing) {
+                // Actualizar perfil existente
+                const result = await supabaseClient
+                    .from('profiles')
+                    .update(cleanPayload)
+                    .eq('id', uid)
+                    .select();
+                data = result.data;
+                error = result.error;
+            } else {
+                // Insertar nuevo perfil
+                const result = await supabaseClient
+                    .from('profiles')
+                    .insert([cleanPayload])
+                    .select();
+                data = result.data;
+                error = result.error;
+            }
 
             if (error) {
                 console.error("❌ ERROR CRÍTICO GUARDANDO EN NUBE:", error);
@@ -583,7 +611,7 @@ const PlayerDataManager = {
         if (!this.currentPlayer?.auth_id) return;
 
         // 1. Ejemplo: Actualizar logro de bajas
-        const { data, error } = await supabaseClient
+        const { data, error: selectError } = await supabaseClient
             .from('user_achievements')
             .select('*')
             .eq('player_id', this.currentPlayer.auth_id)
@@ -594,12 +622,25 @@ const PlayerDataManager = {
         let newProgress = current + matchStats.kills;
         let goal = REWARDS_CONFIG.ACHIEVEMENTS['SLAYER_1'].goal;
 
-        await supabaseClient.from('user_achievements').upsert({
-            player_id: this.currentPlayer.auth_id,
-            achievement_id: 'SLAYER_1',
-            current_progress: newProgress,
-            is_completed: newProgress >= goal
-        }, { onConflict: 'player_id, achievement_id' });
+        // Usar select + update/insert en lugar de upsert
+        if (data) {
+            // Actualizar existente
+            await supabaseClient.from('user_achievements')
+                .update({
+                    current_progress: newProgress,
+                    is_completed: newProgress >= goal
+                })
+                .eq('id', data.id);
+        } else {
+            // Insertar nuevo
+            await supabaseClient.from('user_achievements')
+                .insert([{
+                    player_id: this.currentPlayer.auth_id,
+                    achievement_id: 'SLAYER_1',
+                    current_progress: newProgress,
+                    is_completed: newProgress >= goal
+                }]);
+        }
 
         if (newProgress >= goal && (!data || !data.is_completed)) {
             logMessage(`¡LOGRO COMPLETADO: ${REWARDS_CONFIG.ACHIEVEMENTS['SLAYER_1'].title}!`, 'success');

@@ -21,6 +21,38 @@
 // - handleLoadGame() - Carga partidas con información del tipo de juego
 //
 
+// --- Sistema de Debounce para evitar guardados simultáneos ---
+const SaveGameDebounce = {
+    isProcessing: false,
+    pendingRequests: new Map(),
+
+    async execute(saveName, isAutoSave) {
+        const key = `${isAutoSave}_${saveName}`;
+        
+        if (this.isProcessing) {
+            console.log(`[SaveGame] Guardado ya en progreso. Pendiente: ${key}`);
+            this.pendingRequests.set(key, { saveName, isAutoSave });
+            return false;
+        }
+
+        this.isProcessing = true;
+        try {
+            return await saveGameUnifiedInternal(saveName, isAutoSave);
+        } finally {
+            this.isProcessing = false;
+            
+            // Procesar próxima solicitud en cola
+            if (this.pendingRequests.size > 0) {
+                const [nextKey, nextRequest] = this.pendingRequests.entries().next().value;
+                this.pendingRequests.delete(nextKey);
+                setTimeout(() => {
+                    this.execute(nextRequest.saveName, nextRequest.isAutoSave);
+                }, 100);
+            }
+        }
+    }
+};
+
 // --- Guardado Local (fallback/offline) ---
 const LOCAL_SAVE_KEY = 'iberion_local_saves';
 
@@ -102,6 +134,13 @@ function _prepareGameDataForSave() {
  * @returns {Promise<boolean>} true si el guardado fue exitoso
  */
 async function saveGameUnified(saveName, isAutoSave = false) {
+    return await SaveGameDebounce.execute(saveName, isAutoSave);
+}
+
+/**
+ * Función INTERNA que hace el guardado real
+ */
+async function saveGameUnifiedInternal(saveName, isAutoSave = false) {
     // Validación: jugador debe estar autenticado
     if (!PlayerDataManager.currentPlayer || !PlayerDataManager.currentPlayer.auth_id) {
         console.warn("[SaveGame] Jugador no autenticado. Guardando localmente.");
@@ -218,58 +257,66 @@ async function saveGameUnified(saveName, isAutoSave = false) {
             logMessage("Guardando en la nube...");
         }
 
-        // Primero verificar si existe una partida con ese nombre
-        const { data: existing } = await supabaseClient
-            .from('game_saves')
-            .select('id')
-            .eq('user_id', saveData.user_id)
-            .eq('save_name', saveData.save_name)
-            .maybeSingle();
-
-        let error = null;
-        
-        if (existing) {
-            // Actualizar la partida existente
-            const result = await supabaseClient
+        try {
+            // Primero verificar si existe una partida con ese nombre
+            const { data: existing, error: selectError } = await supabaseClient
                 .from('game_saves')
-                .update({
-                    game_state: saveData.game_state,
-                    board_state: saveData.board_state,
-                    created_at: saveData.created_at
-                })
-                .eq('id', existing.id);
-            error = result.error;
-        } else {
-            // Insertar nueva partida
-            const result = await supabaseClient
-                .from('game_saves')
-                .insert([saveData]);
-            error = result.error;
-        }
+                .select('id')
+                .eq('user_id', saveData.user_id)
+                .eq('save_name', saveData.save_name)
+                .maybeSingle();
 
-        if (error) {
-            console.error("[SaveGame] Error al guardar:", error);
-            // Fallback a guardado local si falla la nube
-            const localFallback = { ...saveData, id: `local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, is_local: true };
-            _saveToLocalStorage(localFallback);
-            if (!isAutoSave) {
-                logMessage("Error en la nube. Guardado local realizado.", "warning");
+            if (selectError) {
+                console.error("[SaveGame] Error al buscar partida existente:", selectError);
+                throw selectError;
             }
-            return true;
-        } else {
-            console.log(`[SaveGame] '${saveName}' guardada exitosamente (${gameType})`);
-            if (!isAutoSave) {
-                logMessage(`¡Partida '${saveName}' guardada con éxito!`, "success");
+
+            let error = null;
+            
+            if (existing) {
+                // Actualizar la partida existente
+                console.log(`[SaveGame] Actualizando partida existente: ${existing.id}`);
+                const result = await supabaseClient
+                    .from('game_saves')
+                    .update({
+                        game_state: saveData.game_state,
+                        board_state: saveData.board_state,
+                        created_at: saveData.created_at
+                    })
+                    .eq('id', existing.id);
+                error = result.error;
+            } else {
+                // Insertar nueva partida
+                console.log(`[SaveGame] Insertando nueva partida: ${saveData.save_name}`);
+                const result = await supabaseClient
+                    .from('game_saves')
+                    .insert([saveData]);
+                error = result.error;
             }
-            return true;
+
+            if (error) {
+                console.error("[SaveGame] Error al guardar:", error);
+                // Fallback a guardado local si falla la nube
+                const localFallback = { ...saveData, id: `local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, is_local: true };
+                _saveToLocalStorage(localFallback);
+                if (!isAutoSave) {
+                    logMessage("Error en la nube. Guardado local realizado.", "warning");
+                }
+                return true;
+            } else {
+                console.log(`[SaveGame] '${saveName}' guardada exitosamente (${gameType})`);
+                if (!isAutoSave) {
+                    logMessage(`¡Partida '${saveName}' guardada con éxito!`, "success");
+                }
+                return true;
+            }
+        } catch (error) {
+            console.error("[SaveGame] Excepción:", error);
+            if (!isAutoSave) {
+                logMessage("Error inesperado al guardar: " + error.message, "error");
+            }
+            return false;
         }
-    } catch (error) {
-        console.error("[SaveGame] Excepción:", error);
-        if (!isAutoSave) {
-            logMessage("Error inesperado al guardar: " + error.message, "error");
-        }
-        return false;
-    }
 }
 
 /**
