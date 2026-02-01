@@ -16,13 +16,17 @@ const LedgerUI = {
         
         // El modal ya existe en index.html, solo obtener referencia
         this.modalElement = document.getElementById('ledgerModal');
+        console.log('[LedgerUI] Elemento encontrado:', !!this.modalElement);
         
         if (!this.modalElement) {
-            console.warn('[LedgerUI] Elemento #ledgerModal no encontrado en HTML');
+            console.error('[LedgerUI] ❌ Elemento #ledgerModal no encontrado en HTML. Reintentando en 500ms...');
+            setTimeout(() => this.initialize(), 500);
             return;
         }
 
+        console.log('[LedgerUI] ✅ Modal encontrado. Z-index:', this.modalElement.style.zIndex || 'heredado');
         this._setupEventListeners();
+        console.log('[LedgerUI] ✅ Inicialización completada');
     },
 
     /**
@@ -56,9 +60,18 @@ const LedgerUI = {
      * Muestra el modal
      */
     showModal: function() {
-        if (!this.modalElement) return;
+        console.log('[LedgerUI] showModal() llamado');
+        console.log('[LedgerUI] modalElement existe:', !!this.modalElement);
+        if (!this.modalElement) {
+            console.error('[LedgerUI] ❌ modalElement es null. initialize() probablemente no se ejecutó correctamente.');
+            return;
+        }
+        console.log('[LedgerUI] Mostrando modal. Z-index:', this.modalElement.style.zIndex || 'heredado');
         this.modalElement.style.display = 'flex';
+        this.modalElement.style.visibility = 'visible';
+        this.modalElement.style.opacity = '1';
         this.isVisible = true;
+        console.log('[LedgerUI] ✅ Modal mostrado');
     },
 
     /**

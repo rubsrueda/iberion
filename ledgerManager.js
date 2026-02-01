@@ -13,11 +13,17 @@ const LedgerManager = {
      */
     open: function() {
         console.log('[LedgerManager] Abriendo cuaderno de estado...');
+        console.log('[LedgerManager] LedgerUI existe:', typeof LedgerUI !== 'undefined');
         this.isOpen = true;
         
         if (typeof LedgerUI !== 'undefined') {
+            console.log('[LedgerManager] Llamando a LedgerUI.showModal()');
             LedgerUI.showModal();
+            console.log('[LedgerManager] Llamando a updateAllDisplays()');
             this.updateAllDisplays();
+            console.log('[LedgerManager] ✅ Cuaderno abierto');
+        } else {
+            console.error('[LedgerManager] ❌ LedgerUI no está definido');
         }
     },
 

@@ -75,8 +75,14 @@ const LedgerIntegration = {
             e.target.style.boxShadow = 'none';
         });
         ledgerBtn.addEventListener('click', () => {
+            console.log('[LedgerIntegration] Botón Cuaderno clickeado');
+            console.log('[LedgerIntegration] LedgerManager existe:', typeof LedgerManager !== 'undefined');
+            console.log('[LedgerIntegration] LedgerUI existe:', typeof LedgerUI !== 'undefined');
             if (typeof LedgerManager !== 'undefined') {
+                console.log('[LedgerIntegration] Llamando a LedgerManager.open()');
                 LedgerManager.open();
+            } else {
+                console.error('[LedgerIntegration] ❌ LedgerManager NO ESTÁ DEFINIDO');
             }
         });
 
