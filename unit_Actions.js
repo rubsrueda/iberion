@@ -820,6 +820,16 @@ async function moveUnit(unit, toR, toC) {
             if (typeof Chronicle !== 'undefined') {
                 Chronicle.logEvent('conquest', { unit: unit, toR: toR, toC: toC });
             }
+            if (typeof StatTracker !== 'undefined') {
+                const turn = gameState.turnNumber || 1;
+                StatTracker.recordEvent(
+                    turn,
+                    'conquer',
+                    unit.player,
+                    `Conquista en (${toR},${toC})`,
+                    { location: `(${toR},${toC})` }
+                );
+            }
 
             // <<== CAPTURA DE EVENTO CONQUISTA PARA REPLAY ==>>
             if (typeof ReplayIntegration !== 'undefined') {
@@ -1135,6 +1145,16 @@ async function attackUnit(attackerDivision, defenderDivision) {
             defender: { id: defenderDivision.id, name: defenderDivision.name, player: defenderDivision.player, r: defenderDivision.r, c: defenderDivision.c }
         });
     }
+    if (typeof StatTracker !== 'undefined') {
+        const turn = gameState.turnNumber || 1;
+        StatTracker.recordEvent(
+            turn,
+            'battle',
+            attackerDivision.player,
+            `Batalla entre ${attackerDivision.name} y ${defenderDivision.name}`,
+            { location: `(${defenderDivision.r},${defenderDivision.c})` }
+        );
+    }
 
     // Declarar fuera del try para que esté disponible en finally
     let wasMonitoring = false;
@@ -1445,6 +1465,27 @@ async function attackUnit(attackerDivision, defenderDivision) {
                     victorUnit: { id: defenderDivision.id, name: defenderDivision.name, player: defenderDivision.player }
                 });
             }
+        }
+
+        if (typeof StatTracker !== 'undefined') {
+            const turn = gameState.turnNumber || 1;
+            const winnerPlayer = defenderDestroyed
+                ? attackerDivision.player
+                : attackerDestroyed
+                    ? defenderDivision.player
+                    : (damageDealtByAttacker >= damageDealtByDefender ? attackerDivision.player : defenderDivision.player);
+
+            StatTracker.recordBattle(
+                turn,
+                attackerDivision.player,
+                defenderDivision.player,
+                { r: defenderDivision.r, c: defenderDivision.c },
+                winnerPlayer,
+                {
+                    attackerLosses: Math.max(0, damageDealtByDefender),
+                    defenderLosses: Math.max(0, damageDealtByAttacker)
+                }
+            );
         }
 
         // 5. Asignar experiencia de combate a los SUPERVIVIENTES (TU LÓGICA RESTAURADA)
@@ -3304,6 +3345,17 @@ function handleConfirmBuildStructure(actionData) {
             name: buildingName,
             isCity: data.isCity || false
         });
+    }
+    if (typeof StatTracker !== 'undefined') {
+        const turn = gameState.turnNumber || 1;
+        const buildingName = data.name || structureType;
+        StatTracker.recordEvent(
+            turn,
+            'build',
+            playerId,
+            `Construcción de ${buildingName}`,
+            { buildingType: buildingName }
+        );
     }
 
     // --- 3. APLICACIÓN DE ESTRUCTURA Y CIUDAD  ---

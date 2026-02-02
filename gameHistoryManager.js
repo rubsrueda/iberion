@@ -99,8 +99,21 @@ const GameHistoryManager = {
 
         console.log('[GameHistoryManager] Abriendo crónica para:', game.matchId);
 
-        // Aquí iría la lógica para cargar y mostrar la crónica guardada
-        // Por ahora, solo mostrar un placeholder
+        if (typeof ChronicleIntegration !== 'undefined') {
+            await ChronicleIntegration.openReplay(game.matchId);
+            return;
+        }
+
+        if (typeof ReplayStorage !== 'undefined' && typeof ReplayUI !== 'undefined') {
+            const replayData = await ReplayStorage.loadReplay(game.matchId);
+            if (!replayData) {
+                alert('No se pudo cargar la crónica de batalla.');
+                return;
+            }
+            ReplayUI.openReplayModal(replayData, null);
+            return;
+        }
+
         if (typeof GameHistoryUI !== 'undefined') {
             GameHistoryUI.showGameDetails(game);
         }
@@ -119,7 +132,10 @@ const GameHistoryManager = {
         if (typeof ReplayStorage !== 'undefined') {
             const token = await ReplayStorage.generateShareToken(game.matchId);
             if (token) {
-                const shareUrl = `${window.location.origin}?replay=${token}`;
+                const baseUrl = window.location.origin;
+                const pathName = window.location.pathname.split('/').filter(p => p).slice(0, -1).join('/');
+                const normalizedPath = pathName ? `/${pathName}` : '';
+                const shareUrl = `${baseUrl}${normalizedPath}/?replay=${token}`;
                 console.log('[GameHistoryManager] Enlace de compartición:', shareUrl);
                 return shareUrl;
             }

@@ -85,12 +85,13 @@ const StatTracker = {
             
             for (let r = 0; r < board.length; r++) {
                 for (let c = 0; c < board[r].length; c++) {
-                    if (board[r][c]?.owner === currentPlayerId) {
+                    const hex = board[r][c];
+                    if (hex?.owner === currentPlayerId) {
                         territoryCount++;
-                        
-                        if (board[r][c]?.structure?.type === 'city') {
+
+                        if (hex.isCity) {
                             cityCount++;
-                            totalPopulation += board[r][c]?.structure?.level || 1;
+                            totalPopulation += this._getCityPopulationFromHex(hex);
                         }
                     }
                 }
@@ -106,7 +107,8 @@ const StatTracker = {
             let militaryPowerNaval = 0;
             
             units.forEach(unit => {
-                if (unit.playerId === currentPlayerId && !unit.isDefeated) {
+                const unitOwner = unit.player ?? unit.playerId;
+                if (unitOwner === currentPlayerId && !unit.isDefeated) {
                     unitCount++;
                     const attack = unit.regiments?.reduce((sum, r) => sum + (r.attack || 0), 0) || 0;
                     const defense = unit.regiments?.reduce((sum, r) => sum + (r.defense || 0), 0) || 0;
@@ -132,6 +134,14 @@ const StatTracker = {
     /**
      * Calcula puntuación para un jugador
      */
+    _getCityPopulationFromHex: function(hex) {
+        const structure = hex?.structure;
+        if (structure === 'Metrópoli') return 3;
+        if (structure === 'Ciudad') return 2;
+        if (structure === 'Aldea') return 1;
+        return 1;
+    },
+
     _calculateScore: function(playerStats) {
         const cityBonus = playerStats.cities * 100;
         const territoryBonus = playerStats.territory * 10;
