@@ -88,7 +88,6 @@ const LedgerIntegration = {
         });
         ledgerBtn.addEventListener('click', (e) => {
             console.log('%c🚨🚨🚨 CLICK DETECTADO EN BOTÓN CUADERNO 🚨🚨🚨', 'background: red; color: yellow; font-size: 24px; padding: 20px; border: 5px solid yellow;');
-            alert('CLICK EN BOTÓN CUADERNO - VER CONSOLA');
             console.log('[LedgerIntegration.onclick] Event:', e);
             console.log('[LedgerIntegration.onclick] Timestamp:', new Date().toISOString());
             console.log('[LedgerIntegration.onclick] Target:', e.target);

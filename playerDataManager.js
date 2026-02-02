@@ -760,10 +760,7 @@ const PlayerDataManager = {
         // LIMPIEZA: Borramos los mensajes de la crónica local para que la próxima partida empiece de cero.
         Chronicle.clearLogs(); 
 
-        // UI: Finalmente, abrimos el modal de resumen para que el jugador vea su recompensa inmediata.
-        if (UIManager?.showPostMatchSummary) {
-            UIManager.showPostMatchSummary(playerWon, xpGained, progress, matchData);
-        }
+        // UI: Se omite el modal de resumen para evitar pantallas redundantes.
     },
 
     // 2. Lógica del botón con estados (Abierto/Cerrado)
@@ -820,13 +817,7 @@ const PlayerDataManager = {
             kills: killsInMatch
         });
 
-        // 6. Lanzar la pantalla de resultados (El modal que ya tienes en el index)
-        if (UIManager && UIManager.showPostMatchSummary) {
-            UIManager.showPostMatchSummary(playerWon, totalXpGained, progress, {
-                turns: gameState.turnNumber, 
-                kills: killsInMatch
-            });
-        }
+        // 6. Se omite el modal de resultados para evitar pantallas redundantes.
         
         console.log("Progreso de carrera aplicado con éxito.");
     },

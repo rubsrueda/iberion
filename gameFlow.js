@@ -1129,18 +1129,7 @@ async function endTacticalBattle(winningPlayerNumber) {
     // Guardar progreso
     const progress = await PlayerDataManager.syncMatchResult(xpGained, matchMetrics);
 
-    // Llamar a la nueva pantalla de resultados
-    console.log("[endTacticalBattle] Verificando UIManager...", { hasUIManager: !!UIManager, hasMethod: !!(UIManager && UIManager.showPostMatchSummary) });
-    if (UIManager && typeof UIManager.showPostMatchSummary === 'function') {
-        console.log("[endTacticalBattle] Mostrando pantalla de resultados...");
-        UIManager.showPostMatchSummary(playerWon, xpGained, progress, matchMetrics);
-    } else {
-        console.error("[endTacticalBattle] ¡ERROR! UIManager no tiene showPostMatchSummary. UIManager:", UIManager);
-    }
-
-    if (!gameState.isCampaignBattle) { 
-         setTimeout(() => alert(victoryMessage), 100); 
-    }
+    // Nota: Se omitió el modal de resultados y el alert final para evitar pantallas redundantes.
 
     if (gameState.isCampaignBattle) {
         if (typeof campaignManager !== 'undefined' && typeof campaignManager.handleTacticalBattleResult === 'function') {
