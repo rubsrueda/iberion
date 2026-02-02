@@ -15,47 +15,92 @@ const LegacyUI = {
         console.log('[LegacyUI] Inicializando interfaz de la Crónica...');
         
         this.modalElement = document.getElementById('legacyModal');
+        console.log('[LegacyUI] modalElement encontrado?', !!this.modalElement);
+        console.log('[LegacyUI] modalElement:', this.modalElement);
         
         if (!this.modalElement) {
             console.warn('[LegacyUI] Elemento #legacyModal no encontrado en HTML');
+            // Reintentar en 100ms si el DOM no está listo
+            setTimeout(() => {
+                this.modalElement = document.getElementById('legacyModal');
+                if (this.modalElement) {
+                    console.log('[LegacyUI] Modal encontrado en reintento');
+                    this._setupEventListeners();
+                }
+            }, 100);
             return;
         }
 
         this._setupEventListeners();
+        console.log('[LegacyUI] Event listeners configurados');
     },
 
     /**
      * Configura listeners
      */
     _setupEventListeners: function() {
+        if (!this.modalElement) {
+            console.error('[LegacyUI._setupEventListeners] modalElement no existe');
+            return;
+        }
+
+        console.log('[LegacyUI._setupEventListeners] Configurando tabs...');
+        
         const tabs = this.modalElement.querySelectorAll('[data-legacy-tab]');
-        tabs.forEach(tab => {
+        console.log('[LegacyUI._setupEventListeners] Tabs encontrados:', tabs.length);
+        
+        tabs.forEach((tab, index) => {
+            console.log(`[LegacyUI._setupEventListeners] Agregando listener al tab ${index}:`, tab.getAttribute('data-legacy-tab'));
             tab.addEventListener('click', (e) => {
                 const tabName = e.target.getAttribute('data-legacy-tab');
+                console.log('[LegacyUI] Tab clickeado:', tabName);
                 this._activateTab(tabName);
-                LegacyManager.switchTab(tabName);
+                if (typeof LegacyManager !== 'undefined') {
+                    LegacyManager.switchTab(tabName);
+                }
             });
         });
 
         const closeBtn = this.modalElement.querySelector('.legacy-close');
+        console.log('[LegacyUI._setupEventListeners] Botón cerrar encontrado?', !!closeBtn);
+        
         if (closeBtn) {
-            closeBtn.addEventListener('click', () => this.hideModal());
+            closeBtn.addEventListener('click', () => {
+                console.log('[LegacyUI] Botón cerrar clickeado');
+                this.hideModal();
+            });
         }
 
         this.modalElement.addEventListener('click', (e) => {
             if (e.target === this.modalElement) {
+                console.log('[LegacyUI] Click en backdrop del modal');
                 this.hideModal();
             }
         });
+        
+        console.log('[LegacyUI._setupEventListeners] Listeners configurados exitosamente');
     },
 
     /**
      * Muestra el modal
      */
     showModal: function() {
-        if (!this.modalElement) return;
+        console.log('[LegacyUI.showModal] Intentando mostrar modal');
+        console.log('[LegacyUI.showModal] modalElement existe?', !!this.modalElement);
+        
+        if (!this.modalElement) {
+            console.error('[LegacyUI.showModal] No hay modalElement');
+            this.initialize(); // Reintentar inicializar
+            if (!this.modalElement) {
+                console.error('[LegacyUI.showModal] Aún no hay modalElement después de reinicializar');
+                return;
+            }
+        }
+        
+        console.log('[LegacyUI.showModal] Mostrando modal...');
         this.modalElement.style.display = 'flex';
         this.isVisible = true;
+        console.log('[LegacyUI.showModal] Modal mostrado. Display:', this.modalElement.style.display);
     },
 
     /**
@@ -72,16 +117,31 @@ const LegacyUI = {
      * Activa una pestaña
      */
     _activateTab: function(tabName) {
+        console.log('[LegacyUI._activateTab] Activando tab:', tabName);
+        
+        if (!this.modalElement) {
+            console.error('[LegacyUI._activateTab] No hay modalElement');
+            return;
+        }
+        
         const tabs = this.modalElement.querySelectorAll('[data-legacy-tab]');
         const contents = this.modalElement.querySelectorAll('[data-legacy-content]');
 
+        console.log('[LegacyUI._activateTab] Tabs encontrados:', tabs.length, 'Contents encontrados:', contents.length);
+
         tabs.forEach(tab => {
-            tab.classList.toggle('active', tab.getAttribute('data-legacy-tab') === tabName);
+            const isActive = tab.getAttribute('data-legacy-tab') === tabName;
+            tab.classList.toggle('active', isActive);
+            console.log('[LegacyUI._activateTab] Tab', tab.getAttribute('data-legacy-tab'), 'activo?', isActive);
         });
 
         contents.forEach(content => {
-            content.style.display = content.getAttribute('data-legacy-content') === tabName ? 'block' : 'none';
+            const isVisible = content.getAttribute('data-legacy-content') === tabName;
+            content.style.display = isVisible ? 'block' : 'none';
+            console.log('[LegacyUI._activateTab] Content', content.getAttribute('data-legacy-content'), 'visible?', isVisible);
         });
+        
+        console.log('[LegacyUI._activateTab] Tab activado');
     },
 
     /**
