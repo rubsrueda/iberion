@@ -15,6 +15,20 @@ const TECHNOLOGY_TREE_DATA = {
         tier: 0
     },
 
+    // <<< NUEVA TECNOLOGÍA: Agricultura Militar, para desbloquear Pueblos >>>
+    "AGRICULTURE": {
+        id: "AGRICULTURE",
+        name: "Agricultura Militar",
+        description: "Entrenamiento de pobladores armados para la defensa territorial. Desbloquea la unidad Pueblo para fortalecer tus defensas.",
+        sprite: "🌾",
+        cost: { researchPoints: 15 },
+        unlocksUnits: ["Pueblo"],
+        unlocksStructures: [],
+        prerequisites: ["ORGANIZATION"],
+        position: { x: -100, y: -60 },
+        tier: 1
+    },
+
     // =======================================================
     // RAMA DE INFRAESTRUCTURA Y ECONOMÍA (HACIA ABAJO)
     // =======================================================
