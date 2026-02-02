@@ -1,0 +1,157 @@
+/**
+ * gameHistoryManager.js
+ * Gestor del Historial de Partidas Guardadas
+ * Permite listar, ver detalles y acceder a crónicas/replays
+ */
+
+const GameHistoryManager = {
+    isOpen: false,
+    selectedGame: null,
+    games: [],
+
+    /**
+     * Carga el historial de partidas del jugador
+     */
+    async loadHistory() {
+        console.log('[GameHistoryManager] Cargando historial...');
+
+        if (!PlayerDataManager.currentPlayer || !PlayerDataManager.currentPlayer.auth_id) {
+            console.warn('[GameHistoryManager] No autenticado');
+            return [];
+        }
+
+        try {
+            // Obtener replays guardados
+            const replays = await ReplayStorage.getUserReplays();
+            
+            // Procesar y enriquecer datos
+            this.games = replays.map((replay, idx) => {
+                let metadata = {};
+                try {
+                    metadata = JSON.parse(replay.metadata);
+                } catch (e) {
+                    metadata = { w: '?', t: '?', d: '?', m: '?' };
+                }
+
+                return {
+                    id: replay.match_id,
+                    matchId: replay.match_id,
+                    winner: metadata.w,
+                    totalTurns: metadata.t,
+                    date: metadata.d || replay.created_at?.substring(0, 10),
+                    duration: `${metadata.m || '?'} min`,
+                    createdAt: replay.created_at,
+                    hasReplay: true,
+                    index: idx
+                };
+            });
+
+            console.log(`[GameHistoryManager] Cargadas ${this.games.length} partidas`);
+            return this.games;
+
+        } catch (err) {
+            console.error('[GameHistoryManager] Error cargando historial:', err);
+            return [];
+        }
+    },
+
+    /**
+     * Abre el modal de historial
+     */
+    open: async function() {
+        console.log('[GameHistoryManager] Abriendo historial...');
+        
+        this.isOpen = true;
+        
+        if (typeof GameHistoryUI !== 'undefined') {
+            GameHistoryUI.showModal();
+            
+            // Cargar datos
+            await this.loadHistory();
+            GameHistoryUI.displayGamesList(this.games);
+        }
+    },
+
+    /**
+     * Cierra el modal
+     */
+    close: function() {
+        this.isOpen = false;
+        if (typeof GameHistoryUI !== 'undefined') {
+            GameHistoryUI.hideModal();
+        }
+    },
+
+    /**
+     * Obtiene detalles de una partida
+     */
+    getGameDetails: function(gameIndex) {
+        if (gameIndex < 0 || gameIndex >= this.games.length) return null;
+        return this.games[gameIndex];
+    },
+
+    /**
+     * Abre la crónica de una partida
+     */
+    async openGameLegacy(gameIndex) {
+        const game = this.getGameDetails(gameIndex);
+        if (!game) return;
+
+        console.log('[GameHistoryManager] Abriendo crónica para:', game.matchId);
+
+        // Aquí iría la lógica para cargar y mostrar la crónica guardada
+        // Por ahora, solo mostrar un placeholder
+        if (typeof GameHistoryUI !== 'undefined') {
+            GameHistoryUI.showGameDetails(game);
+        }
+    },
+
+    /**
+     * Descarga/Comparte un replay
+     */
+    async shareReplay(gameIndex) {
+        const game = this.getGameDetails(gameIndex);
+        if (!game) return;
+
+        console.log('[GameHistoryManager] Compartiendo replay:', game.matchId);
+        
+        // Generar token de compartición
+        if (typeof ReplayStorage !== 'undefined') {
+            const token = await ReplayStorage.generateShareToken(game.matchId);
+            if (token) {
+                const shareUrl = `${window.location.origin}?replay=${token}`;
+                console.log('[GameHistoryManager] Enlace de compartición:', shareUrl);
+                return shareUrl;
+            }
+        }
+    },
+
+    /**
+     * Elimina una partida del historial
+     */
+    async deleteGame(gameIndex) {
+        const game = this.getGameDetails(gameIndex);
+        if (!game) return false;
+
+        if (!confirm(`¿Eliminar partida del ${game.date}?`)) return false;
+
+        console.log('[GameHistoryManager] Eliminando partida:', game.matchId);
+
+        try {
+            if (typeof ReplayStorage !== 'undefined') {
+                // Aquí habría una función de eliminar en ReplayStorage
+                // Por ahora solo lo removemos localmente
+                this.games.splice(gameIndex, 1);
+                return true;
+            }
+        } catch (err) {
+            console.error('[GameHistoryManager] Error eliminando:', err);
+            return false;
+        }
+    }
+};
+
+// Exponer globalmente
+if (typeof window !== 'undefined') {
+    window.GameHistoryManager = GameHistoryManager;
+}

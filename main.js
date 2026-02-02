@@ -1299,6 +1299,12 @@ function initApp() {
                 console.log('[Main] LegacyUI inicializado');
             }
 
+            // <<== INICIALIZAR GAME HISTORY UI ==>>
+            if (typeof GameHistoryUI !== 'undefined') {
+                GameHistoryUI.initialize();
+                console.log('[Main] GameHistoryUI inicializado');
+            }
+
                 // 5. Transición de Pantalla
                 if (typeof showScreen === "function" && domElements.gameContainer) { 
             showScreen(domElements.gameContainer);

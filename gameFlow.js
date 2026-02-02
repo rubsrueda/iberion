@@ -1881,6 +1881,11 @@ async function handleEndTurn(isHostProcessing = false) {
         gameState.currentPlayer = 1;
         gameState.turnNumber++;
 
+        // <<== REGISTRAR ESTADÍSTICAS DEL TURNO ==>>
+        if (typeof StatTracker !== 'undefined') {
+            StatTracker.recordTurnStats(gameState.turnNumber, playerEndingTurn);
+        }
+
         logMessage(`Comienza el turno del Jugador ${gameState.currentPlayer} (Turno ${gameState.turnNumber}).`);
         
         // 3. Preparar al jugador para su nuevo turno (¡CLAVE! Reseteo antes de avisar)
