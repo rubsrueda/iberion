@@ -1487,9 +1487,10 @@ const UIManager = {
                     setTimeout(() => {
                         LegacyManager.open(gameState.winner);
                     }, 300);
+                } else if (!gameState.isCampaignBattle) {
+                    // Solo regresar al menú si NO hay crónica
+                    showScreen(domElements.mainMenuScreenEl);
                 }
-                
-                if (!gameState.isCampaignBattle) showScreen(domElements.mainMenuScreenEl);
             };
         }
 

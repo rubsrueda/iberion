@@ -1261,7 +1261,8 @@ function initApp() {
 
             // <<== INICIALIZAR REPLAY ENGINE ==>>
             if (typeof ReplayIntegration !== 'undefined' && typeof ReplayEngine !== 'undefined') {
-                const matchId = gameState.matchId || `match_${crypto.randomUUID().substring(0, 8)}`;
+                // FORZAR generación de matchId único (evitar usar gameState.matchId que puede ser objeto)
+                const matchId = `match_${crypto.randomUUID().substring(0, 8)}`;
                 const mapSeed = gameState.mapSeed || Math.random().toString(36).substring(7);
                 const playersInfo = gameState.players || Object.entries(gameState.playerCivilizations || {}).map((k, v) => ({
                     id: k,

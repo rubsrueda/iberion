@@ -111,6 +111,12 @@ const LegacyUI = {
         this.modalElement.style.display = 'none';
         this.isVisible = false;
         LegacyManager.close();
+        
+        // Regresar al menú principal después de cerrar la crónica
+        if (!gameState.isCampaignBattle && typeof showScreen === 'function' && domElements.mainMenuScreenEl) {
+            console.log('[LegacyUI] Regresando al menú principal...');
+            showScreen(domElements.mainMenuScreenEl);
+        }
     },
 
     /**
