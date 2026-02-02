@@ -3692,7 +3692,13 @@ async function openFullCodex() {
     const player = PlayerDataManager.currentPlayer;
     if (!player) return;
 
-    // Usar el nuevo sistema integrado de crónicas
+    // Usar el nuevo GameHistoryManager
+    if (typeof GameHistoryManager !== 'undefined') {
+        await GameHistoryManager.open();
+        return;
+    }
+
+    // Usar ChronicleIntegration como fallback
     if (typeof ChronicleIntegration !== 'undefined') {
         ChronicleIntegration.showReplaysInCodexModal();
         return;

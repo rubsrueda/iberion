@@ -8,9 +8,13 @@ const LedgerButtonIntegration = {
     initialize: function() {
         console.log('[LedgerButtonIntegration] Inicializando botón del cuaderno...');
         
-        document.addEventListener('DOMContentLoaded', () => {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                this._createLedgerButton();
+            });
+        } else {
             this._createLedgerButton();
-        });
+        }
     },
 
     _createLedgerButton: function() {
@@ -25,7 +29,7 @@ const LedgerButtonIntegration = {
         
         button.style.cssText = `
             position: fixed;
-            bottom: 100px;
+            bottom: 150px;
             right: 20px;
             width: 50px;
             height: 50px;
@@ -64,8 +68,9 @@ const LedgerButtonIntegration = {
 
         // Atajo de teclado (L)
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'l' || e.key === 'L') {
-                if (gameState && gameState.currentPlayer && !LedgerUI?.isVisible) {
+            if ((e.key === 'l' || e.key === 'L') && !e.ctrlKey && !e.metaKey) {
+                const ledgerModal = document.getElementById('ledgerModal');
+                if (gameState && gameState.currentPlayer && gameState.currentPhase === 'play' && !LedgerUI?.isVisible) {
                     if (typeof LedgerManager !== 'undefined') {
                         LedgerManager.open();
                     }

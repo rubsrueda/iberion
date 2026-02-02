@@ -12,13 +12,19 @@ const LegacyManager = {
      * Abre la Crónica al terminar la partida
      */
     open: function(winnerPlayerId) {
-        console.log('[LegacyManager] Abriendo Crónica. Ganador:', winnerPlayerId);
+        console.log('[LegacyManager.open] Abriendo Crónica. Ganador:', winnerPlayerId);
+        console.log('[LegacyManager.open] LegacyUI disponible?', typeof LegacyUI !== 'undefined');
         
         this.isOpen = true;
         
         if (typeof LegacyUI !== 'undefined') {
+            console.log('[LegacyManager.open] Mostrando modal...');
             LegacyUI.showModal();
+            console.log('[LegacyManager.open] Modal mostrado, actualizando displays...');
             this.updateAllDisplays(winnerPlayerId);
+            console.log('[LegacyManager.open] Displays actualizados');
+        } else {
+            console.error('[LegacyManager.open] LegacyUI no está definido');
         }
     },
 
@@ -68,8 +74,28 @@ const LegacyManager = {
      * PESTAÑA 1: LÍNEA DE TIEMPO (Gráfico XY)
      */
     _updateTimeline: function(winnerPlayerId) {
+        console.log('[LegacyManager._updateTimeline] Iniciando...', winnerPlayerId);
+        
         const stats = StatTracker.gameStats;
+        console.log('[LegacyManager._updateTimeline] Stats:', stats);
+        
+        if (!stats || !stats.players) {
+            console.error('[LegacyManager._updateTimeline] No hay estadísticas disponibles');
+            // Mostrar una versión por defecto
+            LegacyUI.displayTimeline({
+                turns: [1, 2, 3],
+                series: [{
+                    name: 'Sin datos',
+                    color: '#999',
+                    data: [0, 0, 0],
+                    isWinner: false
+                }]
+            });
+            return;
+        }
+        
         const players = Object.values(stats.players);
+        console.log('[LegacyManager._updateTimeline] Jugadores encontrados:', players.length);
 
         // Preparar datos para gráfico (timeline por turno)
         const graphData = {
@@ -78,24 +104,29 @@ const LegacyManager = {
         };
 
         // Eje X: turnos
-        for (let t = 1; t <= stats.currentTurn; t++) {
+        const totalTurns = stats.currentTurn || gameState.turnNumber || 10;
+        for (let t = 1; t <= totalTurns; t++) {
             graphData.turns.push(t);
         }
+        console.log('[LegacyManager._updateTimeline] Turnos totales:', totalTurns);
 
         // Eje Y: puntuación por jugador (se podría cambiar a military, economy, etc.)
         players.forEach(player => {
-            graphData.series.push({
-                name: player.civilization,
+            const series = {
+                name: player.civilization || `Jugador ${player.playerId}`,
                 color: this._getPlayerColor(player.playerId),
-                data: Array(stats.currentTurn).fill(0).map((_, i) => {
+                data: Array(totalTurns).fill(0).map((_, i) => {
                     // Aproximación: score = f(cities, territory, military)
                     // En producción, esto vendría del rastreador histórico
-                    return Math.floor(player.score * (i / stats.currentTurn) * 0.8 + Math.random() * 1000);
+                    return Math.floor(player.score * (i / totalTurns) * 0.8 + Math.random() * 1000);
                 }),
                 isWinner: player.playerId === winnerPlayerId
-            });
+            };
+            graphData.series.push(series);
+            console.log('[LegacyManager._updateTimeline] Serie agregada:', series.name, 'Ganador?', series.isWinner);
         });
 
+        console.log('[LegacyManager._updateTimeline] GraphData completo:', graphData);
         LegacyUI.displayTimeline(graphData);
     },
 

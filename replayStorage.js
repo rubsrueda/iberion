@@ -169,6 +169,26 @@ const ReplayStorage = {
                 return false;
             }
 
+            // ⭐ VERIFICACIÓN CRÍTICA: Confirmar que el dato se guardó realmente
+            console.log('[ReplayStorage] Verificando que el replay se guardó correctamente...');
+            const { data: verifyData, error: verifyError } = await supabaseClient
+                .from('game_replays')
+                .select('match_id, created_at')
+                .eq('match_id', safeMatchId)
+                .single();
+
+            if (verifyError) {
+                console.error('[ReplayStorage] ⚠️ ADVERTENCIA: Replay no encontrado en verificación:', verifyError);
+                console.warn('[ReplayStorage] INSERT puede haber fallado silenciosamente');
+                return false;
+            }
+
+            if (verifyData) {
+                console.log(`[ReplayStorage] ✅ VERIFICADO: Replay ${safeMatchId} existe en Supabase`);
+                console.log(`[ReplayStorage] Record encontrado:`, verifyData);
+                return true;
+            }
+
             console.log(`[ReplayStorage] ✅ Replay ${safeMatchId} guardado exitosamente en Supabase`);
             console.log(`[ReplayStorage] Payload enviado:`, payload);
             return true;

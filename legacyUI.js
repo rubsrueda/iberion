@@ -88,8 +88,15 @@ const LegacyUI = {
      * PESTAÑA 1: LÍNEA DE TIEMPO (Gráfico XY)
      */
     displayTimeline: function(graphData) {
+        console.log('[LegacyUI.displayTimeline] Iniciando con datos:', graphData);
+        
         const content = this.modalElement.querySelector('[data-legacy-content="timeline"]');
-        if (!content) return;
+        console.log('[LegacyUI.displayTimeline] Content elemento encontrado:', !!content);
+        
+        if (!content) {
+            console.error('[LegacyUI.displayTimeline] No se encontró elemento de contenido');
+            return;
+        }
 
         // Crear un gráfico SVG simple
         const width = 900;
@@ -153,7 +160,9 @@ const LegacyUI = {
             ${legend}
         `;
 
+        console.log('[LegacyUI.displayTimeline] Asignando HTML con longitud:', html.length);
         content.innerHTML = html;
+        console.log('[LegacyUI.displayTimeline] HTML asignado, contenido actual:', content.innerHTML.substring(0, 100) + '...');
     },
 
     /**
