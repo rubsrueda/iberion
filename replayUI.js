@@ -157,12 +157,42 @@ const ReplayUI = {
         }
 
         // Mostrar timeline de eventos
-        for (const turnData of replayData.timeline) {
+        if (!replayData || !replayData.timeline) {
+            eventList.innerHTML = '<p>No hay datos de eventos disponibles</p>';
+            return;
+        }
+        
+        // Agrupar eventos por turno si es necesario
+        let timelineByTurn = replayData.timeline;
+        
+        // Si el timeline es un array simple de eventos, agrupar por turno
+        if (replayData.timeline.length > 0 && !replayData.timeline[0].events) {
+            timelineByTurn = {};
+            for (const event of replayData.timeline) {
+                const turnNum = event.turn || 1;
+                if (!timelineByTurn[turnNum]) {
+                    timelineByTurn[turnNum] = { turn: turnNum, events: [] };
+                }
+                timelineByTurn[turnNum].events.push(event);
+            }
+            timelineByTurn = Object.values(timelineByTurn);
+        }
+        
+        for (const turnData of timelineByTurn) {
+            if (!turnData) continue;
+            
             const turnElement = document.createElement('div');
             turnElement.className = 'replay-turn-block';
             turnElement.innerHTML = `<strong>Turno ${turnData.turn}</strong>`;
 
-            for (const event of turnData.events) {
+            // Validar que events existe y es iterable
+            const events = turnData.events || [];
+            if (!Array.isArray(events)) {
+                console.warn('[ReplayUI] events no es un array:', turnData);
+                continue;
+            }
+            
+            for (const event of events) {
                 const eventElement = document.createElement('div');
                 eventElement.className = 'replay-event';
                 eventElement.textContent = this.eventToText(event);

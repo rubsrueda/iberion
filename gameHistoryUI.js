@@ -61,7 +61,6 @@ const GameHistoryUI = {
         if (!this.modalElement) return;
         this.modalElement.style.display = 'none';
         this.isVisible = false;
-        GameHistoryManager.close();
     },
 
     /**

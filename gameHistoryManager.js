@@ -77,8 +77,9 @@ const GameHistoryManager = {
      */
     close: function() {
         this.isOpen = false;
-        if (typeof GameHistoryUI !== 'undefined') {
-            GameHistoryUI.hideModal();
+        if (typeof GameHistoryUI !== 'undefined' && GameHistoryUI.modalElement) {
+            GameHistoryUI.modalElement.style.display = 'none';
+            GameHistoryUI.isVisible = false;
         }
     },
 

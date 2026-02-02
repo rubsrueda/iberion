@@ -399,41 +399,75 @@ const LedgerManager = {
     // === MÉTODOS DE CÁLCULO (privados) ===
 
     _calculateIncomeThisTurn: function(playerId) {
-        // Suma REAL del ingreso de oro por hexágonos y estructuras
-        let totalGold = 0;
+        // Usar la lógica REAL del juego para calcular ingresos
+        let totalIncome = { oro: 0, hierro: 0, piedra: 0, madera: 0, comida: 0 };
         
-        // Constantes del juego (definidas en gameFlow.js)
-        const GOLD_INCOME = {
-            PER_CAPITAL: 100,
-            PER_CITY: 50,
-            PER_FORT: 20,
-            PER_ROAD: 5,
-            PER_HEX: 1
-        };
+        const MAX_NACIONALIDAD = 100;
         
+        // Iterar sobre cada hexágono
         for (let r = 0; r < board.length; r++) {
             for (let c = 0; c < board[r].length; c++) {
                 const hex = board[r][c];
-                if (hex?.owner === playerId) {
-                    // Ciudades y capitales
-                    if (hex.isCity) {
-                        totalGold += hex.isCapital ? GOLD_INCOME.PER_CAPITAL : GOLD_INCOME.PER_CITY;
-                    } 
-                    // Fortalezas
-                    else if (hex.structure === "Fortaleza") {
-                        totalGold += GOLD_INCOME.PER_FORT;
+                if (!hex || hex.owner !== playerId) continue;
+                
+                // Calcular multiplicador de estabilidad (como hace el juego)
+                let stabilityMultiplier = 1.0;
+                if (hex.estabilidad !== undefined) {
+                    switch (hex.estabilidad) {
+                        case 0: stabilityMultiplier = 0; break;
+                        case 1: stabilityMultiplier = 0.25; break;
+                        case 2: stabilityMultiplier = 0.70; break;
+                        case 3: stabilityMultiplier = 1.0; break;
+                        case 4: stabilityMultiplier = 1.25; break;
+                        case 5: stabilityMultiplier = 1.50; break;
+                        default: stabilityMultiplier = 1.0;
                     }
-                    // Caminos
-                    else if (hex.structure === "Camino") {
-                        totalGold += GOLD_INCOME.PER_ROAD;
+                }
+                
+                // Calcular multiplicador de nacionalidad
+                const nationalityMultiplier = (hex.nacionalidad?.[playerId] || 0) / MAX_NACIONALIDAD;
+                
+                // Calcular ingreso de oro base
+                let incomeFromHex = { oro: 0, hierro: 0, piedra: 0, madera: 0, comida: 0 };
+                
+                if (hex.isCity) {
+                    incomeFromHex.oro = hex.isCapital ? GOLD_INCOME.PER_CAPITAL : GOLD_INCOME.PER_CITY;
+                } else if (hex.structure === "Fortaleza") {
+                    incomeFromHex.oro = GOLD_INCOME.PER_FORT;
+                } else if (hex.structure === "Camino") {
+                    incomeFromHex.oro = GOLD_INCOME.PER_ROAD;
+                } else {
+                    incomeFromHex.oro = GOLD_INCOME.PER_HEX;
+                }
+                
+                // Añadir ingresos de recursos (si hay nodos)
+                if (hex.resourceNode && typeof RESOURCE_NODES_DATA !== 'undefined' && RESOURCE_NODES_DATA[hex.resourceNode]) {
+                    const nodeInfo = RESOURCE_NODES_DATA[hex.resourceNode];
+                    const resourceType = nodeInfo.name?.toLowerCase().replace('_mina', '') || '';
+                    if (resourceType && resourceType !== 'oro') {
+                        incomeFromHex[resourceType] = (incomeFromHex[resourceType] || 0) + (nodeInfo.income || 0);
                     }
-                    // Hexágono sin estructura
-                    else {
-                        totalGold += GOLD_INCOME.PER_HEX;
-                    }
+                }
+                
+                // Aplicar bonificadores de tecnología
+                const playerTechs = gameState.playerResources?.[playerId]?.researchedTechnologies || [];
+                if (incomeFromHex.oro > 0 && playerTechs.includes('PROSPECTING')) incomeFromHex.oro += 1;
+                if (incomeFromHex.hierro > 0 && playerTechs.includes('IRON_WORKING')) incomeFromHex.hierro += 1;
+                if (incomeFromHex.piedra > 0 && playerTechs.includes('MASONRY')) incomeFromHex.piedra += 1;
+                if (incomeFromHex.madera > 0 && playerTechs.includes('FORESTRY')) incomeFromHex.madera += 1;
+                if (incomeFromHex.comida > 0 && playerTechs.includes('SELECTIVE_BREEDING')) incomeFromHex.comida += 1;
+                
+                // Aplicar multiplicadores de estabilidad y nacionalidad
+                for (const res in incomeFromHex) {
+                    const baseIncome = incomeFromHex[res];
+                    const finalIncome = baseIncome * stabilityMultiplier * nationalityMultiplier;
+                    totalIncome[res] = (totalIncome[res] || 0) + finalIncome;
                 }
             }
         }
+        
+        // Redondear y convertir a entero
+        let totalGold = Math.round(totalIncome.oro || 0);
         
         // Añadir oro de caravanas (se calcula cuando llegan a destino)
         totalGold += this._calculateTrade(playerId);
@@ -447,36 +481,37 @@ const LedgerManager = {
     },
 
     _calculateSupplyLimit: function(playerId) {
-        let limit = 0; // Sin base inicial
+        let standardLimit = 0; // Límite de regimientos estándar
+        let villagerLimit = 0; // Límite de Pueblos (suma en paralelo)
         
-        // Contar capacidad según estructura
+        // Contar capacidad según infraestructura (UNIT CAP basado en hex.structure)
         for (let r = 0; r < board.length; r++) {
             for (let c = 0; c < board[r].length; c++) {
                 const hex = board[r][c];
                 if (hex?.owner === playerId) {
-                    // Ciudades según nivel - detectar por hex.structure
-                    if (hex.isCity || hex.structure === 'Metrópoli' || hex.structure === 'Ciudad' || hex.structure === 'Aldea') {
-                        if (hex.structure === 'Metrópoli') {
-                            limit += 40; // Metrópoli: 8,000 población = 40 regimientos
-                        } else if (hex.structure === 'Ciudad') {
-                            limit += 20; // Ciudad: 4,000 población = 20 regimientos
-                        } else {
-                            limit += 10; // Aldea: 2,000 población = 10 regimientos (por defecto para isCity)
-                        }
+                    // Determinar capacidad base según estructura
+                    if (hex.structure === 'Metrópoli') {
+                        standardLimit += UNIT_CAP_BY_INFRASTRUCTURE["Metrópoli"];
+                    } else if (hex.structure === 'Ciudad') {
+                        standardLimit += UNIT_CAP_BY_INFRASTRUCTURE["Ciudad"];
+                    } else if (hex.structure === 'Aldea') {
+                        standardLimit += UNIT_CAP_BY_INFRASTRUCTURE["Aldea"];
+                    } else if (hex.structure === 'Fortaleza') {
+                        standardLimit += UNIT_CAP_BY_INFRASTRUCTURE["Fortaleza"];
+                    } else {
+                        // Cualquier otro hex controlado
+                        standardLimit += UNIT_CAP_BY_INFRASTRUCTURE["Hexágono Libre"];
                     }
-                    // Fortalezas
-                    else if (hex.structure === "Fortaleza") {
-                        limit += 5; // Fortaleza: 1,000 población = 5 regimientos
-                    }
-                    // Cada hexágono libre
-                    else {
-                        limit += 1; // Hexágono Libre: 200 población = 1 regimiento
-                    }
+                    
+                    // Los Pueblos DUPLICAN la capacidad de tropas
+                    // (la lógica de Pueblos se implementará en el sistema de reclutamiento)
                 }
             }
         }
         
-        return limit;
+        // Por ahora retornamos solo el límite estándar
+        // El sistema de Pueblos se implementará en la lógica de reclutamiento paralelo
+        return standardLimit;
     },
 
     _calculateCorruptionLevel: function(playerId) {

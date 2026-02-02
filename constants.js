@@ -166,14 +166,37 @@ const REGIMENT_TYPES = {
         attack: 5, defense: 10, health: 150, // Muy débil en combate
         movement: 3, // Rápido
         sprite: 'images/sprites/explorador.png',
-        //sprite: '👁️', // Un ojo, para representar la visión/exploración
         visionRange: 3, // Su visión base
         attackRange: 0,
         initiative: 12, // Alta iniciativa para actuar rápido
         goldValueOnDestroy: 50,
         foodConsumption: 1,
         puntosReclutamiento: 40,
-        abilities: ["enhanced_vision", "reveal_details","Jump"] // Habilidades descriptivas
+        abilities: ["enhanced_vision", "reveal_details", "espionage_mode"], // Dual: Exploración + Espionaje
+        isScout: true, // Marcador especial
+        spyMode: false, // Estado actual (falso = modo exploración, true = modo espía)
+        spyVisionRange: 3, // Rango de revelación en modo espía
+        canOnlyFightScouts: true, // Solo combate contra otros exploradores
+        spyCounterDetection: true // Dos espías enemigos se anulan
+    },
+
+    "Pueblo": {
+        category: "support", // Unidad defensiva/de apoyo
+        cost: { oro: 80, upkeep: 5 }, // Muy barata
+        attack: 15, defense: 60, health: 150, // Misma defensa que Milicia, poco ataque
+        movement: 1, // Muy lento (solo se mueve en casillas propias)
+        sprite: 'images/sprites/pueblo.png',
+        visionRange: 1, // Visión limitada
+        attackRange: 0,
+        initiative: 4, // Baja iniciativa
+        goldValueOnDestroy: 40,
+        foodConsumption: 0, // No consume comida (autosuficiente)
+        puntosReclutamiento: 20,
+        abilities: ["garrison", "food_production"], // Guarnición + Producción de comida
+        isVillager: true, // Marcador especial
+        canOnlyMoveInOwnTerritory: true, // Solo se mueve en hexágonos propios
+        doublesUnitCap: true, // Suma en paralelo al Unit Cap normal
+        defensiveOnly: true // No puede atacar primero, solo defender
     },
 };
 
@@ -948,5 +971,16 @@ const RUIN_EVENTS = [
         toastIcon: '💨'
     }
 ];
+
+// ==================================================
+// CONSTANTES DE CAPACIDAD MILITAR (UNIT CAP)
+// ==================================================
+const UNIT_CAP_BY_INFRASTRUCTURE = {
+    "Metrópoli": 40,      // 8,000 población = 40 regimientos
+    "Ciudad": 20,         // 4,000 población = 20 regimientos
+    "Aldea": 10,          // 2,000 población = 10 regimientos
+    "Fortaleza": 5,       // 1,000 población = 5 regimientos
+    "Hexágono Libre": 1   // 200 población = 1 regimiento
+};
 
 // ==================================================

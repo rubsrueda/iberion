@@ -452,20 +452,21 @@ const ReplayStorage = {
         try {
             const data = JSON.parse(compressed);
             
+            let eventsArray = [];
+            
             // Si es un resumen ultra-compacto (tiene 't', 'ts', 'e')
             if (data.t && data.e && !Array.isArray(data[0])) {
-                // Es un resumen, retornar como está
-                return data.e.map((e, i) => ({
+                // Es un resumen, convertir a eventos
+                eventsArray = data.e.map((e, i) => ({
                     turn: e[0],
                     action: e[1],
                     player: 1,
                     data: null
                 }));
             }
-            
             // Si el primer elemento es un array (formato compacto)
-            if (Array.isArray(data[0])) {
-                return data.map(e => {
+            else if (Array.isArray(data[0])) {
+                eventsArray = data.map(e => {
                     // Si tiene 4 elementos, incluye data
                     if (e.length >= 4 && e[3]) {
                         return {
@@ -492,9 +493,31 @@ const ReplayStorage = {
                     }
                 });
             }
+            // Si ya es un array de objetos con estructura de turno
+            else if (Array.isArray(data) && data.length > 0 && data[0].turn !== undefined) {
+                return data;
+            }
+            // Fallback vacío
+            else {
+                return [];
+            }
             
-            // Fallback
-            return [];
+            // Agrupar eventos por turno
+            const byTurn = {};
+            for (const event of eventsArray) {
+                const turnNum = event.turn || 1;
+                if (!byTurn[turnNum]) {
+                    byTurn[turnNum] = {
+                        turn: turnNum,
+                        currentPlayer: event.player || 1,
+                        events: [],
+                        timestamp: Date.now()
+                    };
+                }
+                byTurn[turnNum].events.push(event);
+            }
+            
+            return Object.values(byTurn);
         } catch (err) {
             console.error('[ReplayStorage] Error descomprimiendo:', err);
             return [];
