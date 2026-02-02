@@ -45,9 +45,24 @@ const ChronicleIntegration = {
 
         // Cargar datos
         const replays = await this.loadReplaysIntoCodex();
+        console.log('[ChronicleIntegration] showReplaysInCodexModal - Replays cargados:', replays.length);
 
-        if (replays.length === 0) {
-            listContainer.innerHTML = '<p style="text-align:center; opacity:0.5;">No hay crónicas registradas aún. Completa una batalla para generar tu primera crónica.</p>';
+        if (!replays || replays.length === 0) {
+            listContainer.innerHTML = `
+                <div style="text-align:center; opacity:0.7; padding: 20px;">
+                    <p>📜 No hay crónicas registradas aún.</p>
+                    <p style="font-size: 12px; opacity: 0.6;">Completa una batalla para generar tu primera crónica.</p>
+                    <p style="font-size: 11px; opacity: 0.4;">Debug: Buscar en localStorage...</p>
+                    <script>
+                        try {
+                            const local = JSON.parse(localStorage.getItem('localReplays') || '[]');
+                            console.log('LocalReplays encontrados:', local.length);
+                        } catch(e) {
+                            console.error('Error accediendo localStorage:', e);
+                        }
+                    </script>
+                </div>
+            `;
             return;
         }
 
@@ -114,6 +129,19 @@ const ChronicleIntegration = {
                 alert('No se pudo cargar la crónica de batalla.');
                 return;
             }
+
+            // Asegurar que tiene share_token (en caso de ser local)
+            if (!replayData.share_token) {
+                replayData.share_token = `replay_${replayData.match_id}_${crypto.getRandomValues(new Uint8Array(8)).join('')}`;
+                console.log('[ChronicleIntegration] Share token generado dinámicamente:', replayData.share_token);
+            }
+
+            console.log('[ChronicleIntegration] ReplayData:', {
+                match_id: replayData.match_id,
+                share_token: replayData.share_token,
+                timeline_events: replayData.timeline?.length,
+                chronicle_logs: replayData.chronicle_logs?.length
+            });
 
             // Cerrar modal de códice
             const codeModal = document.getElementById('fullCodexModal');

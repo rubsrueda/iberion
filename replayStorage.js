@@ -44,11 +44,39 @@ const ReplayStorage = {
 
     /**
      * Guarda un replay completo en Supabase
+     * Nota: También guarda localmente si falla el guardado en BD
      */
     saveReplay: async function(replayData) {
-        if (!PlayerDataManager.currentPlayer || !PlayerDataManager.currentPlayer.auth_id) {
-            console.warn('[ReplayStorage] No autenticado, no se guardará replay');
+        if (!replayData) {
+            console.error('[ReplayStorage] No hay replayData para guardar');
             return false;
+        }
+
+        // Generar share_token si no existe
+        if (!replayData.share_token) {
+            replayData.share_token = `replay_${replayData.match_id}_${crypto.getRandomValues(new Uint8Array(8)).join('')}`;
+            console.log('[ReplayStorage] Share token generado:', replayData.share_token);
+        }
+
+        // Guardar localmente como fallback (siempre)
+        try {
+            const localReplays = JSON.parse(localStorage.getItem('localReplays') || '[]');
+            localReplays.push({
+                ...replayData,
+                savedLocally: true,
+                savedAt: new Date().toISOString()
+            });
+            localStorage.setItem('localReplays', JSON.stringify(localReplays));
+            console.log('[ReplayStorage] ✅ Replay guardado localmente como fallback');
+            console.log('[ReplayStorage] Share token disponible:', replayData.share_token);
+        } catch (err) {
+            console.warn('[ReplayStorage] Error al guardar localmente:', err);
+        }
+
+        // Si no está autenticado, no guardar en BD pero devolver true (tiene fallback local)
+        if (!PlayerDataManager.currentPlayer || !PlayerDataManager.currentPlayer.auth_id) {
+            console.warn('[ReplayStorage] No autenticado. Replay disponible solo en localStorage');
+            return true; // Devolver true porque está guardado localmente
         }
 
         try {
@@ -147,67 +175,106 @@ const ReplayStorage = {
 
         } catch (err) {
             console.error('[ReplayStorage] Excepción:', err);
-            return false;
+            console.warn('[ReplayStorage] Pero el replay está guardado localmente, así que devolvemos true');
+            return true; // Devolver true porque está en localStorage
         }
     },
 
     /**
-     * Carga un replay desde Supabase
+     * Carga un replay desde Supabase o localStorage
      */
     loadReplay: async function(replayId) {
         try {
+            // 1. Intentar cargar desde Supabase primero
             const { data, error } = await supabaseClient
                 .from('game_replays')
                 .select('*')
                 .eq('match_id', replayId)
                 .single();
 
-            if (error) {
-                console.error('[ReplayStorage] Error cargando replay:', error);
-                return null;
+            if (data) {
+                console.log('[ReplayStorage] Replay cargado desde Supabase');
+                // Descomprimir timeline
+                const timeline = this.decompressTimeline(data.timeline_compressed);
+                return {
+                    match_id: data.match_id,
+                    metadata: data.metadata,
+                    timeline: timeline
+                };
             }
 
-            // Descomprimir timeline
-            const timeline = this.decompressTimeline(data.timeline_compressed);
+            // 2. Si no está en BD, buscar en localStorage
+            console.log('[ReplayStorage] Replay no encontrado en BD, buscando en localStorage...');
+            const localReplays = JSON.parse(localStorage.getItem('localReplays') || '[]');
+            const localReplay = localReplays.find(r => r.match_id === replayId);
+            
+            if (localReplay) {
+                console.log('[ReplayStorage] Replay cargado desde localStorage');
+                return localReplay;
+            }
 
-            return {
-                match_id: data.match_id,
-                metadata: data.metadata,
-                timeline: timeline
-            };
+            console.error('[ReplayStorage] Replay no encontrado en BD ni localmente:', replayId);
+            return null;
 
         } catch (err) {
-            console.error('[ReplayStorage] Excepción:', err);
+            console.error('[ReplayStorage] Error cargando replay:', err);
+            
+            // Fallback a localStorage en caso de excepción
+            try {
+                const localReplays = JSON.parse(localStorage.getItem('localReplays') || '[]');
+                const localReplay = localReplays.find(r => r.match_id === replayId);
+                if (localReplay) {
+                    console.log('[ReplayStorage] Fallback: Replay cargado desde localStorage');
+                    return localReplay;
+                }
+            } catch (err2) {
+                console.error('[ReplayStorage] Error incluso en fallback local:', err2);
+            }
+            
             return null;
         }
     },
 
     /**
-     * Obtiene lista de replays del usuario actual
+     * Obtiene lista de replays del usuario actual (BD + Local)
      */
     getUserReplays: async function() {
-        if (!PlayerDataManager.currentPlayer || !PlayerDataManager.currentPlayer.auth_id) {
-            return [];
-        }
+        let allReplays = [];
 
+        // 1. Cargar desde localStorage (fallback local)
         try {
-            const { data, error } = await supabaseClient
-                .from('game_replays')
-                .select('match_id, metadata, created_at, share_token')
-                .eq('user_id', PlayerDataManager.currentPlayer.auth_id)
-                .order('created_at', { ascending: false });
-
-            if (error) {
-                console.error('[ReplayStorage] Error obteniendo replays:', error);
-                return [];
+            const localReplays = JSON.parse(localStorage.getItem('localReplays') || '[]');
+            if (localReplays.length > 0) {
+                console.log('[ReplayStorage] Cargados', localReplays.length, 'replays desde localStorage');
+                allReplays = allReplays.concat(localReplays);
             }
-
-            return data || [];
-
         } catch (err) {
-            console.error('[ReplayStorage] Excepción:', err);
-            return [];
+            console.warn('[ReplayStorage] Error cargando replays locales:', err);
         }
+
+        // 2. Cargar desde Supabase si estamos autenticados
+        if (PlayerDataManager.currentPlayer && PlayerDataManager.currentPlayer.auth_id) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('game_replays')
+                    .select('match_id, metadata, created_at, share_token')
+                    .eq('user_id', PlayerDataManager.currentPlayer.auth_id)
+                    .order('created_at', { ascending: false });
+
+                if (error) {
+                    console.error('[ReplayStorage] Error obteniendo replays de BD:', error);
+                } else if (data && data.length > 0) {
+                    console.log('[ReplayStorage] Cargados', data.length, 'replays desde Supabase');
+                    allReplays = allReplays.concat(data);
+                }
+            } catch (err) {
+                console.error('[ReplayStorage] Excepción obteniendo replays:', err);
+            }
+        } else {
+            console.log('[ReplayStorage] No autenticado, usando solo replays locales');
+        }
+
+        return allReplays || [];
     },
 
     /**

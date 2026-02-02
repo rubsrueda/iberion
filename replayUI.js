@@ -122,6 +122,7 @@ const ReplayUI = {
 
     /**
      * Actualiza la lista de eventos en el panel izquierdo
+     * Incluye tanto timeline como crónica narrativa
      */
     updateEventList: function(replayData) {
         const eventList = document.getElementById('replayEventLog');
@@ -129,6 +130,33 @@ const ReplayUI = {
 
         eventList.innerHTML = '';
 
+        // Si hay chronicle_logs, mostrarlos primero
+        if (replayData.chronicle_logs && replayData.chronicle_logs.length > 0) {
+            const chronicleSection = document.createElement('div');
+            chronicleSection.className = 'replay-chronicle-section';
+            chronicleSection.innerHTML = '<strong style="color: #ffd700; display: block; margin-bottom: 10px;">📖 CRÓNICA</strong>';
+            
+            for (const log of replayData.chronicle_logs) {
+                const logElement = document.createElement('div');
+                logElement.className = 'replay-chronicle-entry';
+                logElement.style.cssText = 'font-size: 0.85em; color: #ddd; margin-bottom: 8px; line-height: 1.3; padding: 5px; background: rgba(255,215,0,0.05); border-left: 2px solid #ffd700; padding-left: 8px;';
+                
+                // Mostrar tipo de evento y mensaje
+                const typeEmoji = this.getEventEmoji(log.type);
+                logElement.textContent = `${typeEmoji} ${log.message || log.text || JSON.stringify(log).substring(0, 50)}`;
+                
+                chronicleSection.appendChild(logElement);
+            }
+            
+            eventList.appendChild(chronicleSection);
+            
+            // Agregar separador
+            const separator = document.createElement('div');
+            separator.style.cssText = 'border-bottom: 1px solid #444; margin: 15px 0;';
+            eventList.appendChild(separator);
+        }
+
+        // Mostrar timeline de eventos
         for (const turnData of replayData.timeline) {
             const turnElement = document.createElement('div');
             turnElement.className = 'replay-turn-block';
@@ -143,6 +171,25 @@ const ReplayUI = {
 
             eventList.appendChild(turnElement);
         }
+    },
+
+    /**
+     * Retorna emoji para cada tipo de evento en crónica
+     */
+    getEventEmoji: function(type) {
+        const emojis = {
+            'battle_start': '⚔️',
+            'unit_destroyed': '💀',
+            'construction': '🏗️',
+            'conquest': '🏴',
+            'turn_start': '➡️',
+            'MOVE': '📍',
+            'BATTLE': '⚔️',
+            'UNIT_DEATH': '💀',
+            'CONQUEST': '🏴',
+            'BUILD': '🏗️'
+        };
+        return emojis[type] || '📝';
     },
 
     /**
