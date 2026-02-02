@@ -36,7 +36,22 @@ const ReplayStorage = {
 
     _normalizeId: function(id, prefix) {
         if (!id) return `${prefix || 'id'}_${Date.now()}`;
-        const str = String(id);
+        
+        let normalized = id;
+        if (typeof normalized === 'object') {
+            if (normalized.match_id) normalized = normalized.match_id;
+            else if (normalized.id) normalized = normalized.id;
+            else if (normalized.value) normalized = normalized.value;
+            else {
+                try {
+                    normalized = JSON.stringify(normalized);
+                } catch (e) {
+                    normalized = String(normalized);
+                }
+            }
+        }
+        
+        const str = String(normalized);
         if (this._getByteLength(str) <= 250) return str;
         const hash = this._hashString(str);
         return `${prefix || 'id'}_${hash}`;

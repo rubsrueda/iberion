@@ -238,6 +238,14 @@ const LegacyUI = {
         const content = this.modalElement.querySelector('[data-legacy-content="heatmap"]');
         if (!content) return;
 
+        if (!heatmapData.hexStates || heatmapData.hexStates.length === 0) {
+            content.innerHTML = `
+                <h3>🗺️ Mapa de Expansión Territorial</h3>
+                <p style="color: #aaa; font-size: 0.9em;">No hay datos de territorio para mostrar.</p>
+            `;
+            return;
+        }
+
         // Crear grid visual de hexagos simplificado
         const hexSize = 20;
         let gridHTML = `<div class="heatmap-grid" style="display: grid; grid-template-columns: repeat(${heatmapData.width}, 1fr); gap: 2px; padding: 20px;">`;
@@ -279,7 +287,8 @@ const LegacyUI = {
         const content = this.modalElement.querySelector('[data-legacy-content="narrative"]');
         if (!content) return;
 
-        const eventHTML = narrative.events.map(e => {
+        const events = narrative?.events || [];
+        const eventHTML = events.map(e => {
             const icon = e.type === 'battle' ? '⚔️' : '📜';
             return `<div class="narrative-entry ${e.type}">
                 <span class="narrative-icon">${icon}</span>
@@ -287,6 +296,7 @@ const LegacyUI = {
             </div>`;
         }).join('');
 
+        const hasEvents = events.length > 0;
         const html = `
             <h3>📖 La Crónica (Estilo EU4)</h3>
             <p style="color: #aaa; font-size: 0.9em;">Reseña narrativa de los eventos más importantes (${narrative.totalTurns} turnos)</p>
@@ -296,7 +306,7 @@ const LegacyUI = {
                 border-left: 3px solid #00f3ff;
                 padding-left: 15px;
             ">
-                ${eventHTML}
+                ${hasEvents ? eventHTML : '<div style="color:#777; padding: 10px 0;">No hay eventos narrativos registrados.</div>'}
             </div>
         `;
 
@@ -309,6 +319,14 @@ const LegacyUI = {
     displayCombatLog: function(combatAnalysis) {
         const content = this.modalElement.querySelector('[data-legacy-content="combat"]');
         if (!content) return;
+
+        if (!combatAnalysis || combatAnalysis.length === 0) {
+            content.innerHTML = `
+                <h3>⚔️ Análisis de Combates</h3>
+                <p style="color: #aaa; font-size: 0.9em;">No hay combates registrados en esta partida.</p>
+            `;
+            return;
+        }
 
         const rows = combatAnalysis.map(battle => `
             <tr>

@@ -43,7 +43,13 @@ const GameHistoryUI = {
      * Muestra el modal
      */
     showModal: function() {
-        if (!this.modalElement) return;
+        if (!this.modalElement) {
+            this.initialize();
+            if (!this.modalElement) {
+                console.warn('[GameHistoryUI] Modal no disponible al mostrar');
+                return;
+            }
+        }
         this.modalElement.style.display = 'flex';
         this.isVisible = true;
     },
@@ -62,6 +68,13 @@ const GameHistoryUI = {
      * Muestra lista de partidas
      */
     displayGamesList: function(games) {
+        if (!this.modalElement) {
+            this.initialize();
+            if (!this.modalElement) {
+                console.warn('[GameHistoryUI] Modal no disponible al renderizar lista');
+                return;
+            }
+        }
         const content = this.modalElement.querySelector('.history-content');
         if (!content) return;
 

@@ -19,7 +19,16 @@ const ReplayEngine = {
     initialize: function(matchId, mapSeed, playersInfo) {
         console.log('[ReplayEngine] initialize() llamado con matchId:', matchId);
         
-        this.matchId = matchId;
+        let safeMatchId = matchId;
+        if (!safeMatchId || typeof safeMatchId !== 'string') {
+            try {
+                safeMatchId = `match_${crypto.randomUUID().substring(0, 8)}`;
+            } catch (e) {
+                safeMatchId = `match_${Date.now()}`;
+            }
+        }
+        
+        this.matchId = safeMatchId;
         this.mapSeed = mapSeed;
         this.players = playersInfo || [];
         this.timeline = [];
@@ -27,7 +36,7 @@ const ReplayEngine = {
         this.isEnabled = true;
         this.startTime = Date.now();
         
-        console.log(`[ReplayEngine] ✅ Inicializado. isEnabled=${this.isEnabled}, matchId=${matchId}, players=${this.players.length}`);
+        console.log(`[ReplayEngine] ✅ Inicializado. isEnabled=${this.isEnabled}, matchId=${safeMatchId}, players=${this.players.length}`);
     },
 
     /**

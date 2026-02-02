@@ -32,14 +32,31 @@ const ReplayIntegration = {
      * Inicia el registro de una partida
      */
     startGameRecording: function(matchId, mapSeed, playersInfo) {
-        console.log('[ReplayIntegration] startGameRecording llamado con:', { matchId, mapSeed, playersInfoLength: playersInfo?.length });
+        const normalizedMatchId = this._normalizeMatchId(matchId);
+        console.log('[ReplayIntegration] startGameRecording llamado con:', { matchId: normalizedMatchId, mapSeed, playersInfoLength: playersInfo?.length });
         
         if (typeof ReplayEngine !== 'undefined') {
-            ReplayEngine.initialize(matchId, mapSeed, playersInfo);
+            ReplayEngine.initialize(normalizedMatchId, mapSeed, playersInfo);
             console.log('[ReplayIntegration] ✅ ReplayEngine.initialize() ejecutado. isEnabled:', ReplayEngine.isEnabled);
         } else {
             console.error('[ReplayIntegration] ❌ ReplayEngine NO ESTÁ DEFINIDO');
         }
+    },
+
+    _normalizeMatchId: function(matchId) {
+        if (!matchId) return `match_${crypto.randomUUID().substring(0, 8)}`;
+        if (typeof matchId === 'string') return matchId;
+        if (typeof matchId === 'object') {
+            if (matchId.match_id) return String(matchId.match_id);
+            if (matchId.id) return String(matchId.id);
+            if (matchId.value) return String(matchId.value);
+            try {
+                return `match_${crypto.randomUUID().substring(0, 8)}`;
+            } catch (e) {
+                return `match_${Date.now()}`;
+            }
+        }
+        return String(matchId);
     },
 
     /**
