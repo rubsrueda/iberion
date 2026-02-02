@@ -158,13 +158,17 @@ const ReplayEngine = {
         console.log(`[ReplayEngine] Tamaño de metadata: ${metadataStr.length} bytes`);
         console.log(`[ReplayEngine] matchId: ${this.matchId}, timeline.length: ${this.timeline.length}`);
         
+        // Incluir logs de la crónica si están disponibles
+        const chronicleLogs = (typeof Chronicle !== 'undefined' && Chronicle.getLogs) ? Chronicle.getLogs() : [];
+        
         const replayData = {
             match_id: this.matchId,
             metadata: metadataStr,  // Guardar como STRING, no como objeto
-            timeline: this.timeline
+            timeline: this.timeline,
+            chronicle_logs: chronicleLogs  // Incluir crónica para referencia
         };
         
-        console.log(`[ReplayEngine] ✅ Replay finalizado: ${this.timeline.length} turnos registrados`);
+        console.log(`[ReplayEngine] ✅ Replay finalizado: ${this.timeline.length} turnos registrados, ${chronicleLogs.length} eventos en crónica`);
         console.log('[ReplayEngine] replayData completo:', replayData);
         
         this.isEnabled = false;

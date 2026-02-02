@@ -193,7 +193,7 @@ const ReplayStorage = {
         try {
             const { data, error } = await supabaseClient
                 .from('game_replays')
-                .select('match_id, metadata, created_at')
+                .select('match_id, metadata, created_at, share_token')
                 .eq('user_id', PlayerDataManager.currentPlayer.auth_id)
                 .order('created_at', { ascending: false });
 

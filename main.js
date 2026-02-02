@@ -246,6 +246,19 @@ const showLoginScreen = () => {
 
 function initApp() {
 
+    // <<== DETECCIÓN DE DEEP LINK PARA REPLAYS ==>>
+    // Si hay parámetro ?replay=TOKEN, cargar ese replay sin necesidad de ser el dueño
+    const urlParams = new URLSearchParams(window.location.search);
+    const replayToken = urlParams.get('replay');
+    
+    if (replayToken) {
+        console.log('[initApp] Deep link detectado para replay:', replayToken);
+        // Guardar el token para procesarlo después de autenticación
+        sessionStorage.setItem('pendingReplayToken', replayToken);
+        // Limpiar la URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
     // Aviso legal y cookies
     const accepted = localStorage.getItem('terms_accepted');
     if (!accepted) {

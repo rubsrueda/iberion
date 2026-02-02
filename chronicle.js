@@ -8,14 +8,23 @@ const Chronicle = {
      * @param {object} data - Un objeto con toda la información contextual del evento.
      */
 
-    currentMatchLogs: [], // <--- NUEVO: Almacén de textos de la partida actual
+    currentMatchLogs: [], // <--- Almacén de eventos de la partida actual
 
     logEvent: function(eventType, data) {
         const message = this.generateMessage(eventType, data);
         if (message) {
+            // Almacenar en el array para persistencia
+            this.currentMatchLogs.push({
+                turn: gameState.turnNumber || 1,
+                type: eventType,
+                message: message,
+                data: data,
+                timestamp: Date.now()
+            });
+
             // Usamos la función de la consola de depuración que ya existe.
             if (typeof logToConsole === 'function') {
-                logToConsole(message, 'chronicle'); // Usaremos un nuevo tipo de estilo
+                logToConsole(message, 'chronicle');
             }
             // También lo mandamos a la consola del navegador para un registro persistente.
             console.log(`[CRÓNICA] ${message}`);
@@ -23,6 +32,20 @@ const Chronicle = {
     },
 
     clearLogs: function() { this.currentMatchLogs = []; }, // Limpiar al empezar partida
+
+    /**
+     * Obtiene todos los logs actuales para mostrar en la UI
+     */
+    getLogs: function() {
+        return this.currentMatchLogs;
+    },
+
+    /**
+     * Filtra logs por tipo de evento
+     */
+    getLogsByType: function(eventType) {
+        return this.currentMatchLogs.filter(log => log.type === eventType);
+    },
 
     /**
      * Genera el texto narrativo basado en el tipo de evento y los datos.
@@ -49,14 +72,23 @@ const Chronicle = {
                 }
             
             case 'battle_start':
-                return `💥 ¡BATALLA! ${year}: La división "${data.attacker.name}" se lanza al combate contra "${data.defender.name}" en las inmediaciones de ${this.getHexDescription(data.defender.r, data.defender.c)}!`;
+                const defenderLoc = this.getHexDescription(data.defender.r, data.defender.c);
+                return `💥 ¡BATALLA! ${year}: La división "${data.attacker.name}" (J${data.attacker.player}) se lanza al combate contra "${data.defender.name}" (J${data.defender.player}) en ${defenderLoc}!`;
 
             case 'unit_destroyed':
-                const casualties = data.destroyedUnit.regiments.length;
                 if (data.victorUnit) {
-                    return `☠️ ${year}: Tras un feroz combate, la división "${data.destroyedUnit.name}" ha sido aniquilada. Sus ${casualties} regimientos han caído ante el poder de "${data.victorUnit.name}".`;
+                    const numRegiments = data.destroyedUnit.regiments?.length || 0;
+                    return `☠️ ${year}: Tras un feroz combate, la división "${data.destroyedUnit.name}" (J${data.destroyedUnit.player}) ha sido aniquilada. Sus ${numRegiments} regimientos han caído ante el poder de "${data.victorUnit.name}" (J${data.victorUnit.player}).`;
                 } else {
-                    return `☠️ ${year}: La división "${data.destroyedUnit.name}", rodeada y sin moral, se rinde. Sus ${casualties} regimientos deponen las armas.`;
+                    const numRegiments = data.destroyedUnit.regiments?.length || 0;
+                    return `☠️ ${year}: La división "${data.destroyedUnit.name}" (J${data.destroyedUnit.player}), rodeada y sin moral, se rinde. Sus ${numRegiments} regimientos deponen las armas.`;
+                }
+
+            case 'construction':
+                if (data.isCity) {
+                    return `🏛️ ¡CIUDAD FUNDADA! ${year}: La ciudad de ${data.name} ha sido fundada en (${data.location[0]},${data.location[1]}) por el Jugador ${data.playerId}.`;
+                } else {
+                    return `🏗️ ${year}: Se ha construido una ${data.name} en (${data.location[0]},${data.location[1]}).`;
                 }
             
             // Podemos añadir muchos más tipos de eventos aquí...

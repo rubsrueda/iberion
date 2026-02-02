@@ -820,6 +820,11 @@ async function moveUnit(unit, toR, toC) {
             if (typeof Chronicle !== 'undefined') {
                 Chronicle.logEvent('conquest', { unit: unit, toR: toR, toC: toC });
             }
+
+            // <<== CAPTURA DE EVENTO CONQUISTA PARA REPLAY ==>>
+            if (typeof ReplayIntegration !== 'undefined') {
+                ReplayIntegration.recordConquest(toR, toC, unit.player, `Jugador ${unit.player}`);
+            }
         }
 
     } else { 
@@ -1125,7 +1130,10 @@ async function attackUnit(attackerDivision, defenderDivision) {
     }
         
     if (typeof Chronicle !== 'undefined') {
-        Chronicle.logEvent('battle_start', { attacker: attackerDivision, defender: defenderDivision });
+        Chronicle.logEvent('battle_start', { 
+            attacker: { id: attackerDivision.id, name: attackerDivision.name, player: attackerDivision.player, r: attackerDivision.r, c: attackerDivision.c },
+            defender: { id: defenderDivision.id, name: defenderDivision.name, player: defenderDivision.player, r: defenderDivision.r, c: defenderDivision.c }
+        });
     }
 
     // Declarar fuera del try para que esté disponible en finally
@@ -1419,10 +1427,24 @@ async function attackUnit(attackerDivision, defenderDivision) {
             }
             // Se pasa el atacante original como vencedor
             await handleUnitDestroyed(defenderDivision, attackerDivision); // <<== AWAIT
+            // <<== CRÓNICA: Registrar destrucción ==>> 
+            if (typeof Chronicle !== 'undefined') {
+                Chronicle.logEvent('unit_destroyed', {
+                    destroyedUnit: { id: defenderDivision.id, name: defenderDivision.name, player: defenderDivision.player },
+                    victorUnit: { id: attackerDivision.id, name: attackerDivision.name, player: attackerDivision.player }
+                });
+            }
         }
         if (attackerDestroyed) {
             // Se pasa el defensor original como vencedor
             await handleUnitDestroyed(attackerDivision, defenderDivision); // <<== AWAIT
+            // <<== CRÓNICA: Registrar destrucción ==>> 
+            if (typeof Chronicle !== 'undefined') {
+                Chronicle.logEvent('unit_destroyed', {
+                    destroyedUnit: { id: attackerDivision.id, name: attackerDivision.name, player: attackerDivision.player },
+                    victorUnit: { id: defenderDivision.id, name: defenderDivision.name, player: defenderDivision.player }
+                });
+            }
         }
 
         // 5. Asignar experiencia de combate a los SUPERVIVIENTES (TU LÓGICA RESTAURADA)
@@ -1472,6 +1494,24 @@ async function attackUnit(attackerDivision, defenderDivision) {
         }
 
         console.groupEnd();
+        
+        // <<== CAPTURA DE EVENTO BATALLA PARA REPLAY ==>> 
+        // Registrar el resultado de la batalla en el Replay
+        if (typeof ReplayIntegration !== 'undefined') {
+            const terrain = board[defenderDivision.r]?.[defenderDivision.c]?.terrain || 'unknown';
+            const battleWinner = defenderDestroyed ? attackerDivision.player : (attackerDestroyed ? defenderDivision.player : null);
+            const location = [defenderDivision.r, defenderDivision.c];
+            ReplayIntegration.recordBattle(
+                attackerDivision.id,
+                attackerDivision.name,
+                defenderDivision.id,
+                defenderDivision.name,
+                location,
+                battleWinner,
+                terrain,
+                { damageDone: damageDealtByAttacker, damageReceived: damageDealtByDefender }
+            );
+        }
         
         // Otorgar puntos de investigación por batalla ocurrida
         if (typeof ResearchRewardsManager !== 'undefined' && ResearchRewardsManager.onBattleOccurred) {
@@ -2176,6 +2216,16 @@ async function handleUnitDestroyed(destroyedUnit, victorUnit) {
 
     // Guardamos las coordenadas antes de cualquier proceso
     const savedCoords = { r: destroyedUnit.r, c: destroyedUnit.c };
+
+    // <<== CAPTURA DE EVENTO MUERTE DE UNIDAD PARA REPLAY ==>>
+    if (typeof ReplayIntegration !== 'undefined') {
+        ReplayIntegration.recordUnitDeath(
+            destroyedUnit.id,
+            destroyedUnit.name,
+            destroyedUnit.player,
+            [destroyedUnit.r, destroyedUnit.c]
+        );
+    }
 
     // Intentamos aplicar recompensas, pero rodeado de un try/catch para que un error aquí
     // no impida que la unidad desaparezca del mapa.
@@ -3236,6 +3286,24 @@ function handleConfirmBuildStructure(actionData) {
     // AUDIO
     if (typeof AudioManager !== 'undefined') {
         AudioManager.playSound('structure_built');
+    }
+
+    // <<== CAPTURA DE EVENTO CONSTRUCCIÓN PARA REPLAY ==>>
+    if (typeof ReplayIntegration !== 'undefined') {
+        ReplayIntegration.recordBuild(structureType, r, c, playerId, `Jugador ${playerId}`);
+    }
+
+    // <<== CRÓNICA: Registrar construcción ==>>
+    if (typeof Chronicle !== 'undefined') {
+        const buildingName = data.name || structureType;
+        const location = `(${r},${c})`;
+        Chronicle.logEvent('construction', {
+            structureType: structureType,
+            location: [r, c],
+            playerId: playerId,
+            name: buildingName,
+            isCity: data.isCity || false
+        });
     }
 
     // --- 3. APLICACIÓN DE ESTRUCTURA Y CIUDAD  ---

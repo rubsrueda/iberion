@@ -18,7 +18,7 @@ const ChronicleIntegration = {
 
         try {
             // Cargar replays desde game_replays
-            const replays = await ReplayStorage.listReplays();
+            const replays = await ReplayStorage.getUserReplays();
             console.log('[ChronicleIntegration] Replays cargados:', replays.length);
             
             return replays;
@@ -55,8 +55,9 @@ const ChronicleIntegration = {
         listContainer.innerHTML = replays.map((replay, index) => {
             const metadata = typeof replay.metadata === 'string' ? JSON.parse(replay.metadata) : replay.metadata;
             const date = new Date(replay.created_at);
-            const winner = metadata.winner || '?';
-            const numTurns = metadata.numTurns || '?';
+            const winner = metadata.w || metadata.winner || '?';
+            const numTurns = metadata.t || metadata.numTurns || '?';
+            const shareToken = replay.share_token || '';
             
             return `
                 <div style="
@@ -65,12 +66,8 @@ const ChronicleIntegration = {
                     padding: 15px;
                     border-radius: 8px;
                     border-left: 4px solid #00f3ff;
-                    cursor: pointer;
                     transition: all 0.2s;
-                " 
-                onmouseover="this.style.background='linear-gradient(135deg, rgba(0,243,255,0.1), rgba(0,0,0,0.3))'"
-                onmouseout="this.style.background='linear-gradient(135deg, rgba(255,255,255,0.05), rgba(0,0,0,0.2))'"
-                onclick="ChronicleIntegration.openReplay('${replay.match_id}')">
+                ">
                     
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                         <strong style="color: #00f3ff; font-size: 14px;">
@@ -81,10 +78,22 @@ const ChronicleIntegration = {
                         </span>
                     </div>
                     
-                    <div style="display: flex; justify-content: space-between; font-size: 12px; color: #ccc;">
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; color: #ccc; margin-bottom: 8px;">
                         <span>⚔️ Ganador: J${winner}</span>
                         <span>🔄 Turnos: ${numTurns}</span>
-                        <span style="color: #00f3ff;">▶️ Ver Crónica</span>
+                    </div>
+
+                    <div style="display: flex; gap: 8px; font-size: 11px;">
+                        <button onclick="event.stopPropagation(); ChronicleIntegration.openReplay('${replay.match_id}')" 
+                            style="flex: 1; padding: 6px; background: #00897b; color: #fff; border: 1px solid #00897b; border-radius: 4px; cursor: pointer;">
+                            ▶️ VER
+                        </button>
+                        ${shareToken ? `
+                        <button onclick="event.stopPropagation(); ChronicleIntegration.copyShareLink('${shareToken}')" 
+                            style="flex: 1; padding: 6px; background: #ff6f00; color: #fff; border: 1px solid #ff6f00; border-radius: 4px; cursor: pointer;">
+                            🔗 COMPARTIR
+                        </button>
+                        ` : ''}
                     </div>
                 </div>
             `;
@@ -160,6 +169,32 @@ const ChronicleIntegration = {
      * Muestra notificación con link al replay después de terminar partida
      */
     showReplayNotification(matchId) {
+        console.log('[ChronicleIntegration] Mostrando notificación de replay:', matchId);
+        // TODO: Mostrar toast/notificación
+    },
+
+    /**
+     * Copia el link de compartir al portapapeles
+     */
+    async copyShareLink(shareToken) {
+        if (!shareToken) {
+            logMessage('No hay link disponible para compartir.', 'error');
+            return;
+        }
+
+        try {
+            const baseUrl = window.location.origin;
+            const pathName = window.location.pathname.split('/').filter(p => p).slice(0, -1).join('/');
+            const shareUrl = `${baseUrl}/${pathName}/?replay=${shareToken}`;
+
+            await navigator.clipboard.writeText(shareUrl);
+            logMessage('🔗 Link copiado al portapapeles. ¡Comparte la batalla con tus amigos!', 'success');
+            console.log('[ChronicleIntegration] Link copiado:', shareUrl);
+        } catch (err) {
+            console.error('[ChronicleIntegration] Error al copiar link:', err);
+            logMessage('Error al copiar el link. Inténtalo de nuevo.', 'error');
+        }
+    }
         // Notificación deshabilitada
     }
 };

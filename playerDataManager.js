@@ -145,6 +145,40 @@ const PlayerDataManager = {
                 if (typeof showMainMenu === "function") {
                     showMainMenu();
                 }
+                
+                // <<== PROCESAMIENTO DE DEEP LINK PARA REPLAYS ==>>
+                // Si hay un replay pendiente para ver (compartido por otro jugador)
+                const pendingReplayToken = sessionStorage.getItem('pendingReplayToken');
+                if (pendingReplayToken) {
+                    console.log('[PlayerDataManager] Procesando deep link para replay:', pendingReplayToken);
+                    sessionStorage.removeItem('pendingReplayToken');
+                    
+                    // Esperar un poco para que el menú esté listo
+                    setTimeout(async () => {
+                        try {
+                            // Cargar el replay usando el share_token
+                            if (typeof ReplayStorage !== 'undefined' && ReplayStorage.loadSharedReplay) {
+                                const replayData = await ReplayStorage.loadSharedReplay(pendingReplayToken);
+                                if (replayData) {
+                                    console.log('[PlayerDataManager] Replay cargado exitosamente:', replayData.match_id);
+                                    // Abrir el visor de replay
+                                    if (typeof ReplayUI !== 'undefined' && ReplayUI.openReplayModal) {
+                                        ReplayUI.openReplayModal(replayData, null);
+                                    } else {
+                                        console.error('[PlayerDataManager] ReplayUI no disponible');
+                                        logMessage('Sistema de visualización de replays no disponible.', 'error');
+                                    }
+                                } else {
+                                    console.error('[PlayerDataManager] No se pudo cargar el replay compartido');
+                                    logMessage('No se pudo cargar la batalla compartida.', 'error');
+                                }
+                            }
+                        } catch (err) {
+                            console.error('[PlayerDataManager] Error al cargar replay compartido:', err);
+                            logMessage('Error al cargar la batalla compartida.', 'error');
+                        }
+                    }, 1000);
+                }
             } else if (!session && event === 'INITIAL_SESSION') {
                 // No hay sesión inicial
                 console.log('⚠️  No hay sesión guardada');
