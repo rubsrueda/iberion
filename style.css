@@ -4661,9 +4661,23 @@ input[type="range"] {
     display: none; /* Oculto por defecto (móvil) */
 }
 
+.name-watermark {
+    position: absolute;
+    bottom: 10px;
+    left: 15px;
+    font-size: 14px;
+    color: rgba(240, 230, 210, 0.4);
+    pointer-events: none;
+    z-index: 1000;
+    display: none; /* Oculto por defecto (móvil) */
+}
+
 /* Mostrar marca de agua solo en pantallas grandes */
 @media (min-width: 1024px) {
     .version-watermark {
+        display: block;
+    }
+    .name-watermark {
         display: block;
     }
 }
