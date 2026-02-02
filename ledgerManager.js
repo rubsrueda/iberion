@@ -120,22 +120,30 @@ const LedgerManager = {
      * PESTAÑA 1: RESUMEN NACIONAL (El "Outliner")
      */
     _updateResumenNacional: function() {
-        const myPlayerId = gameState.myPlayerNumber;
-        const myStats = StatTracker.getPlayerStats(myPlayerId);
+        const myPlayerId = gameState.myPlayerNumber || gameState.currentPlayer;
         
-        if (!myStats) return;
+        // Leer oro directamente de gameState.playerResources
+        const oroActual = gameState.playerResources?.[myPlayerId]?.oro || 0;
+        
+        // Contar regimientos activos REALES
+        let regimentosActivos = 0;
+        units.forEach(unit => {
+            if (unit.playerId === myPlayerId && !unit.isDefeated && unit.regiments) {
+                regimentosActivos += unit.regiments.length;
+            }
+        });
 
         const resumen = {
             tesoreria: {
                 ingresos: this._calculateIncomeThisTurn(myPlayerId),
                 gastos: this._calculateExpensesThisTurn(myPlayerId),
                 balance: this._calculateIncomeThisTurn(myPlayerId) - this._calculateExpensesThisTurn(myPlayerId),
-                oro: myStats.gold
+                oro: oroActual // Leer directamente
             },
             capacidadMilitar: {
-                regimentosActivos: myStats.militaryUnits,
+                regimentosActivos: regimentosActivos, // Contar REAL
                 limiteSuministros: this._calculateSupplyLimit(myPlayerId),
-                porcentajeUso: Math.floor((myStats.militaryUnits / this._calculateSupplyLimit(myPlayerId)) * 100)
+                porcentajeUso: Math.floor((regimentosActivos / Math.max(1, this._calculateSupplyLimit(myPlayerId))) * 100)
             },
             estabilidad: {
                 corrupcion: this._calculateCorruptionLevel(myPlayerId),
@@ -157,21 +165,90 @@ const LedgerManager = {
      * PESTAÑA 2: DEMOGRAFÍA (Comparativa - Estilo Civ4)
      */
     _updateDemografia: function() {
-        const ranking = StatTracker.getRanking('score');
-        const myPlayerId = gameState.myPlayerNumber;
+        const myPlayerId = gameState.myPlayerNumber || gameState.currentPlayer;
         
-        const tabla = ranking.map((player, index) => ({
-            rango: index + 1,
-            playerId: player.playerId,
-            civilization: player.civilization,
-            isMe: player.playerId === myPlayerId,
-            score: player.score,
-            power: player.militaryPower + player.navyPower,
-            gold: player.gold,
-            territory: player.territory,
-            cities: player.cities,
-            population: player.population
-        }));
+        // Construir tabla con DATOS REALES de todos los jugadores
+        const tabla = [];
+        
+        for (let playerId = 1; playerId <= gameState.numPlayers; playerId++) {
+            // Saltar jugadores eliminados
+            if (gameState.eliminatedPlayers?.includes(playerId)) continue;
+            
+            // Calcular población REAL según la regla especificada
+            let poblacion = 0;
+            let ciudades = 0;
+            let territorio = 0;
+            
+            for (let r = 0; r < board.length; r++) {
+                for (let c = 0; c < board[r].length; c++) {
+                    const hex = board[r][c];
+                    if (hex?.owner === playerId) {
+                        territorio++;
+                        
+                        // Contar población por tipo de estructura
+                        if (hex.isCity || hex.structure === 'Metrópoli' || hex.structure === 'Ciudad' || hex.structure === 'Aldea') {
+                            ciudades++;
+                            // Detectar tipo de ciudad por hex.structure
+                            if (hex.structure === 'Metrópoli') {
+                                poblacion += 8000; // Metrópoli
+                            } else if (hex.structure === 'Ciudad') {
+                                poblacion += 4000; // Ciudad
+                            } else {
+                                poblacion += 2000; // Aldea (por defecto para isCity)
+                            }
+                        } else if (hex.structure === "Fortaleza") {
+                            poblacion += 1000; // Fortaleza
+                        } else {
+                            poblacion += 200; // Hexágono libre
+                        }
+                    }
+                }
+            }
+            
+            // Calcular poder militar REAL (suma de ataque + defensa de regimientos)
+            let poderMilitar = 0;
+            units.forEach(unit => {
+                if (unit.playerId === playerId && !unit.isDefeated && unit.regiments) {
+                    unit.regiments.forEach(regiment => {
+                        const regData = REGIMENT_TYPES[regiment.type];
+                        if (regData) {
+                            poderMilitar += (regData.attack || 0) + (regData.defense || 0);
+                        }
+                    });
+                }
+            });
+            
+            // Oro actual
+            const oro = gameState.playerResources?.[playerId]?.oro || 0;
+            
+            // Puntuación (combinación de factores)
+            const puntuacion = Math.floor(
+                (poblacion / 100) + 
+                (poderMilitar / 10) + 
+                (territorio * 10) +
+                (oro / 10)
+            );
+            
+            tabla.push({
+                playerId: playerId,
+                civilization: gameState.playerCivilizations?.[playerId] || 'Desconocida',
+                isMe: playerId === myPlayerId,
+                score: puntuacion,
+                power: poderMilitar,
+                gold: oro,
+                territory: territorio,
+                cities: ciudades,
+                population: poblacion
+            });
+        }
+        
+        // Ordenar por puntuación
+        tabla.sort((a, b) => b.score - a.score);
+        
+        // Añadir rango
+        tabla.forEach((player, index) => {
+            player.rango = index + 1;
+        });
 
         LedgerUI.displayDemografia(tabla);
     },
@@ -180,7 +257,7 @@ const LedgerManager = {
      * PESTAÑA 3: MILITAR (Desglose Táctico)
      */
     _updateMilitar: function() {
-        const myPlayerId = gameState.myPlayerNumber;
+        const myPlayerId = gameState.myPlayerNumber || gameState.currentPlayer;
         const myUnits = units.filter(u => u.playerId === myPlayerId && !u.isDefeated);
         
         const tierra = [];
@@ -194,20 +271,45 @@ const LedgerManager = {
                 type: unit.type,
                 location: { r: unit.r, c: unit.c },
                 morale: unit.morale || 100,
-                regiments: unit.regiments?.length || 0,
-                health: unit.health || 100,
+                regiments: [],
+                totalHealth: 0,
                 supplies: unit.supplies || 100,
                 isDisorganized: unit.isDisorganized || false
             };
 
-            if (unit.type === 'naval') {
+            // Desglose REAL de regimientos por tipo
+            if (unit.regiments) {
+                const regimentCounts = {};
+                unit.regiments.forEach(regiment => {
+                    const regType = regiment.type;
+                    if (!regimentCounts[regType]) {
+                        regimentCounts[regType] = {
+                            type: regType,
+                            count: 0,
+                            totalHealth: 0
+                        };
+                    }
+                    regimentCounts[regType].count++;
+                    regimentCounts[regType].totalHealth += regiment.health || 0;
+                });
+                
+                // Convertir a array
+                unitInfo.regiments = Object.values(regimentCounts);
+                unitInfo.totalHealth = Object.values(regimentCounts).reduce((sum, r) => sum + r.totalHealth, 0);
+                manpower += unit.regiments.length;
+            }
+
+            // Clasificar por tipo REAL (is_naval en REGIMENT_TYPES)
+            const isNaval = unit.regiments?.some(reg => {
+                const regData = REGIMENT_TYPES[reg.type];
+                return regData?.is_naval === true;
+            });
+
+            if (isNaval) {
                 naval.push(unitInfo);
             } else {
                 tierra.push(unitInfo);
             }
-
-            // Contar reclutas en reserva
-            manpower += unit.regiments?.length || 0;
         });
 
         const militar = {
@@ -224,24 +326,27 @@ const LedgerManager = {
      * PESTAÑA 4: ECONOMÍA (Libro de Cuentas)
      */
     _updateEconomia: function() {
-        const myPlayerId = gameState.myPlayerNumber;
+        const myPlayerId = gameState.myPlayerNumber || gameState.currentPlayer;
+        
+        // Calcular ingresos REALES
+        const impuestos = this._calculateIncomeThisTurn(myPlayerId) - this._calculateTrade(myPlayerId); // Oro de hexágonos y estructuras
+        const comercio = this._calculateTrade(myPlayerId); // Caravanas
+        const saqueosMilitares = 0; // Histórico (no hay sistema de tracking aún)
         
         const ingresos = {
-            impuestos: this._calculateTaxes(myPlayerId),
-            comercio: this._calculateTrade(myPlayerId),
-            saqueos: this._calculateRaids(myPlayerId),
-            tratados: this._calculateTreaties(myPlayerId),
-            total: 0
+            impuestos: impuestos,
+            comercio: comercio,
+            militares: saqueosMilitares, // Renombrado de "saqueos"
+            total: impuestos + comercio + saqueosMilitares
         };
-        ingresos.total = ingresos.impuestos + ingresos.comercio + ingresos.saqueos + ingresos.tratados;
 
+        // Calcular gastos REALES (solo ejército)
+        const ejercito = this._calculateArmyUpkeep(myPlayerId);
+        
         const gastos = {
-            edificios: this._calculateBuildingMaintenance(myPlayerId),
-            ejercito: this._calculateArmyUpkeep(myPlayerId),
-            corrupcion: this._calculateCorruptionCost(myPlayerId),
-            total: 0
+            ejercito: ejercito,
+            total: ejercito
         };
-        gastos.total = gastos.edificios + gastos.ejercito + gastos.corrupcion;
 
         const economia = {
             ingresos: ingresos,
@@ -249,9 +354,9 @@ const LedgerManager = {
             balance: ingresos.total - gastos.total,
             oroActual: gameState.playerResources?.[myPlayerId]?.oro || 0,
             desglosePorcentual: {
-                impuestos: Math.floor((ingresos.impuestos / (ingresos.total || 1)) * 100),
-                comercio: Math.floor((ingresos.comercio / (ingresos.total || 1)) * 100),
-                saqueos: Math.floor((ingresos.saqueos / (ingresos.total || 1)) * 100)
+                impuestos: ingresos.total > 0 ? Math.floor((ingresos.impuestos / ingresos.total) * 100) : 0,
+                comercio: ingresos.total > 0 ? Math.floor((ingresos.comercio / ingresos.total) * 100) : 0,
+                militares: ingresos.total > 0 ? Math.floor((ingresos.militares / ingresos.total) * 100) : 0
             }
         };
 
@@ -261,26 +366,78 @@ const LedgerManager = {
     // === MÉTODOS DE CÁLCULO (privados) ===
 
     _calculateIncomeThisTurn: function(playerId) {
-        return (this._calculateTaxes(playerId) + this._calculateTrade(playerId)) || 0;
+        // Suma REAL del ingreso de oro por hexágonos y estructuras
+        let totalGold = 0;
+        
+        // Constantes del juego (definidas en gameFlow.js)
+        const GOLD_INCOME = {
+            PER_CAPITAL: 100,
+            PER_CITY: 50,
+            PER_FORT: 20,
+            PER_ROAD: 5,
+            PER_HEX: 1
+        };
+        
+        for (let r = 0; r < board.length; r++) {
+            for (let c = 0; c < board[r].length; c++) {
+                const hex = board[r][c];
+                if (hex?.owner === playerId) {
+                    // Ciudades y capitales
+                    if (hex.isCity) {
+                        totalGold += hex.isCapital ? GOLD_INCOME.PER_CAPITAL : GOLD_INCOME.PER_CITY;
+                    } 
+                    // Fortalezas
+                    else if (hex.structure === "Fortaleza") {
+                        totalGold += GOLD_INCOME.PER_FORT;
+                    }
+                    // Caminos
+                    else if (hex.structure === "Camino") {
+                        totalGold += GOLD_INCOME.PER_ROAD;
+                    }
+                    // Hexágono sin estructura
+                    else {
+                        totalGold += GOLD_INCOME.PER_HEX;
+                    }
+                }
+            }
+        }
+        
+        // Añadir oro de caravanas (se calcula cuando llegan a destino)
+        totalGold += this._calculateTrade(playerId);
+        
+        return totalGold;
     },
 
     _calculateExpensesThisTurn: function(playerId) {
-        return (this._calculateArmyUpkeep(playerId) + this._calculateBuildingMaintenance(playerId)) || 0;
+        // Solo gasto de ejército - NO hay mantenimiento de edificios ni corrupción
+        return this._calculateArmyUpkeep(playerId);
     },
 
     _calculateSupplyLimit: function(playerId) {
-        let limit = 10; // Base
+        let limit = 0; // Sin base inicial
         
-        // Contar metrópolis y fortalezas
+        // Contar capacidad según estructura
         for (let r = 0; r < board.length; r++) {
             for (let c = 0; c < board[r].length; c++) {
-                if (board[r][c]?.owner === playerId) {
-                    if (board[r][c]?.structure?.type === 'metropolis') {
-                        limit += 15;
-                    } else if (board[r][c]?.structure?.type === 'fortress') {
-                        limit += 10;
-                    } else if (board[r][c]?.structure?.type === 'city') {
-                        limit += 5;
+                const hex = board[r][c];
+                if (hex?.owner === playerId) {
+                    // Ciudades según nivel - detectar por hex.structure
+                    if (hex.isCity || hex.structure === 'Metrópoli' || hex.structure === 'Ciudad' || hex.structure === 'Aldea') {
+                        if (hex.structure === 'Metrópoli') {
+                            limit += 40; // Metrópoli: 8,000 población = 40 regimientos
+                        } else if (hex.structure === 'Ciudad') {
+                            limit += 20; // Ciudad: 4,000 población = 20 regimientos
+                        } else {
+                            limit += 10; // Aldea: 2,000 población = 10 regimientos (por defecto para isCity)
+                        }
+                    }
+                    // Fortalezas
+                    else if (hex.structure === "Fortaleza") {
+                        limit += 5; // Fortaleza: 1,000 población = 5 regimientos
+                    }
+                    // Cada hexágono libre
+                    else {
+                        limit += 1; // Hexágono Libre: 200 población = 1 regimiento
                     }
                 }
             }
@@ -319,53 +476,62 @@ const LedgerManager = {
     },
 
     _calculateTaxes: function(playerId) {
-        let taxes = 0;
-        const cityCount = units.filter(u => u.playerId === playerId && u.type === 'city').length;
-        taxes = cityCount * 50; // 50 oro por ciudad
-        return taxes;
+        // YA NO SE USA - Los impuestos se calculan en _calculateIncomeThisTurn()
+        // Mantener por compatibilidad pero retornar 0
+        return 0;
     },
 
     _calculateTrade: function(playerId) {
-        // Aproximado: contar caravanas activas
-        const caravans = units.filter(u => u.playerId === playerId && u.type === 'caravan');
-        return caravans.length * 30;
+        // Oro de caravanas activas (aproximado)
+        // En realidad el oro se da cuando llegan a destino, pero aquí hacemos estimación
+        const caravans = units.filter(u => 
+            u.playerId === playerId && 
+            u.type === 'Caravana' && 
+            !u.isDefeated
+        );
+        
+        // Estimación: 30-50 oro por caravana activa
+        return caravans.length * 40;
     },
 
     _calculateRaids: function(playerId) {
-        // Se obtendría del histórico de saqueos
-        return 0; // Placeholder
+        // No hay sistema de ingresos fijos por saqueos
+        // Los saqueos dan oro cuando ocurren (evento histórico)
+        return 0; 
     },
 
     _calculateTreaties: function(playerId) {
-        // Se obtendría de alianzas/tratados
-        return 0; // Placeholder
+        // Sistema de tratados no existe aún
+        return 0;
     },
 
     _calculateBuildingMaintenance: function(playerId) {
-        let cost = 0;
-        for (let r = 0; r < board.length; r++) {
-            for (let c = 0; c < board[r].length; c++) {
-                if (board[r][c]?.owner === playerId && board[r][c]?.structure) {
-                    cost += board[r][c].structure.maintenanceCost || 5;
-                }
-            }
-        }
-        return cost;
+        // NO existe mantenimiento de edificios
+        return 0;
     },
 
     _calculateArmyUpkeep: function(playerId) {
         let cost = 0;
+        
+        // Obtener el costo de upkeep real de cada tipo de regimiento
         units.forEach(unit => {
-            if (unit.playerId === playerId && !unit.isDefeated) {
-                cost += (unit.regiments?.length || 0) * 2; // 2 oro por regimiento
+            if (unit.playerId === playerId && !unit.isDefeated && unit.regiments) {
+                unit.regiments.forEach(regiment => {
+                    // Buscar el costo de upkeep en REGIMENT_TYPES
+                    const regimentData = REGIMENT_TYPES[regiment.type];
+                    if (regimentData && regimentData.cost && regimentData.cost.upkeep) {
+                        cost += regimentData.cost.upkeep;
+                    }
+                });
             }
         });
+        
         return cost;
     },
 
     _calculateCorruptionCost: function(playerId) {
-        const corruptionLevel = this._calculateCorruptionLevel(playerId);
-        return Math.floor(corruptionLevel * 3); // Costo de corrupción
+        // NO existe gasto por corrupción
+        return 0;
     },
 
     _assessSupplyStatus: function(playerId) {

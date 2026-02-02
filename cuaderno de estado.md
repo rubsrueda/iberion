@@ -76,12 +76,76 @@ ________________________________________
 ________________________________________
 
 📋 INVENTARIO DE SISTEMAS EXISTENTES
-A. EL CUADERNO DE ESTADO (LEDGER) - ✅ INTERFAZ COMPLETA, ⚠️ LÓGICA PARCIAL
-•	ledgerManager.js: ✅ Métodos para 4 pestañas (Resumen, Demografía, Militar, Economía)
+A. EL CUADERNO DE ESTADO (LEDGER) - ✅ INTERFAZ COMPLETA, ✅ LÓGICA CORREGIDA
+•	ledgerManager.js: ✅ Métodos para 4 pestañas con CÁLCULOS REALES del juego
 •	ledgerUI.js: ✅ Interfaz visual completa con diseño premium
 •	ledgerIntegration.js: ✅ Hook para abrir desde consola
 •	index.html línea 2120: ✅ Modal #ledgerModal totalmente implementado
-•	Estado: FUNCIONAL pero falta conectar con StatTracker para datos en vivo
+•	Estado: ✅ FUNCIONAL con datos reales del gameState
+
+CORRECCIONES APLICADAS (Feb 2, 2026):
+
+📊 PESTAÑA 1: RESUMEN NACIONAL
+✅ TESORERÍA
+   - Ingresos: Calcula oro REAL por hexágonos ocupados (Capital: 100, Ciudad: 50, Fortaleza: 20, Camino: 5, Hex libre: 1)
+   - Gastos: Calcula upkeep REAL de regimientos según REGIMENT_TYPES
+   - Balance: Resta correcta
+   - Oro Actual: Lee directamente de gameState.playerResources[playerId].oro
+
+✅ CAPACIDAD MILITAR
+   - Regimientos Activos: Cuenta REAL de regimientos en units[]
+   - Límite de Suministros: Cálculo correcto basado en:
+     * Metrópoli: 40 regimientos (8,000 población)
+     * Ciudad: 20 regimientos (4,000 población)
+     * Aldea: 10 regimientos (2,000 población)
+     * Fortaleza: 5 regimientos (1,000 población)
+     * Hexágono Libre: 1 regimiento (200 población)
+
+✅ ESTABILIDAD
+   - Corrupción: Basada en % de hexágonos sin caminos (ingenioso, útil para futuro)
+   - Orden Público: 100 - corrupción
+   - Nivel Estabilidad: Clasificación textual
+
+📊 PESTAÑA 2: DEMOGRAFÍA
+✅ Civilización: Calcula datos REALES por jugador
+   - Puntuación: Basada en población + poder militar + territorio + oro
+   - Poder Militar: Suma REAL de ataque + defensa de todos los regimientos (según REGIMENT_TYPES)
+   - Oro: Lee de gameState.playerResources[playerId].oro
+   - Territorio: Cuenta hexágonos reales en board[][]
+   - Ciudades: Cuenta hexágonos con isCity: true
+   - Población: Calculada según regla correcta:
+     * Metrópoli: 8,000 (40 Regimientos)
+     * Ciudad: 4,000 (20 Regimientos)
+     * Aldea: 2,000 (10 Regimientos)
+     * Fortaleza: 1,000 (5 Regimientos)
+     * Hexágono Libre: 200 (1 Regimiento)
+
+📊 PESTAÑA 3: MILITAR
+✅ EJÉRCITO DE TIERRA
+   - Tipos: Lee de REGIMENT_TYPES en constants.js (Infantería Ligera, Infantería Pesada, Caballería Ligera, etc.)
+   - Detalle: Muestra desglose REAL de regimientos por tipo en cada unidad
+   - Clasificación: Usa is_naval de REGIMENT_TYPES para separar tierra/naval
+
+✅ ARMADA REAL
+   - Separada del ejército según is_naval: true en REGIMENT_TYPES
+   - Muestra unidades navales (Patache, Barco de Guerra)
+
+✅ MANPOWER (Reclutas)
+   - Cuenta REAL de regimientos totales del jugador
+
+📊 PESTAÑA 4: ECONOMÍA
+✅ INGRESOS (Desglose)
+   - Impuestos: Oro de hexágonos y estructuras (Capital: 100, Ciudad: 50, Fortaleza: 20, Camino: 5, Hex: 1)
+   - Comercio: Oro estimado de caravanas activas (~40 oro/caravana)
+   - Militares: Histórico de saqueos (placeholder: 0, sistema futuro)
+   - ❌ ELIMINADO: Tratados (no existe en el juego)
+
+✅ GASTOS (Desglose)
+   - Ejército: Upkeep REAL de regimientos según REGIMENT_TYPES[tipo].cost.upkeep
+   - ❌ ELIMINADO: Edificios (no hay mantenimiento de edificios)
+   - ❌ ELIMINADO: Corrupción (no hay gasto por corrupción)
+
+________________________________________
 
 B. LA CRÓNICA (CHRONICLE) - ✅ FUNCIONAL, SOLO LOGS BÁSICOS
 •	chronicle.js: ✅ Sistema narrativo con generateMessage() implementado
