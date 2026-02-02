@@ -110,8 +110,6 @@ const LedgerUI = {
         const content = this.modalElement.querySelector('[data-content="resumen"]');
         if (!content) return;
 
-        const supplyClass = (militar.supplyStatus || 'N/A').toLowerCase().replace(/[^a-z0-9_-]/g, '');
-
         const html = `
             <div class="ledger-section">
                 <h3>💰 TESORERÍA</h3>
@@ -254,6 +252,8 @@ const LedgerUI = {
     displayMilitar: function(militar) {
         const content = this.modalElement.querySelector('[data-content="militar"]');
         if (!content) return;
+
+        const supplyClass = (militar.supplyStatus || 'N/A').toLowerCase().replace(/[^a-z0-9_-]/g, '');
 
         const tierraRows = militar.tierra.map(unit => {
             // Mostrar desglose de regimientos si hay
