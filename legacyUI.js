@@ -115,6 +115,9 @@ const LegacyUI = {
         // Regresar al menú principal después de cerrar la crónica
         if (!gameState.isCampaignBattle && typeof showScreen === 'function' && domElements.mainMenuScreenEl) {
             console.log('[LegacyUI] Regresando al menú principal...');
+            if (domElements.gameContainer) {
+                domElements.gameContainer.style.display = 'none';
+            }
             showScreen(domElements.mainMenuScreenEl);
         }
     },
