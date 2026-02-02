@@ -17,12 +17,8 @@ const LedgerIntegration = {
             return;
         }
         
-        // Esperar a que el DOM esté listo
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => this._addButtonToUI());
-        } else {
-            this._addButtonToUI();
-        }
+        // NO crear botón - ya está en index.html
+        // El botón se maneja directamente desde el HTML
         
         this.initialized = true;
     },

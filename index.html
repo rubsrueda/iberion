@@ -182,12 +182,7 @@
 
     <!-- Panel de Botones a la Derecha (oculto inicialmente, se expande) -->
     <div id="top-bar-actions" class="top-bar-panel top-bar-actions-panel">
-        <button id="btn-open-ledger-html" 
-                onclick="console.log('🔴 CLICK DETECTADO EN BOTÓN HTML'); alert('CLICK HTML'); if(typeof LedgerManager !== 'undefined') { LedgerManager.open(); } else { alert('LedgerManager no disponible'); }" 
-                style="background: #00f3ff; color: #000; font-weight: bold; padding: 8px 16px; cursor: pointer; border: 2px solid yellow;"
-                title="Abrir Cuaderno de Estado">
-            📖 Cuaderno
-        </button>
+        <button id="btn-open-ledger" title="Abrir Cuaderno de Estado" onclick="if(typeof LedgerManager !== 'undefined') { LedgerManager.open(); }">📖</button>
         
         <button id="saveGameBtn_top" title="Guardar Partida">💾</button>
         
