@@ -2148,17 +2148,36 @@ async function handleEndTurn(isHostProcessing = false) {
     
     const isNetworkMatch = (typeof NetworkManager !== 'undefined' && NetworkManager.miId);
 
-    // --- AUTOSAVE AUTOMÁTICO: Cada turno para partidas locales ---
-    if (!isNetworkMatch && typeof saveGameUnified === 'function' && gameState.currentPhase !== "gameOver") {
-        saveGameUnified("AUTOSAVE_RECENT", true)
-            .catch(err => console.warn("[AutoSave] Error (local):", err));
+    // --- AUTOSAVE AUTOMÁTICO: Cada turno para partidas locales y en red ---
+    if (typeof saveGameUnified === 'function' && gameState.currentPhase !== "gameOver") {
+        // Partidas locales: Guardar cada turno
+        if (!isNetworkMatch) {
+            saveGameUnified("AUTOSAVE_RECENT", true)
+                .catch(err => console.warn("[AutoSave] Error (local):", err));
+        }
+        // Partidas en red: Guardar cada 5 turnos
+        else if (gameState.turnNumber % 5 === 0) {
+            saveGameUnified(`AUTOSAVE_TURN_${gameState.turnNumber}`, true)
+                .catch(err => console.warn("[AutoSave] Error (red):", err));
+        }
     }
 
-    // --- AUTOSAVE AUTOMÁTICO: Cada 5 turnos ---
-    if (gameState.turnNumber % 5 === 0 && PlayerDataManager.currentPlayer && typeof saveGameUnified === 'function') {
-        console.log(`[AutoSave] Guardando en turno ${gameState.turnNumber}...`);
-        saveGameUnified(`AUTOSAVE_TURN_${gameState.turnNumber}`, true)
-            .catch(err => console.warn("[AutoSave] Error:", err));
+    // --- AUTOSAVE CRÍTICO AL FINAL DE LA PARTIDA ---
+    if (gameState.currentPhase === "gameOver" && typeof saveGameUnified === 'function') {
+        const gameName = `Partida Completada ${new Date().toLocaleDateString('es-ES')}`;
+        saveGameUnified(gameName, false)
+            .then(() => {
+                console.log("[GameFlow] Partida guardada tras finalizar");
+                // Mostrar opción de replay
+                if (typeof GameHistoryManager !== 'undefined' && GameHistoryManager.open) {
+                    setTimeout(() => {
+                        if (confirm("¿Deseas ver el replay de la partida?")) {
+                            GameHistoryManager.open();
+                        }
+                    }, 1000);
+                }
+            })
+            .catch(err => console.warn("[AutoSave] Error al guardar fin de partida:", err));
     }
     
     if (isNextPlayerAI && gameState.currentPhase !== "gameOver") {

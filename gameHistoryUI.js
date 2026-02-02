@@ -51,6 +51,7 @@ const GameHistoryUI = {
             }
         }
         this.modalElement.style.display = 'flex';
+        this.modalElement.style.zIndex = '10100';
         this.isVisible = true;
     },
 
