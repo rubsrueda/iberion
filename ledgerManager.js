@@ -131,7 +131,9 @@ const LedgerManager = {
         // Contar regimientos activos REALES
         let regimentosActivos = 0;
         units.forEach(unit => {
-            if (unit.playerId === myPlayerId && !unit.isDefeated && unit.regiments) {
+            const unitPlayer = unit.playerId ?? unit.player;
+            const isAlive = unit.currentHealth === undefined ? !unit.isDefeated : unit.currentHealth > 0;
+            if (unitPlayer === myPlayerId && isAlive && unit.regiments) {
                 regimentosActivos += unit.regiments.length;
             }
         });
@@ -211,7 +213,9 @@ const LedgerManager = {
             // Calcular poder militar REAL (suma de ataque + defensa de regimientos)
             let poderMilitar = 0;
             units.forEach(unit => {
-                if (unit.playerId === playerId && !unit.isDefeated && unit.regiments) {
+                const unitPlayer = unit.playerId ?? unit.player;
+                const isAlive = unit.currentHealth === undefined ? !unit.isDefeated : unit.currentHealth > 0;
+                if (unitPlayer === playerId && isAlive && unit.regiments) {
                     unit.regiments.forEach(regiment => {
                         const regData = REGIMENT_TYPES[regiment.type];
                         if (regData) {
@@ -261,12 +265,18 @@ const LedgerManager = {
      */
     _updateMilitar: function() {
         const myPlayerId = gameState.myPlayerNumber || gameState.currentPlayer;
-        const myUnits = units.filter(u => u.playerId === myPlayerId && !u.isDefeated);
+        const myUnits = units.filter(u => {
+            const unitPlayer = u.playerId ?? u.player;
+            const isAlive = u.currentHealth === undefined ? !u.isDefeated : u.currentHealth > 0;
+            return unitPlayer === myPlayerId && isAlive;
+        });
         
         const tierra = [];
         const naval = [];
         let manpower = 0;
         const regimentTotals = {}; // Contador global de regimientos por tipo
+        let suppliedRegiments = 0;
+        let unsuppliedRegiments = 0;
 
         myUnits.forEach(unit => {
             const unitInfo = {
@@ -304,6 +314,14 @@ const LedgerManager = {
                     }
                     regimentTotals[regType]++;
                     manpower++;
+                    const isSupplied = typeof isHexSupplied === 'function'
+                        ? isHexSupplied(unit.r, unit.c, myPlayerId)
+                        : true;
+                    if (isSupplied) {
+                        suppliedRegiments++;
+                    } else {
+                        unsuppliedRegiments++;
+                    }
                 });
                 
                 // Convertir a array
@@ -329,7 +347,9 @@ const LedgerManager = {
             naval: naval,
             manpower: manpower,
             regimentTotals: regimentTotals, // Añadir resumen por tipo
-            supplyStatus: this._assessSupplyStatus(myPlayerId)
+            supplyStatus: this._assessSupplyStatus(myPlayerId, suppliedRegiments, unsuppliedRegiments, manpower),
+            suppliedRegiments: suppliedRegiments,
+            unsuppliedRegiments: unsuppliedRegiments
         };
 
         LedgerUI.displayMilitar(militar);
@@ -528,7 +548,9 @@ const LedgerManager = {
         
         // Obtener el costo de upkeep real de cada tipo de regimiento
         units.forEach(unit => {
-            if (unit.playerId === playerId && !unit.isDefeated && unit.regiments) {
+            const unitPlayer = unit.playerId ?? unit.player;
+            const isAlive = unit.currentHealth === undefined ? !unit.isDefeated : unit.currentHealth > 0;
+            if (unitPlayer === playerId && isAlive && unit.regiments) {
                 unit.regiments.forEach(regiment => {
                     // Buscar el costo de upkeep en REGIMENT_TYPES
                     if (typeof REGIMENT_TYPES !== 'undefined' && REGIMENT_TYPES[regiment.type]) {
@@ -549,15 +571,13 @@ const LedgerManager = {
         return 0;
     },
 
-    _assessSupplyStatus: function(playerId) {
-        const activeUnits = units.filter(u => u.playerId === playerId && !u.isDefeated).length;
-        const limit = this._calculateSupplyLimit(playerId);
-        const percentage = (activeUnits / limit) * 100;
+    _assessSupplyStatus: function(playerId, suppliedRegiments = 0, unsuppliedRegiments = 0, totalRegiments = 0) {
+        if (totalRegiments === 0) return 'N/A';
+        if (unsuppliedRegiments === 0) return 'Alta';
 
-        if (percentage > 90) return 'CRÍTICO';
-        if (percentage > 70) return 'Elevado';
-        if (percentage > 50) return 'Normal';
-        return 'Bajo';
+        const unsuppliedRatio = unsuppliedRegiments / totalRegiments;
+        if (unsuppliedRatio <= 0.3) return 'Media';
+        return 'Baja';
     },
 
     /**

@@ -110,6 +110,8 @@ const LedgerUI = {
         const content = this.modalElement.querySelector('[data-content="resumen"]');
         if (!content) return;
 
+        const supplyClass = (militar.supplyStatus || 'N/A').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+
         const html = `
             <div class="ledger-section">
                 <h3>💰 TESORERÍA</h3>
@@ -363,9 +365,17 @@ const LedgerUI = {
                         <span class="label">Total de Regimientos Activos</span>
                         <span class="value">${militar.manpower}</span>
                     </div>
+                    <div class="ledger-card">
+                        <span class="label">Regimientos Suministrados</span>
+                        <span class="value">${militar.suppliedRegiments ?? 0}</span>
+                    </div>
+                    <div class="ledger-card">
+                        <span class="label">Regimientos sin Suministro</span>
+                        <span class="value">${militar.unsuppliedRegiments ?? 0}</span>
+                    </div>
                     <div class="ledger-card full-width">
                         <span class="label">Estado de Suministros</span>
-                        <span class="value status-${militar.supplyStatus.toLowerCase()}">${militar.supplyStatus}</span>
+                        <span class="value status-${supplyClass}">${militar.supplyStatus}</span>
                     </div>
                 </div>
             </div>
