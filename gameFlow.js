@@ -1129,7 +1129,13 @@ async function endTacticalBattle(winningPlayerNumber) {
     // Guardar progreso
     const progress = await PlayerDataManager.syncMatchResult(xpGained, matchMetrics);
 
-    // Nota: Se omitió el modal de resultados y el alert final para evitar pantallas redundantes.
+    // 🔴 MOSTRAR MODAL DE RESULTADOS (IMPORTANTE!)
+    if (typeof UIManager !== 'undefined' && typeof UIManager.showPostMatchSummary === 'function') {
+        console.log('[endTacticalBattle] 🔴 MOSTRANDO MODAL DE RESULTADOS');
+        UIManager.showPostMatchSummary(playerWon, xpGained, progress, matchMetrics);
+    } else {
+        console.error('[endTacticalBattle] ❌ UIManager o showPostMatchSummary no disponible');
+    }
 
     if (gameState.isCampaignBattle) {
         if (typeof campaignManager !== 'undefined' && typeof campaignManager.handleTacticalBattleResult === 'function') {
@@ -1176,17 +1182,12 @@ async function endTacticalBattle(winningPlayerNumber) {
         }
     }
 
-    // <<== FINALIZAR ESTADÍSTICAS Y MOSTRAR CRÓNICA ==>>
+    // <<== FINALIZAR ESTADÍSTICAS ==>>
     if (typeof StatTracker !== 'undefined') {
-        const gameStats = StatTracker.finalize(winningPlayerNumber);
+        const gameStats = StatTracker.finalize(gameState.winner);
         console.log('[endTacticalBattle] Estadísticas finalizadas:', gameStats ? 'exitoso' : 'fallido');
-        
-        // Mostrar La Crónica
-        if (typeof LegacyManager !== 'undefined') {
-            setTimeout(() => {
-                LegacyManager.open(winningPlayerNumber);
-            }, 500);
-        }
+        // La crónica se abrirá DESPUÉS que el usuario cierre el modal de resultados
+        // (desde showPostMatchSummary en uiUpdates.js)
     }
     
     if (PlayerDataManager.currentPlayer && typeof saveGameUnified === 'function') {

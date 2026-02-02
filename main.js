@@ -1261,7 +1261,7 @@ function initApp() {
 
             // <<== INICIALIZAR REPLAY ENGINE ==>>
             if (typeof ReplayIntegration !== 'undefined' && typeof ReplayEngine !== 'undefined') {
-                const matchId = gameState.matchId || `match_${Date.now()}`;
+                const matchId = gameState.matchId || `match_${crypto.randomUUID().substring(0, 8)}`;
                 const mapSeed = gameState.mapSeed || Math.random().toString(36).substring(7);
                 const playersInfo = gameState.players || Object.entries(gameState.playerCivilizations || {}).map((k, v) => ({
                     id: k,
@@ -1272,7 +1272,7 @@ function initApp() {
                 }));
                 
                 ReplayIntegration.startGameRecording(matchId, mapSeed, playersInfo);
-                console.log('[Main] ReplayEngine inicializado');
+                console.log('[Main] ReplayEngine inicializado con matchId:', matchId);
             }
 
             // <<== INICIALIZAR STAT TRACKER ==>>

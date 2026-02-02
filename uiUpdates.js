@@ -1480,6 +1480,15 @@ const UIManager = {
         if (closeBtn) {
             closeBtn.onclick = () => {
                 modal.style.display = 'none';
+                
+                // 🔴 MOSTRAR LA CRÓNICA DESPUÉS DE CERRAR EL MODAL
+                if (typeof LegacyManager !== 'undefined' && !gameState.isCampaignBattle) {
+                    console.log('[showPostMatchSummary] ABRIENDO CRÓNICA...');
+                    setTimeout(() => {
+                        LegacyManager.open(gameState.winner);
+                    }, 300);
+                }
+                
                 if (!gameState.isCampaignBattle) showScreen(domElements.mainMenuScreenEl);
             };
         }
