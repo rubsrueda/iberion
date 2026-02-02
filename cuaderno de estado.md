@@ -145,9 +145,26 @@ CORRECCIONES APLICADAS (Feb 2, 2026):
    - ❌ ELIMINADO: Edificios (no hay mantenimiento de edificios)
    - ❌ ELIMINADO: Corrupción (no hay gasto por corrupción)
 
+📜 PESTAÑA 5: CRÓNICA
+✅ LOG NARRATIVO (Estilo EU4/Civ4)
+   - Registro cronológico de todos los eventos de la partida
+   - Agrupado por turnos (más reciente primero)
+   - Iconos y colores según tipo de evento:
+     * 🎮 Inicio de partida
+     * 📅 Inicio de turno
+     * 🚶 Movimientos
+     * ⚔️ Conquistas
+     * 💥 Batallas
+     * ☠️ Unidades destruidas
+     * 🏗️ Construcciones
+     * 👑 Comandantes asignados
+     * 🔄 Consolidaciones
+   - Contador total de eventos registrados
+   - Sistema de Chronicle.js integrado y validado
+
 ________________________________________
 
-B. LA CRÓNICA (CHRONICLE) - ✅ FUNCIONAL, SOLO LOGS BÁSICOS
+B. LA CRÓNICA (CHRONICLE) - ✅ FUNCIONAL Y VALIDADO
 •	chronicle.js: ✅ Sistema narrativo con generateMessage() implementado
 •	currentMatchLogs[]: ✅ Array para almacenar eventos de la partida
 •	Integración: ⚠️ Solo eventos básicos (move, conquest, battle_start, unit_destroyed)

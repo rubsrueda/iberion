@@ -253,26 +253,49 @@ const LedgerUI = {
         const content = this.modalElement.querySelector('[data-content="militar"]');
         if (!content) return;
 
-        const tierraRows = militar.tierra.map(unit => `
+        const tierraRows = militar.tierra.map(unit => {
+            // Mostrar desglose de regimientos si hay
+            const regimentDetails = unit.regiments && unit.regiments.length > 0
+                ? unit.regiments.map(r => `${r.count}x ${r.type}`).join(', ')
+                : 'Sin regimientos';
+            
+            return `
             <tr>
                 <td>${unit.name}</td>
                 <td>${unit.location.r},${unit.location.c}</td>
                 <td><div class="progress-mini" style="width: ${unit.morale}%"></div>${unit.morale}%</td>
-                <td>${unit.regiments}</td>
+                <td>${regimentDetails}</td>
                 <td>${unit.supplies}%</td>
                 <td>${unit.isDisorganized ? '🔴 Desorganizada' : '✅ Lista'}</td>
             </tr>
-        `).join('');
+        `;
+        }).join('');
 
-        const navalRows = militar.naval.map(unit => `
+        const navalRows = militar.naval.map(unit => {
+            const regimentDetails = unit.regiments && unit.regiments.length > 0
+                ? unit.regiments.map(r => `${r.count}x ${r.type}`).join(', ')
+                : 'Sin barcos';
+            
+            return `
             <tr>
                 <td>${unit.name}</td>
                 <td>${unit.location.r},${unit.location.c}</td>
                 <td><div class="progress-mini" style="width: ${unit.morale}%"></div>${unit.morale}%</td>
-                <td>${unit.regiments}</td>
+                <td>${regimentDetails}</td>
                 <td>⚓</td>
             </tr>
-        `).join('');
+        `;
+        }).join('');
+
+        // Crear resumen de regimientos por tipo
+        const regimentSummaryRows = Object.entries(militar.regimentTotals || {})
+            .sort((a, b) => b[1] - a[1]) // Ordenar por cantidad descendente
+            .map(([type, count]) => `
+                <tr>
+                    <td>${type}</td>
+                    <td class="value">${count}</td>
+                </tr>
+            `).join('');
 
         const html = `
             <div class="ledger-section">
@@ -284,7 +307,7 @@ const LedgerUI = {
                                 <th>Nombre</th>
                                 <th>Ubicación</th>
                                 <th>Moral</th>
-                                <th>Regimientos</th>
+                                <th>Composición</th>
                                 <th>Suministros</th>
                                 <th>Estado</th>
                             </tr>
@@ -305,7 +328,7 @@ const LedgerUI = {
                                 <th>Nombre</th>
                                 <th>Ubicación</th>
                                 <th>Moral</th>
-                                <th>Barcos</th>
+                                <th>Composición</th>
                                 <th>Tipo</th>
                             </tr>
                         </thead>
@@ -317,10 +340,27 @@ const LedgerUI = {
             </div>
 
             <div class="ledger-section">
-                <h3>👥 MANPOWER (Reclutas)</h3>
+                <h3>📊 RESUMEN DE REGIMIENTOS POR TIPO</h3>
+                <div class="ledger-table-container">
+                    <table class="ledger-table">
+                        <thead>
+                            <tr>
+                                <th>Tipo de Regimiento</th>
+                                <th>Cantidad Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${regimentSummaryRows || '<tr><td colspan="2">No hay regimientos</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="ledger-section">
+                <h3>👥 MANPOWER (Total de Regimientos)</h3>
                 <div class="ledger-grid">
                     <div class="ledger-card full-width">
-                        <span class="label">Soldados Disponibles en Reserva</span>
+                        <span class="label">Total de Regimientos Activos</span>
                         <span class="value">${militar.manpower}</span>
                     </div>
                     <div class="ledger-card full-width">
@@ -343,23 +383,19 @@ const LedgerUI = {
 
         const html = `
             <div class="ledger-section">
-                <h3>📊 INGRESOS</h3>
+                <h3>� INGRESOS</h3>
                 <div class="ledger-grid">
                     <div class="ledger-card">
-                        <span class="label">Impuestos</span>
+                        <span class="label">Impuestos (Territorio)</span>
                         <span class="value income">+${economia.ingresos.impuestos}</span>
                     </div>
                     <div class="ledger-card">
-                        <span class="label">Comercio</span>
+                        <span class="label">Comercio (Caravanas)</span>
                         <span class="value income">+${economia.ingresos.comercio}</span>
                     </div>
                     <div class="ledger-card">
-                        <span class="label">Saqueos</span>
-                        <span class="value income">+${economia.ingresos.saqueos}</span>
-                    </div>
-                    <div class="ledger-card">
-                        <span class="label">Tratados</span>
-                        <span class="value income">+${economia.ingresos.tratados}</span>
+                        <span class="label">Militares (Saqueos)</span>
+                        <span class="value income">+${economia.ingresos.militares || 0}</span>
                     </div>
                     <div class="ledger-card full-width" style="background: linear-gradient(135deg, #2a5f3f, #1a3f2f);">
                         <span class="label">TOTAL INGRESOS</span>
@@ -372,16 +408,8 @@ const LedgerUI = {
                 <h3>💸 GASTOS</h3>
                 <div class="ledger-grid">
                     <div class="ledger-card">
-                        <span class="label">Edificios</span>
-                        <span class="value expense">-${economia.gastos.edificios}</span>
-                    </div>
-                    <div class="ledger-card">
                         <span class="label">Ejército (Upkeep)</span>
                         <span class="value expense">-${economia.gastos.ejercito}</span>
-                    </div>
-                    <div class="ledger-card">
-                        <span class="label">Corrupción</span>
-                        <span class="value expense">-${economia.gastos.corrupcion}</span>
                     </div>
                     <div class="ledger-card full-width" style="background: linear-gradient(135deg, #5f2a2a, #3f1a1a);">
                         <span class="label">TOTAL GASTOS</span>
@@ -400,7 +428,7 @@ const LedgerUI = {
                         </span>
                     </div>
                     <div class="ledger-card">
-                        <span class="label">Oro Actual</span>
+                        <span class="label">Oro Actual en Tesorera</span>
                         <span class="value">${economia.oroActual}</span>
                     </div>
                 </div>
@@ -418,11 +446,143 @@ const LedgerUI = {
                         <span class="value">${economia.desglosePorcentual.comercio}%</span>
                     </div>
                     <div class="ledger-card">
-                        <span class="label">Saqueos</span>
-                        <span class="value">${economia.desglosePorcentual.saqueos}%</span>
+                        <span class="label">Militares</span>
+                        <span class="value">${economia.desglosePorcentual.militares || 0}%</span>
                     </div>
                 </div>
             </div>
+        `;
+
+        content.innerHTML = html;
+    },
+
+    /**
+     * Muestra PESTAÑA 5: CRÓNICA
+     */
+    displayCronica: function(cronica) {
+        const content = this.modalElement.querySelector('[data-content="cronica"]');
+        if (!content) return;
+
+        // Función para obtener icono según tipo de evento
+        const getEventIcon = (type) => {
+            const icons = {
+                'turn_start': '📅',
+                'move': '🚶',
+                'conquest': '⚔️',
+                'battle_start': '💥',
+                'unit_destroyed': '☠️',
+                'construction': '🏗️',
+                'commander_assigned': '👑',
+                'consolidate': '🔄'
+            };
+            return icons[type] || '📜';
+        };
+
+        // Función para obtener clase CSS según tipo
+        const getEventClass = (type) => {
+            const classes = {
+                'turn_start': 'event-turn',
+                'conquest': 'event-conquest',
+                'battle_start': 'event-battle',
+                'unit_destroyed': 'event-death',
+                'construction': 'event-construction'
+            };
+            return classes[type] || 'event-default';
+        };
+
+        if (cronica.totalEvents === 0) {
+            content.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: #888;">
+                    <h2 style="color: #00f3ff;">📜 La Crónica está vacía</h2>
+                    <p>Los eventos de la partida aparecerán aquí conforme sucedan.</p>
+                    <p style="margin-top: 20px;">Comienza a jugar para que el Cronista registre tus hazañas.</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Agrupar eventos por turno (más reciente primero)
+        const turns = Object.keys(cronica.logsByTurn).sort((a, b) => b - a);
+        
+        const turnSections = turns.map(turn => {
+            const turnLogs = cronica.logsByTurn[turn];
+            const turnRows = turnLogs.map(log => `
+                <div class="chronicle-event ${getEventClass(log.type)}" style="
+                    padding: 12px;
+                    margin: 8px 0;
+                    background: rgba(0, 243, 255, 0.05);
+                    border-left: 3px solid #00f3ff;
+                    border-radius: 4px;
+                    transition: all 0.2s;
+                ">
+                    <div style="display: flex; align-items: flex-start; gap: 10px;">
+                        <span style="font-size: 24px;">${getEventIcon(log.type)}</span>
+                        <div style="flex: 1;">
+                            <div style="color: #fff; line-height: 1.6;">${log.message}</div>
+                            <div style="color: #888; font-size: 0.85em; margin-top: 4px;">Tipo: ${log.type}</div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            return `
+                <div class="chronicle-turn-section" style="margin-bottom: 30px;">
+                    <h3 style="
+                        color: #00f3ff;
+                        padding: 10px;
+                        background: rgba(0, 243, 255, 0.1);
+                        border-radius: 4px;
+                        margin-bottom: 10px;
+                        text-shadow: 0 0 10px #00f3ff;
+                    ">📆 Turno ${turn} (${turnLogs.length} eventos)</h3>
+                    <div style="padding-left: 10px;">
+                        ${turnRows}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        const html = `
+            <div class="ledger-section">
+                <div style="
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 20px;
+                    padding: 15px;
+                    background: linear-gradient(135deg, rgba(0, 243, 255, 0.1), rgba(0, 243, 255, 0.05));
+                    border-radius: 8px;
+                ">
+                    <div>
+                        <h2 style="color: #00f3ff; margin: 0; text-shadow: 0 0 10px #00f3ff;">📜 LA CRÓNICA DE LA PARTIDA</h2>
+                        <p style="color: #888; margin: 5px 0 0 0;">Registro narrativo de los acontecimientos</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="color: #00f3ff; font-size: 1.5em; font-weight: bold;">${cronica.totalEvents}</div>
+                        <div style="color: #888; font-size: 0.9em;">Eventos registrados</div>
+                    </div>
+                </div>
+
+                <div style="
+                    max-height: calc(95vh - 300px);
+                    overflow-y: auto;
+                    padding-right: 10px;
+                ">
+                    ${turnSections}
+                </div>
+            </div>
+
+            <style>
+                .chronicle-event:hover {
+                    background: rgba(0, 243, 255, 0.1) !important;
+                    transform: translateX(5px);
+                }
+                .event-conquest { border-left-color: #ff4444 !important; }
+                .event-battle { border-left-color: #ff8800 !important; }
+                .event-death { border-left-color: #aa0000 !important; }
+                .event-construction { border-left-color: #44ff44 !important; }
+                .event-turn { border-left-color: #00f3ff !important; background: rgba(0, 243, 255, 0.08) !important; }
+            </style>
         `;
 
         content.innerHTML = html;

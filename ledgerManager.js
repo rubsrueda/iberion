@@ -9,7 +9,7 @@ console.log('[ledgerManager.js] Archivo cargado en:', new Date().toISOString());
 
 const LedgerManager = {
     isOpen: false,
-    currentTab: 'resumen', // resumen, demografia, militar, economia
+    currentTab: 'resumen', // resumen, demografia, militar, economia, cronica
 
     /**
      * Abre el cuaderno de estado
@@ -88,7 +88,7 @@ const LedgerManager = {
      * Cambia de pestaña
      */
     switchTab: function(tabName) {
-        if (['resumen', 'demografia', 'militar', 'economia'].includes(tabName)) {
+        if (['resumen', 'demografia', 'militar', 'economia', 'cronica'].includes(tabName)) {
             this.currentTab = tabName;
             this.updateAllDisplays();
         }
@@ -112,6 +112,9 @@ const LedgerManager = {
                 break;
             case 'economia':
                 this._updateEconomia();
+                break;
+            case 'cronica':
+                this._updateCronica();
                 break;
         }
     },
@@ -263,6 +266,7 @@ const LedgerManager = {
         const tierra = [];
         const naval = [];
         let manpower = 0;
+        const regimentTotals = {}; // Contador global de regimientos por tipo
 
         myUnits.forEach(unit => {
             const unitInfo = {
@@ -282,6 +286,8 @@ const LedgerManager = {
                 const regimentCounts = {};
                 unit.regiments.forEach(regiment => {
                     const regType = regiment.type;
+                    
+                    // Contar en la unidad
                     if (!regimentCounts[regType]) {
                         regimentCounts[regType] = {
                             type: regType,
@@ -291,17 +297,23 @@ const LedgerManager = {
                     }
                     regimentCounts[regType].count++;
                     regimentCounts[regType].totalHealth += regiment.health || 0;
+                    
+                    // Contar en el total global
+                    if (!regimentTotals[regType]) {
+                        regimentTotals[regType] = 0;
+                    }
+                    regimentTotals[regType]++;
+                    manpower++;
                 });
                 
                 // Convertir a array
                 unitInfo.regiments = Object.values(regimentCounts);
                 unitInfo.totalHealth = Object.values(regimentCounts).reduce((sum, r) => sum + r.totalHealth, 0);
-                manpower += unit.regiments.length;
             }
 
             // Clasificar por tipo REAL (is_naval en REGIMENT_TYPES)
             const isNaval = unit.regiments?.some(reg => {
-                const regData = REGIMENT_TYPES[reg.type];
+                const regData = typeof REGIMENT_TYPES !== 'undefined' ? REGIMENT_TYPES[reg.type] : null;
                 return regData?.is_naval === true;
             });
 
@@ -316,6 +328,7 @@ const LedgerManager = {
             tierra: tierra,
             naval: naval,
             manpower: manpower,
+            regimentTotals: regimentTotals, // Añadir resumen por tipo
             supplyStatus: this._assessSupplyStatus(myPlayerId)
         };
 
@@ -518,9 +531,11 @@ const LedgerManager = {
             if (unit.playerId === playerId && !unit.isDefeated && unit.regiments) {
                 unit.regiments.forEach(regiment => {
                     // Buscar el costo de upkeep en REGIMENT_TYPES
-                    const regimentData = REGIMENT_TYPES[regiment.type];
-                    if (regimentData && regimentData.cost && regimentData.cost.upkeep) {
-                        cost += regimentData.cost.upkeep;
+                    if (typeof REGIMENT_TYPES !== 'undefined' && REGIMENT_TYPES[regiment.type]) {
+                        const regimentData = REGIMENT_TYPES[regiment.type];
+                        if (regimentData.cost && typeof regimentData.cost.upkeep === 'number') {
+                            cost += regimentData.cost.upkeep;
+                        }
                     }
                 });
             }
@@ -543,6 +558,33 @@ const LedgerManager = {
         if (percentage > 70) return 'Elevado';
         if (percentage > 50) return 'Normal';
         return 'Bajo';
+    },
+
+    /**
+     * PESTAÑA 5: CRÓNICA (Log Narrativo)
+     */
+    _updateCronica: function() {
+        // Obtener logs de Chronicle
+        const logs = typeof Chronicle !== 'undefined' ? Chronicle.getLogs() : [];
+        
+        // Agrupar por turno para mejor visualización
+        const logsByTurn = {};
+        logs.forEach(log => {
+            const turn = log.turn || 1;
+            if (!logsByTurn[turn]) {
+                logsByTurn[turn] = [];
+            }
+            logsByTurn[turn].push(log);
+        });
+
+        const cronica = {
+            totalEvents: logs.length,
+            currentTurn: gameState.turnNumber || 1,
+            logs: logs,
+            logsByTurn: logsByTurn
+        };
+
+        LedgerUI.displayCronica(cronica);
     }
 };
 

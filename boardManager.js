@@ -90,6 +90,18 @@ initializeTerritoryData();
 renderFullBoardVisualState(); 
 if (typeof updateFogOfWar === "function") updateFogOfWar();
 initializeBoardPanning(); 
+
+// Registrar inicio de partida en la Crónica
+if (typeof Chronicle !== 'undefined') {
+    Chronicle.clearLogs(); // Limpiar logs anteriores
+    Chronicle.logEvent('game_start', {
+        boardSize: `${B_ROWS}x${B_COLS}`,
+        resourceLevel: selectedResourceLevel,
+        isNaval: isNavalMap,
+        numPlayers: gameState.numPlayers
+    });
+}
+
 console.log("boardManager.js: initializeNewGameBoardDOMAndData completada.");
 }
 

@@ -56,6 +56,11 @@ const Chronicle = {
         const year = `Día ${gameState.turnNumber || 1}`;
 
         switch (eventType) {
+            case 'game_start':
+                const mapType = data.isNaval ? 'Naval' : 'Terrestre';
+                const resourceLevelText = data.resourceLevel === 'max' ? 'abundantes' : data.resourceLevel === 'min' ? 'escasos' : 'moderados';
+                return `🎮 ¡NUEVA PARTIDA! Se ha iniciado una batalla ${mapType} con ${data.numPlayers} jugadores en un mapa de ${data.boardSize}. Recursos: ${resourceLevelText}.`;
+            
             case 'turn_start':
                 return `--- ${year}, Estación de Campaña ---`;
             
@@ -90,6 +95,12 @@ const Chronicle = {
                 } else {
                     return `🏗️ ${year}: Se ha construido una ${data.name} en (${data.location[0]},${data.location[1]}).`;
                 }
+            
+            case 'commander_assigned':
+                return `👑 ${year}: El comandante ${data.commander?.name || 'desconocido'} ha tomado el mando de la división "${data.unit.name}".`;
+            
+            case 'consolidate':
+                return `🔄 ${year}: La división "${data.unit.name}" ha consolidado sus fuerzas, recuperando moral y reorganizando sus regimientos.`;
             
             // Podemos añadir muchos más tipos de eventos aquí...
             
