@@ -160,56 +160,7 @@ const ChronicleIntegration = {
      * Muestra notificación con link al replay después de terminar partida
      */
     showReplayNotification(matchId) {
-        // Crear toast notification
-        const toast = document.createElement('div');
-        toast.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: linear-gradient(135deg, #1a3a4a, #0a1929);
-            border: 2px solid #00f3ff;
-            border-radius: 8px;
-            padding: 20px;
-            z-index: 99999;
-            box-shadow: 0 0 20px rgba(0,243,255,0.5);
-            max-width: 400px;
-        `;
-        
-        toast.innerHTML = `
-            <div style="color: #00f3ff; font-weight: bold; margin-bottom: 10px;">
-                📜 ¡CRÓNICA DE BATALLA GUARDADA!
-            </div>
-            <div style="color: #ccc; font-size: 14px; margin-bottom: 15px;">
-                Tu batalla ha sido registrada en los anales de la historia.
-            </div>
-            <button onclick="ChronicleIntegration.openReplay('${matchId}')" style="
-                background: #00f3ff;
-                color: #000;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 4px;
-                cursor: pointer;
-                font-weight: bold;
-                width: 100%;
-                margin-bottom: 8px;
-            ">▶️ Ver Crónica Ahora</button>
-            <button onclick="this.parentElement.remove()" style="
-                background: transparent;
-                color: #00f3ff;
-                border: 1px solid #00f3ff;
-                padding: 8px 20px;
-                border-radius: 4px;
-                cursor: pointer;
-                width: 100%;
-            ">Cerrar</button>
-        `;
-
-        document.body.appendChild(toast);
-
-        // Auto-cerrar después de 10 segundos
-        setTimeout(() => {
-            if (toast.parentElement) toast.remove();
-        }, 10000);
+        // Notificación deshabilitada
     }
 };
 
