@@ -318,6 +318,7 @@ function generateProceduralMap(B_ROWS, B_COLS, resourceLevel, isNavalMap = false
 function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel) {
     console.log("Generando mapa naval de archipiélagos...");
     const totalHexes = B_ROWS * B_COLS;
+    const isInvasionMode = gameState?.gameMode === 'invasion';
     
     // 1. LLENAR TODO EL MAPA DE AGUA
     for (let r = 0; r < B_ROWS; r++) {
@@ -339,11 +340,11 @@ function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel) {
     const arch2CenterC = Math.floor(B_COLS * 0.75);
     
     // 3. GENERAR ARCHIPIÉLAGO 1
-    const arch1Size = Math.floor(totalHexes * 0.12); // 12% del mapa
+    const arch1Size = Math.floor(totalHexes * (isInvasionMode ? 0.08 : 0.12)); // Atacante más pequeño en invasión
     generateIslandCluster(arch1CenterR, arch1CenterC, arch1Size, B_ROWS, B_COLS);
     
     // 4. GENERAR ARCHIPIÉLAGO 2
-    const arch2Size = Math.floor(totalHexes * 0.12); // 12% del mapa
+    const arch2Size = Math.floor(totalHexes * (isInvasionMode ? 0.18 : 0.12)); // Defensor más grande en invasión
     generateIslandCluster(arch2CenterR, arch2CenterC, arch2Size, B_ROWS, B_COLS);
     
     // 5. OPCIONALMENTE CONECTAR CON FRANJA DE TIERRA (50% de probabilidad)
@@ -357,13 +358,15 @@ function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel) {
     const cap2Pos = findSafeLandPosition(arch2CenterR, arch2CenterC, 5, B_ROWS, B_COLS);
     
     if (cap1Pos) {
-        addCityToBoardData(cap1Pos.r, cap1Pos.c, 1, "Capital P1 (Escaramuza)", true);
+        const cap1Name = isInvasionMode ? "Base de Invasión" : "Capital P1 (Escaramuza)";
+        addCityToBoardData(cap1Pos.r, cap1Pos.c, 1, cap1Name, true);
         if (board[cap1Pos.r]?.[cap1Pos.c]) board[cap1Pos.r][cap1Pos.c].structure = 'Aldea';
     }
     
     if (cap2Pos) {
-        addCityToBoardData(cap2Pos.r, cap2Pos.c, 2, "Capital P2 (Escaramuza)", true);
-        if (board[cap2Pos.r]?.[cap2Pos.c]) board[cap2Pos.r][cap2Pos.c].structure = 'Aldea';
+        const cap2Name = isInvasionMode ? "Capital del Reino" : "Capital P2 (Escaramuza)";
+        addCityToBoardData(cap2Pos.r, cap2Pos.c, 2, cap2Name, true);
+        if (board[cap2Pos.r]?.[cap2Pos.c]) board[cap2Pos.r][cap2Pos.c].structure = isInvasionMode ? 'Ciudad' : 'Aldea';
     }
     
     // 7. COLOCAR LA BANCA EN ISLA NEUTRAL (centro del mapa)
@@ -383,9 +386,42 @@ function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel) {
         }
         logMessage("¡La ciudad neutral de La Banca ha sido fundada en una isla central!", "event");
     }
+
+    // 7.5. MODO INVASIÓN: Ciudades adicionales para el defensor en el archipiélago grande
+    if (isInvasionMode) {
+        const additionalCities = Math.max(0, (INVASION_MODE_CONFIG?.DEFENDER_CITIES || 1) - 1);
+        for (let i = 0; i < additionalCities; i++) {
+            const cityPos = findSafeLandPosition(arch2CenterR, arch2CenterC, 8, B_ROWS, B_COLS);
+            if (cityPos && !board[cityPos.r]?.[cityPos.c]?.isCity) {
+                addCityToBoardData(cityPos.r, cityPos.c, 2, `Ciudad ${i + 1}`, false);
+                if (board[cityPos.r]?.[cityPos.c]) {
+                    board[cityPos.r][cityPos.c].structure = i === 0 ? 'Ciudad' : 'Aldea';
+                    board[cityPos.r][cityPos.c].owner = 2;
+                }
+            }
+        }
+    }
     
     // 8. AGREGAR VARIEDAD DE TERRENO A LAS ISLAS
     addTerrainVarietyToLand(B_ROWS, B_COLS);
+
+    // 8.5. MODO INVASIÓN: Asignar ownership por archipiélago (excluye La Banca)
+    if (isInvasionMode) {
+        for (let r = 0; r < B_ROWS; r++) {
+            for (let c = 0; c < B_COLS; c++) {
+                const hex = board[r]?.[c];
+                if (!hex || hex.terrain === 'water') continue;
+                if (hex.owner === BankManager?.PLAYER_ID) continue;
+                if (hex.isCity && hex.owner === BankManager?.PLAYER_ID) continue;
+
+                const distToArch1 = Math.abs(r - arch1CenterR) + Math.abs(c - arch1CenterC);
+                const distToArch2 = Math.abs(r - arch2CenterR) + Math.abs(c - arch2CenterC);
+                if (!hex.owner) {
+                    hex.owner = distToArch1 <= distToArch2 ? 1 : 2;
+                }
+            }
+        }
+    }
     
     // 9. COLOCAR RECURSOS
     placeResourcesOnGeneratedMap(B_ROWS, B_COLS, resourceLevel);
