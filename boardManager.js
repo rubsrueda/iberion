@@ -405,7 +405,7 @@ function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel, gameMode = '
     // 8. AGREGAR VARIEDAD DE TERRENO A LAS ISLAS
     addTerrainVarietyToLand(B_ROWS, B_COLS);
 
-    // 8.5. MODO INVASIÓN: Asignar ownership por archipiélago (excluye La Banca)
+    // 8.5. MODO INVASIÓN: Todo terreno del defensor salvo base atacante + radio 1 (excluye La Banca)
     if (isInvasionMode) {
         for (let r = 0; r < B_ROWS; r++) {
             for (let c = 0; c < B_COLS; c++) {
@@ -413,11 +413,21 @@ function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel, gameMode = '
                 if (!hex || hex.terrain === 'water') continue;
                 if (hex.owner === BankManager?.PLAYER_ID) continue;
                 if (hex.isCity && hex.owner === BankManager?.PLAYER_ID) continue;
+                hex.owner = 2;
+            }
+        }
 
-                const distToArch1 = Math.abs(r - arch1CenterR) + Math.abs(c - arch1CenterC);
-                const distToArch2 = Math.abs(r - arch2CenterR) + Math.abs(c - arch2CenterC);
-                if (!hex.owner) {
-                    hex.owner = distToArch1 <= distToArch2 ? 1 : 2;
+        const attackerDeploymentRadius = INVASION_MODE_CONFIG?.DEPLOYMENT_RADIUS ?? 1;
+        if (cap1Pos) {
+            for (let dr = -attackerDeploymentRadius; dr <= attackerDeploymentRadius; dr++) {
+                for (let dc = -attackerDeploymentRadius; dc <= attackerDeploymentRadius; dc++) {
+                    const r = cap1Pos.r + dr;
+                    const c = cap1Pos.c + dc;
+                    if (board[r]?.[c] && board[r][c].terrain !== 'water') {
+                        if (hexDistance(cap1Pos.r, cap1Pos.c, r, c) <= attackerDeploymentRadius) {
+                            board[r][c].owner = 1;
+                        }
+                    }
                 }
             }
         }
