@@ -963,6 +963,10 @@ function initApp() {
                 gameMode: document.getElementById('gameModeSelect')?.value || 'development',
                 resourceLevel: domElements.resourceLevelSelect.value,
                 boardSize: domElements.boardSizeSelect.value,
+                turnTime: document.getElementById('turnTimeSelect')?.value || '180',
+                barbarianDensity: document.getElementById('barbarianDensity')?.value || 'med',
+                victoryByPoints: (document.getElementById('victoryByPoints')?.value || 'enabled') === 'enabled',
+                navalMap: domElements.boardSizeSelect.value === 'large' && document.getElementById('navalMapCheckbox')?.checked,
                 deploymentUnitLimit: domElements.initialUnitsCountSelect.value === "unlimited" 
                                     ? Infinity 
                                     : parseInt(domElements.initialUnitsCountSelect.value)
@@ -1013,7 +1017,10 @@ function initApp() {
                     unitLimit: document.getElementById('initialUnitsCount')?.value || '5',
                     turnTime: document.getElementById('turnTimeSelect')?.value || '180',
                     numPlayers: parseInt(document.getElementById('num-players-slider')?.value) || 2,
-                    gameMode: document.getElementById('gameModeSelect')?.value || 'development'
+                    gameMode: document.getElementById('gameModeSelect')?.value || 'development',
+                    barbarianDensity: document.getElementById('barbarianDensity')?.value || 'med',
+                    victoryByPoints: (document.getElementById('victoryByPoints')?.value || 'enabled') === 'enabled',
+                    navalMap: (document.getElementById('boardSizeSelect')?.value === 'large') && document.getElementById('navalMapCheckbox')?.checked
                 };
             }
 
@@ -1034,8 +1041,11 @@ function initApp() {
                 } else {
                     gameState.deploymentUnitLimitByPlayer = null;
                 }
+                gameState.victoryByPointsEnabled = settings.victoryByPoints ?? VICTORY_BY_POINTS_ENABLED_DEFAULT;
                 gameState.myPlayerNumber = 1; 
                 gameState.currentPhase = "deployment"; // Asegurar fase
+                if (!gameState.setupTempSettings) gameState.setupTempSettings = {};
+                gameState.setupTempSettings.barbarianDensity = settings.barbarianDensity || 'med';
                 
                 // Leer Civilizaciones y Tipos de la Pantalla 2
                 const playerTypes = {};
@@ -1058,7 +1068,7 @@ function initApp() {
             
             // 3. GENERAR EL MAPA VISUAL Y DE DATOS
             if (typeof initializeNewGameBoardDOMAndData === 'function') {
-                initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize, false, settings.gameMode || 'development');
+                initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize, settings.navalMap || false, settings.gameMode || 'development');
             }
 
             // 4. SUBIR A LA NUBE (Ahora subirá el estado perfecto que acabamos de crear)
@@ -2432,6 +2442,8 @@ function iniciarPartidaLAN(settings) {
     }
     gameState.turnDurationSeconds = settings.turnTime === 'none' ? Infinity : parseInt(settings.turnTime);
     gameState.victoryByPointsEnabled = settings.victoryByPoints ?? VICTORY_BY_POINTS_ENABLED_DEFAULT;
+    if (!gameState.setupTempSettings) gameState.setupTempSettings = {};
+    gameState.setupTempSettings.barbarianDensity = settings.barbarianDensity || 'med';
     gameState.isCampaignBattle = false;
 
     showScreen(domElements.gameContainer);
@@ -2448,7 +2460,7 @@ function iniciarPartidaLAN(settings) {
 
     if (NetworkManager.esAnfitrion) {
         console.log("[Anfitrión] Generando el mapa y el estado inicial...");
-        initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize, false, settings.gameMode || 'development');
+        initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize, settings.navalMap || false, settings.gameMode || 'development');
         
         // El anfitrión crea una "fotografía" del estado del juego
         const replacer = (key, value) => (key === 'element' ? undefined : value);

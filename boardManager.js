@@ -144,7 +144,7 @@ generateHillsAndForests(B_ROWS, B_COLS, 0.15, 0.1);
 
 generateRandomResourceNodes(selectedResourceLevel); 
 */
-generateProceduralMap(B_ROWS, B_COLS, selectedResourceLevel, isNavalMap);
+generateProceduralMap(B_ROWS, B_COLS, selectedResourceLevel, isNavalMap, gameMode);
 
 const barbDensity = gameState.setupTempSettings?.barbarianDensity || 'med';
 generateBarbarianCities(B_ROWS, B_COLS, barbDensity);
@@ -176,13 +176,13 @@ console.log("boardManager.js: initializeNewGameBoardDOMAndData completada.");
  * @param {number} B_COLS - Número de columnas del tablero.
  * @param {string} resourceLevel - Nivel de recursos ('min', 'med', 'max').
 */
-function generateProceduralMap(B_ROWS, B_COLS, resourceLevel, isNavalMap = false) {
+function generateProceduralMap(B_ROWS, B_COLS, resourceLevel, isNavalMap = false, gameMode = 'development') {
     console.log(`Iniciando generación procedural de mapa... Naval: ${isNavalMap}`);
     const totalHexes = B_ROWS * B_COLS;
 
     // --- GENERACIÓN DE MAPA NAVAL ---
     if (isNavalMap) {
-        generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel);
+        generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel, gameMode);
         return; // Salir temprano, la función naval maneja todo
     }
 
@@ -315,10 +315,10 @@ function generateProceduralMap(B_ROWS, B_COLS, resourceLevel, isNavalMap = false
  * Genera un mapa naval con dos archipiélagos separados por mar.
  * 70-80% del mapa es agua, con dos islas/archipiélagos que pueden estar conectados opcionalmente.
  */
-function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel) {
+function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel, gameMode = 'development') {
     console.log("Generando mapa naval de archipiélagos...");
     const totalHexes = B_ROWS * B_COLS;
-    const isInvasionMode = gameState?.gameMode === 'invasion';
+    const isInvasionMode = gameMode === 'invasion';
     
     // 1. LLENAR TODO EL MAPA DE AGUA
     for (let r = 0; r < B_ROWS; r++) {
