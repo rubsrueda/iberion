@@ -2633,7 +2633,51 @@ function handlePlacementModeClick(r, c) {
     }
 
     let canPlace = false;
-    if (hexData && !getUnitOnHex(r,c)) {
+    
+    // <<== MODO INVASIÓN: Restricciones de deployment ==>>
+    if (gameState.gameMode === 'invasion' && gameState.currentPhase === "deployment") {
+        const currentPlayer = gameState.currentPlayer;
+        
+        // Determinar rol basado en número de ciudades controladas
+        const playerCities = gameState.cities.filter(c => c.owner === currentPlayer);
+        const isAttacker = playerCities.length === 1; // El que tiene solo 1 ciudad es atacante
+        
+        if (isAttacker) {
+            // ATACANTE: Solo puede desplegar cerca de su base de invasión (radio 1)
+            const attackerBase = playerCities[0];
+            
+            if (attackerBase) {
+                const distanceFromBase = hexDistance(attackerBase.r, attackerBase.c, r, c);
+                if (distanceFromBase <= INVASION_MODE_CONFIG.DEPLOYMENT_RADIUS && hexData.terrain !== 'water') {
+                    canPlace = true;
+                } else {
+                    logMessage(`Solo puedes desplegar dentro de ${INVASION_MODE_CONFIG.DEPLOYMENT_RADIUS} hex de tu base.`);
+                    canPlace = false;
+                }
+            }
+        } else {
+            // DEFENSOR: Puede desplegar en cualquier ciudad propia y alrededores (radio 2)
+            const defenderCities = playerCities;
+            let nearCity = false;
+            
+            for (const city of defenderCities) {
+                const distanceFromCity = hexDistance(city.r, city.c, r, c);
+                if (distanceFromCity <= INVASION_MODE_CONFIG.DEFENDER_DEPLOYMENT_RADIUS) {
+                    nearCity = true;
+                    break;
+                }
+            }
+            
+            if (nearCity && hexData.terrain !== 'water') {
+                canPlace = true;
+            } else {
+                logMessage(`El Defensor debe desplegar cerca de sus ciudades.`);
+                canPlace = false;
+            }
+        }
+    }
+    // Lógica original para otros modos/fases
+    else if (hexData && !getUnitOnHex(r,c)) {
         if (gameState.currentPhase === "deployment" && hexData.terrain !== 'water') {
             canPlace = true;
         } else if (gameState.currentPhase === "play" && placementMode.recruitHex) {
@@ -2642,7 +2686,7 @@ function handlePlacementModeClick(r, c) {
             }
         }
     }
-    // Lógica para despliegue al INICIO de la partida
+    // Lógica para despliegue al INICIO de la partida (fallback)
     else if (gameState.currentPhase === "deployment") {
         // En despliegue, también ignoramos las reglas de movimiento. Se asume que la zona de despliegue es válida.
         // Aquí puedes añadir tu lógica de zona de despliegue si la tienes.

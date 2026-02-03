@@ -120,7 +120,20 @@ function resetGameStateVariables(playerCount = 2, turnDuration = Infinity) {
 
     // Este bucle ahora creará los jugadores necesarios dinámicamente
     for (let i = 1; i <= playerCount; i++) {
-        initialGameStateObject.playerResources[i] = JSON.parse(JSON.stringify(INITIAL_PLAYER_RESOURCES[i - 1]));
+        // <<== MODO INVASIÓN: Recursos asimétricos ==>>
+        if (typeof INVASION_MODE_CONFIG !== 'undefined' && gameState.gameMode === 'invasion') {
+            if (i === 1) {
+                initialGameStateObject.playerResources[i] = JSON.parse(JSON.stringify(INVASION_MODE_CONFIG.ATTACKER_RESOURCES));
+            } else if (i === 2) {
+                initialGameStateObject.playerResources[i] = JSON.parse(JSON.stringify(INVASION_MODE_CONFIG.DEFENDER_RESOURCES));
+            } else {
+                initialGameStateObject.playerResources[i] = JSON.parse(JSON.stringify(INITIAL_PLAYER_RESOURCES[i - 1]));
+            }
+        } else {
+            // Modo normal (desarrollo)
+            initialGameStateObject.playerResources[i] = JSON.parse(JSON.stringify(INITIAL_PLAYER_RESOURCES[i - 1]));
+        }
+        
         initialGameStateObject.playerResources[i].researchedTechnologies = ["ORGANIZATION"];
         initialGameStateObject.activeCommanders[i] = [];
         initialGameStateObject.capitalCityId[i] = null;

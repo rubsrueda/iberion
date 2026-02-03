@@ -7,13 +7,14 @@ let hasMovedEnoughForPan = false;
 const PAN_MOVE_THRESHOLD = 5;
 
 // --- INICIALIZACIÓN PARA PARTIDAS DE ESCARAMUZA ---
-function initializeNewGameBoardDOMAndData(selectedResourceLevel = 'min', selectedBoardSize = 'small', isNavalMap = false) {
+function initializeNewGameBoardDOMAndData(selectedResourceLevel = 'min', selectedBoardSize = 'small', isNavalMap = false, gameMode = 'development') {
 
-console.log(`boardManager.js: initializeNewGameBoardDOMAndData ha sido llamada. Naval: ${isNavalMap}`);
+console.log(`boardManager.js: initializeNewGameBoardDOMAndData ha sido llamada. Naval: ${isNavalMap}, Modo: ${gameMode}`);
 
 const boardDimensions = BOARD_SIZES[selectedBoardSize] || BOARD_SIZES['small'];
 const B_ROWS = boardDimensions.rows;
-const B_COLS = boardDimensions.cols;    
+const B_COLS = boardDimensions.cols;
+const isInvasionMode = gameMode === 'invasion';    
 
 // --- ¡CORRECCIÓN CLAVE AQUÍ! Acceder a través de domElements ---
 if (typeof domElements !== 'undefined' && domElements.currentBoardTranslateX !== 'undefined') domElements.currentBoardTranslateX = 0;
@@ -62,15 +63,79 @@ if (gameState) {
 // Solo crear capitales iniciales si NO es un mapa naval
 // (en mapas navales, las capitales se crean durante generateNavalArchipelagoMap)
 if (!isNavalMap) {
-    // Capital Jugador 1
-    addCityToBoardData(1, 2, 1, "Capital P1 (Escaramuza)", true);
-    if (board[1]?.[2]) board[1][2].structure = 'Aldea';
+    if (isInvasionMode) {
+        // MODO INVASIÓN: Distribución Asimétrica
+        console.log('[INVASION] Creando distribución asimétrica de territorio...');
+        
+        // Jugador 1: Ciudad base en esquina (punto de invasión - rol de atacante)
+        const attackerBaseR = 1;
+        const attackerBaseC = 2;
+        addCityToBoardData(attackerBaseR, attackerBaseC, 1, "Base de Invasión", true);
+        if (board[attackerBaseR]?.[attackerBaseC]) {
+            board[attackerBaseR][attackerBaseC].structure = 'Aldea';
+            board[attackerBaseR][attackerBaseC].owner = 1;
+        }
+        
+        // Marcar hexágonos cercanos como territorio del atacante (zona de desembarco - radio 1)
+        const attackerDeploymentRadius = INVASION_MODE_CONFIG.DEPLOYMENT_RADIUS;
+        for (let dr = -attackerDeploymentRadius; dr <= attackerDeploymentRadius; dr++) {
+            for (let dc = -attackerDeploymentRadius; dc <= attackerDeploymentRadius; dc++) {
+                const r = attackerBaseR + dr;
+                const c = attackerBaseC + dc;
+                if (board[r]?.[c] && hexDistance(attackerBaseR, attackerBaseC, r, c) <= attackerDeploymentRadius) {
+                    board[r][c].owner = 1;
+                }
+            }
+        }
+        
+        // Jugador 2: Capital en posición opuesta + ciudades distribuidas (rol de defensor)
+        const defenderCapitalR = B_ROWS - 2;
+        const defenderCapitalC = B_COLS - 3;
+        addCityToBoardData(defenderCapitalR, defenderCapitalC, 2, "Capital del Reino", true);
+        if (board[defenderCapitalR]?.[defenderCapitalC]) {
+            board[defenderCapitalR][defenderCapitalC].structure = 'Ciudad';
+            board[defenderCapitalR][defenderCapitalC].owner = 2;
+        }
+        
+        // Ciudades adicionales para el defensor (distribuidas por el mapa)
+        const additionalCities = INVASION_MODE_CONFIG.DEFENDER_CITIES - 1;
+        for (let i = 0; i < additionalCities; i++) {
+            const cityR = Math.floor(B_ROWS * 0.3 + Math.random() * B_ROWS * 0.5);
+            const cityC = Math.floor(B_COLS * 0.3 + Math.random() * B_COLS * 0.5);
+            if (board[cityR]?.[cityC] && !board[cityR][cityC].isCity) {
+                addCityToBoardData(cityR, cityC, 2, `Ciudad ${i+1}`, false);
+                if (board[cityR]?.[cityC]) {
+                    board[cityR][cityC].structure = i === 0 ? 'Ciudad' : 'Aldea';
+                    board[cityR][cityC].owner = 2;
+                }
+            }
+        }
+        
+        // Marcar todo el resto del mapa como territorio del defensor (excepto zona atacante)
+        for (let r = 0; r < B_ROWS; r++) {
+            for (let c = 0; c < B_COLS; c++) {
+                if (board[r]?.[c] && !board[r][c].owner) {
+                    // Si no está en la zona del atacante, pertenece al defensor
+                    if (hexDistance(attackerBaseR, attackerBaseC, r, c) > attackerDeploymentRadius) {
+                        board[r][c].owner = 2;
+                    }
+                }
+            }
+        }
+        
+        logMessage(`Modo Invasión: Atacante en (${attackerBaseR},${attackerBaseC}), Defensor controla el resto del mapa.`);
+    } else {
+        // MODO DESARROLLO: Distribución Simétrica (lógica original)
+        // Capital Jugador 1
+        addCityToBoardData(1, 2, 1, "Capital P1 (Escaramuza)", true);
+        if (board[1]?.[2]) board[1][2].structure = 'Aldea';
 
-    // Capital Jugador 2
-    const capitalP2_r = B_ROWS - 2;
-    const capitalP2_c = B_COLS - 3;
-    addCityToBoardData(capitalP2_r, capitalP2_c, 2, "Capital P2 (Escaramuza)", true);
-    if (board[capitalP2_r]?.[capitalP2_c]) board[capitalP2_r][capitalP2_c].structure = 'Aldea';
+        // Capital Jugador 2
+        const capitalP2_r = B_ROWS - 2;
+        const capitalP2_c = B_COLS - 3;
+        addCityToBoardData(capitalP2_r, capitalP2_c, 2, "Capital P2 (Escaramuza)", true);
+        if (board[capitalP2_r]?.[capitalP2_c]) board[capitalP2_r][capitalP2_c].structure = 'Aldea';
+    }
 }
 
 /* se cambia por generateProceduralMap a continuación.

@@ -90,11 +90,11 @@ ANIQUILACIÓN TERRITORIAL    PUNTOS            DOMINIO
 │            │        │ Armaduras         │                  │
 │            │        │ Equipo legendario │                  │
 ├────────────────────────────────────────────────────────────┤
-│ INVESTIGACIÓN │ 💡   │ Árbol tecnológico │ +5 base          │
+│ INVESTIGACIÓN │ 💡   │ Árbol tecnológico │ +5 base         │
 │            │        │ Mejoras unitarias │ +10 laboratorio  │
 │            │        │ Bonificaciones    │                  │
 ├────────────────────────────────────────────────────────────┤
-│ RECLUTAMIENTO │ 🎖️   │ Crear divisiones  │ Específico       │
+│ RECLUTAMIENTO │ 🎖️   │Crear Regimientos │ Específico       │
 │            │        │ Solo ciertos tipos│ (Varía por tipo) │
 └────────────────────────────────────────────────────────────┘
 ```
@@ -141,21 +141,21 @@ ANIQUILACIÓN TERRITORIAL    PUNTOS            DOMINIO
 
 ### Estrategia Económica
 
-**"Rich Player" (Jugador Adinerado)**
+**Jugador Adinerado**
 - Controlar muchas ciudades temprano
 - Generar riqueza pasiva
 - Después gastar en unidades elite
 - ✅ Mejor a largo plazo
 - ❌ Vulnerable en tempranos turnos
 
-**"War Economy" (Economía de Guerra)**
+**Economía de Guerra**
 - Pocos recursos en construcción
 - Máximo en entrenar soldados pronto
 - Conquistar por la fuerza
 - ✅ Ganar temprano (turnos 5-15)
 - ❌ Se agota recursos rápido
 
-**"Trade Power" (Poder Comercial)**
+**Poder Comercial**
 - Enfatizar rutas comerciales
 - Usar civilización con bonos (ej: Cartago +30%)
 - Ganar ingresos exponenciales

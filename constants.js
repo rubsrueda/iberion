@@ -479,6 +479,39 @@ const SKIRMISH_VICTORY_GOLD_BONUS = 200;
 
 // Sistema de Victoria por Puntos
 const VICTORY_POINTS_TO_WIN = 8; // Puntos necesarios para ganar la partida
+
+// Sistema de Modo Invasión (Asimetría Atacante/Defensor)
+const INVASION_MODE_CONFIG = {
+    // Distribución de territorio inicial
+    ATTACKER_TERRITORY_PERCENT: 0.05,  // Atacante controla 5% del mapa (zona de invasión)
+    DEFENDER_TERRITORY_PERCENT: 0.95,  // Defensor controla 95% del mapa
+    
+    // Recursos iniciales
+    ATTACKER_RESOURCES: {
+        oro: 40000,     // Ejército invasor viene con oro acumulado (suficiente para 10 divisiones)
+        comida: 2000,
+        madera: 1000,
+        piedra: 500,
+        hierro: 500,
+        researchPoints: 100
+    },
+    DEFENDER_RESOURCES: {
+        oro: 1000,      // Defensor tiene menos oro pero más territorio
+        comida: 1000,
+        madera: 800,
+        piedra: 400,
+        hierro: 300,
+        researchPoints: 50
+    },
+    
+    // Ciudades iniciales
+    ATTACKER_CITIES: 1,     // Solo ciudad base (punto de invasión)
+    DEFENDER_CITIES: 5,     // Múltiples ciudades en territorio
+    
+    // Restricciones de deployment
+    DEPLOYMENT_RADIUS: 1,   // Radio de despliegue desde ciudad base (atacante)
+    DEFENDER_DEPLOYMENT_RADIUS: 2,   // Puede desplegar en cualquier ciudad propia
+}
 const VICTORY_BY_POINTS_ENABLED_DEFAULT = true; // Si la victoria por puntos está activa por defecto
 
 const STRUCTURE_TYPES = {

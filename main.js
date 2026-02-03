@@ -1203,6 +1203,12 @@ function initApp() {
             }
 
             // 4. RECOLECTAR CONFIGURACIÓN REAL DE SETUPSCREEN2 (Valores dinámicos)
+            
+            // <<== NUEVO: CAPTURAR MODO DE JUEGO ==>>    
+            const gameModeSelect = document.getElementById('gameModeSelect');
+            const gameMode = gameModeSelect ? gameModeSelect.value : 'development';
+            gameState.gameMode = gameMode; // 'development' o 'invasion'
+            console.log(`[SETUP] Modo de juego seleccionado: ${gameMode}`);
                 
             gameState.playerTypes = {};
             gameState.playerCivilizations = {};
@@ -1253,7 +1259,7 @@ function initApp() {
             
             // 6. Inicializar el tablero de juego.
             if (typeof initializeNewGameBoardDOMAndData === "function") { 
-                initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize, settings.navalMap || false); 
+                initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize, settings.navalMap || false, gameMode); 
             } else { 
                 console.error("CRÍTICO: initializeNewGameBoardDOMAndData NO es una función."); 
                 return;
