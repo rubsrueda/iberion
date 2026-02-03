@@ -8,7 +8,14 @@ const AiDeploymentManager = {
         try {
             if (gameState.currentPhase !== "deployment") { console.groupEnd(); return; }
             const playerResources = gameState.playerResources[playerNumber];
-            let unitsToPlaceCount = (gameState.deploymentUnitLimit === Infinity) ? 5 : (gameState.deploymentUnitLimit - (gameState.unitsPlacedByPlayer?.[playerNumber] || 0));
+            let limit;
+            if (gameState.deploymentUnitLimitByPlayer && typeof gameState.deploymentUnitLimitByPlayer === 'object') {
+                limit = gameState.deploymentUnitLimitByPlayer[playerNumber];
+            }
+            if (limit === undefined || limit === null) {
+                limit = gameState.deploymentUnitLimit;
+            }
+            let unitsToPlaceCount = (limit === Infinity) ? 5 : (limit - (gameState.unitsPlacedByPlayer?.[playerNumber] || 0));
             if (unitsToPlaceCount <= 0) { console.log("Límite de unidades para desplegar ya alcanzado."); console.groupEnd(); return; }
 
             const analysis = this.analyzeEnvironment(playerNumber);

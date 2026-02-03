@@ -427,7 +427,13 @@ const UIManager = {
             // 2. Si es mi turno, calculamos si puedo poner más unidades
             if (isMyTurn) {
                 const unitsPlaced = gameState.unitsPlacedByPlayer[currentPlayer] || 0;
-                const limit = (deploymentUnitLimit === undefined || deploymentUnitLimit === null) ? 5 : deploymentUnitLimit;
+                let limit;
+                if (gameState.deploymentUnitLimitByPlayer && typeof gameState.deploymentUnitLimitByPlayer === 'object') {
+                    limit = gameState.deploymentUnitLimitByPlayer[currentPlayer];
+                }
+                if (limit === undefined || limit === null) {
+                    limit = (deploymentUnitLimit === undefined || deploymentUnitLimit === null) ? 5 : deploymentUnitLimit;
+                }
                 
                 // Si no hemos llegado al límite, MOSTRAR botón de crear
                 if (unitsPlaced < limit) {

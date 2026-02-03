@@ -306,6 +306,7 @@ function initApp() {
                 // --- RESET DE JUEGO ---
                 console.log("Reiniciando variables de juego...");
                 if (typeof resetGameStateVariables === 'function') {
+                    gameState.gameMode = 'development';
                     resetGameStateVariables(2);
                 } else {
                     console.error("ERROR CRÍTICO: resetGameStateVariables no existe.");
@@ -959,6 +960,7 @@ function initApp() {
                     1: domElements.player1Civ.value,
                     2: domElements.player2Civ.value
                 },
+                gameMode: document.getElementById('gameModeSelect')?.value || 'development',
                 resourceLevel: domElements.resourceLevelSelect.value,
                 boardSize: domElements.boardSizeSelect.value,
                 deploymentUnitLimit: domElements.initialUnitsCountSelect.value === "unlimited" 
@@ -1010,19 +1012,28 @@ function initApp() {
                     resourceLevel: document.getElementById('resourceLevel')?.value || 'med',
                     unitLimit: document.getElementById('initialUnitsCount')?.value || '5',
                     turnTime: document.getElementById('turnTimeSelect')?.value || '180',
-                    numPlayers: parseInt(document.getElementById('num-players-slider')?.value) || 2
+                    numPlayers: parseInt(document.getElementById('num-players-slider')?.value) || 2,
+                    gameMode: document.getElementById('gameModeSelect')?.value || 'development'
                 };
             }
 
             // 2. INICIALIZAR EL ESTADO DEL JUEGO (Aquí se cargan los recursos de constants.js)
             if (typeof resetGameStateVariables === 'function') {
                 const turnTime = settings.turnTime === 'none' ? Infinity : parseInt(settings.turnTime);
+                gameState.gameMode = settings.gameMode || 'development';
                 
                 // ¡ESTA ES LA LÍNEA CLAVE QUE FALTABA!
                 resetGameStateVariables(settings.numPlayers, turnTime);
                 
                 // Configurar detalles específicos
                 gameState.deploymentUnitLimit = settings.unitLimit === "unlimited" ? Infinity : parseInt(settings.unitLimit);
+                if (gameState.gameMode === 'invasion') {
+                    gameState.deploymentUnitLimitByPlayer = {
+                        1: INVASION_MODE_CONFIG.ATTACKER_DEPLOYMENT_UNIT_LIMIT
+                    };
+                } else {
+                    gameState.deploymentUnitLimitByPlayer = null;
+                }
                 gameState.myPlayerNumber = 1; 
                 gameState.currentPhase = "deployment"; // Asegurar fase
                 
@@ -1047,7 +1058,7 @@ function initApp() {
             
             // 3. GENERAR EL MAPA VISUAL Y DE DATOS
             if (typeof initializeNewGameBoardDOMAndData === 'function') {
-                initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize);
+                initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize, false, settings.gameMode || 'development');
             }
 
             // 4. SUBIR A LA NUBE (Ahora subirá el estado perfecto que acabamos de crear)
@@ -1193,7 +1204,13 @@ function initApp() {
             // 2. Convertimos la duración del turno aquí
             const turnDuration = settings.turnTime === 'none' ? Infinity : parseInt(settings.turnTime);
 
-            // 3. Resetear el estado del juego. Es LO PRIMERO que hacemos.
+            // 3. CAPTURAR MODO DE JUEGO ANTES DEL RESET
+            const gameModeSelect = document.getElementById('gameModeSelect');
+            const gameMode = gameModeSelect ? gameModeSelect.value : 'development';
+            gameState.gameMode = gameMode; // 'development' o 'invasion'
+            console.log(`[SETUP] Modo de juego seleccionado: ${gameMode}`);
+
+            // 4. Resetear el estado del juego (usa gameMode para recursos iniciales)
             if (typeof resetGameStateVariables === "function") {
                 resetGameStateVariables(numPlayers, turnDuration);
                 gameState.myPlayerNumber = 1;
@@ -1202,13 +1219,7 @@ function initApp() {
                 return;
             }
 
-            // 4. RECOLECTAR CONFIGURACIÓN REAL DE SETUPSCREEN2 (Valores dinámicos)
-            
-            // <<== NUEVO: CAPTURAR MODO DE JUEGO ==>>    
-            const gameModeSelect = document.getElementById('gameModeSelect');
-            const gameMode = gameModeSelect ? gameModeSelect.value : 'development';
-            gameState.gameMode = gameMode; // 'development' o 'invasion'
-            console.log(`[SETUP] Modo de juego seleccionado: ${gameMode}`);
+            // 5. RECOLECTAR CONFIGURACIÓN REAL DE SETUPSCREEN2 (Valores dinámicos)
                 
             gameState.playerTypes = {};
             gameState.playerCivilizations = {};
@@ -1248,6 +1259,13 @@ function initApp() {
             // 5. Finalizar configuración global usando settings del paso "Siguiente"
                 
             gameState.deploymentUnitLimit = settings.unitLimit === "unlimited" ? Infinity : parseInt(settings.unitLimit);
+            if (gameState.gameMode === 'invasion') {
+                gameState.deploymentUnitLimitByPlayer = {
+                    1: INVASION_MODE_CONFIG.ATTACKER_DEPLOYMENT_UNIT_LIMIT
+                };
+            } else {
+                gameState.deploymentUnitLimitByPlayer = null;
+            }
             gameState.victoryByPointsEnabled = settings.victoryByPoints ?? VICTORY_BY_POINTS_ENABLED_DEFAULT;
             console.log(`[SETUP] Victoria por puntos: ${gameState.victoryByPointsEnabled ? 'ACTIVADA' : 'DESACTIVADA'}`);
             console.error(`DEBUGGING TIMER | PASO 3: Asignando gameState.turnDurationSeconds. Valor final: ${gameState.turnDurationSeconds}`);
@@ -1686,7 +1704,13 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
             // 2. ¿Es fase de despliegue? VALIDAR LÍMITE
             if (gameState.currentPhase === 'deployment') {
                 const currentCount = (gameState.unitsPlacedByPlayer && gameState.unitsPlacedByPlayer[gameState.currentPlayer]) || 0;
-                const limit = gameState.deploymentUnitLimit; // Ya debe ser un número o Infinity
+                let limit;
+                if (gameState.deploymentUnitLimitByPlayer && typeof gameState.deploymentUnitLimitByPlayer === 'object') {
+                    limit = gameState.deploymentUnitLimitByPlayer[gameState.currentPlayer];
+                }
+                if (limit === undefined || limit === null) {
+                    limit = gameState.deploymentUnitLimit; // Ya debe ser un número o Infinity
+                }
 
                 // SI YA ALCANZÓ EL LÍMITE, DETENER AQUÍ.
                 if (limit !== Infinity && currentCount >= limit) {
@@ -2068,6 +2092,7 @@ if (newTutorialBtn) {
         
         
         if (typeof resetGameStateVariables === 'function') {
+            gameState.gameMode = 'development';
             resetGameStateVariables(2);
         }
 
@@ -2392,11 +2417,19 @@ function iniciarPartidaLAN(settings) {
         return;
     }
     
+    gameState.gameMode = settings.gameMode || 'development';
     resetGameStateVariables(2); // Asumiendo que LAN es para 2 jugadores
 
     gameState.playerTypes = settings.playerTypes;
     gameState.playerCivilizations = settings.playerCivilizations;
     gameState.deploymentUnitLimit = settings.deploymentUnitLimit;
+    if (gameState.gameMode === 'invasion') {
+        gameState.deploymentUnitLimitByPlayer = {
+            1: INVASION_MODE_CONFIG.ATTACKER_DEPLOYMENT_UNIT_LIMIT
+        };
+    } else {
+        gameState.deploymentUnitLimitByPlayer = null;
+    }
     gameState.turnDurationSeconds = settings.turnTime === 'none' ? Infinity : parseInt(settings.turnTime);
     gameState.victoryByPointsEnabled = settings.victoryByPoints ?? VICTORY_BY_POINTS_ENABLED_DEFAULT;
     gameState.isCampaignBattle = false;
@@ -2415,7 +2448,7 @@ function iniciarPartidaLAN(settings) {
 
     if (NetworkManager.esAnfitrion) {
         console.log("[Anfitrión] Generando el mapa y el estado inicial...");
-        initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize);
+        initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize, false, settings.gameMode || 'development');
         
         // El anfitrión crea una "fotografía" del estado del juego
         const replacer = (key, value) => (key === 'element' ? undefined : value);
@@ -2600,7 +2633,13 @@ async function processActionRequest(action) {
             if (gameState.currentPhase === 'deployment') {
                 const pId = payload.playerId; // o payload.unitData.player
                 const currentCount = gameState.unitsPlacedByPlayer[pId] || 0;
-                const limit = gameState.deploymentUnitLimit;
+                let limit;
+                if (gameState.deploymentUnitLimitByPlayer && typeof gameState.deploymentUnitLimitByPlayer === 'object') {
+                    limit = gameState.deploymentUnitLimitByPlayer[pId];
+                }
+                if (limit === undefined || limit === null) {
+                    limit = gameState.deploymentUnitLimit;
+                }
                 
                 // Si intenta poner más del límite, rechazamos la acción y no hacemos nada
                 if (limit !== Infinity && currentCount >= limit) {
