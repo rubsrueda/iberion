@@ -286,11 +286,11 @@ async function saveGameUnifiedInternal(saveName, isAutoSave = false) {
                     .eq('id', existing.id);
                 error = result.error;
             } else {
-                // Insertar nueva partida (o actualizar si ya existe)
+                // Insertar nueva partida
                 console.log(`[SaveGame] Insertando nueva partida: ${saveData.save_name}`);
                 const result = await supabaseClient
                     .from('game_saves')
-                    .upsert([saveData], { onConflict: 'user_id,save_name' });
+                    .insert([saveData]);
                 error = result.error;
             }
 

@@ -1282,6 +1282,8 @@ function simpleAiDeploymentTurn() {
 
 function simpleAiTurn() {
     console.log(`[simpleAiTurn] INICIO para Jugador IA ${gameState.currentPlayer}.`);
+    console.log(`[simpleAiTurn] DEBUG - setupTempSettings:`, gameState.setupTempSettings);
+    console.log(`[simpleAiTurn] DEBUG - navalMap:`, gameState.setupTempSettings?.navalMap);
     const aiPlayerIdString = `player${gameState.currentPlayer}`;
     const aiActualPlayerNumber = gameState.currentPlayer;
     const aiLevel = gameState.playerAiLevels?.[aiPlayerIdString] || 'normal';
@@ -2196,6 +2198,7 @@ async function handleEndTurn(isHostProcessing = false) {
     
     if (isNextPlayerAI && gameState.currentPhase !== "gameOver") {
         // --- TURNO DE IA ---
+        console.log(`[handleEndTurn] Turno de IA detectado. Jugador: ${gameState.currentPlayer}, Fase: ${gameState.currentPhase}`);
         if (checkVictory && checkVictory()) return;
         
         const turnBlocker = document.getElementById('turnBlocker');
@@ -2205,6 +2208,7 @@ async function handleEndTurn(isHostProcessing = false) {
         }
         setTimeout(async () => {
             const playerNumberForAI = gameState.currentPlayer;
+            console.log(`[handleEndTurn.setTimeout] Ejecutando IA para jugador ${playerNumberForAI}`);
             if (gameState.currentPhase === 'deployment') await simpleAiDeploymentTurn(playerNumberForAI);
             else await simpleAiTurn(playerNumberForAI); 
         }, 700);
