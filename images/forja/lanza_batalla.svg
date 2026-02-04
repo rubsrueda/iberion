@@ -1,0 +1,75 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="lanzaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b4513;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#654321;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3e2723;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="puntaLanza" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" style="stop-color:#c0c0c0;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#a9a9a9;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#808080;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Lanza/Pica de batalla -->
+  
+  <!-- Asta de madera -->
+  <rect x="48" y="10" width="4" height="70" fill="url(#lanzaGrad)" stroke="#3e2723" stroke-width="1"/>
+  
+  <!-- Grano de madera visible -->
+  <g stroke="#3e2723" stroke-width="0.2" opacity="0.4">
+    <line x1="48" y1="20" x2="52" y2="20"/>
+    <line x1="48" y1="30" x2="52" y2="30"/>
+    <line x1="48" y1="40" x2="52" y2="40"/>
+    <line x1="48" y1="50" x2="52" y2="50"/>
+    <line x1="48" y1="60" x2="52" y2="60"/>
+  </g>
+  
+  <!-- Punta de hierro (hoja de lanza) -->
+  <g>
+    <!-- Forma de la punta -->
+    <path d="M 50 10 L 45 20 L 50 25 L 55 20 Z" fill="url(#puntaLanza)" stroke="#404040" stroke-width="1"/>
+    
+    <!-- Nervadura central de la hoja -->
+    <path d="M 50 12 L 50 24" stroke="#606060" stroke-width="0.5" opacity="0.7"/>
+    
+    <!-- Bordes afilados -->
+    <line x1="45" y1="20" x2="50" y2="25" stroke="#303030" stroke-width="0.3" opacity="0.6"/>
+    <line x1="55" y1="20" x2="50" y2="25" stroke="#303030" stroke-width="0.3" opacity="0.6"/>
+  </g>
+  
+  <!-- Anillo de retención (donde se une punta y asta) -->
+  <circle cx="50" cy="28" r="2.5" fill="none" stroke="#8b6914" stroke-width="1"/>
+  <circle cx="50" cy="28" r="1.8" fill="none" stroke="#606060" stroke-width="0.5" opacity="0.6"/>
+  
+  <!-- Empuñadura (grip) -->
+  <g>
+    <!-- Enrollado de cuero -->
+    <rect x="46" y="45" width="8" height="12" rx="1.5" fill="#8b6f47" stroke="#5a4a2a" stroke-width="0.5"/>
+    <g stroke="#d4c5a0" stroke-width="0.3" opacity="0.7">
+      <line x1="46" y1="48" x2="54" y2="48"/>
+      <line x1="46" y1="51" x2="54" y2="51"/>
+      <line x1="46" y1="54" x2="54" y2="54"/>
+    </g>
+  </g>
+  
+  <!-- Contrapeso/tarugo en la parte inferior (puntilla) -->
+  <path d="M 48 78 L 52 78 L 51.5 85 L 48.5 85 Z" fill="#654321" stroke="#3e2723" stroke-width="0.8"/>
+  
+  <!-- Detalles de metal -->
+  <g fill="#d4af37" opacity="0.6">
+    <!-- Pequeñas bandas de metal decorativas -->
+    <rect x="47.5" y="35" width="5" height="0.8" fill="#b8860b"/>
+    <rect x="47.5" y="65" width="5" height="0.8" fill="#b8860b"/>
+  </g>
+  
+  <!-- Sombra para profundidad -->
+  <ellipse cx="50" cy="50" rx="3" ry="30" fill="#000000" opacity="0.15"/>
+  
+  <!-- Efecto de luz en la punta -->
+  <path d="M 50 10 L 45 20 L 50 25 L 55 20 Z" fill="none" stroke="#ffffff" stroke-width="0.3" opacity="0.3"/>
+  
+  <!-- Nombre del item -->
+  <text x="50" y="97" font-size="5" font-family="serif" text-anchor="middle" fill="#3e2723" font-weight="bold">Lanza de Batalla</text>
+</svg>

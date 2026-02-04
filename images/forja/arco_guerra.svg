@@ -1,0 +1,70 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="arcoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b4513;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#654321;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3e2723;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="cuerda" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#d4c5a0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#a8a080;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Arco de madera (Arco Largo Medieval) -->
+  
+  <!-- Cuerpo de madera curvado -->
+  <path d="M 50 20 Q 45 50 50 80 Q 55 50 50 20" fill="url(#arcoGrad)" stroke="#3e2723" stroke-width="1.5"/>
+  
+  <!-- Capa de madera más clara (grano visible) -->
+  <path d="M 50 25 Q 46 50 50 75 Q 54 50 50 25" fill="none" stroke="#a0522d" stroke-width="0.8" opacity="0.6"/>
+  
+  <!-- Cuerda del arco -->
+  <path d="M 50 22 Q 52 50 50 78" fill="none" stroke="url(#cuerda)" stroke-width="1.2" stroke-linecap="round"/>
+  
+  <!-- Segunda cuerda (para efecto de grosor) -->
+  <path d="M 50 22 Q 48 50 50 78" fill="none" stroke="url(#cuerda)" stroke-width="0.8" opacity="0.8"/>
+  
+  <!-- Empuñadura -->
+  <rect x="47" y="45" width="6" height="10" rx="1" fill="#8b6f47" stroke="#5a4a2a" stroke-width="0.5"/>
+  
+  <!-- Envoltura de la empuñadura -->
+  <g stroke="#d4c5a0" stroke-width="0.3" opacity="0.7">
+    <line x1="48" y1="47" x2="52" y2="47"/>
+    <line x1="48" y1="50" x2="52" y2="50"/>
+    <line x1="48" y1="53" x2="52" y2="53"/>
+  </g>
+  
+  <!-- Nocks (muescas para la cuerda) -->
+  <g fill="#3e2723">
+    <!-- Nock superior -->
+    <path d="M 48 22 L 52 22 L 50.5 24 L 49.5 24 Z"/>
+    <!-- Nock inferior -->
+    <path d="M 48 78 L 52 78 L 50.5 76 L 49.5 76 Z"/>
+  </g>
+  
+  <!-- Refuerzo de puntas (bone/horn reinforcement) -->
+  <g fill="#d4c5a0" opacity="0.8">
+    <!-- Parte superior -->
+    <ellipse cx="50" cy="18" rx="3" ry="2"/>
+    <!-- Parte inferior -->
+    <ellipse cx="50" cy="82" rx="3" ry="2"/>
+  </g>
+  
+  <!-- Detalles de estructura de madera -->
+  <g stroke="#5a4a2a" stroke-width="0.2" opacity="0.3">
+    <line x1="48" y1="30" x2="52" y2="30"/>
+    <line x1="47.5" y1="40" x2="52.5" y2="40"/>
+    <line x1="48" y1="60" x2="52" y2="60"/>
+    <line x1="47.5" y1="70" x2="52.5" y2="70"/>
+  </g>
+  
+  <!-- Tensión de la cuerda (línea de movimiento) -->
+  <path d="M 50 35 Q 55 45 50 55" fill="none" stroke="#a0522d" stroke-width="0.5" stroke-dasharray="2,2" opacity="0.4"/>
+  
+  <!-- Sombra -->
+  <ellipse cx="50" cy="50" rx="5" ry="35" fill="#000000" opacity="0.1" filter="blur(2px)"/>
+  
+  <!-- Nombre del item -->
+  <text x="50" y="95" font-size="6" font-family="serif" text-anchor="middle" fill="#3e2723" font-weight="bold">Arco de Guerra</text>
+</svg>

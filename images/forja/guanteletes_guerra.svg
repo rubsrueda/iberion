@@ -1,0 +1,81 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="guantesGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b7355;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#704010;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#5a2d0c;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="metalGaunlets" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#c0c0c0;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#a9a9a9;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#808080;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Guanteletes/Guantes de hierro con cuero -->
+  
+  <!-- Guante izquierdo -->
+  <g>
+    <!-- Puño de cuero -->
+    <rect x="10" y="25" width="12" height="25" rx="2" fill="url(#guantesGrad)" stroke="#4a2511" stroke-width="1"/>
+    
+    <!-- Protecciones de hierro (nudillos) -->
+    <path d="M 12 28 L 20 28 L 20 32 L 12 32 Z" fill="url(#metalGaunlets)" stroke="#505050" stroke-width="0.5"/>
+    
+    <!-- Dedos -->
+    <g>
+      <rect x="12" y="33" width="1.5" height="12" fill="url(#guantesGrad)" stroke="#4a2511" stroke-width="0.5"/>
+      <rect x="14.5" y="32" width="1.5" height="14" fill="url(#guantesGrad)" stroke="#4a2511" stroke-width="0.5"/>
+      <rect x="17" y="33" width="1.5" height="12" fill="url(#guantesGrad)" stroke="#4a2511" stroke-width="0.5"/>
+      <rect x="19.5" y="35" width="1.5" height="10" fill="url(#guantesGrad)" stroke="#4a2511" stroke-width="0.5"/>
+    </g>
+    
+    <!-- Protección de hierro en dedos -->
+    <g fill="url(#metalGaunlets)" opacity="0.7">
+      <rect x="12" y="40" width="1.5" height="4" stroke="#505050" stroke-width="0.3"/>
+      <rect x="14.5" y="39" width="1.5" height="5" stroke="#505050" stroke-width="0.3"/>
+      <rect x="17" y="40" width="1.5" height="4" stroke="#505050" stroke-width="0.3"/>
+    </g>
+    
+    <!-- Correa de ajuste -->
+    <rect x="10" y="52" width="12" height="2" fill="#654321" stroke="#4a2511" stroke-width="0.5"/>
+  </g>
+  
+  <!-- Guante derecho -->
+  <g>
+    <!-- Puño de cuero -->
+    <rect x="78" y="25" width="12" height="25" rx="2" fill="url(#guantesGrad)" stroke="#4a2511" stroke-width="1"/>
+    
+    <!-- Protecciones de hierro (nudillos) -->
+    <path d="M 80 28 L 88 28 L 88 32 L 80 32 Z" fill="url(#metalGaunlets)" stroke="#505050" stroke-width="0.5"/>
+    
+    <!-- Dedos -->
+    <g>
+      <rect x="80" y="33" width="1.5" height="12" fill="url(#guantesGrad)" stroke="#4a2511" stroke-width="0.5"/>
+      <rect x="82.5" y="32" width="1.5" height="14" fill="url(#guantesGrad)" stroke="#4a2511" stroke-width="0.5"/>
+      <rect x="85" y="33" width="1.5" height="12" fill="url(#guantesGrad)" stroke="#4a2511" stroke-width="0.5"/>
+      <rect x="87.5" y="35" width="1.5" height="10" fill="url(#guantesGrad)" stroke="#4a2511" stroke-width="0.5"/>
+    </g>
+    
+    <!-- Protección de hierro en dedos -->
+    <g fill="url(#metalGaunlets)" opacity="0.7">
+      <rect x="80" y="40" width="1.5" height="4" stroke="#505050" stroke-width="0.3"/>
+      <rect x="82.5" y="39" width="1.5" height="5" stroke="#505050" stroke-width="0.3"/>
+      <rect x="85" y="40" width="1.5" height="4" stroke="#505050" stroke-width="0.3"/>
+    </g>
+    
+    <!-- Correa de ajuste -->
+    <rect x="78" y="52" width="12" height="2" fill="#654321" stroke="#4a2511" stroke-width="0.5"/>
+  </g>
+  
+  <!-- Detalles de remaches -->
+  <g fill="#d4af37" opacity="0.6">
+    <circle cx="16" cy="30" r="0.6"/>
+    <circle cx="20" cy="30" r="0.6"/>
+    <circle cx="84" cy="30" r="0.6"/>
+    <circle cx="88" cy="30" r="0.6"/>
+  </g>
+  
+  <!-- Nombre del item -->
+  <text x="50" y="75" font-size="7" font-family="serif" text-anchor="middle" fill="#4a2511" font-weight="bold">Guanteletes de Guerra</text>
+</svg>

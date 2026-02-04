@@ -1,0 +1,38 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="ironGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#d3d3d3;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#808080;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#404040;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Casco Romano (Galea) - forma semiesférica -->
+  <ellipse cx="50" cy="28" rx="26" ry="24" fill="url(#ironGrad)" stroke="#1a1a1a" stroke-width="2"/>
+  
+  <!-- Protección frontal típica romana -->
+  <path d="M 35 50 L 38 72 L 62 72 L 65 50 Z" fill="url(#ironGrad)" stroke="#1a1a1a" stroke-width="1.5"/>
+  
+  <!-- Nariguera (característica romana) -->
+  <path d="M 48 50 L 48 62 L 52 62 L 52 50 Z" fill="url(#ironGrad)" stroke="#1a1a1a" stroke-width="0.5"/>
+  
+  <!-- Abertura para los ojos (dos pequeños agujeros) -->
+  <ellipse cx="42" cy="54" rx="2.5" ry="3" fill="#0a0a0a"/>
+  <ellipse cx="58" cy="54" rx="2.5" ry="3" fill="#0a0a0a"/>
+  
+  <!-- Paflinas (protecciones laterales romanas) -->
+  <path d="M 34 52 Q 20 62 22 78" stroke="url(#ironGrad)" stroke-width="2.5" fill="none"/>
+  <path d="M 66 52 Q 80 62 78 78" stroke="url(#ironGrad)" stroke-width="2.5" fill="none"/>
+  
+  <!-- Cresta (cimera) - ranura para la cresta removible -->
+  <line x1="45" y1="8" x2="55" y2="8" stroke="#1a1a1a" stroke-width="1.5"/>
+  <path d="M 47 10 L 50 6 L 53 10" fill="#808080" stroke="#1a1a1a" stroke-width="0.5"/>
+  
+  <!-- Reflejos de metal pulido -->
+  <ellipse cx="46" cy="18" rx="5" ry="3" fill="#ffffff" opacity="0.4"/>
+  <ellipse cx="56" cy="22" rx="4" ry="2" fill="#ffffff" opacity="0.2"/>
+  
+  <!-- Marcas de trabajado (martilleo) -->
+  <path d="M 40 65 L 60 65" stroke="#1a1a1a" stroke-width="0.3" opacity="0.4"/>
+  <path d="M 38 68 L 62 68" stroke="#1a1a1a" stroke-width="0.3" opacity="0.4"/>
+</svg>

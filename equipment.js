@@ -17,7 +17,7 @@ const EQUIPMENT_DEFINITIONS = {
     },
     "common_helmet_1": {
         id: "common_helmet_1", name: "Gorro de Cuero", slot: "head", rarity: "Común", 
-        icon: "images/forja/casco_base.png", // RUTA REAL
+        icon: "images/forja/casco_base.svg", // RUTA REAL
         fragments_needed: 20,
         bonuses: [{ stat: 'health', value: 20, is_percentage: false, scope: 'combat' }]
     },
@@ -58,7 +58,7 @@ const EQUIPMENT_DEFINITIONS = {
     },
     "rare_helmet_1": {
         id: "rare_helmet_1", name: "Yelmo Boeotio", slot: "head", rarity: "Raro", 
-        icon: "images/forja/casco_avanzado.png", // RUTA REAL
+        icon: "images/forja/casco_avanzado.svg", // RUTA REAL
         fragments_needed: 30,
         bonuses: [
             { stat: 'health', value: 50, is_percentage: false, scope: 'combat' },
@@ -112,7 +112,7 @@ const EQUIPMENT_DEFINITIONS = {
     },
     "epic_helmet_1": {
         id: "epic_helmet_1", name: "Yelmo de Montefortino", slot: "head", rarity: "Épico", 
-        icon: "images/forja/casco_ibero.png", // RUTA REAL
+        icon: "images/forja/casco_ibero.svg", // RUTA REAL
         fragments_needed: 50,
         bonuses: [
             { stat: 'defense', value: 5, is_percentage: true, scope: 'combat' },
@@ -168,7 +168,7 @@ const EQUIPMENT_DEFINITIONS = {
 
     "legendary_helmet_1": {
         id: "legendary_helmet_1", name: "Yelmo Corintio", slot: "head", rarity: "Legendario", 
-        icon: "images/forja/casco_romano.png", // RUTA REAL
+        icon: "images/forja/casco_romano.svg", // RUTA REAL
         bonuses: [
             { stat: 'health', value: 10, is_percentage: true, scope: 'combat' },
             { stat: 'initiative', value: 10, is_percentage: false, scope: 'ataque' },

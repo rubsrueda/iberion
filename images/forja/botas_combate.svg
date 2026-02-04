@@ -1,0 +1,75 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="cueroGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b6f47;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#704214;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#5a3a1a;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Botas/Grebas de cuero y hierro -->
+  <!-- Bota izquierda -->
+  <g>
+    <!-- Caña de cuero -->
+    <path d="M 20 35 L 18 70 Q 20 80 25 82 L 30 82 Q 32 80 30 70 L 32 35 Z" fill="url(#cueroGrad)" stroke="#4a2511" stroke-width="1"/>
+    
+    <!-- Refuerzos de hierro (tibia) -->
+    <rect x="24" y="40" width="4" height="30" fill="#a9a9a9" opacity="0.8"/>
+    <g stroke="#808080" stroke-width="0.4" opacity="0.6">
+      <line x1="24" y1="45" x2="28" y2="45"/>
+      <line x1="24" y1="50" x2="28" y2="50"/>
+      <line x1="24" y1="55" x2="28" y2="55"/>
+      <line x1="24" y1="60" x2="28" y2="60"/>
+      <line x1="24" y1="65" x2="28" y2="65"/>
+    </g>
+    
+    <!-- Suela de hierro -->
+    <ellipse cx="24" cy="82" rx="5" ry="2.5" fill="#606060"/>
+    <path d="M 20 80 L 28 80 L 28 82 L 20 82 Z" fill="#4a4a4a"/>
+    
+    <!-- Espuela -->
+    <g fill="none" stroke="#d4af37" stroke-width="1.2">
+      <circle cx="19" cy="82" r="1.5"/>
+      <path d="M 19 82 L 17 84 L 18 85"/>
+    </g>
+  </g>
+  
+  <!-- Bota derecha -->
+  <g>
+    <!-- Caña de cuero -->
+    <path d="M 70 35 L 68 70 Q 70 80 75 82 L 80 82 Q 82 80 80 70 L 82 35 Z" fill="url(#cueroGrad)" stroke="#4a2511" stroke-width="1"/>
+    
+    <!-- Refuerzos de hierro (tibia) -->
+    <rect x="72" y="40" width="4" height="30" fill="#a9a9a9" opacity="0.8"/>
+    <g stroke="#808080" stroke-width="0.4" opacity="0.6">
+      <line x1="72" y1="45" x2="76" y2="45"/>
+      <line x1="72" y1="50" x2="76" y2="50"/>
+      <line x1="72" y1="55" x2="76" y2="55"/>
+      <line x1="72" y1="60" x2="76" y2="60"/>
+      <line x1="72" y1="65" x2="76" y2="65"/>
+    </g>
+    
+    <!-- Suela de hierro -->
+    <ellipse cx="74" cy="82" rx="5" ry="2.5" fill="#606060"/>
+    <path d="M 70 80 L 78 80 L 78 82 L 70 82 Z" fill="#4a4a4a"/>
+    
+    <!-- Espuela -->
+    <g fill="none" stroke="#d4af37" stroke-width="1.2">
+      <circle cx="81" cy="82" r="1.5"/>
+      <path d="M 81 82 L 83 84 L 82 85"/>
+    </g>
+  </g>
+  
+  <!-- Detalles de correas -->
+  <g stroke="#654321" stroke-width="0.8" fill="none" opacity="0.7">
+    <!-- Correa izquierda -->
+    <path d="M 20 40 Q 22 35 26 35" stroke="#654321"/>
+    <path d="M 20 55 Q 22 50 26 50" stroke="#654321"/>
+    <!-- Correa derecha -->
+    <path d="M 80 40 Q 78 35 74 35" stroke="#654321"/>
+    <path d="M 80 55 Q 78 50 74 50" stroke="#654321"/>
+  </g>
+  
+  <!-- Texto descriptivo (para UI) -->
+  <text x="50" y="15" font-size="8" font-family="serif" text-anchor="middle" fill="#4a2511" font-weight="bold">Botas de Combate</text>
+</svg>

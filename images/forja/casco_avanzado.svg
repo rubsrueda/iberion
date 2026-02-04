@@ -1,0 +1,39 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="steelGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#e8e8e8;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#a9a9a9;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#696969;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="crownGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffd700;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#daa520;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Casco yelmo Boeotio - más elaborado -->
+  <ellipse cx="50" cy="30" rx="28" ry="26" fill="url(#steelGrad)" stroke="#404040" stroke-width="1.5"/>
+  
+  <!-- Cimera superior -->
+  <path d="M 40 8 L 50 2 L 60 8 Z" fill="url(#crownGrad)" stroke="#3d3d00" stroke-width="1"/>
+  
+  <!-- Protección frontal dual -->
+  <path d="M 30 45 L 35 70 L 65 70 L 70 45 Z" fill="url(#steelGrad)" stroke="#404040" stroke-width="1"/>
+  
+  <!-- Abertura para los ojos (ranura horizontal) -->
+  <rect x="38" y="52" width="24" height="4" rx="2" fill="#1a1a1a"/>
+  
+  <!-- Protección nasal -->
+  <path d="M 50 52 L 48 62 L 52 62 Z" fill="url(#steelGrad)" stroke="#404040" stroke-width="0.5"/>
+  
+  <!-- Protecciones laterales (paflinas) -->
+  <path d="M 30 50 Q 15 60 20 75" stroke="url(#steelGrad)" stroke-width="3" fill="none"/>
+  <path d="M 70 50 Q 85 60 80 75" stroke="url(#steelGrad)" stroke-width="3" fill="none"/>
+  
+  <!-- Reflejos de acero bruñido -->
+  <ellipse cx="42" cy="20" rx="6" ry="4" fill="#ffffff" opacity="0.5"/>
+  <ellipse cx="58" cy="25" rx="5" ry="3" fill="#ffffff" opacity="0.3"/>
+  
+  <!-- Decoración de cobre/bronce -->
+  <circle cx="50" cy="58" r="2" fill="#cd7f32" stroke="#8b4513" stroke-width="0.5"/>
+</svg>

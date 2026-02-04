@@ -1,0 +1,86 @@
+<svg viewBox="0 0 200 300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="skinGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#dbb896;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#c99970;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="armorGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b7355;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#5d4a37;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3d2817;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Fondo oscuro degradado -->
+  <rect width="200" height="300" fill="#1a1a2e"/>
+  
+  <!-- Cabeza -->
+  <circle cx="100" cy="60" r="35" fill="url(#skinGrad)" stroke="#8b7355" stroke-width="1"/>
+  
+  <!-- Cabello oscuro y ondulado (característico medieval catalán) -->
+  <path d="M 70 40 Q 65 35 68 28 Q 72 20 80 18 Q 90 15 100 15 Q 110 15 120 18 Q 128 20 132 28 Q 135 35 130 40" fill="#3d2817" stroke="#1a1a1a" stroke-width="0.5"/>
+  
+  <!-- Barba característica de guerrero -->
+  <path d="M 75 70 Q 75 75 78 80 Q 90 85 100 85 Q 110 85 122 80 Q 125 75 125 70" fill="#3d2817"/>
+  
+  <!-- Ojos intensos azules (Catalán nórdico) -->
+  <circle cx="90" cy="55" r="4" fill="#1e90ff"/>
+  <circle cx="110" cy="55" r="4" fill="#1e90ff"/>
+  <circle cx="89" cy="54" r="2" fill="#ffffff"/>
+  <circle cx="109" cy="54" r="2" fill="#ffffff"/>
+  
+  <!-- Nariz recta y fuerte -->
+  <path d="M 100 45 L 100 65" stroke="#9d8775" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Cuello fuerte -->
+  <rect x="90" y="90" width="20" height="15" fill="url(#skinGrad)" stroke="#8b7355" stroke-width="0.5"/>
+  
+  <!-- Armadura de pecho (Loriga de cuero reforzado) -->
+  <path d="M 60 105 L 70 100 L 130 100 L 140 105 L 140 180 Q 100 190 60 180 Z" fill="url(#armorGrad)" stroke="#2d1810" stroke-width="1.5"/>
+  
+  <!-- Detalles de la armadura (costillas) -->
+  <line x1="75" y1="105" x2="75" y2="175" stroke="#2d1810" stroke-width="0.8" opacity="0.6"/>
+  <line x1="100" y1="105" x2="100" y2="175" stroke="#2d1810" stroke-width="0.8" opacity="0.6"/>
+  <line x1="125" y1="105" x2="125" y2="175" stroke="#2d1810" stroke-width="0.8" opacity="0.6"/>
+  
+  <!-- Brazos -->
+  <ellipse cx="55" cy="140" rx="15" ry="30" fill="url(#skinGrad)" stroke="#8b7355" stroke-width="0.5"/>
+  <ellipse cx="145" cy="140" rx="15" ry="30" fill="url(#skinGrad)" stroke="#8b7355" stroke-width="0.5"/>
+  
+  <!-- Mano derecha con espada -->
+  <ellipse cx="45" cy="170" rx="8" ry="12" fill="url(#skinGrad)"/>
+  
+  <!-- ESPADA (Desperta Ferro) -->
+  <rect x="35" y="120" width="6" height="100" fill="#c0c0c0" stroke="#808080" stroke-width="0.5"/>
+  <ellipse cx="38" cy="120" rx="4" ry="3" fill="#cd7f32" stroke="#8b4513" stroke-width="0.5"/>
+  <path d="M 25 210 L 38 230 L 51 210" fill="#8b4513" stroke="#654321" stroke-width="0.5"/>
+  
+  <!-- Mano izquierda -->
+  <ellipse cx="155" cy="170" rx="8" ry="12" fill="url(#skinGrad)"/>
+  
+  <!-- Escudo (Cruz de San Jorge) -->
+  <rect x="155" y="135" width="35" height="40" fill="#c41e3a" stroke="#8b0000" stroke-width="1" rx="2"/>
+  
+  <!-- Cruz de San Jorge (roja sobre rojo, con dorado) -->
+  <g stroke="#ffd700" stroke-width="2" stroke-linecap="round" fill="none">
+    <line x1="172" y1="140" x2="172" y2="175"/>
+    <line x1="158" y1="157" x2="186" y2="157"/>
+  </g>
+  
+  <!-- Decoración dorada en escudo -->
+  <circle cx="172" cy="157" r="3" fill="#ffd700" stroke="#daa520" stroke-width="0.5"/>
+  
+  <!-- Piernas -->
+  <ellipse cx="90" cy="220" rx="12" ry="35" fill="#5d4a37" stroke="#3d2817" stroke-width="0.5"/>
+  <ellipse cx="110" cy="220" rx="12" ry="35" fill="#5d4a37" stroke="#3d2817" stroke-width="0.5"/>
+  
+  <!-- Botas de cuero -->
+  <ellipse cx="90" cy="260" rx="13" ry="15" fill="#2d1810" stroke="#1a1a1a" stroke-width="0.5"/>
+  <ellipse cx="110" cy="260" rx="13" ry="15" fill="#2d1810" stroke="#1a1a1a" stroke-width="0.5"/>
+  
+  <!-- Toque final: cicatrices de batalla en cara -->
+  <path d="M 85 65 Q 83 70 85 75" stroke="#a67c5d" stroke-width="0.5" fill="none" opacity="0.7"/>
+  
+  <!-- Texto de nombre (opcional, pueden quitarlo si va al lado) -->
+  <text x="100" y="290" font-family="serif" font-size="12" fill="#ffd700" text-anchor="middle" font-weight="bold">ROGER DE FLOR</text>
+</svg>

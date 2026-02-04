@@ -1,0 +1,39 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bronzeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#cd7f32;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#b8860b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b6914;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Casco Ibero - forma más angulosa y ornamentada -->
+  <ellipse cx="50" cy="32" rx="26" ry="28" fill="url(#bronzeGrad)" stroke="#654321" stroke-width="2"/>
+  
+  <!-- Cresta decorativa (Ibera) -->
+  <path d="M 35 12 L 50 5 L 65 12" fill="#cd7f32" stroke="#8b4513" stroke-width="1.5"/>
+  <path d="M 38 10 L 50 8 L 62 10" fill="#daa520" stroke="none"/>
+  
+  <!-- Protección frontal con decoración -->
+  <path d="M 32 48 L 38 75 L 62 75 L 68 48 Z" fill="url(#bronzeGrad)" stroke="#654321" stroke-width="1.5"/>
+  
+  <!-- Abertura para visión (más pequeña, característica ibera) -->
+  <ellipse cx="50" cy="54" rx="4" ry="5" fill="#1a1a1a"/>
+  
+  <!-- Protecciones laterales decorativas (carrilleras) -->
+  <path d="M 32 48 Q 15 55 18 75" stroke="url(#bronzeGrad)" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M 68 48 Q 85 55 82 75" stroke="url(#bronzeGrad)" stroke-width="3" fill="none" stroke-linecap="round"/>
+  
+  <!-- Decoraciones incisas (patrones) -->
+  <path d="M 40 60 L 60 60" stroke="#8b4513" stroke-width="0.8" opacity="0.6"/>
+  <path d="M 38 64 L 62 64" stroke="#8b4513" stroke-width="0.8" opacity="0.6"/>
+  
+  <!-- Reflejos dorados -->
+  <ellipse cx="45" cy="22" rx="5" ry="3" fill="#ffd700" opacity="0.4"/>
+  <ellipse cx="55" cy="28" rx="4" ry="2" fill="#ffed4e" opacity="0.3"/>
+  
+  <!-- Detalles de metal rojo (cobre) -->
+  <circle cx="50" cy="75" r="1.5" fill="#b8860b"/>
+  <circle cx="42" cy="75" r="1" fill="#b8860b"/>
+  <circle cx="58" cy="75" r="1" fill="#b8860b"/>
+</svg>

@@ -1,0 +1,78 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pectoral" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#b8860b;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#8b6914;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#5a4a0a;stop-opacity:1" />
+    </linearGradient>
+    <radialGradient id="shine" cx="40%" cy="30%">
+      <stop offset="0%" style="stop-color:#ffff99;stop-opacity:0.4" />
+      <stop offset="100%" style="stop-color:#ffff99;stop-opacity:0" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Peto/Coraza de pecho (lorica muscular romana) -->
+  
+  <!-- Placa frontal principal -->
+  <path d="M 30 25 L 70 25 L 72 35 L 72 65 Q 50 75 50 75 Q 50 75 28 65 L 28 35 Z" 
+        fill="url(#pectoral)" stroke="#3d3d1f" stroke-width="1.5"/>
+  
+  <!-- Brillo central -->
+  <ellipse cx="50" cy="40" rx="18" ry="22" fill="url(#shine)"/>
+  
+  <!-- Músculos grabados (línea central) -->
+  <path d="M 50 30 Q 48 45 50 65" stroke="#4a4a2a" stroke-width="1.5" fill="none" opacity="0.6"/>
+  
+  <!-- Detalles de pectorales (músculos) -->
+  <g stroke="#3d3d1f" stroke-width="0.8" fill="none" opacity="0.7">
+    <!-- Pectoral izquierdo -->
+    <path d="M 30 35 Q 40 35 45 45"/>
+    <path d="M 32 40 Q 40 42 45 50"/>
+    <!-- Pectoral derecho -->
+    <path d="M 70 35 Q 60 35 55 45"/>
+    <path d="M 68 40 Q 60 42 55 50"/>
+    <!-- Abdominales -->
+    <g stroke="#4a4a2a" stroke-width="0.5" opacity="0.5">
+      <line x1="48" y1="55" x2="52" y2="55"/>
+      <line x1="48" y1="60" x2="52" y2="60"/>
+      <line x1="48" y1="65" x2="52" y2="65"/>
+    </g>
+  </g>
+  
+  <!-- Correas de sujeción (costillas) -->
+  <g stroke="#4a3d2a" stroke-width="1" fill="none" opacity="0.6">
+    <path d="M 28 40 Q 25 50 28 60"/>
+    <path d="M 72 40 Q 75 50 72 60"/>
+  </g>
+  
+  <!-- Decoración dorada (emblema central) -->
+  <g fill="#ffd700" opacity="0.8">
+    <!-- Círculo central -->
+    <circle cx="50" cy="48" r="3" fill="none" stroke="#d4af37" stroke-width="1.5"/>
+    <!-- Cruz en el interior -->
+    <path d="M 50 45 L 50 51 M 47 48 L 53 48" stroke="#d4af37" stroke-width="1" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Remaches de hierro -->
+  <g fill="#606060" opacity="0.7">
+    <!-- Fila superior -->
+    <circle cx="35" cy="32" r="0.8"/>
+    <circle cx="50" cy="30" r="0.8"/>
+    <circle cx="65" cy="32" r="0.8"/>
+    <!-- Filas laterales -->
+    <circle cx="27" cy="45" r="0.8"/>
+    <circle cx="73" cy="45" r="0.8"/>
+    <circle cx="27" cy="60" r="0.8"/>
+    <circle cx="73" cy="60" r="0.8"/>
+  </g>
+  
+  <!-- Borde afilado inferior -->
+  <path d="M 30 70 L 40 72 L 50 75 L 60 72 L 70 70" fill="none" stroke="#3d3d1f" stroke-width="1"/>
+  
+  <!-- Sombra para profundidad -->
+  <path d="M 30 25 L 70 25 L 72 35 L 72 65 Q 50 75 50 75 Q 50 75 28 65 L 28 35 Z" 
+        fill="none" stroke="#000000" stroke-width="0.5" opacity="0.2"/>
+  
+  <!-- Texto descriptivo -->
+  <text x="50" y="88" font-size="6" font-family="serif" text-anchor="middle" fill="#3d3d1f" font-weight="bold">Lorica Muscular</text>
+</svg>
