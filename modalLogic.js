@@ -3,7 +3,7 @@
 function RequestConfirmBuildStructure() {
     // 1. Validaciones iniciales
     if (!selectedStructureToBuild || !hexToBuildOn) {
-        console.warn("[Build Request] Acción cancelada: faltan datos de estructura o hexágono.");
+        0 && console.warn("[Build Request] Acción cancelada: faltan datos de estructura o hexágono.");
         return;
     }
 
@@ -27,16 +27,16 @@ function RequestConfirmBuildStructure() {
     if (isNetworkGame()) {
         if (NetworkManager.esAnfitrion) {
             // -- FLUJO DEL ANFITRIÓN --
-            console.log(`[Host] Recibida acción local de construcción. Procesando...`);
+            0 && console.log(`[Host] Recibida acción local de construcción. Procesando...`);
             processActionRequest(action);
         } else {
             // -- FLUJO DEL CLIENTE --
-            console.log(`[Client] Enviando petición de construcción al Host...`);
+            0 && console.log(`[Client] Enviando petición de construcción al Host...`);
             NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
         }
     } else {
         // -- FLUJO DE PARTIDA LOCAL --
-        console.log(`[Local] Ejecutando acción de construcción...`);
+        0 && console.log(`[Local] Ejecutando acción de construcción...`);
         handleConfirmBuildStructure();
     }
 
@@ -104,7 +104,7 @@ function showCityContextualInfo(cityData) { // Modificar función existente o cr
                 if (UIManager.hideContextualPanel) UIManager.hideContextualPanel(); 
             };
         } else {
-            console.warn("UIManager: Botón 'setAsCapitalBtn' no encontrado.");
+            0 && console.warn("UIManager: Botón 'setAsCapitalBtn' no encontrado.");
         }
     } else {
         if (setCapitalBtn) setCapitalBtn.style.display = 'none'; // Ocultar si no es aplicable
@@ -112,7 +112,7 @@ function showCityContextualInfo(cityData) { // Modificar función existente o cr
 }
 
 function addModalEventListeners() {
-    console.log("modalLogic: addModalEventListeners INICIADO.");
+    0 && console.log("modalLogic: addModalEventListeners INICIADO.");
 
 
     if (typeof domElements === 'undefined' || !domElements.domElementsInitialized) {
@@ -148,7 +148,7 @@ function addModalEventListeners() {
             
             // Verificamos si el Manager del Pase existe antes de llamar
             if (typeof BattlePassManager !== 'undefined') {
-                console.log("Abriendo Pase de Batalla desde Perfil...");
+                0 && console.log("Abriendo Pase de Batalla desde Perfil...");
                 BattlePassManager.open();
             } else {
                 console.error("Error: BattlePassManager no está cargado.");
@@ -176,7 +176,7 @@ function addModalEventListeners() {
             else console.error("modalLogic: closeTechTreeScreen no definida.");
         });
     } else { 
-        console.warn("modalLogic: closeTechTreeBtn no encontrado en domElements."); 
+        0 && console.warn("modalLogic: closeTechTreeBtn no encontrado en domElements."); 
     }
 
     if (domElements.closeAdvancedSplitModalBtn) {
@@ -236,19 +236,19 @@ function addModalEventListeners() {
     if (domElements.closeUnitManagementModalBtn) {
         domElements.closeUnitManagementModalBtn.addEventListener('click', closeUnitManagementModalAndCancel);
     } else {
-        console.warn("modalLogic: closeUnitManagementModalBtn no encontrado.");
+        0 && console.warn("modalLogic: closeUnitManagementModalBtn no encontrado.");
     }
 
     if (domElements.cancelUnitManagementBtn) {
         domElements.cancelUnitManagementBtn.addEventListener('click', closeUnitManagementModalAndCancel);
     } else {
-        console.warn("modalLogic: cancelUnitManagementBtn no encontrado.");
+        0 && console.warn("modalLogic: cancelUnitManagementBtn no encontrado.");
     }
 
     if (domElements.finalizeUnitManagementBtn) {
         domElements.finalizeUnitManagementBtn.addEventListener('click', handleFinalizeDivision);
     } else {
-        console.warn("modalLogic: finalizeUnitManagementBtn no encontrado.");
+        0 && console.warn("modalLogic: finalizeUnitManagementBtn no encontrado.");
     }
 
     if (domElements.confirmBuildBtn) {
@@ -258,7 +258,7 @@ function addModalEventListeners() {
         if (typeof RequestConfirmBuildStructure === 'function') RequestConfirmBuildStructure();
         else console.error("modalLogic: RequestConfirmBuildStructure no definida.");
     });
-    } else console.warn("modalLogic: confirmBuildBtn (Construir Estructura) no encontrado.");
+    } else 0 && console.warn("modalLogic: confirmBuildBtn (Construir Estructura) no encontrado.");
     
     if (domElements.closeWelcomeHelpBtn) {
         domElements.closeWelcomeHelpBtn.addEventListener('click', (e) => {
@@ -266,7 +266,7 @@ function addModalEventListeners() {
             if (typeof closeWelcomeHelpModal === 'function') closeWelcomeHelpModal();
             else console.error("modalLogic: closeWelcomeHelpModal no definida.");
         });
-    } else console.warn("modalLogic: closeWelcomeHelpBtn no encontrado.");
+    } else 0 && console.warn("modalLogic: closeWelcomeHelpBtn no encontrado.");
     
     if (domElements.startGameFromHelpBtn) {
         domElements.startGameFromHelpBtn.addEventListener('click', (e) => {
@@ -274,7 +274,7 @@ function addModalEventListeners() {
             if (typeof closeWelcomeHelpModal === 'function') closeWelcomeHelpModal();
             else console.error("modalLogic: closeWelcomeHelpModal no definida para iniciar juego desde ayuda.");
         });
-    } else console.warn("modalLogic: startGameFromHelpBtn no encontrado.");
+    } else 0 && console.warn("modalLogic: startGameFromHelpBtn no encontrado.");
 
     const closeHeroDetailBtn = document.getElementById('closeHeroDetailBtn');
     if (closeHeroDetailBtn) {
@@ -284,7 +284,7 @@ function addModalEventListeners() {
             refreshBarracksView();
         });
     } else {
-        console.warn("modalLogic: closeHeroDetailBtn no encontrado.");
+        0 && console.warn("modalLogic: closeHeroDetailBtn no encontrado.");
     }
 
     // --- INICIO DE LA Banca ---
@@ -339,7 +339,7 @@ function addModalEventListeners() {
         });
     }
 
-    console.log("modalLogic: addModalEventListeners FINALIZADO.");
+    0 && console.log("modalLogic: addModalEventListeners FINALIZADO.");
 }
 
 function openBuildStructureModal() {
@@ -377,7 +377,7 @@ function openBuildStructureModal() {
     if (hex.structure) {
 
         // MODO MEJORA: Solo validamos la posible siguiente estructura.
-        console.log("  [Paso 2] MODO MEJORA detectado.");
+        0 && console.log("  [Paso 2] MODO MEJORA detectado.");
         const upgradeId = STRUCTURE_TYPES[hex.structure]?.nextUpgrade;
 
         if (upgradeId) {
@@ -385,32 +385,32 @@ function openBuildStructureModal() {
             const structureId = upgradeId; 
             const structureInfo = STRUCTURE_TYPES[structureId];
             
-            console.log(`\n  --- Validando Mejora: ${structureId.toUpperCase()} ---`);
+            0 && console.log(`\n  --- Validando Mejora: ${structureId.toUpperCase()} ---`);
             let isOptionForHex = true; // Sabemos que es una opción porque es 'nextUpgrade'
             
-            console.log(`    - ${structureId} es una opción válida. Comprobando requisitos...`);
+            0 && console.log(`    - ${structureId} es una opción válida. Comprobando requisitos...`);
             let canBuild = true;
 
             // **VALIDACIÓN DE TECNOLOGÍA** (Tu código original)
             if (structureInfo.requiredTech) {
-                console.log(`      - Requiere tecnología: "${structureInfo.requiredTech}". ¿La tiene el jugador?`);
+                0 && console.log(`      - Requiere tecnología: "${structureInfo.requiredTech}". ¿La tiene el jugador?`);
                 if (playerTechs.includes(structureInfo.requiredTech)) {
-                    console.log(`        -> SÍ. Tecnología encontrada.`);
+                    0 && console.log(`        -> SÍ. Tecnología encontrada.`);
                 } else {
-                    console.log(`        -> NO. Tecnología NO encontrada.`);
+                    0 && console.log(`        -> NO. Tecnología NO encontrada.`);
                     canBuild = false;
                 }
             } else {
-                console.log(`      - No requiere tecnología.`);
+                0 && console.log(`      - No requiere tecnología.`);
             }
 
             // **VALIDACIÓN DE COSTE** (Tu código original)
             if (structureInfo.cost && canBuild) {
-                console.log(`      - Comprobando coste: ${JSON.stringify(structureInfo.cost)}`);
+                0 && console.log(`      - Comprobando coste: ${JSON.stringify(structureInfo.cost)}`);
                 for (const resKey in structureInfo.cost) {
                     const amountNeeded = structureInfo.cost[resKey];
                     if (resKey === 'Colono') {
-                        console.log(`        - Comprobando requisito: Colono`);
+                        0 && console.log(`        - Comprobando requisito: Colono`);
                         
                         // --- INICIO DE LA CORRECCIÓN ---
                         // Un colono es válido si CUALQUIERA de estas dos condiciones es cierta:
@@ -421,30 +421,30 @@ function openBuildStructureModal() {
                         const tieneRegimientoColono = unitOnHex?.regiments.some(reg => reg.type === 'Colono');
 
                         if (unitOnHex && unitOnHex.player === gameState.currentPlayer && tieneRegimientoColono) {
-                            console.log(`          -> SÍ. Colono válido presente en (${r},${c}).`);
+                            0 && console.log(`          -> SÍ. Colono válido presente en (${r},${c}).`);
                         } else {
-                            console.log(`          -> NO. No hay un Colono propio en (${r},${c}) para realizar la acción.`);
+                            0 && console.log(`          -> NO. No hay un Colono propio en (${r},${c}) para realizar la acción.`);
                             // Log de depuración para ver por qué falla
-                            console.log({unitOnHex, selectedUnit, r, c});
+                            0 && console.log({unitOnHex, selectedUnit, r, c});
                             canBuild = false;
                         }
                         // --- FIN DE LA CORRECCIÓN ---
 
                     } else { // Recursos normales
                         const playerAmount = playerResources[resKey] || 0;
-                        console.log(`        - Comprobando requisito: ${amountNeeded} de ${resKey}. Tiene: ${playerAmount}`);
+                        0 && console.log(`        - Comprobando requisito: ${amountNeeded} de ${resKey}. Tiene: ${playerAmount}`);
                         if (playerAmount < amountNeeded) {
-                            console.log(`          -> NO. Fondos insuficientes.`);
+                            0 && console.log(`          -> NO. Fondos insuficientes.`);
                             canBuild = false;
                         } else {
-                            console.log(`          -> SÍ. Fondos suficientes.`);
+                            0 && console.log(`          -> SÍ. Fondos suficientes.`);
                         }
                     }
                     if (!canBuild) break;
                 }
             }
             
-            console.log(`    - RESULTADO FINAL PARA ${structureId}: ${canBuild ? "Se puede construir." : "NO se puede construir."}`);
+            0 && console.log(`    - RESULTADO FINAL PARA ${structureId}: ${canBuild ? "Se puede construir." : "NO se puede construir."}`);
             if (canBuild) {
                 buildableOptions.push({
                     type: structureId, name: structureInfo.name, sprite: structureInfo.sprite,
@@ -454,88 +454,88 @@ function openBuildStructureModal() {
         }
     } else {
         // MODO CONSTRUCCIÓN NUEVA: Ejecutamos tu bucle original completo, sin tocarlo.
-        console.log("  [Paso 2] MODO CONSTRUCCIÓN NUEVA detectado.");
-        console.log("  Empezando a iterar sobre todas las estructuras en STRUCTURE_TYPES...");
+        0 && console.log("  [Paso 2] MODO CONSTRUCCIÓN NUEVA detectado.");
+        0 && console.log("  Empezando a iterar sobre todas las estructuras en STRUCTURE_TYPES...");
 
         for (const structureId in STRUCTURE_TYPES) {
             const structureInfo = STRUCTURE_TYPES[structureId];
-            console.log(`\n  --- Validando: ${structureId.toUpperCase()} ---`);
+            0 && console.log(`\n  --- Validando: ${structureId.toUpperCase()} ---`);
             let isOptionForHex = false;
             
             if (hex.structure) { 
-                console.log(`    - Hex tiene estructura: "${hex.structure}". ¿Es "${structureId}" la siguiente mejora?`);
+                0 && console.log(`    - Hex tiene estructura: "${hex.structure}". ¿Es "${structureId}" la siguiente mejora?`);
                 if (STRUCTURE_TYPES[hex.structure]?.nextUpgrade === structureId) {
                     isOptionForHex = true;
                 } } 
             else {
-                console.log(`    - Hex está vacío. ¿Se puede construir "${structureId}" desde cero aquí (terreno "${hex.terrain}")?`);
+                0 && console.log(`    - Hex está vacío. ¿Se puede construir "${structureId}" desde cero aquí (terreno "${hex.terrain}")?`);
                 if (structureInfo.buildableOn?.includes(hex.terrain)) {
                     isOptionForHex = true;
-                    console.log(`      -> SÍ. El terreno es compatible.`);
+                    0 && console.log(`      -> SÍ. El terreno es compatible.`);
                 } else {
-                     console.log(`      -> NO. Terreno no compatible. Requiere: ${structureInfo.buildableOn?.join(', ')}.`);
+                     0 && console.log(`      -> NO. Terreno no compatible. Requiere: ${structureInfo.buildableOn?.join(', ')}.`);
                 }
             }
 
             if (!isOptionForHex) {
-                console.log(`    - RESULTADO: ${structureId} NO es una opción para este hex. Saltando a la siguiente.`);
+                0 && console.log(`    - RESULTADO: ${structureId} NO es una opción para este hex. Saltando a la siguiente.`);
                 continue;
             }
 
-            console.log(`    - ${structureId} es una opción válida. Comprobando requisitos...`);
+            0 && console.log(`    - ${structureId} es una opción válida. Comprobando requisitos...`);
             let canBuild = true;
 
             if (structureInfo.requiredTech) {
-                 console.log(`      - Requiere tecnología: "${structureInfo.requiredTech}". ¿La tiene el jugador?`);
+                 0 && console.log(`      - Requiere tecnología: "${structureInfo.requiredTech}". ¿La tiene el jugador?`);
                  if (playerTechs.includes(structureInfo.requiredTech)) {
-                     console.log(`        -> SÍ. Tecnología encontrada.`);
+                     0 && console.log(`        -> SÍ. Tecnología encontrada.`);
                  } else {
-                     console.log(`        -> NO. Tecnología NO encontrada.`);
+                     0 && console.log(`        -> NO. Tecnología NO encontrada.`);
                      canBuild = false;
                  }
             } else {
-                 console.log(`      - No requiere tecnología.`);
+                 0 && console.log(`      - No requiere tecnología.`);
             }
 
             if (structureInfo.cost && canBuild) {
-                console.log(`      - Comprobando coste: ${JSON.stringify(structureInfo.cost)}`);
+                0 && console.log(`      - Comprobando coste: ${JSON.stringify(structureInfo.cost)}`);
                 for (const resKey in structureInfo.cost) {
                     const amountNeeded = structureInfo.cost[resKey];
                     if (resKey === 'Colono') {
-                        console.log(`        - Comprobando requisito: Colono`);
+                        0 && console.log(`        - Comprobando requisito: Colono`);
                         if (selectedUnit) {
-                            console.log(`          - Unidad seleccionada: SÍ (${selectedUnit.name})`);
+                            0 && console.log(`          - Unidad seleccionada: SÍ (${selectedUnit.name})`);
                             if (selectedUnit.isSettler) {
-                                 console.log(`          - ¿Es Colono?: SÍ`);
+                                 0 && console.log(`          - ¿Es Colono?: SÍ`);
                                  if (selectedUnit.r === r && selectedUnit.c === c) {
-                                     console.log(`          - ¿Está en la casilla correcta?: SÍ`);
+                                     0 && console.log(`          - ¿Está en la casilla correcta?: SÍ`);
                                  } else {
-                                      console.log(`          - ¿Está en la casilla correcta?: NO. Unidad en (${selectedUnit.r},${selectedUnit.c})`);
+                                      0 && console.log(`          - ¿Está en la casilla correcta?: NO. Unidad en (${selectedUnit.r},${selectedUnit.c})`);
                                       canBuild = false;
                                  }
                             } else {
-                                 console.log(`          - ¿Es Colono?: NO`);
+                                 0 && console.log(`          - ¿Es Colono?: NO`);
                                  canBuild = false;
                             }
                         } else {
-                             console.log(`          - Unidad seleccionada: NO`);
+                             0 && console.log(`          - Unidad seleccionada: NO`);
                              canBuild = false;
                         }
                     } else { // Recursos normales
                         const playerAmount = playerResources[resKey] || 0;
-                         console.log(`        - Comprobando requisito: ${amountNeeded} de ${resKey}. Tiene: ${playerAmount}`);
+                         0 && console.log(`        - Comprobando requisito: ${amountNeeded} de ${resKey}. Tiene: ${playerAmount}`);
                         if (playerAmount < amountNeeded) {
-                            console.log(`          -> NO. Fondos insuficientes.`);
+                            0 && console.log(`          -> NO. Fondos insuficientes.`);
                             canBuild = false;
                         } else {
-                             console.log(`          -> SÍ. Fondos suficientes.`);
+                             0 && console.log(`          -> SÍ. Fondos suficientes.`);
                         }
                     }
                     if (!canBuild) break;
                 }
             }
             
-            console.log(`    - RESULTADO FINAL PARA ${structureId}: ${canBuild ? "Se puede construir." : "NO se puede construir."}`);
+            0 && console.log(`    - RESULTADO FINAL PARA ${structureId}: ${canBuild ? "Se puede construir." : "NO se puede construir."}`);
             if (canBuild) {
                 buildableOptions.push({
                     type: structureId, name: structureInfo.name, sprite: structureInfo.sprite,
@@ -546,7 +546,7 @@ function openBuildStructureModal() {
     }
     
     // --- Lógica final para poblar y mostrar el modal (tu código original, sin cambios) ---
-    console.log(`\n  [Paso 3] Fin de la iteración. Opciones construibles encontradas: ${buildableOptions.length}`);
+    0 && console.log(`\n  [Paso 3] Fin de la iteración. Opciones construibles encontradas: ${buildableOptions.length}`);
     
     if (buildableOptions.length === 0) {
         domElements.availableStructuresListModalEl.innerHTML = '<li>No hay mejoras o construcciones disponibles aquí (o no tienes los requisitos).</li>';
@@ -568,7 +568,7 @@ function openBuildStructureModal() {
         }
     }
 
-    console.log("--- FIN openBuildStructureModal (Mostrando modal) ---");
+    0 && console.log("--- FIN openBuildStructureModal (Mostrando modal) ---");
     domElements.buildStructureModal.style.display = 'flex';
 }
 
@@ -717,10 +717,10 @@ function updateAdvancedSplitModalDisplay() {
 
     // --- LOG DE DIAGNÓSTICO (Como pediste) ---
     // Esto nos mostrará en la consola exactamente qué objetos estamos enviando.
-    console.log("[DIAGNÓSTICO] Objeto que se enviará a calculateRegimentStats (original):", originalTempUnit);
+    0 && console.log("[DIAGNÓSTICO] Objeto que se enviará a calculateRegimentStats (original):", originalTempUnit);
     calculateRegimentStats(originalTempUnit); 
 
-    console.log("[DIAGNÓSTICO] Objeto que se enviará a calculateRegimentStats (nuevo):", newTempUnit);
+    0 && console.log("[DIAGNÓSTICO] Objeto que se enviará a calculateRegimentStats (nuevo):", newTempUnit);
     calculateRegimentStats(newTempUnit);
     
 
@@ -1108,7 +1108,7 @@ function handleFinalizeDivision() {
         isSettler: currentDivisionBuilder.some(reg => REGIMENT_TYPES[reg.type]?.isSettler === true)
     };
 
-    console.log('[DEBUG COLONO] Objeto de división creado:', { 
+    0 && console.log('[DEBUG COLONO] Objeto de división creado:', { 
         name: newDivisionDataObject.name, 
         isSettler: newDivisionDataObject.isSettler,
         regiments: JSON.parse(JSON.stringify(currentDivisionBuilder)) 
@@ -1772,7 +1772,7 @@ function RequestReinforceRegiment(division, regiment) {
     
     if (confirm(`¿Reforzar ${getAbbreviatedName(regiment.type)} por ${totalCost} de oro?`)) {
         if (isNetworkGame()) {
-            console.log(`[Red - Petición] Solicitando reforzar regimiento en ${division.name}.`);
+            0 && console.log(`[Red - Petición] Solicitando reforzar regimiento en ${division.name}.`);
             NetworkManager.enviarDatos({
                 type: 'actionRequest',
                 action: {
@@ -3877,7 +3877,7 @@ async function openRankingModal(metric = 'xp') {
     if (!domElements.rankingModal) return;
 
     if (PlayerDataManager.currentPlayer) {
-        console.log("Sincronizando mi puntuación antes de ver el ranking...");
+        0 && console.log("Sincronizando mi puntuación antes de ver el ranking...");
         await PlayerDataManager.saveCurrentPlayer(); 
     }
 

@@ -1,5 +1,5 @@
 // storeManager.js
-console.log("storeManager.js CARGADO - Tesorería Real (Multidivisa).");
+0 && console.log("storeManager.js CARGADO - Tesorería Real (Multidivisa).");
 
 // CLAVE PÚBLICA DE STRIPE (Asegúrate de que sea la tuya, pk_test...)
 const STRIPE_PUBLIC_KEY = 'pk_test_51SrUqM2KsNopK2NTFPJRU7gZGxTGLJ2wh5ZTjaRvMSCI0hJeWOG6LZfYFkULNL1VLH1Ec84ryL6cIyz8M4eH92f400sdlL2JIo'; 

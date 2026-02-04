@@ -27,13 +27,13 @@ const AudioManager = {
      * Se debe llamar al iniciar la aplicación.
      */
     preload: function() {
-        console.log("[AudioManager] Pre-cargando todos los sonidos...");
+        0 && console.log("[AudioManager] Pre-cargando todos los sonidos...");
         for (const key in this._audioSources) {
             const audio = new Audio();
             audio.src = this._audioSources[key];
             this.sounds[key] = audio;
         }
-        console.log("[AudioManager] Pre-carga completada.");
+        0 && console.log("[AudioManager] Pre-carga completada.");
     },
 
     /**
@@ -45,9 +45,9 @@ const AudioManager = {
             // Clonamos el nodo para permitir que el mismo sonido se reproduzca varias veces simultáneamente
             const soundToPlay = this.sounds[soundName].cloneNode();
             soundToPlay.volume = this.sfxVolume;
-            soundToPlay.play().catch(e => console.warn(`[AudioManager] No se pudo reproducir el sonido '${soundName}'. El usuario debe interactuar con la página primero.`));
+            soundToPlay.play().catch(e => 0 && console.warn(`[AudioManager] No se pudo reproducir el sonido '${soundName}'. El usuario debe interactuar con la página primero.`));
         } else {
-            console.warn(`[AudioManager] Sonido no encontrado: ${soundName}`);
+            0 && console.warn(`[AudioManager] Sonido no encontrado: ${soundName}`);
         }
     },
 
@@ -69,9 +69,9 @@ const AudioManager = {
             this.currentMusic = this.sounds[musicName];
             this.currentMusic.volume = this.musicVolume;
             this.currentMusic.loop = loop;
-            this.currentMusic.play().catch(e => console.warn(`[AudioManager] No se pudo reproducir la música '${musicName}'. El usuario debe interactuar con la página primero.`));
+            this.currentMusic.play().catch(e => 0 && console.warn(`[AudioManager] No se pudo reproducir la música '${musicName}'. El usuario debe interactuar con la página primero.`));
         } else {
-            console.warn(`[AudioManager] Pista de música no encontrada: ${musicName}`);
+            0 && console.warn(`[AudioManager] Pista de música no encontrada: ${musicName}`);
         }
     },
 
@@ -98,6 +98,6 @@ const AudioManager = {
         if (this.currentMusic) {
             this.currentMusic.volume = this.musicVolume;
         }
-        console.log(`[AudioManager] Volumen ajustado: Música=${this.musicVolume}, SFX=${this.sfxVolume}`);
+        0 && console.log(`[AudioManager] Volumen ajustado: Música=${this.musicVolume}, SFX=${this.sfxVolume}`);
     }
 };

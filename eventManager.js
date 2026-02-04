@@ -9,7 +9,7 @@
 class EventManager {
     constructor() {
         this.listeners = new Map();
-        console.log('[EventManager] Inicializado');
+        0 && console.log('[EventManager] Inicializado');
     }
     
     /**
@@ -39,7 +39,7 @@ class EventManager {
         // Añadir listener
         element.addEventListener(event, handler, options);
         
-        console.log(`[EventManager] Listener añadido: ${key}`);
+        0 && console.log(`[EventManager] Listener añadido: ${key}`);
     }
     
     /**
@@ -56,7 +56,7 @@ class EventManager {
         if (listener) {
             listener.element.removeEventListener(event, listener.handler, listener.options);
             this.listeners.delete(key);
-            console.log(`[EventManager] Listener eliminado: ${key}`);
+            0 && console.log(`[EventManager] Listener eliminado: ${key}`);
         }
     }
     
@@ -81,7 +81,7 @@ class EventManager {
         keysToDelete.forEach(key => this.listeners.delete(key));
         
         if (count > 0) {
-            console.log(`[EventManager] Eliminados ${count} listeners con ID: ${id}`);
+            0 && console.log(`[EventManager] Eliminados ${count} listeners con ID: ${id}`);
         }
     }
     
@@ -90,18 +90,18 @@ class EventManager {
      * Usar con precaución - típicamente al salir del juego completamente
      */
     cleanup() {
-        console.log(`[EventManager] Limpiando ${this.listeners.size} listeners...`);
+        0 && console.log(`[EventManager] Limpiando ${this.listeners.size} listeners...`);
         
         for (const [key, listener] of this.listeners) {
             try {
                 listener.element.removeEventListener(listener.event, listener.handler, listener.options);
             } catch (error) {
-                console.warn(`[EventManager] Error limpiando ${key}:`, error);
+                0 && console.warn(`[EventManager] Error limpiando ${key}:`, error);
             }
         }
         
         this.listeners.clear();
-        console.log('[EventManager] Todos los listeners eliminados');
+        0 && console.log('[EventManager] Todos los listeners eliminados');
     }
     
     /**
@@ -132,10 +132,10 @@ class EventManager {
      */
     logStats() {
         const stats = this.getStats();
-        console.log('[EventManager] Estadísticas:');
-        console.log('  Total listeners:', stats.total);
-        console.log('  Por evento:', stats.byEvent);
-        console.log('  Por ID base:', stats.byID);
+        0 && console.log('[EventManager] Estadísticas:');
+        0 && console.log('  Total listeners:', stats.total);
+        0 && console.log('  Por evento:', stats.byEvent);
+        0 && console.log('  Por ID base:', stats.byID);
     }
 }
 

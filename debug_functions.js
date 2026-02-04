@@ -2,8 +2,8 @@
 // Funciones de utilidad para pruebas y debugging
 // Ejecutar desde la consola del navegador (F12)
 
-console.log("%c=== DEBUG FUNCTIONS CARGADAS ===", 'background: #6600ff; color: #fff; font-weight: bold; padding: 10px;');
-console.log("Usa 'DebugTools.' para acceder a las funciones");
+0 && console.log("%c=== DEBUG FUNCTIONS CARGADAS ===", 'background: #6600ff; color: #fff; font-weight: bold; padding: 10px;');
+0 && console.log("Usa 'DebugTools.' para acceder a las funciones");
 
 const DebugTools = {
     // ===== MONEDAS =====
@@ -92,12 +92,12 @@ const DebugTools = {
             return;
         }
 
-        console.log("%c=== HP DE LA CARAVANA ===", 'background: #ff6600; color: #fff; font-weight: bold; padding: 10px;');
+        0 && console.log("%c=== HP DE LA CARAVANA ===", 'background: #ff6600; color: #fff; font-weight: bold; padding: 10px;');
         
         // HP local
         const localHP = RaidManager.currentRaid.stage_data.caravan_hp;
         const localMaxHP = RaidManager.currentRaid.stage_data.caravan_max_hp;
-        console.log("HP Local (en memoria):", localHP, "/", localMaxHP);
+        0 && console.log("HP Local (en memoria):", localHP, "/", localMaxHP);
         
         // HP en la BD
         const { data: raid } = await supabaseClient
@@ -109,22 +109,22 @@ const DebugTools = {
         if (raid) {
             const remoteHP = raid.stage_data.caravan_hp;
             const remoteMaxHP = raid.stage_data.caravan_max_hp;
-            console.log("HP Remoto (en BD):", remoteHP, "/", remoteMaxHP);
+            0 && console.log("HP Remoto (en BD):", remoteHP, "/", remoteMaxHP);
             
             if (localHP !== remoteHP) {
-                console.warn("%c⚠️ DESINCRONIZACIÓN DETECTADA", 'background: #ff0000; color: #fff; font-weight: bold;');
-                console.warn("Diferencia:", remoteHP - localHP);
+                0 && console.warn("%c⚠️ DESINCRONIZACIÓN DETECTADA", 'background: #ff0000; color: #fff; font-weight: bold;');
+                0 && console.warn("Diferencia:", remoteHP - localHP);
             } else {
-                console.log("%c✅ HP sincronizado correctamente", 'background: #00ff00; color: #000;');
+                0 && console.log("%c✅ HP sincronizado correctamente", 'background: #00ff00; color: #000;');
             }
             
             // HP del boss en el mapa
             const bossUnit = units.find(u => u.id === 'boss_caravan' || u.isBoss);
             if (bossUnit) {
-                console.log("HP del Boss (visual):", bossUnit.currentHealth, "/", bossUnit.maxHealth);
+                0 && console.log("HP del Boss (visual):", bossUnit.currentHealth, "/", bossUnit.maxHealth);
                 
                 if (bossUnit.currentHealth !== remoteHP) {
-                    console.warn("⚠️ HP visual no coincide con la BD");
+                    0 && console.warn("⚠️ HP visual no coincide con la BD");
                 }
             }
         }
@@ -136,7 +136,7 @@ const DebugTools = {
      */
     stopMonitoring: function() {
         RaidManager.stopHPMonitoring();
-        console.log("✅ Monitoreo de HP detenido");
+        0 && console.log("✅ Monitoreo de HP detenido");
     },
 
     /**
@@ -145,7 +145,7 @@ const DebugTools = {
      */
     startMonitoring: function() {
         RaidManager.startHPMonitoring();
-        console.log("✅ Monitoreo de HP iniciado");
+        0 && console.log("✅ Monitoreo de HP iniciado");
     },
 
     /**
@@ -156,12 +156,12 @@ const DebugTools = {
         const isMonitoring = !!RaidManager.hpMonitoringInterval;
         const isUpdating = RaidManager.isUpdatingHP;
         
-        console.log("%c=== ESTADO DEL MONITOREO ===", 'background: #ff6600; color: #fff; font-weight: bold; padding: 10px;');
-        console.log("🔄 Monitoreo activo:", isMonitoring ? "SÍ" : "NO");
-        console.log("🔒 Actualización en progreso:", isUpdating ? "SÍ" : "NO");
+        0 && console.log("%c=== ESTADO DEL MONITOREO ===", 'background: #ff6600; color: #fff; font-weight: bold; padding: 10px;');
+        0 && console.log("🔄 Monitoreo activo:", isMonitoring ? "SÍ" : "NO");
+        0 && console.log("🔒 Actualización en progreso:", isUpdating ? "SÍ" : "NO");
         
         if (isMonitoring) {
-            console.log("⏰ Intervalo ejecutándose cada 3 segundos");
+            0 && console.log("⏰ Intervalo ejecutándose cada 3 segundos");
         }
         
         return { isMonitoring, isUpdating };
@@ -174,8 +174,8 @@ const DebugTools = {
      * Uso: DebugTools.gameState()
      */
     gameState: function() {
-        console.log("%c=== GAME STATE ===", 'background: #0066ff; color: #fff; font-weight: bold; padding: 10px;');
-        console.log(gameState);
+        0 && console.log("%c=== GAME STATE ===", 'background: #0066ff; color: #fff; font-weight: bold; padding: 10px;');
+        0 && console.log(gameState);
         return gameState;
     },
 
@@ -184,8 +184,8 @@ const DebugTools = {
      * Uso: DebugTools.player()
      */
     player: function() {
-        console.log("%c=== JUGADOR ACTUAL ===", 'background: #0066ff; color: #fff; font-weight: bold; padding: 10px;');
-        console.log(PlayerDataManager.currentPlayer);
+        0 && console.log("%c=== JUGADOR ACTUAL ===", 'background: #0066ff; color: #fff; font-weight: bold; padding: 10px;');
+        0 && console.log(PlayerDataManager.currentPlayer);
         return PlayerDataManager.currentPlayer;
     },
 
@@ -194,8 +194,8 @@ const DebugTools = {
      * Uso: DebugTools.units()
      */
     units: function() {
-        console.log("%c=== UNIDADES EN EL TABLERO ===", 'background: #0066ff; color: #fff; font-weight: bold; padding: 10px;');
-        console.log("Total de unidades:", units.length);
+        0 && console.log("%c=== UNIDADES EN EL TABLERO ===", 'background: #0066ff; color: #fff; font-weight: bold; padding: 10px;');
+        0 && console.log("Total de unidades:", units.length);
         console.table(units.map(u => ({
             id: u.id,
             player: u.player,
@@ -214,15 +214,15 @@ const DebugTools = {
     boss: function() {
         const bossUnit = units.find(u => u.id === 'boss_caravan' || u.isBoss);
         if (bossUnit) {
-            console.log("%c=== BOSS CARAVANA ===", 'background: #ff6600; color: #fff; font-weight: bold; padding: 10px;');
-            console.log("Nombre:", bossUnit.name);
-            console.log("HP:", bossUnit.currentHealth, "/", bossUnit.maxHealth);
-            console.log("Posición:", `(${bossUnit.r}, ${bossUnit.c})`);
-            console.log("Regimientos:", bossUnit.regiments?.length || 0);
+            0 && console.log("%c=== BOSS CARAVANA ===", 'background: #ff6600; color: #fff; font-weight: bold; padding: 10px;');
+            0 && console.log("Nombre:", bossUnit.name);
+            0 && console.log("HP:", bossUnit.currentHealth, "/", bossUnit.maxHealth);
+            0 && console.log("Posición:", `(${bossUnit.r}, ${bossUnit.c})`);
+            0 && console.log("Regimientos:", bossUnit.regiments?.length || 0);
             if (bossUnit.regiments?.[0]) {
-                console.log("Tipo:", bossUnit.regiments[0].type);
+                0 && console.log("Tipo:", bossUnit.regiments[0].type);
             }
-            console.log("Sprite:", bossUnit.sprite);
+            0 && console.log("Sprite:", bossUnit.sprite);
             return bossUnit;
         } else {
             console.error("No se encontró el boss de la caravana");
@@ -238,7 +238,7 @@ const DebugTools = {
      */
     clear: function() {
         console.clear();
-        console.log("%c=== CONSOLA LIMPIA ===", 'background: #00ff00; color: #000; font-weight: bold; padding: 10px;');
+        0 && console.log("%c=== CONSOLA LIMPIA ===", 'background: #00ff00; color: #000; font-weight: bold; padding: 10px;');
     },
 
     /**
@@ -246,37 +246,37 @@ const DebugTools = {
      * Uso: DebugTools.help()
      */
     help: function() {
-        console.log("%c=== COMANDOS DISPONIBLES ===", 'background: #6600ff; color: #fff; font-weight: bold; padding: 10px;');
-        console.log("\n💰 MONEDAS:");
-        console.log("  DebugTools.addGold(cantidad)           - Agregar oro");
-        console.log("  DebugTools.addGems(cantidad)           - Agregar gemas");
-        console.log("  DebugTools.addAllCurrencies(mult)      - Agregar todas las monedas");
-        console.log("  DebugTools.showCurrencies()            - Ver monedas actuales");
+        0 && console.log("%c=== COMANDOS DISPONIBLES ===", 'background: #6600ff; color: #fff; font-weight: bold; padding: 10px;');
+        0 && console.log("\n💰 MONEDAS:");
+        0 && console.log("  DebugTools.addGold(cantidad)           - Agregar oro");
+        0 && console.log("  DebugTools.addGems(cantidad)           - Agregar gemas");
+        0 && console.log("  DebugTools.addAllCurrencies(mult)      - Agregar todas las monedas");
+        0 && console.log("  DebugTools.showCurrencies()            - Ver monedas actuales");
         
-        console.log("\n⚔️ RAID:");
-        console.log("  DebugTools.raidStatus()                - Ver estado del raid");
-        console.log("  DebugTools.checkRaid()                 - Verificar consistencia");
-        console.log("  DebugTools.checkHP()                   - Ver HP de la caravana");
-        console.log("  DebugTools.nextPhase()                 - Forzar siguiente fase");
-        console.log("  DebugTools.repairHP()                  - Reparar HP corrupto");
-        console.log("  DebugTools.resetRaid(allianceId)       - Resetear raid");
-        console.log("  DebugTools.stopMonitoring()            - Detener monitoreo de HP");
-        console.log("  DebugTools.startMonitoring()           - Iniciar monitoreo de HP");
-        console.log("  DebugTools.monitoringStatus()          - Ver estado del monitoreo");
+        0 && console.log("\n⚔️ RAID:");
+        0 && console.log("  DebugTools.raidStatus()                - Ver estado del raid");
+        0 && console.log("  DebugTools.checkRaid()                 - Verificar consistencia");
+        0 && console.log("  DebugTools.checkHP()                   - Ver HP de la caravana");
+        0 && console.log("  DebugTools.nextPhase()                 - Forzar siguiente fase");
+        0 && console.log("  DebugTools.repairHP()                  - Reparar HP corrupto");
+        0 && console.log("  DebugTools.resetRaid(allianceId)       - Resetear raid");
+        0 && console.log("  DebugTools.stopMonitoring()            - Detener monitoreo de HP");
+        0 && console.log("  DebugTools.startMonitoring()           - Iniciar monitoreo de HP");
+        0 && console.log("  DebugTools.monitoringStatus()          - Ver estado del monitoreo");
         
-        console.log("\n🎮 JUEGO:");
-        console.log("  DebugTools.gameState()                 - Ver gameState");
-        console.log("  DebugTools.player()                    - Ver jugador actual");
-        console.log("  DebugTools.units()                     - Ver unidades en tablero");
-        console.log("  DebugTools.boss()                      - Ver boss de la caravana");
+        0 && console.log("\n🎮 JUEGO:");
+        0 && console.log("  DebugTools.gameState()                 - Ver gameState");
+        0 && console.log("  DebugTools.player()                    - Ver jugador actual");
+        0 && console.log("  DebugTools.units()                     - Ver unidades en tablero");
+        0 && console.log("  DebugTools.boss()                      - Ver boss de la caravana");
         
-        console.log("\n🔧 UTILIDADES:");
-        console.log("  DebugTools.clear()                     - Limpiar consola");
-        console.log("  DebugTools.help()                      - Mostrar esta ayuda");
+        0 && console.log("\n🔧 UTILIDADES:");
+        0 && console.log("  DebugTools.clear()                     - Limpiar consola");
+        0 && console.log("  DebugTools.help()                      - Mostrar esta ayuda");
         
-        console.log("\n💡 TIP: También puedes usar las funciones directamente:");
-        console.log("  PlayerDataManager.debugAddGold(5000)");
-        console.log("  RaidManager.debugCheckConsistency()");
+        0 && console.log("\n💡 TIP: También puedes usar las funciones directamente:");
+        0 && console.log("  PlayerDataManager.debugAddGold(5000)");
+        0 && console.log("  RaidManager.debugCheckConsistency()");
     }
 };
 
@@ -284,5 +284,5 @@ const DebugTools = {
 window.DebugTools = DebugTools;
 
 // Mostrar ayuda inicial
-console.log("\n📚 Usa DebugTools.help() para ver todos los comandos disponibles");
-console.log("📚 Ejemplo rápido: DebugTools.addGold(5000)\n");
+0 && console.log("\n📚 Usa DebugTools.help() para ver todos los comandos disponibles");
+0 && console.log("📚 Ejemplo rápido: DebugTools.addGold(5000)\n");

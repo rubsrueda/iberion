@@ -17,7 +17,7 @@ const ReplayEngine = {
      * Inicializa el motor de replay al comenzar una partida
      */
     initialize: function(matchId, mapSeed, playersInfo) {
-        console.log('[ReplayEngine] initialize() llamado con matchId:', matchId);
+        0 && console.log('[ReplayEngine] initialize() llamado con matchId:', matchId);
         
         let safeMatchId = matchId;
         if (!safeMatchId || typeof safeMatchId !== 'string') {
@@ -36,7 +36,7 @@ const ReplayEngine = {
         this.isEnabled = true;
         this.startTime = Date.now();
         
-        console.log(`[ReplayEngine] ✅ Inicializado. isEnabled=${this.isEnabled}, matchId=${safeMatchId}, players=${this.players.length}`);
+        0 && console.log(`[ReplayEngine] ✅ Inicializado. isEnabled=${this.isEnabled}, matchId=${safeMatchId}, players=${this.players.length}`);
     },
 
     /**
@@ -146,10 +146,10 @@ const ReplayEngine = {
      * Finaliza el registro al terminar la partida
      */
     finalize: function(winner, totalTurns) {
-        console.log('[ReplayEngine] finalize() llamado con:', { winner, totalTurns, isEnabled: this.isEnabled });
+        0 && console.log('[ReplayEngine] finalize() llamado con:', { winner, totalTurns, isEnabled: this.isEnabled });
         
         if (!this.isEnabled) {
-            console.warn('[ReplayEngine] ReplayEngine NO ESTÁ HABILITADO');
+            0 && console.warn('[ReplayEngine] ReplayEngine NO ESTÁ HABILITADO');
             return null;
         }
         
@@ -164,8 +164,8 @@ const ReplayEngine = {
         // Serializar metadata a string
         const metadataStr = JSON.stringify(metadataObj);
         
-        console.log(`[ReplayEngine] Tamaño de metadata: ${metadataStr.length} bytes`);
-        console.log(`[ReplayEngine] matchId: ${this.matchId}, timeline.length: ${this.timeline.length}`);
+        0 && console.log(`[ReplayEngine] Tamaño de metadata: ${metadataStr.length} bytes`);
+        0 && console.log(`[ReplayEngine] matchId: ${this.matchId}, timeline.length: ${this.timeline.length}`);
         
         // Incluir logs de la crónica si están disponibles
         const chronicleLogs = (typeof Chronicle !== 'undefined' && Chronicle.getLogs) ? Chronicle.getLogs() : [];
@@ -177,8 +177,8 @@ const ReplayEngine = {
             chronicle_logs: chronicleLogs  // Incluir crónica para referencia
         };
         
-        console.log(`[ReplayEngine] ✅ Replay finalizado: ${this.timeline.length} turnos registrados, ${chronicleLogs.length} eventos en crónica`);
-        console.log('[ReplayEngine] replayData completo:', replayData);
+        0 && console.log(`[ReplayEngine] ✅ Replay finalizado: ${this.timeline.length} turnos registrados, ${chronicleLogs.length} eventos en crónica`);
+        0 && console.log('[ReplayEngine] replayData completo:', replayData);
         
         this.isEnabled = false;
         return replayData;

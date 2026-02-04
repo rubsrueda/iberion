@@ -7,7 +7,7 @@
 // renderSingleHexVisuals, endTacticalBattle, handleEndTurn, selectedUnit, placeFinalizedDivision
 // se asumen accesibles globalmente debido al orden de carga de scripts en index.html.
 
-console.log("cheats.js CARGADO - Funciones de trucos disponibles en la consola (Modo Clásico).");
+0 && console.log("cheats.js CARGADO - Funciones de trucos disponibles en la consola (Modo Clásico).");
 
 // 'logToConsole' ahora es una función global definida en debugConsole.js
 // No se importa, se asume su existencia global.

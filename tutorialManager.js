@@ -1,5 +1,5 @@
 // tutorialManager.js
-console.log("tutorialManager.js CARGADO - v.Final Estable");
+0 && console.log("tutorialManager.js CARGADO - v.Final Estable");
 
 let tutorialCheckInterval = null;
 let tutorialStepTimeout = null;
@@ -43,7 +43,7 @@ advanceToNextStep: function() {
     }
 
     const step = this.currentSteps[this.currentIndex];
-    console.log(`[TUTORIAL] Ejecutando paso #${this.currentIndex + 1}: ${step.id}`);
+    0 && console.log(`[TUTORIAL] Ejecutando paso #${this.currentIndex + 1}: ${step.id}`);
 
     // 1. Ejecuta la lógica del paso (crear unidades, cambiar estado, etc.)
     if (step.onStepStart) step.onStepStart();
@@ -98,7 +98,7 @@ _startCompletionCheck: function(step) {
         clearInterval(tutorialCheckInterval);
     }
 
-    console.log(`[TutorialManager] Iniciando comprobación para el paso #${step.id}...`);
+    0 && console.log(`[TutorialManager] Iniciando comprobación para el paso #${step.id}...`);
 
     // <<== CAMBIO CLAVE: El interior del intervalo ahora es una función 'async' ==>>
     const checkCallback = async () => {
@@ -107,7 +107,7 @@ _startCompletionCheck: function(step) {
             // Esto funciona tanto para condiciones normales (devuelven true/false)
             // como para promesas (espera a que se resuelvan).
             if (await step.actionCondition()) {
-                console.log(`%c[TutorialManager] ¡Condición CUMPLIDA para el paso #${step.id}!`, "color: lightgreen; font-weight: bold;");
+                0 && console.log(`%c[TutorialManager] ¡Condición CUMPLIDA para el paso #${step.id}!`, "color: lightgreen; font-weight: bold;");
                 
                 if (typeof window !== 'undefined' && window.intervalManager) {
                     window.intervalManager.clearInterval('tutorial_check');
@@ -140,7 +140,7 @@ _startCompletionCheck: function(step) {
 },
 
     stop: function() {
-        console.log("[TUTORIAL] Finalizado.");
+        0 && console.log("[TUTORIAL] Finalizado.");
         if (typeof window !== 'undefined' && window.intervalManager) {
             window.intervalManager.clearInterval('tutorial_check');
             window.intervalManager.clearTimeout('tutorial_stepTimeout');
@@ -186,7 +186,7 @@ _startCompletionCheck: function(step) {
     notifyActionCompleted: function(actionType) {
         if (!gameState.isTutorialActive || !gameState.tutorial) return;
         if (actionType in gameState.tutorial) {
-            console.log(`[TUTORIAL] Flag activado: ${actionType}`);
+            0 && console.log(`[TUTORIAL] Flag activado: ${actionType}`);
             gameState.tutorial[actionType] = true;
             if (actionType === 'turnEnded') gameState.tutorial.unitHasMoved = false;
         }

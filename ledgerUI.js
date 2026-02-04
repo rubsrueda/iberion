@@ -4,8 +4,8 @@
  * Modal con 4 pestañas con diseño premium
  */
 
-console.log('%c🔥🔥🔥 LEDGER UI CARGADO 🔥🔥🔥', 'background: green; color: yellow; font-size: 20px; padding: 10px;');
-console.log('[ledgerUI.js] Archivo cargado en:', new Date().toISOString());
+0 && console.log('%c🔥🔥🔥 LEDGER UI CARGADO 🔥🔥🔥', 'background: green; color: yellow; font-size: 20px; padding: 10px;');
+0 && console.log('[ledgerUI.js] Archivo cargado en:', new Date().toISOString());
 
 const LedgerUI = {
     modalElement: null,
@@ -15,11 +15,11 @@ const LedgerUI = {
      * Inicializa la UI (llamar tras cargar index.html)
      */
     initialize: function() {
-        console.log('[LedgerUI] Inicializando interfaz del cuaderno...');
+        0 && console.log('[LedgerUI] Inicializando interfaz del cuaderno...');
         
         // El modal ya existe en index.html, solo obtener referencia
         this.modalElement = document.getElementById('ledgerModal');
-        console.log('[LedgerUI] Elemento encontrado:', !!this.modalElement);
+        0 && console.log('[LedgerUI] Elemento encontrado:', !!this.modalElement);
         
         if (!this.modalElement) {
             console.error('[LedgerUI] ❌ Elemento #ledgerModal no encontrado en HTML. Reintentando en 500ms...');
@@ -27,9 +27,9 @@ const LedgerUI = {
             return;
         }
 
-        console.log('[LedgerUI] ✅ Modal encontrado. Z-index:', this.modalElement.style.zIndex || 'heredado');
+        0 && console.log('[LedgerUI] ✅ Modal encontrado. Z-index:', this.modalElement.style.zIndex || 'heredado');
         this._setupEventListeners();
-        console.log('[LedgerUI] ✅ Inicialización completada');
+        0 && console.log('[LedgerUI] ✅ Inicialización completada');
     },
 
     /**
@@ -63,18 +63,18 @@ const LedgerUI = {
      * Muestra el modal
      */
     showModal: function() {
-        console.log('[LedgerUI] showModal() llamado');
-        console.log('[LedgerUI] modalElement existe:', !!this.modalElement);
+        0 && console.log('[LedgerUI] showModal() llamado');
+        0 && console.log('[LedgerUI] modalElement existe:', !!this.modalElement);
         if (!this.modalElement) {
             console.error('[LedgerUI] ❌ modalElement es null. initialize() probablemente no se ejecutó correctamente.');
             return;
         }
-        console.log('[LedgerUI] Mostrando modal. Z-index:', this.modalElement.style.zIndex || 'heredado');
+        0 && console.log('[LedgerUI] Mostrando modal. Z-index:', this.modalElement.style.zIndex || 'heredado');
         this.modalElement.style.display = 'flex';
         this.modalElement.style.visibility = 'visible';
         this.modalElement.style.opacity = '1';
         this.isVisible = true;
-        console.log('[LedgerUI] ✅ Modal mostrado');
+        0 && console.log('[LedgerUI] ✅ Modal mostrado');
     },
 
     /**

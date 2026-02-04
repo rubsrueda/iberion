@@ -12,19 +12,19 @@ const LegacyUI = {
      * Inicializa la UI
      */
     initialize: function() {
-        console.log('[LegacyUI] Inicializando interfaz de la Crónica...');
+        0 && console.log('[LegacyUI] Inicializando interfaz de la Crónica...');
         
         this.modalElement = document.getElementById('legacyModal');
-        console.log('[LegacyUI] modalElement encontrado?', !!this.modalElement);
-        console.log('[LegacyUI] modalElement:', this.modalElement);
+        0 && console.log('[LegacyUI] modalElement encontrado?', !!this.modalElement);
+        0 && console.log('[LegacyUI] modalElement:', this.modalElement);
         
         if (!this.modalElement) {
-            console.warn('[LegacyUI] Elemento #legacyModal no encontrado en HTML');
+            0 && console.warn('[LegacyUI] Elemento #legacyModal no encontrado en HTML');
             // Reintentar en 100ms si el DOM no está listo
             setTimeout(() => {
                 this.modalElement = document.getElementById('legacyModal');
                 if (this.modalElement) {
-                    console.log('[LegacyUI] Modal encontrado en reintento');
+                    0 && console.log('[LegacyUI] Modal encontrado en reintento');
                     this._setupEventListeners();
                 }
             }, 100);
@@ -32,7 +32,7 @@ const LegacyUI = {
         }
 
         this._setupEventListeners();
-        console.log('[LegacyUI] Event listeners configurados');
+        0 && console.log('[LegacyUI] Event listeners configurados');
     },
 
     /**
@@ -44,16 +44,16 @@ const LegacyUI = {
             return;
         }
 
-        console.log('[LegacyUI._setupEventListeners] Configurando tabs...');
+        0 && console.log('[LegacyUI._setupEventListeners] Configurando tabs...');
         
         const tabs = this.modalElement.querySelectorAll('[data-legacy-tab]');
-        console.log('[LegacyUI._setupEventListeners] Tabs encontrados:', tabs.length);
+        0 && console.log('[LegacyUI._setupEventListeners] Tabs encontrados:', tabs.length);
         
         tabs.forEach((tab, index) => {
-            console.log(`[LegacyUI._setupEventListeners] Agregando listener al tab ${index}:`, tab.getAttribute('data-legacy-tab'));
+            0 && console.log(`[LegacyUI._setupEventListeners] Agregando listener al tab ${index}:`, tab.getAttribute('data-legacy-tab'));
             tab.addEventListener('click', (e) => {
                 const tabName = e.target.getAttribute('data-legacy-tab');
-                console.log('[LegacyUI] Tab clickeado:', tabName);
+                0 && console.log('[LegacyUI] Tab clickeado:', tabName);
                 this._activateTab(tabName);
                 if (typeof LegacyManager !== 'undefined') {
                     LegacyManager.switchTab(tabName);
@@ -62,31 +62,31 @@ const LegacyUI = {
         });
 
         const closeBtn = this.modalElement.querySelector('.legacy-close');
-        console.log('[LegacyUI._setupEventListeners] Botón cerrar encontrado?', !!closeBtn);
+        0 && console.log('[LegacyUI._setupEventListeners] Botón cerrar encontrado?', !!closeBtn);
         
         if (closeBtn) {
             closeBtn.addEventListener('click', () => {
-                console.log('[LegacyUI] Botón cerrar clickeado');
+                0 && console.log('[LegacyUI] Botón cerrar clickeado');
                 this.hideModal();
             });
         }
 
         this.modalElement.addEventListener('click', (e) => {
             if (e.target === this.modalElement) {
-                console.log('[LegacyUI] Click en backdrop del modal');
+                0 && console.log('[LegacyUI] Click en backdrop del modal');
                 this.hideModal();
             }
         });
         
-        console.log('[LegacyUI._setupEventListeners] Listeners configurados exitosamente');
+        0 && console.log('[LegacyUI._setupEventListeners] Listeners configurados exitosamente');
     },
 
     /**
      * Muestra el modal
      */
     showModal: function() {
-        console.log('[LegacyUI.showModal] Intentando mostrar modal');
-        console.log('[LegacyUI.showModal] modalElement existe?', !!this.modalElement);
+        0 && console.log('[LegacyUI.showModal] Intentando mostrar modal');
+        0 && console.log('[LegacyUI.showModal] modalElement existe?', !!this.modalElement);
         
         if (!this.modalElement) {
             console.error('[LegacyUI.showModal] No hay modalElement');
@@ -97,10 +97,10 @@ const LegacyUI = {
             }
         }
         
-        console.log('[LegacyUI.showModal] Mostrando modal...');
+        0 && console.log('[LegacyUI.showModal] Mostrando modal...');
         this.modalElement.style.display = 'flex';
         this.isVisible = true;
-        console.log('[LegacyUI.showModal] Modal mostrado. Display:', this.modalElement.style.display);
+        0 && console.log('[LegacyUI.showModal] Modal mostrado. Display:', this.modalElement.style.display);
     },
 
     /**
@@ -114,7 +114,7 @@ const LegacyUI = {
         
         // Regresar al menú principal después de cerrar la crónica
         if (!gameState.isCampaignBattle && typeof showScreen === 'function' && domElements.mainMenuScreenEl) {
-            console.log('[LegacyUI] Regresando al menú principal...');
+            0 && console.log('[LegacyUI] Regresando al menú principal...');
             if (domElements.gameContainer) {
                 domElements.gameContainer.style.display = 'none';
             }
@@ -126,7 +126,7 @@ const LegacyUI = {
      * Activa una pestaña
      */
     _activateTab: function(tabName) {
-        console.log('[LegacyUI._activateTab] Activando tab:', tabName);
+        0 && console.log('[LegacyUI._activateTab] Activando tab:', tabName);
         
         if (!this.modalElement) {
             console.error('[LegacyUI._activateTab] No hay modalElement');
@@ -136,31 +136,31 @@ const LegacyUI = {
         const tabs = this.modalElement.querySelectorAll('[data-legacy-tab]');
         const contents = this.modalElement.querySelectorAll('[data-legacy-content]');
 
-        console.log('[LegacyUI._activateTab] Tabs encontrados:', tabs.length, 'Contents encontrados:', contents.length);
+        0 && console.log('[LegacyUI._activateTab] Tabs encontrados:', tabs.length, 'Contents encontrados:', contents.length);
 
         tabs.forEach(tab => {
             const isActive = tab.getAttribute('data-legacy-tab') === tabName;
             tab.classList.toggle('active', isActive);
-            console.log('[LegacyUI._activateTab] Tab', tab.getAttribute('data-legacy-tab'), 'activo?', isActive);
+            0 && console.log('[LegacyUI._activateTab] Tab', tab.getAttribute('data-legacy-tab'), 'activo?', isActive);
         });
 
         contents.forEach(content => {
             const isVisible = content.getAttribute('data-legacy-content') === tabName;
             content.style.display = isVisible ? 'block' : 'none';
-            console.log('[LegacyUI._activateTab] Content', content.getAttribute('data-legacy-content'), 'visible?', isVisible);
+            0 && console.log('[LegacyUI._activateTab] Content', content.getAttribute('data-legacy-content'), 'visible?', isVisible);
         });
         
-        console.log('[LegacyUI._activateTab] Tab activado');
+        0 && console.log('[LegacyUI._activateTab] Tab activado');
     },
 
     /**
      * PESTAÑA 1: LÍNEA DE TIEMPO (Gráfico XY)
      */
     displayTimeline: function(graphData) {
-        console.log('[LegacyUI.displayTimeline] Iniciando con datos:', graphData);
+        0 && console.log('[LegacyUI.displayTimeline] Iniciando con datos:', graphData);
         
         const content = this.modalElement.querySelector('[data-legacy-content="timeline"]');
-        console.log('[LegacyUI.displayTimeline] Content elemento encontrado:', !!content);
+        0 && console.log('[LegacyUI.displayTimeline] Content elemento encontrado:', !!content);
         
         if (!content) {
             console.error('[LegacyUI.displayTimeline] No se encontró elemento de contenido');
@@ -229,9 +229,9 @@ const LegacyUI = {
             ${legend}
         `;
 
-        console.log('[LegacyUI.displayTimeline] Asignando HTML con longitud:', html.length);
+        0 && console.log('[LegacyUI.displayTimeline] Asignando HTML con longitud:', html.length);
         content.innerHTML = html;
-        console.log('[LegacyUI.displayTimeline] HTML asignado, contenido actual:', content.innerHTML.substring(0, 100) + '...');
+        0 && console.log('[LegacyUI.displayTimeline] HTML asignado, contenido actual:', content.innerHTML.substring(0, 100) + '...');
     },
 
     /**

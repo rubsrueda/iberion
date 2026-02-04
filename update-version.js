@@ -14,7 +14,7 @@ const changeDescription = process.argv.slice(2).join(' ');
 
 if (!changeDescription) {
     console.error('❌ Error: Debes proporcionar una descripción del cambio');
-    console.log('Uso: node update-version.js "Descripción del cambio"');
+    0 && console.log('Uso: node update-version.js "Descripción del cambio"');
     process.exit(1);
 }
 
@@ -34,8 +34,8 @@ const [major, minor] = currentVersion.split('.');
 const newMinor = (parseInt(minor) + 1).toString().padStart(3, '0');
 const newVersion = `${major}.${newMinor}`;
 
-console.log(`📦 Versión actual: V${currentVersion}`);
-console.log(`📦 Nueva versión: V${newVersion}`);
+0 && console.log(`📦 Versión actual: V${currentVersion}`);
+0 && console.log(`📦 Nueva versión: V${newVersion}`);
 
 // Actualizar version.js
 versionContent = versionContent.replace(
@@ -43,7 +43,7 @@ versionContent = versionContent.replace(
     `current: "${newVersion}"`
 );
 fs.writeFileSync(versionFilePath, versionContent, 'utf8');
-console.log('✅ version.js actualizado');
+0 && console.log('✅ version.js actualizado');
 
 // Actualizar index.html
 const indexPath = path.join(__dirname, 'index.html');
@@ -53,7 +53,7 @@ indexContent = indexContent.replace(
     `<div class="version-watermark">v${newVersion}</div>`
 );
 fs.writeFileSync(indexPath, indexContent, 'utf8');
-console.log('✅ index.html actualizado');
+0 && console.log('✅ index.html actualizado');
 
 // Actualizar CHANGELOG.md
 const changelogPath = path.join(__dirname, 'CHANGELOG.md');
@@ -75,7 +75,7 @@ if (insertPosition !== -1) {
 }
 
 fs.writeFileSync(changelogPath, changelogContent, 'utf8');
-console.log('✅ CHANGELOG.md actualizado');
+0 && console.log('✅ CHANGELOG.md actualizado');
 
-console.log(`\n🎉 ¡Versión actualizada exitosamente a V${newVersion}!`);
-console.log(`📝 Cambio registrado: ${changeDescription}`);
+0 && console.log(`\n🎉 ¡Versión actualizada exitosamente a V${newVersion}!`);
+0 && console.log(`📝 Cambio registrado: ${changeDescription}`);

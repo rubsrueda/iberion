@@ -1,6 +1,6 @@
 // state.js
 // Contiene las variables globales que definen el estado del juego.
-console.log("state.js CARGADO (con Proxy de depuración)"); // Modificado log
+0 && console.log("state.js CARGADO (con Proxy de depuración)"); // Modificado log
 
 // IMPORTANTE: Usar let en lugar de var para prevenir redeclaraciones accidentales
 let gameState = {}; // Variable global para el estado - NUNCA usar var
@@ -37,7 +37,7 @@ const GAME_DATA_REGISTRY = {
 
 
 function resetGameStateForIberiaMagna() {
-    console.log("state.js: Ejecutando resetGameStateForIberiaMagna() para 8 jugadores...");
+    0 && console.log("state.js: Ejecutando resetGameStateForIberiaMagna() para 8 jugadores...");
 
     const numPlayers = 8;
     const initialResources = INITIAL_PLAYER_RESOURCES_MAGNA; // Usaremos una nueva constante
@@ -84,11 +84,11 @@ function resetGameStateForIberiaMagna() {
     selectedUnit = null;
     unitIdCounter = 0;
     
-    console.log("state.js: gameState reseteado para Tronos de Iberia.");
+    0 && console.log("state.js: gameState reseteado para Tronos de Iberia.");
 }
 
 function resetGameStateVariables(playerCount = 2, turnDuration = Infinity) { 
-    console.log(`state.js: Ejecutando resetGameStateVariables() para ${playerCount} jugadores...`);
+    0 && console.log(`state.js: Ejecutando resetGameStateVariables() para ${playerCount} jugadores...`);
 
     // Usamos ?. para asegurar que la lectura solo se hace si el elemento existe.
     const p1civ = domElements.player1Civ?.value || 'ninguna'; 
@@ -182,11 +182,11 @@ function resetGameStateVariables(playerCount = 2, turnDuration = Infinity) {
     if (typeof _tempOriginalRegiments !== 'undefined') _tempOriginalRegiments = [];
     if (typeof _tempNewUnitRegiments !== 'undefined') _tempNewUnitRegiments = [];
     
-    console.log(`state.js: gameState reseteado para ${playerCount} jugadores.`);
+    0 && console.log(`state.js: gameState reseteado para ${playerCount} jugadores.`);
 }
 
 async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaignTerritoryId, turnDuration = Infinity) {
-    console.log("state.js: Resetting and setting up tactical game for scenario:", scenarioData.scenarioId);
+    0 && console.log("state.js: Resetting and setting up tactical game for scenario:", scenarioData.scenarioId);
 
     const initialP1Resources = JSON.parse(JSON.stringify(scenarioData.playerSetup.initialResources || INITIAL_PLAYER_RESOURCES[0]));
     const initialP2Resources = JSON.parse(JSON.stringify(scenarioData.enemySetup.initialResources || INITIAL_PLAYER_RESOURCES[1]));
@@ -281,11 +281,11 @@ async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaign
         if (typeof logMessage === "function") logMessage(`¡Comienza la batalla por ${scenarioData.displayName}!`);
     }
 
-    console.log("state.js: Finalizado resetAndSetupTacticalGame.", JSON.parse(JSON.stringify(gameState)));
+    0 && console.log("state.js: Finalizado resetAndSetupTacticalGame.", JSON.parse(JSON.stringify(gameState)));
 }
 
 function resetGameStateForIberiaMagna() {
-    console.log("state.js: Ejecutando resetGameStateForIberiaMagna() para 8 jugadores...");
+    0 && console.log("state.js: Ejecutando resetGameStateForIberiaMagna() para 8 jugadores...");
 
     const numPlayers = 8;
     const initialResources = INITIAL_PLAYER_RESOURCES_MAGNA; // Usamos la nueva constante
@@ -344,5 +344,5 @@ function resetGameStateForIberiaMagna() {
     selectedUnit = null;
     unitIdCounter = 0;
     
-    console.log("state.js: gameState reseteado para Tronos de Iberia.", JSON.parse(JSON.stringify(gameState)));
+    0 && console.log("state.js: gameState reseteado para Tronos de Iberia.", JSON.parse(JSON.stringify(gameState)));
 }

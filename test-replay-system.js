@@ -6,10 +6,10 @@
  */
 
 async function testReplaySystem() {
-    console.log('%c=== TEST REPLAY SYSTEM ===', 'background: #1976d2; color: white; padding: 10px; font-size: 14px;');
+    0 && console.log('%c=== TEST REPLAY SYSTEM ===', 'background: #1976d2; color: white; padding: 10px; font-size: 14px;');
     
     // 1. Verificar que los componentes existen
-    console.log('\n📦 Verificando componentes globales:');
+    0 && console.log('\n📦 Verificando componentes globales:');
     const components = [
         'ReplayEngine',
         'ReplayStorage',
@@ -22,36 +22,36 @@ async function testReplaySystem() {
     
     components.forEach(comp => {
         const exists = typeof window[comp] !== 'undefined';
-        console.log(`   ${exists ? '✅' : '❌'} ${comp}: ${exists ? 'Disponible' : 'NO DISPONIBLE'}`);
+        0 && console.log(`   ${exists ? '✅' : '❌'} ${comp}: ${exists ? 'Disponible' : 'NO DISPONIBLE'}`);
     });
 
     // 2. Verificar localStorage
-    console.log('\n💾 Verificando localStorage:');
+    0 && console.log('\n💾 Verificando localStorage:');
     try {
         const localReplays = JSON.parse(localStorage.getItem('localReplays') || '[]');
-        console.log(`   ✅ LocalReplays: ${localReplays.length} replays guardados`);
+        0 && console.log(`   ✅ LocalReplays: ${localReplays.length} replays guardados`);
         if (localReplays.length > 0) {
-            console.log('   Primeros replays:', localReplays.slice(0, 2));
+            0 && console.log('   Primeros replays:', localReplays.slice(0, 2));
         }
     } catch (err) {
-        console.log(`   ❌ Error accediendo localStorage: ${err.message}`);
+        0 && console.log(`   ❌ Error accediendo localStorage: ${err.message}`);
     }
 
     // 3. Verificar autenticación
-    console.log('\n🔐 Verificando autenticación:');
+    0 && console.log('\n🔐 Verificando autenticación:');
     if (typeof PlayerDataManager !== 'undefined') {
-        console.log(`   Jugador actual: ${PlayerDataManager.currentPlayer?.email || 'Desconocido'}`);
-        console.log(`   Auth ID: ${PlayerDataManager.currentPlayer?.auth_id || 'No autenticado'}`);
+        0 && console.log(`   Jugador actual: ${PlayerDataManager.currentPlayer?.email || 'Desconocido'}`);
+        0 && console.log(`   Auth ID: ${PlayerDataManager.currentPlayer?.auth_id || 'No autenticado'}`);
     }
 
     // 4. Intentar cargar replays
-    console.log('\n📂 Intentando cargar replays:');
+    0 && console.log('\n📂 Intentando cargar replays:');
     if (typeof ReplayStorage !== 'undefined' && ReplayStorage.getUserReplays) {
         try {
             const replays = await ReplayStorage.getUserReplays();
-            console.log(`   ✅ Replays cargados: ${replays.length}`);
+            0 && console.log(`   ✅ Replays cargados: ${replays.length}`);
             if (replays.length > 0) {
-                console.log('   Primer replay:', {
+                0 && console.log('   Primer replay:', {
                     match_id: replays[0].match_id,
                     metadata: replays[0].metadata,
                     created_at: replays[0].created_at,
@@ -64,7 +64,7 @@ async function testReplaySystem() {
     }
 
     // 5. Crear un replay de prueba
-    console.log('\n🧪 Creando replay de prueba:');
+    0 && console.log('\n🧪 Creando replay de prueba:');
     if (typeof ReplayEngine !== 'undefined') {
         try {
             ReplayEngine.initialize('test_match_' + Date.now(), 'test_seed_123', [
@@ -78,27 +78,27 @@ async function testReplaySystem() {
             ReplayEngine.recordTurnEnd(1, 2);
             
             const testReplay = ReplayEngine.finalize(1, 1);
-            console.log(`   ✅ Replay de prueba creado:`, testReplay);
+            0 && console.log(`   ✅ Replay de prueba creado:`, testReplay);
             
             // Intentar guardar
             if (typeof ReplayStorage !== 'undefined') {
                 const saved = await ReplayStorage.saveReplay(testReplay);
-                console.log(`   ${saved ? '✅' : '❌'} Guardado: ${saved ? 'Exitoso' : 'Fallido'}`);
+                0 && console.log(`   ${saved ? '✅' : '❌'} Guardado: ${saved ? 'Exitoso' : 'Fallido'}`);
                 
                 // Verificar que se guardó localmente
                 const updated = JSON.parse(localStorage.getItem('localReplays') || '[]');
-                console.log(`   📝 LocalReplays después: ${updated.length} replays`);
+                0 && console.log(`   📝 LocalReplays después: ${updated.length} replays`);
             }
         } catch (err) {
             console.error(`   ❌ Error: ${err.message}`);
         }
     }
 
-    console.log('\n%c=== FIN DEL TEST ===', 'background: #4caf50; color: white; padding: 10px; font-size: 14px;');
-    console.log('💡 Tip: Abre el Códice de Batallas para ver los replays cargados');
+    0 && console.log('\n%c=== FIN DEL TEST ===', 'background: #4caf50; color: white; padding: 10px; font-size: 14px;');
+    0 && console.log('💡 Tip: Abre el Códice de Batallas para ver los replays cargados');
 }
 
 // Ejecutar automáticamente si estamos en desarrollo
 if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    console.log('ℹ️ Modo desarrollo detectado. Para test: testReplaySystem()');
+    0 && console.log('ℹ️ Modo desarrollo detectado. Para test: testReplaySystem()');
 }

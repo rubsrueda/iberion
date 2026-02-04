@@ -11,12 +11,12 @@ const GameHistoryUI = {
      * Inicializa la UI
      */
     initialize: function() {
-        console.log('[GameHistoryUI] Inicializando...');
+        0 && console.log('[GameHistoryUI] Inicializando...');
         
         this.modalElement = document.getElementById('gameHistoryModal');
         
         if (!this.modalElement) {
-            console.warn('[GameHistoryUI] Modal no encontrado');
+            0 && console.warn('[GameHistoryUI] Modal no encontrado');
             return;
         }
 
@@ -46,7 +46,7 @@ const GameHistoryUI = {
         if (!this.modalElement) {
             this.initialize();
             if (!this.modalElement) {
-                console.warn('[GameHistoryUI] Modal no disponible al mostrar');
+                0 && console.warn('[GameHistoryUI] Modal no disponible al mostrar');
                 return;
             }
         }
@@ -71,7 +71,7 @@ const GameHistoryUI = {
         if (!this.modalElement) {
             this.initialize();
             if (!this.modalElement) {
-                console.warn('[GameHistoryUI] Modal no disponible al renderizar lista');
+                0 && console.warn('[GameHistoryUI] Modal no disponible al renderizar lista');
                 return;
             }
         }

@@ -17,7 +17,7 @@ const StatTracker = {
      * Inicializa el rastreador al comenzar una partida
      */
     initialize: function(numPlayers) {
-        console.log('[StatTracker] Inicializando para', numPlayers, 'jugadores');
+        0 && console.log('[StatTracker] Inicializando para', numPlayers, 'jugadores');
         
         this.gameStats = {
             startTime: Date.now(),
@@ -173,7 +173,7 @@ const StatTracker = {
             this.gameStats.players[playerId].importantEvents.push(event);
         }
         
-        console.log(`[StatTracker] Evento T${turnNumber}: ${description}`);
+        0 && console.log(`[StatTracker] Evento T${turnNumber}: ${description}`);
     },
 
     /**
@@ -202,7 +202,7 @@ const StatTracker = {
             this.gameStats.players[defenderId].battles.push(battle);
         }
         
-        console.log(`[StatTracker] Batalla T${turnNumber}: ${attackerId} vs ${defenderId} en ${location.r},${location.c}`);
+        0 && console.log(`[StatTracker] Batalla T${turnNumber}: ${attackerId} vs ${defenderId} en ${location.r},${location.c}`);
     },
 
     /**
@@ -280,7 +280,7 @@ const StatTracker = {
     finalize: function(winnerPlayerId) {
         if (!this.isEnabled) return;
         
-        console.log('[StatTracker] Rastreador finalizado. Ganador:', winnerPlayerId);
+        0 && console.log('[StatTracker] Rastreador finalizado. Ganador:', winnerPlayerId);
         this.isEnabled = false;
         
         return this.getCurrentState();

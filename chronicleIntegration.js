@@ -12,14 +12,14 @@ const ChronicleIntegration = {
     async loadReplaysIntoCodex() {
         const player = PlayerDataManager.currentPlayer;
         if (!player || !player.auth_id) {
-            console.warn('[ChronicleIntegration] No hay jugador autenticado');
+            0 && console.warn('[ChronicleIntegration] No hay jugador autenticado');
             return [];
         }
 
         try {
             // Cargar replays desde game_replays
             const replays = await ReplayStorage.getUserReplays();
-            console.log('[ChronicleIntegration] Replays cargados:', replays.length);
+            0 && console.log('[ChronicleIntegration] Replays cargados:', replays.length);
             
             return replays;
         } catch (error) {
@@ -45,7 +45,7 @@ const ChronicleIntegration = {
 
         // Cargar datos
         const replays = await this.loadReplaysIntoCodex();
-        console.log('[ChronicleIntegration] showReplaysInCodexModal - Replays cargados:', replays.length);
+        0 && console.log('[ChronicleIntegration] showReplaysInCodexModal - Replays cargados:', replays.length);
 
         if (!replays || replays.length === 0) {
             listContainer.innerHTML = `
@@ -56,7 +56,7 @@ const ChronicleIntegration = {
                     <script>
                         try {
                             const local = JSON.parse(localStorage.getItem('localReplays') || '[]');
-                            console.log('LocalReplays encontrados:', local.length);
+                            0 && console.log('LocalReplays encontrados:', local.length);
                         } catch(e) {
                             console.error('Error accediendo localStorage:', e);
                         }
@@ -119,7 +119,7 @@ const ChronicleIntegration = {
      * Abre el visor de replay para una partida específica
      */
     async openReplay(matchId) {
-        console.log('[ChronicleIntegration] Abriendo replay:', matchId);
+        0 && console.log('[ChronicleIntegration] Abriendo replay:', matchId);
         
         try {
             // Cargar datos del replay
@@ -133,10 +133,10 @@ const ChronicleIntegration = {
             // Asegurar que tiene share_token (en caso de ser local)
             if (!replayData.share_token) {
                 replayData.share_token = `replay_${replayData.match_id}_${crypto.getRandomValues(new Uint8Array(8)).join('')}`;
-                console.log('[ChronicleIntegration] Share token generado dinámicamente:', replayData.share_token);
+                0 && console.log('[ChronicleIntegration] Share token generado dinámicamente:', replayData.share_token);
             }
 
-            console.log('[ChronicleIntegration] ReplayData:', {
+            0 && console.log('[ChronicleIntegration] ReplayData:', {
                 match_id: replayData.match_id,
                 share_token: replayData.share_token,
                 timeline_events: replayData.timeline?.length,
@@ -166,7 +166,7 @@ const ChronicleIntegration = {
      * Guarda link de replay al finalizar partida
      */
     async saveReplayLink(matchId, replayData) {
-        console.log('[ChronicleIntegration] Guardando link de replay:', matchId);
+        0 && console.log('[ChronicleIntegration] Guardando link de replay:', matchId);
         
         // Guardar en match_history también (para compatibilidad)
         if (PlayerDataManager.currentPlayer && supabaseClient) {
@@ -186,9 +186,9 @@ const ChronicleIntegration = {
                         created_at: new Date().toISOString()
                     });
 
-                console.log('[ChronicleIntegration] Link guardado en match_history');
+                0 && console.log('[ChronicleIntegration] Link guardado en match_history');
             } catch (error) {
-                console.warn('[ChronicleIntegration] Error guardando en match_history:', error);
+                0 && console.warn('[ChronicleIntegration] Error guardando en match_history:', error);
             }
         }
     },
@@ -197,7 +197,7 @@ const ChronicleIntegration = {
      * Muestra notificación con link al replay después de terminar partida
      */
     showReplayNotification(matchId) {
-        console.log('[ChronicleIntegration] Mostrando notificación de replay:', matchId);
+        0 && console.log('[ChronicleIntegration] Mostrando notificación de replay:', matchId);
         // TODO: Mostrar toast/notificación
     },
 
@@ -217,7 +217,7 @@ const ChronicleIntegration = {
 
             await navigator.clipboard.writeText(shareUrl);
             logMessage('🔗 Link copiado al portapapeles. ¡Comparte la batalla con tus amigos!', 'success');
-            console.log('[ChronicleIntegration] Link copiado:', shareUrl);
+            0 && console.log('[ChronicleIntegration] Link copiado:', shareUrl);
         } catch (err) {
             console.error('[ChronicleIntegration] Error al copiar link:', err);
             logMessage('Error al copiar el link. Inténtalo de nuevo.', 'error');

@@ -1,6 +1,6 @@
 // pathCache.js
 // Sistema de caché para cálculos de pathfinding costosos
-console.log("pathCache.js CARGADO - Sistema de Caché de Rutas v1.0");
+0 && console.log("pathCache.js CARGADO - Sistema de Caché de Rutas v1.0");
 
 /**
  * Sistema de caché para pathfinding

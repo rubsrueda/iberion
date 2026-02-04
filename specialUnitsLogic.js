@@ -13,7 +13,7 @@ const SpecialUnitsLogic = {
      */
     toggleScoutMode: function(unit) {
         if (!unit || !REGIMENT_TYPES[unit.regiments[0]?.type]?.isScout) {
-            console.warn('[SpecialUnitsLogic] No es un explorador válido');
+            0 && console.warn('[SpecialUnitsLogic] No es un explorador válido');
             return false;
         }
         
@@ -22,12 +22,12 @@ const SpecialUnitsLogic = {
         
         // Cambiar visión según el modo
         if (newMode) {
-            console.log(`[SpecialUnitsLogic] ${unit.name} cambió a MODO ESPÍA - invisible a enemigos (rango 3)`);
+            0 && console.log(`[SpecialUnitsLogic] ${unit.name} cambió a MODO ESPÍA - invisible a enemigos (rango 3)`);
             // En modo espía: invisibilidad relativa, pero revela detalles de tropas
             unit.isInvisibleToEnemies = true;
             unit.revealsEnemyDetails = true;
         } else {
-            console.log(`[SpecialUnitsLogic] ${unit.name} cambió a MODO EXPLORACIÓN - revela niebla`);
+            0 && console.log(`[SpecialUnitsLogic] ${unit.name} cambió a MODO EXPLORACIÓN - revela niebla`);
             unit.isInvisibleToEnemies = false;
             unit.revealsEnemyDetails = false;
         }
@@ -57,7 +57,7 @@ const SpecialUnitsLogic = {
         // Si hay exploradores de equipos enemigos
         const playerIds = Object.keys(scoutsByPlayer);
         if (playerIds.length >= 2) {
-            console.log(`[SpecialUnitsLogic] ¡DETECCIÓN DE ESPÍAS! Hay exploradores enemigos en (${r}, ${c})`);
+            0 && console.log(`[SpecialUnitsLogic] ¡DETECCIÓN DE ESPÍAS! Hay exploradores enemigos en (${r}, ${c})`);
             
             // Retornar los exploradores detectados para aplicar daño mutuo
             return {
@@ -122,7 +122,7 @@ const SpecialUnitsLogic = {
         // Los Pueblos tienen su propio límite de capacidad (en paralelo)
         const villagerCap = villagerCount; // Simplemente contar cuántos pueblos hay
         
-        console.log(`[SpecialUnitsLogic] Unit Cap: Standard=${standardCap}, Villagers=${villagerCap}`);
+        0 && console.log(`[SpecialUnitsLogic] Unit Cap: Standard=${standardCap}, Villagers=${villagerCap}`);
         
         return {
             standard: standardCap,

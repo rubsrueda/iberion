@@ -2,7 +2,7 @@
 // ===           IA v17.1 - VERSIÓN CONSOLIDADA Y ESTABLE                           ===
 // ===       Integra la lógica de aiLogic.js, a.js y b.js en una única base        ===
 // ======================================================================================
-console.log("ai_gameplayLogic.js v17.1 CONSOLIDADO CARGADO");
+0 && console.log("ai_gameplayLogic.js v17.1 CONSOLIDADO CARGADO");
 
 const AiGameplayManager = {
     unitRoles: new Map(),
@@ -19,13 +19,13 @@ const AiGameplayManager = {
             // Si es el turno 1, se ejecuta la Gran Apertura primero. El 'await' asegura que termine
             // antes de que el código continúe. No hay 'return'.
         if (gameState.turnNumber === 1 && AiGameplayManager.ownedHexPercentage(playerNumber) < 0.2) {
-                console.log(`[IA STRATEGY] Ejecutando Gran Apertura...`);
+                0 && console.log(`[IA STRATEGY] Ejecutando Gran Apertura...`);
             await AiGameplayManager._executeGrandOpening_v20(playerNumber);
         }
             
             // La gestión del imperio (construcción, investigación, producción normal) se ejecuta DESPUÉS
             // de la Gran Apertura o en su lugar en turnos posteriores.
-            console.log(`[IA STRATEGY] Ejecutando gestión de imperio...`);
+            0 && console.log(`[IA STRATEGY] Ejecutando gestión de imperio...`);
         await AiGameplayManager.manageEmpire(playerNumber);
 
             // --- FASE 2: ACCIÓN DE UNIDADES ---
@@ -33,7 +33,7 @@ const AiGameplayManager = {
             // Esto garantiza que tanto las unidades de la Gran Apertura como las de producción normal
             // se incluyan en la lista de acciones de este turno.
         const unitsToAction = units.filter(u => u.player === playerNumber && u.currentHealth > 0 && !u.hasMoved);
-            console.log(`[IA PLANNER] ${unitsToAction.length} unidades listas para actuar este turno.`);
+            0 && console.log(`[IA PLANNER] ${unitsToAction.length} unidades listas para actuar este turno.`);
 
             // 1. Primero, se intenta activar el protocolo de consolidación.
             //    Esta función "marca" a las unidades necesarias con misiones de CONSOLIDATE/AWAIT.
@@ -66,7 +66,7 @@ const AiGameplayManager = {
         }
         
         // Una vez que todas las unidades han actuado, la IA finaliza su turno.
-        console.log(`[IA Gameplay] Todas las unidades han actuado. Finalizando turno de la IA en 1.5 segundos...`);
+        0 && console.log(`[IA Gameplay] Todas las unidades han actuado. Finalizando turno de la IA en 1.5 segundos...`);
         
         setTimeout(() => {
             // Se asegura de que el turno sigue siendo de la IA antes de pasarlo,
@@ -92,7 +92,7 @@ const AiGameplayManager = {
         // Si el protocolo de defensa se activó, la IA no hace nada más en esta fase.
         // Se centra completamente en la producción de emergencia.
         if (capitalDefenseActivated) {
-            console.log("[IA Empire] Protocolo de defensa de capital activado. Omitiendo otras gestiones de imperio.");
+            0 && console.log("[IA Empire] Protocolo de defensa de capital activado. Omitiendo otras gestiones de imperio.");
             console.groupEnd();
             return;
         }
@@ -121,7 +121,7 @@ const AiGameplayManager = {
             return;
         }
 
-        console.log("[DIAGNÓSTICO] Entrando en _handle_BOA_Construction (v5 All-in-One).");
+        0 && console.log("[DIAGNÓSTICO] Entrando en _handle_BOA_Construction (v5 All-in-One).");
 
         const playerRes = gameState.playerResources[playerNumber];
         const playerTechs = playerRes.researchedTechnologies || [];
@@ -129,12 +129,12 @@ const AiGameplayManager = {
         // --- FASE 1: INVESTIGACIÓN ---
         // Si no tiene la tecnología, la investiga y el código CONTINÚA.
         if (!playerTechs.includes('FORTIFICATIONS')) {
-            console.log("[DIAGNÓSTICO] Fase 1: Necesita investigar para FORTIFICATIONS.");
+            0 && console.log("[DIAGNÓSTICO] Fase 1: Necesita investigar para FORTIFICATIONS.");
             const pathToFortifications = AiGameplayManager._findTechPath('FORTIFICATIONS', playerTechs);
             
             if (pathToFortifications && pathToFortifications.length > 0) {
                 for (const techId of pathToFortifications) {
-                    console.log(`   -> Investigando prerrequisito: ${techId}.`);
+                    0 && console.log(`   -> Investigando prerrequisito: ${techId}.`);
                     if (typeof attemptToResearch === "function") {
                         // La función attemptToResearch ya valida y consume los recursos.
                         // Si falla, se detendrá internamente y no podremos continuar.
@@ -147,11 +147,11 @@ const AiGameplayManager = {
         // --- FASE 2: CONSTRUCCIÓN (Solo si ahora tiene la tecnología) ---
         // Volvemos a comprobar si, tras la fase de investigación, ya tenemos la tecnología.
         if (playerTechs.includes('FORTIFICATIONS')) {
-            console.log("[DIAGNÓSTICO] Fase 2: Tiene tecnología. Buscando ubicación para construir...");
+            0 && console.log("[DIAGNÓSTICO] Fase 2: Tiene tecnología. Buscando ubicación para construir...");
             const location = AiGameplayManager._findBestFortressLocation(playerNumber);
 
             if (!location) {
-                console.log("[DIAGNÓSTICO] Saliendo: No se encontró ubicación candidata válida.");
+                0 && console.log("[DIAGNÓSTICO] Saliendo: No se encontró ubicación candidata válida.");
                 return;
             }
 
@@ -164,7 +164,7 @@ const AiGameplayManager = {
             if (!hexToBuild.structure) {
                 const roadCost = STRUCTURE_TYPES['Camino'].cost;
                 if (playerRes.piedra >= roadCost.piedra && playerRes.madera >= roadCost.madera) {
-                    console.log(`%c      -> ¡EJECUTANDO PASO 1! Construcción de Camino en (${location.r}, ${location.c}).`, "color: lightblue");
+                    0 && console.log(`%c      -> ¡EJECUTANDO PASO 1! Construcción de Camino en (${location.r}, ${location.c}).`, "color: lightblue");
                     handleConfirmBuildStructure({ playerId: playerNumber, r: location.r, c: location.c, structureType: 'Camino' });
                     await new Promise(resolve => setTimeout(resolve, 20)); // Pequeña pausa para asegurar la actualización del estado
                 }
@@ -176,7 +176,7 @@ const AiGameplayManager = {
             if (hexAfterRoad && hexAfterRoad.structure === 'Camino') {
                 const fortCost = STRUCTURE_TYPES['Fortaleza'].cost;
                 if (playerRes.oro >= fortCost.oro && playerRes.piedra >= fortCost.piedra && playerRes.hierro >= fortCost.hierro) {
-                    console.log(`%c      -> ¡EJECUTANDO PASO 2! Mejora a Fortaleza en (${location.r}, ${location.c}).`, "color: lightgreen");
+                    0 && console.log(`%c      -> ¡EJECUTANDO PASO 2! Mejora a Fortaleza en (${location.r}, ${location.c}).`, "color: lightgreen");
                     handleConfirmBuildStructure({ playerId: playerNumber, r: location.r, c: location.c, structureType: 'Fortaleza' });
                     await new Promise(resolve => setTimeout(resolve, 20)); // Pequeña pausa
                     
@@ -184,7 +184,7 @@ const AiGameplayManager = {
                 }
             }
         } else {
-            console.log("[DIAGNÓSTICO] Fin: Aún no tiene la tecnología de fortificaciones tras la fase de investigación (probablemente por falta de puntos).");
+            0 && console.log("[DIAGNÓSTICO] Fin: Aún no tiene la tecnología de fortificaciones tras la fase de investigación (probablemente por falta de puntos).");
         }
     },
 
@@ -195,7 +195,7 @@ const AiGameplayManager = {
     const primaryProductionBase = bases[0];
     
     if (this.ownedHexPercentage(playerNumber) < 0.7) {
-        console.log(`%c[IA Empire] Creando unidades desde fortaleza en (${primaryProductionBase.r}, ${primaryProductionBase.c})...`, "color: #DAA520");
+        0 && console.log(`%c[IA Empire] Creando unidades desde fortaleza en (${primaryProductionBase.r}, ${primaryProductionBase.c})...`, "color: #DAA520");
         for(let i = 0; i < 6; i++){
             
                 // <<== Añadimos comprobación de terreno transitable ==>>
@@ -210,14 +210,14 @@ const AiGameplayManager = {
                 
                 // Si la unidad SE PUDO crear (produceUnit no devolvió null)...
                 if(newUnit) {
-                    console.log(`%c[IA Acción Inmediata] Moviendo la unidad recién creada de BOA: ${newUnit.name}`, "color: #DAA520; font-weight: bold;");
+                    0 && console.log(`%c[IA Acción Inmediata] Moviendo la unidad recién creada de BOA: ${newUnit.name}`, "color: #DAA520; font-weight: bold;");
                     await AiGameplayManager.executeGeneralMovement(newUnit); // Ahora `newUnit` existe aquí
                     await new Promise(resolve => setTimeout(resolve, 50));
                 } else {
                     break; // Salir si no hay recursos/espacio
                 }
             } else {
-                console.warn(`[IA BOA Production] No hay espacio libre y TERRESTRE alrededor de la fortaleza.`);
+                0 && console.warn(`[IA BOA Production] No hay espacio libre y TERRESTRE alrededor de la fortaleza.`);
                 break;
             }
         }
@@ -289,7 +289,7 @@ const AiGameplayManager = {
         const path = findPath_A_Star({ player: playerNumber, regiments: [{ type: 'Ingenieros' }] }, { r: capital.r, c: capital.c }, { r: newFortress.r, c: newFortress.c });
         
         if (path) {
-            console.log(`[IA Empire] Proyecto de carretera planificado con ${path.length} tramos.`);
+            0 && console.log(`[IA Empire] Proyecto de carretera planificado con ${path.length} tramos.`);
             if (!AiGameplayManager.roadProjects) AiGameplayManager.roadProjects = [];
             AiGameplayManager.roadProjects.push(path);
         }
@@ -306,7 +306,7 @@ const AiGameplayManager = {
                 const hex = board[hexCoords.r]?.[hexCoords.c];
                 if (hex && hex.owner === playerNumber && hex.structure !== 'Camino' && hex.structure !== 'Fortaleza') {
                     if (playerRes.oro >= roadCost.oro && playerRes.piedra >= roadCost.piedra) {
-                        console.log(`%c[IA Empire] Construyendo tramo de carretera en (${hex.r}, ${hex.c})`, "color: #DAA520");
+                        0 && console.log(`%c[IA Empire] Construyendo tramo de carretera en (${hex.r}, ${hex.c})`, "color: #DAA520");
                         handleConfirmBuildStructure({ playerId: playerNumber, r: hex.r, c: hex.c, structureType: 'Camino' });
                         return; 
                     }
@@ -372,7 +372,7 @@ const AiGameplayManager = {
     },
 
     _executeGrandOpening_v20: async function(playerNumber) {
-        console.log(`%c[IA STRATEGY] Ejecutando Gran Apertura (Plan v22.0 - Objetivo-Primero).`, "color: #FFA500; font-weight: bold;");
+        0 && console.log(`%c[IA STRATEGY] Ejecutando Gran Apertura (Plan v22.0 - Objetivo-Primero).`, "color: #FFA500; font-weight: bold;");
         const capital = gameState.cities.find(c => c.isCapital && c.owner === playerNumber);
         if (!capital) return;
 
@@ -399,7 +399,7 @@ const AiGameplayManager = {
                 }
 
                 if (allPossibleManiobras.length === 0) {
-                    console.log(`   -> No se encontraron más maniobras válidas para esta oleada.`);
+                    0 && console.log(`   -> No se encontraron más maniobras válidas para esta oleada.`);
                     return false; // Termina esta oleada
                 }
 
@@ -414,7 +414,7 @@ const AiGameplayManager = {
                     createdInWave++;
                     await new Promise(resolve => setTimeout(resolve, 100)); // Pausa
                 } else {
-                    console.log(`   -> Fin de oleada por falta de recursos.`);
+                    0 && console.log(`   -> Fin de oleada por falta de recursos.`);
                     return false; // Termina TODA la apertura
                 }
             }
@@ -423,22 +423,22 @@ const AiGameplayManager = {
 
         // --- Ejecución de las Oleadas según tus especificaciones ---
         let canContinue = true;
-        console.log("--- OLEADA 1: Infantería (Anillo Exterior, coste 2) ---");
+        0 && console.log("--- OLEADA 1: Infantería (Anillo Exterior, coste 2) ---");
         canContinue = await executeWave('Infantería Ligera', 2, 18);
         
         if (canContinue) {
-            console.log("--- OLEADA 2: Infantería (Anillo Interior, coste 1) ---");
+            0 && console.log("--- OLEADA 2: Infantería (Anillo Interior, coste 1) ---");
             const infantryCount = units.filter(u=>u.player === playerNumber && u.regiments.some(r => r.type === 'Infantería Ligera')).length;
             canContinue = await executeWave('Infantería Ligera', 1, 24 - infantryCount);
         }
         
         if (canContinue) {
-            console.log("--- OLEADA 3: Caballería de Salto ---");
+            0 && console.log("--- OLEADA 3: Caballería de Salto ---");
             const cavalryMove = REGIMENT_TYPES['Caballería Ligera'].movement;
             canContinue = await executeWave('Caballería Ligera', REGIMENT_TYPES['Caballería Ligera'].movement, 6);
         }
 
-        console.log(`[IA STRATEGY] Gran Apertura finalizada.`);
+        0 && console.log(`[IA STRATEGY] Gran Apertura finalizada.`);
     },
     
     _findAllPathsWithCost: function(startCoords, maxCost, unitType, playerNumber) {
@@ -494,7 +494,7 @@ const AiGameplayManager = {
                 const threat = getUnitById(mission.objective.id);
                 const validThreat = threat && threat.currentHealth > 0;
                 if (validThreat) {
-                    console.log(`[IA URGENT DEFENSE] ${unit.name} tiene orden de atacar a ${threat.name}.`);
+                    0 && console.log(`[IA URGENT DEFENSE] ${unit.name} tiene orden de atacar a ${threat.name}.`);
                     await this._executeCombatLogic(unit, [threat]); // Forzar combate solo contra esa amenaza
                     return; // Acción completada
                 }
@@ -522,14 +522,14 @@ const AiGameplayManager = {
         // Si la salud es muy baja, la retirada es la única opción.
         const healthPercentage = unit.currentHealth / unit.maxHealth;
         if (healthPercentage < 0.35) {
-            console.log(`[IA Combat] ${unit.name} tiene salud crítica. Intentando retirada.`);
+            0 && console.log(`[IA Combat] ${unit.name} tiene salud crítica. Intentando retirada.`);
             await AiGameplayManager.executeRetreat(unit, enemies);
             return;
         }
 
         // NUEVO: Considerar cortar líneas de suministro si la unidad está profundamente en territorio enemigo
         if (this._attemptSupplyLineCut && await this._attemptSupplyLineCut(unit)) {
-            console.log(`[IA Combat] ${unit.name} cortó línea enemiga`);
+            0 && console.log(`[IA Combat] ${unit.name} cortó línea enemiga`);
             return;
         }
 
@@ -538,29 +538,29 @@ const AiGameplayManager = {
         
         // Si no hay ningún ataque posible, moverse a una posición estratégica
         if (!bestAttack) {
-            console.log(`[IA Combat] ${unit.name} no encontró objetivos de ataque. Procediendo a movimiento de expansión.`);
+            0 && console.log(`[IA Combat] ${unit.name} no encontró objetivos de ataque. Procediendo a movimiento de expansión.`);
             await AiGameplayManager._executeExpansionLogic(unit);
             return;
         }
 
         // NUEVO: Considerar split táctico antes de atacar
         if (this._considerTacticalSplit && await this._considerTacticalSplit(unit, bestAttack.target)) {
-            console.log(`[IA Combat] ${unit.name} ejecutó split táctico`);
+            0 && console.log(`[IA Combat] ${unit.name} ejecutó split táctico`);
             return;
         }
 
         // Antes de atacar, si el combate NO es favorable, evaluar una fusión
         if (!bestAttack.isFavorable) {
-            console.log(`[IA Combat] El mejor ataque para ${unit.name} no es favorable. Evaluando fusión...`);
+            0 && console.log(`[IA Combat] El mejor ataque para ${unit.name} no es favorable. Evaluando fusión...`);
             const mergePlan = await AiGameplayManager.findAndExecuteMerge_Reactive(unit, bestAttack.target);
             
             // Si se encontró una fusión y se ejecutó...
             if (mergePlan && mergePlan.merged) {
-                console.log(`[IA Combat] ¡Fusión reactiva exitosa! ${unit.name} se unió a otra división.`);
+                0 && console.log(`[IA Combat] ¡Fusión reactiva exitosa! ${unit.name} se unió a otra división.`);
                 // La nueva super-división ahora re-evalúa el ataque.
                 const unitAfterMerge = getUnitById(mergePlan.targetUnitId);
                 if (unitAfterMerge && !unitAfterMerge.hasAttacked) {
-                    console.log(`[IA Combat] La nueva división "${unitAfterMerge.name}" ahora intenta el ataque.`);
+                    0 && console.log(`[IA Combat] La nueva división "${unitAfterMerge.name}" ahora intenta el ataque.`);
                     // Atacamos desde la posición actual de la nueva unidad, sin movernos.
                     if(isValidAttack(unitAfterMerge, bestAttack.target)) {
                         await attackUnit(unitAfterMerge, bestAttack.target);
@@ -571,7 +571,7 @@ const AiGameplayManager = {
         }
         
         // Si el ataque es favorable O si no se pudo fusionar
-        console.log(`[IA Combat] ${unit.name} procede con el plan de ataque original.`);
+        0 && console.log(`[IA Combat] ${unit.name} procede con el plan de ataque original.`);
         if (bestAttack.isSuicidal) {
             await AiGameplayManager.executeRetreat(unit, enemies);
         } else {
@@ -633,7 +633,7 @@ const AiGameplayManager = {
         if (!productionCenter) {
             productionCenter = gameState.cities.find(c => c.isCapital && c.owner === playerNumber);
             if (!productionCenter) {
-                console.warn("[IA Produce] No se encontró un centro de producción (Capital).");
+                0 && console.warn("[IA Produce] No se encontró un centro de producción (Capital).");
                 return null;
             }
         }
@@ -649,7 +649,7 @@ const AiGameplayManager = {
 
             // Si no se encuentra ninguna casilla vacía alrededor, la producción falla.
         if (!placementSpot) {
-            console.warn(`[IA Produce] BLOQUEADO: No hay espacio libre y transitable alrededor de (${productionCenter.r}, ${productionCenter.c}).`);
+            0 && console.warn(`[IA Produce] BLOQUEADO: No hay espacio libre y transitable alrededor de (${productionCenter.r}, ${productionCenter.c}).`);
             return null;
         }
 
@@ -674,7 +674,7 @@ const AiGameplayManager = {
         placeFinalizedDivision(newUnit, placementSpot.r, placementSpot.c);
         AiGameplayManager.unitRoles.set(newUnit.id, role);
         
-        console.log(`%c[IA Produce] Unidad ${newUnit.name} creada en la casilla válida (${placementSpot.r}, ${placementSpot.c}).`, "color: #28a745;");
+        0 && console.log(`%c[IA Produce] Unidad ${newUnit.name} creada en la casilla válida (${placementSpot.r}, ${placementSpot.c}).`, "color: #28a745;");
         return newUnit;
     },
 
@@ -702,7 +702,7 @@ const AiGameplayManager = {
             
             // <<== LÓGICA CLAVE: Si se creó una unidad, la movemos AHORA MISMO ==>>
             if (newUnit) {
-                console.log(`%c[IA Acción Inmediata] Moviendo la unidad recién creada: ${newUnit.name}`, "color: #DAA520; font-weight: bold;");
+                0 && console.log(`%c[IA Acción Inmediata] Moviendo la unidad recién creada: ${newUnit.name}`, "color: #DAA520; font-weight: bold;");
                 await AiGameplayManager.executeGeneralMovement(newUnit);
             }
         }
@@ -714,13 +714,13 @@ const AiGameplayManager = {
      */
     considerBankTrade: async function(playerNumber) {
         try {
-            console.log(`%c[IA Commerce] Jugador ${playerNumber} evalúa comerciar con La Banca...`, "color: #FFD700; font-weight: bold;");
+            0 && console.log(`%c[IA Commerce] Jugador ${playerNumber} evalúa comerciar con La Banca...`, "color: #FFD700; font-weight: bold;");
             
             const playerRes = gameState.playerResources[playerNumber];
             const bankCity = gameState.cities.find(c => c.owner === 0); // Banca es Player 0
             
             if (!bankCity) {
-                console.log("[IA Commerce] No se encontró ciudad de La Banca.");
+                0 && console.log("[IA Commerce] No se encontró ciudad de La Banca.");
                 return false;
             }
             
@@ -731,7 +731,7 @@ const AiGameplayManager = {
             );
             
             if (!pathToBank) {
-                console.log("[IA Commerce] No hay ruta de infraestructura hacia La Banca.");
+                0 && console.log("[IA Commerce] No hay ruta de infraestructura hacia La Banca.");
                 return false;
             }
             
@@ -742,7 +742,7 @@ const AiGameplayManager = {
                 playerRes.piedra -= 2;
                 playerRes.oro += 500;
                 
-                console.log(`%c[IA Commerce] ✓ Comercio exitoso: -2 Madera, -2 Piedra, +500 Oro`, "color: #90EE90; font-weight: bold;");
+                0 && console.log(`%c[IA Commerce] ✓ Comercio exitoso: -2 Madera, -2 Piedra, +500 Oro`, "color: #90EE90; font-weight: bold;");
                 logMessage(`La IA (Jugador ${playerNumber}) ha comerciado con La Banca.`, "event");
                 return true;
             }
@@ -752,12 +752,12 @@ const AiGameplayManager = {
                 playerRes.hierro -= 3;
                 playerRes.oro += 400;
                 
-                console.log(`%c[IA Commerce] ✓ Comercio exitoso: -3 Hierro, +400 Oro`, "color: #90EE90; font-weight: bold;");
+                0 && console.log(`%c[IA Commerce] ✓ Comercio exitoso: -3 Hierro, +400 Oro`, "color: #90EE90; font-weight: bold;");
                 logMessage(`La IA (Jugador ${playerNumber}) ha comerciado con La Banca.`, "event");
                 return true;
             }
             
-            console.log("[IA Commerce] No hay recursos suficientes para comerciar.");
+            0 && console.log("[IA Commerce] No hay recursos suficientes para comerciar.");
             return false;
         } catch (error) {
             console.error("[IA Commerce] Error en considerBankTrade:", error);
@@ -791,7 +791,7 @@ const AiGameplayManager = {
         unit.currentMovement = unit.movement;
         
         // Log de diagnóstico para confirma 
-        console.log(`[IA createUnitObject] Unidad ${unit.name} creada. Salud Máxima: ${unit.maxHealth}, Salud Actual: ${unit.currentHealth}`);
+        0 && console.log(`[IA createUnitObject] Unidad ${unit.name} creada. Salud Máxima: ${unit.maxHealth}, Salud Actual: ${unit.currentHealth}`);
         
         return unit;
     },
@@ -805,7 +805,7 @@ const AiGameplayManager = {
     },
 
     // Aquí pegamos las implementaciones completas de las funciones auxiliares que no han cambiado
-    assessThreatLevel: function(playerNumber) { const enemyPlayer = playerNumber===1?2:1; const aiUnits=units.filter(u=>u.player===playerNumber); const enemyUnits=units.filter(u=>u.player===enemyPlayer); if(enemyUnits.length===0||aiUnits.length===0)return; const biggestEnemyFormation=enemyUnits.reduce((max,unit)=>(unit.regiments.length>max?unit.regiments.length:max),0); if(biggestEnemyFormation>10){aiUnits.sort((a,b)=>b.regiments.length-a.regiments.length);const anchorUnit=aiUnits[0];AiGameplayManager.codeRed_rallyPoint={r:anchorUnit.r,c:anchorUnit.c,anchorId:anchorUnit.id};console.log(`%c[IA] CÓDIGO ROJO! Amenaza masiva detectada (${biggestEnemyFormation} reg.). Punto de reunión en ${anchorUnit.name} (${anchorUnit.r},${anchorUnit.c})`,"color: red; font-weight: bold;");}},
+    assessThreatLevel: function(playerNumber) { const enemyPlayer = playerNumber===1?2:1; const aiUnits=units.filter(u=>u.player===playerNumber); const enemyUnits=units.filter(u=>u.player===enemyPlayer); if(enemyUnits.length===0||aiUnits.length===0)return; const biggestEnemyFormation=enemyUnits.reduce((max,unit)=>(unit.regiments.length>max?unit.regiments.length:max),0); if(biggestEnemyFormation>10){aiUnits.sort((a,b)=>b.regiments.length-a.regiments.length);const anchorUnit=aiUnits[0];AiGameplayManager.codeRed_rallyPoint={r:anchorUnit.r,c:anchorUnit.c,anchorId:anchorUnit.id};0 && console.log(`%c[IA] CÓDIGO ROJO! Amenaza masiva detectada (${biggestEnemyFormation} reg.). Punto de reunión en ${anchorUnit.name} (${anchorUnit.r},${anchorUnit.c})`,"color: red; font-weight: bold;");}},
     moveToRallyPoint: async function(unit) { const rallyR=AiGameplayManager.codeRed_rallyPoint.r;const rallyC=AiGameplayManager.codeRed_rallyPoint.c; if(hexDistance(unit.r,unit.c,rallyR,rallyC)<=1){const anchorUnit=units.find(u=>u.id===AiGameplayManager.codeRed_rallyPoint.anchorId);if(anchorUnit&&(anchorUnit.regiments.length+unit.regiments.length<=MAX_REGIMENTS_PER_DIVISION)){await _executeMoveUnit(unit,rallyR,rallyC,true);const unitOnTarget=units.find(u=>u.id===anchorUnit.id);if(unitOnTarget){mergeUnits(unit,unitOnTarget);}}}else{const path=AiGameplayManager.findPathToTarget(unit,rallyR,rallyC);if(path&&path.length>1){const moveHex=path[Math.min(path.length-1,unit.currentMovement||unit.movement)];await _executeMoveUnit(unit,moveHex.r,moveHex.c);}}},
     _executeExpansionLogic: async function(unit) { const canSplit=unit.regiments.length>2&&unit.regiments.length<8;const freeNeighbor=getHexNeighbors(unit.r,unit.c).find(n=>board[n.r]?.[n.c]&&!board[n.r][n.c].unit&&!TERRAIN_TYPES[board[n.r][n.c].terrain].isImpassableForLand);if(canSplit&&freeNeighbor){const splitCount=Math.ceil(unit.regiments.length/2);const newUnitRegs=unit.regiments.slice(0,splitCount);const originalUnitRegs=unit.regiments.slice(splitCount);gameState.preparingAction={newUnitRegiments:newUnitRegs,remainingOriginalRegiments:originalUnitRegs};splitUnit(unit,freeNeighbor.r,freeNeighbor.c);}else{await AiGameplayManager.executeGeneralMovement(unit);}},
     _executeMoveAndAttack: async function(unit,moveHex,target){if(moveHex){await _executeMoveUnit(unit,moveHex.r,moveHex.c);} const unitAfterMove=units.find(u=>u.id===unit.id);if(unitAfterMove?.currentHealth>0&&!unitAfterMove.hasAttacked&&isValidAttack(unitAfterMove,target)){await attackUnit(unitAfterMove,target);}},
@@ -874,7 +874,7 @@ const AiGameplayManager = {
      * Implementa la retirada táctica de una unidad amenazada
      */
     executeRetreat: async function(unit, enemies) {
-        console.log(`[IA Retreat] ${unit.name} está en retirada táctica...`);
+        0 && console.log(`[IA Retreat] ${unit.name} está en retirada táctica...`);
         
         // Buscar hexágonos seguros (lejos de enemigos, cerca de aliados)
         const safeHexes = [];
@@ -903,16 +903,16 @@ const AiGameplayManager = {
         // Intentar retirarse al mejor hexágono
         if (safeHexes.length > 0 && safeHexes[0].minEnemyDist > 1) {
             await _executeMoveUnit(unit, safeHexes[0].r, safeHexes[0].c);
-            console.log(`[IA Retreat] ${unit.name} se retiró a (${safeHexes[0].r}, ${safeHexes[0].c})`);
+            0 && console.log(`[IA Retreat] ${unit.name} se retiró a (${safeHexes[0].r}, ${safeHexes[0].c})`);
         } else {
             // Si no hay hexágonos seguros, intentar fusionarse con aliado cercano
             const nearbyAlly = allies.find(a => hexDistance(unit.r, unit.c, a.r, a.c) <= (unit.currentMovement || unit.movement));
             if (nearbyAlly && (unit.regiments.length + nearbyAlly.regiments.length) <= MAX_REGIMENTS_PER_DIVISION) {
-                console.log(`[IA Retreat] ${unit.name} no encontró hexágono seguro, fusionándose con aliado...`);
+                0 && console.log(`[IA Retreat] ${unit.name} no encontró hexágono seguro, fusionándose con aliado...`);
                 await _executeMoveUnit(unit, nearbyAlly.r, nearbyAlly.c, true);
                 mergeUnits(unit, nearbyAlly);
             } else {
-                console.log(`[IA Retreat] ${unit.name} no tiene opciones de retirada, se mantiene en posición.`);
+                0 && console.log(`[IA Retreat] ${unit.name} no tiene opciones de retirada, se mantiene en posición.`);
                 unit.hasMoved = true;
             }
         }
@@ -973,7 +973,7 @@ const AiGameplayManager = {
             console.error(`[IA CAPITAL DEFENSE - DIAGNÓSTICO] No se encontró capital para Jugador ${playerNumber}. El protocolo no puede activarse.`);
             return false;
         }
-        console.log(`[IA CAPITAL DEFENSE - DIAGNÓSTICO] Capital de J${playerNumber} encontrada en (${capital.r}, ${capital.c}). Buscando amenazas...`);
+        0 && console.log(`[IA CAPITAL DEFENSE - DIAGNÓSTICO] Capital de J${playerNumber} encontrada en (${capital.r}, ${capital.c}). Buscando amenazas...`);
       
 
         const enemyPlayer = playerNumber === 1 ? 2 : 1;
@@ -984,7 +984,7 @@ const AiGameplayManager = {
             return false; // No hay amenaza, no se activa el protocolo.
         }
 
-        console.log(`%c[IA CAPITAL DEFENSE] ¡PROTOCOLO DE EMERGENCIA ACTIVADO! ${threats.length} amenaza(s) detectada(s).`, "color: red; font-size: 1.2em; font-weight: bold;");
+        0 && console.log(`%c[IA CAPITAL DEFENSE] ¡PROTOCOLO DE EMERGENCIA ACTIVADO! ${threats.length} amenaza(s) detectada(s).`, "color: red; font-size: 1.2em; font-weight: bold;");
         
         const playerRes = gameState.playerResources[playerNumber];
         let unitsCreated = false;
@@ -993,7 +993,7 @@ const AiGameplayManager = {
         let totalThreatAttack = 0;
         let hasRangedThreat = false;
         threats.forEach(threat => {
-                           console.log(`  -> Amenaza detectada: ${threat.name} en (${threat.r}, ${threat.c}). Distancia: ${hexDistance(threat.r, threat.c, capital.r, capital.c)}`);
+                           0 && console.log(`  -> Amenaza detectada: ${threat.name} en (${threat.r}, ${threat.c}). Distancia: ${hexDistance(threat.r, threat.c, capital.r, capital.c)}`);
             totalThreatAttack += threat.attack || 0;
             if ((threat.attackRange || 1) > 1) {
                 hasRangedThreat = true;
@@ -1022,7 +1022,7 @@ const AiGameplayManager = {
             
             // Si no se puede permitir ninguna unidad, o no hay ninguna que producir, salir del bucle.
             if (!unitToProduceType) {
-                console.log("[IA CAPITAL DEFENSE] Recursos insuficientes para continuar la producción.");
+                0 && console.log("[IA CAPITAL DEFENSE] Recursos insuficientes para continuar la producción.");
                 break;
             }
 
@@ -1040,7 +1040,7 @@ const AiGameplayManager = {
                 });
             } else {
                 // Si produceUnit devuelve null, es porque no hay más recursos o espacio.
-                 console.log(`[IA CAPITAL DEFENSE - DIAGNÓSTICO] No se encontraron amenazas en un radio de 2 hexágonos.`);
+                 0 && console.log(`[IA CAPITAL DEFENSE - DIAGNÓSTICO] No se encontraron amenazas en un radio de 2 hexágonos.`);
                 break;
             }
         }
@@ -1069,7 +1069,7 @@ const AiGameplayManager = {
         // CONDICIÓN DE ACTIVACIÓN: Si la unidad más grande del enemigo es significativamente más grande
         // que la unidad más grande de la IA (ej: más del doble de regimientos).
         if (biggestEnemyUnit.regiments.length > biggestAiUnit.regiments.length * 2) {
-            console.log(`%c[IA CONSOLIDATION] ¡PROTOCOLO DE CONSOLIDACIÓN ACTIVADO! Amenaza principal: ${biggestEnemyUnit.name} (${biggestEnemyUnit.regiments.length} regs).`, "color: orange; font-size: 1.2em; font-weight: bold;");
+            0 && console.log(`%c[IA CONSOLIDATION] ¡PROTOCOLO DE CONSOLIDACIÓN ACTIVADO! Amenaza principal: ${biggestEnemyUnit.name} (${biggestEnemyUnit.regiments.length} regs).`, "color: orange; font-size: 1.2em; font-weight: bold;");
             
             // Designar a la unidad más fuerte de la IA como el punto de reunión (ancla)
             const rallyPointUnit = biggestAiUnit;
@@ -1111,7 +1111,7 @@ const AiGameplayManager = {
                      mergeUnits(movingUnit, targetUnit);
                 }
              } else {
-                 console.log(`[IA CONSOLIDATION] ${movingUnit.name} está cerca pero la fusión con ${targetUnit.name} excedería el límite de regimientos.`);
+                 0 && console.log(`[IA CONSOLIDATION] ${movingUnit.name} está cerca pero la fusión con ${targetUnit.name} excedería el límite de regimientos.`);
                  // Se queda quieta esperando.
                  movingUnit.hasMoved = true;
                  movingUnit.hasAttacked = true;

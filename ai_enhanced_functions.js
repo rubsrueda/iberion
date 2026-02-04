@@ -1,7 +1,7 @@
 // ai_enhanced_functions.js - Funciones avanzadas de IA
 // Este archivo contiene mejoras estratégicas para la IA del juego
 
-console.log("ai_enhanced_functions.js CARGADO - Mejoras Estratégicas de IA v2.0");
+0 && console.log("ai_enhanced_functions.js CARGADO - Mejoras Estratégicas de IA v2.0");
 
 // Extensiones para AiGameplayManager
 Object.assign(AiGameplayManager, {
@@ -10,7 +10,7 @@ Object.assign(AiGameplayManager, {
      * Implementa la retirada táctica de una unidad amenazada
      */
     executeRetreat: async function(unit, enemies) {
-        console.log(`[IA Retreat] ${unit.name} está en retirada táctica...`);
+        0 && console.log(`[IA Retreat] ${unit.name} está en retirada táctica...`);
         
         // Buscar hexágonos seguros (lejos de enemigos, cerca de aliados)
         const safeHexes = [];
@@ -39,16 +39,16 @@ Object.assign(AiGameplayManager, {
         // Intentar retirarse al mejor hexágono
         if (safeHexes.length > 0 && safeHexes[0].minEnemyDist > 1) {
             await _executeMoveUnit(unit, safeHexes[0].r, safeHexes[0].c);
-            console.log(`[IA Retreat] ${unit.name} se retiró a (${safeHexes[0].r}, ${safeHexes[0].c})`);
+            0 && console.log(`[IA Retreat] ${unit.name} se retiró a (${safeHexes[0].r}, ${safeHexes[0].c})`);
         } else {
             // Si no hay hexágonos seguros, intentar fusionarse con aliado cercano
             const nearbyAlly = allies.find(a => hexDistance(unit.r, unit.c, a.r, a.c) <= (unit.currentMovement || unit.movement));
             if (nearbyAlly && (unit.regiments.length + nearbyAlly.regiments.length) <= MAX_REGIMENTS_PER_DIVISION) {
-                console.log(`[IA Retreat] ${unit.name} fusionándose con aliado cercano...`);
+                0 && console.log(`[IA Retreat] ${unit.name} fusionándose con aliado cercano...`);
                 await _executeMoveUnit(unit, nearbyAlly.r, nearbyAlly.c, true);
                 mergeUnits(unit, nearbyAlly);
             } else {
-                console.log(`[IA Retreat] ${unit.name} sin opciones, manteniéndose.`);
+                0 && console.log(`[IA Retreat] ${unit.name} sin opciones, manteniéndose.`);
                 unit.hasMoved = true;
             }
         }
@@ -63,7 +63,7 @@ Object.assign(AiGameplayManager, {
             return false;
         }
 
-        console.log(`[IA Naval] ${unit.name} evaluando combate naval...`);
+        0 && console.log(`[IA Naval] ${unit.name} evaluando combate naval...`);
         
         // Buscar unidades navales enemigas en rango
         const navalEnemies = enemies.filter(e => {
@@ -97,7 +97,7 @@ Object.assign(AiGameplayManager, {
 
         // Atacar si tenemos ventaja o retirarse
         if (bestTarget && bestAdvantage > -10) {
-            console.log(`[IA Naval] Atacando ${bestTarget.name} con ventaja ${bestAdvantage}`);
+            0 && console.log(`[IA Naval] Atacando ${bestTarget.name} con ventaja ${bestAdvantage}`);
             const attackRange = hexDistance(unit.r, unit.c, bestTarget.r, bestTarget.c);
             
             if (attackRange <= 1) {
@@ -110,7 +110,7 @@ Object.assign(AiGameplayManager, {
                 }
             }
         } else {
-            console.log(`[IA Naval] Desventaja detectada, retirándose...`);
+            0 && console.log(`[IA Naval] Desventaja detectada, retirándose...`);
             await this.executeRetreat(unit, navalEnemies);
         }
         
@@ -162,7 +162,7 @@ Object.assign(AiGameplayManager, {
 
             const targetHex = enemyCoastalHexes[0] || waterHexes[Math.floor(Math.random() * waterHexes.length)];
             await _executeMoveUnit(unit, targetHex.r, targetHex.c);
-            console.log(`[IA Naval] ${unit.name} patrullando hacia (${targetHex.r}, ${targetHex.c})`);
+            0 && console.log(`[IA Naval] ${unit.name} patrullando hacia (${targetHex.r}, ${targetHex.c})`);
         }
     },
 
@@ -187,7 +187,7 @@ Object.assign(AiGameplayManager, {
         });
 
         if (flankingSpots.length > 0) {
-            console.log(`[IA Split] ${unit.name} ejecutando split táctico para flanqueo`);
+            0 && console.log(`[IA Split] ${unit.name} ejecutando split táctico para flanqueo`);
             
             // Dividir en dos partes aproximadamente iguales
             const splitCount = Math.floor(unit.regiments.length / 2);
@@ -262,7 +262,7 @@ Object.assign(AiGameplayManager, {
         if (criticalHexes.length > 0) {
             criticalHexes.sort((a, b) => b.value - a.value);
             const target = criticalHexes[0];
-            console.log(`[IA Corte] ${unit.name} cortando línea enemiga en (${target.r}, ${target.c}) valor: ${target.value}`);
+            0 && console.log(`[IA Corte] ${unit.name} cortando línea enemiga en (${target.r}, ${target.c}) valor: ${target.value}`);
             await _executeMoveUnit(unit, target.r, target.c);
             return true;
         }
@@ -271,4 +271,4 @@ Object.assign(AiGameplayManager, {
     },
 });
 
-console.log("✓ Funciones avanzadas de IA cargadas correctamente");
+0 && console.log("✓ Funciones avanzadas de IA cargadas correctamente");

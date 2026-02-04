@@ -1,6 +1,6 @@
 // talents.js (Versión 100% Completa, Trébol Compacto)
 
-console.log("talents.js CARGADO - Estructura final de 8x18 nodos para móvil.");
+0 && console.log("talents.js CARGADO - Estructura final de 8x18 nodos para móvil.");
 
 const TALENT_DEFINITIONS = {
     // === 18 Talentos de INFANTERÍA ===

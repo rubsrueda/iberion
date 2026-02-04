@@ -32,10 +32,10 @@ const PlayerDataManager = {
     initAuthListener: function() {
         // Escuchamos cualquier cambio en la sesión (Login, Logout, vuelta de Google)
         supabaseClient.auth.onAuthStateChange(async (event, session) => {
-            console.log("Evento de Autenticación:", event);
+            0 && console.log("Evento de Autenticación:", event);
 
             if (event === "SIGNED_IN" && session) {
-                console.log("¡Usuario detectado!", session.user);
+                0 && console.log("¡Usuario detectado!", session.user);
                 
                 // 1. Intentamos cargar el perfil desde la tabla 'profiles'
                 const { data: cloudProfile, error } = await supabaseClient
@@ -47,10 +47,10 @@ const PlayerDataManager = {
                 if (cloudProfile) {
                     // Si ya tiene datos en la nube, los cargamos
                     this.currentPlayer = cloudProfile.profile_data;
-                    console.log("Perfil cargado desde la nube.");
+                    0 && console.log("Perfil cargado desde la nube.");
                 } else {
                     // Si es un usuario nuevo de Google, le creamos un perfil inicial
-                    console.log("Creando nuevo perfil para usuario de Google...");
+                    0 && console.log("Creando nuevo perfil para usuario de Google...");
                     const defaultUsername = session.user.email.split('@')[0];
                     this.currentPlayer = this.createNewPlayer(defaultUsername, "google-auth");
                     
@@ -151,7 +151,7 @@ const PlayerDataManager = {
 
             // Si el perfil fue modificado, lo guardamos
             if (profileUpdated) {
-                console.log("Perfil de jugador actualizado a la nueva versión.");
+                0 && console.log("Perfil de jugador actualizado a la nueva versión.");
                 this.saveCurrentPlayer();
             }
 
@@ -180,7 +180,7 @@ const PlayerDataManager = {
     logout: function() {
         this.currentPlayer = null;
         localStorage.removeItem('lastUser');
-        console.log("Sesión cerrada.");
+        0 && console.log("Sesión cerrada.");
     },
 
     createNewPlayer: function(username, password) {
@@ -249,7 +249,7 @@ const PlayerDataManager = {
         
         // Si el jugador no tiene al héroe en absoluto (ni siquiera como "fantasma")
         if (!heroInstance) {
-            console.log(`Creando nueva entrada "fantasma" para ${heroId}`);
+            0 && console.log(`Creando nueva entrada "fantasma" para ${heroId}`);
             heroInstance = {
                 id: heroId,
                 level: 0,
@@ -421,7 +421,7 @@ const PlayerDataManager = {
             // Esto solo se ejecutará la primera vez que se alcance este nivel de estrellas.
             if (hero.skill_levels[newSkillIndex] === 0) {
                 hero.skill_levels[newSkillIndex] = 1;
-                console.log(`[Evolve] Habilidad en el índice ${newSkillIndex} desbloqueada y establecida en Nivel 1.`);
+                0 && console.log(`[Evolve] Habilidad en el índice ${newSkillIndex} desbloqueada y establecida en Nivel 1.`);
             }
             // <<== FIN DE LA CORRECCIÓN ==>>
 
@@ -454,7 +454,7 @@ const PlayerDataManager = {
         if (this.currentPlayer) {
             const playerDataKey = `player_${this.currentPlayer.username.toLowerCase()}`;
             localStorage.setItem(playerDataKey, JSON.stringify(this.currentPlayer));
-            console.log(`Datos de ${this.currentPlayer.username} guardados.`);
+            0 && console.log(`Datos de ${this.currentPlayer.username} guardados.`);
         }
     },
 

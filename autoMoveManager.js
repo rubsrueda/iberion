@@ -23,8 +23,8 @@ const AutoMoveManager = {
      * Inicializa el sistema de movimiento automático
      */
     init() {
-        console.log("[AutoMove] Inicializando sistema de movimiento automático...");
-        console.log("[AutoMove] Sistema inicializado correctamente");
+        0 && console.log("[AutoMove] Inicializando sistema de movimiento automático...");
+        0 && console.log("[AutoMove] Sistema inicializado correctamente");
     },
     
     /**
@@ -36,8 +36,8 @@ const AutoMoveManager = {
             return false;
         }
         
-        console.log(`%c[AutoMove] 🎨 ACTIVANDO MODO PAINT`, 'background: #4CAF50; color: white; font-weight: bold; padding: 5px;');
-        console.log(`[AutoMove] Unidad: ${unit.name} (ID: ${unit.id}) en posición (${unit.r}, ${unit.c})`);
+        0 && console.log(`%c[AutoMove] 🎨 ACTIVANDO MODO PAINT`, 'background: #4CAF50; color: white; font-weight: bold; padding: 5px;');
+        0 && console.log(`[AutoMove] Unidad: ${unit.name} (ID: ${unit.id}) en posición (${unit.r}, ${unit.c})`);
         
         this.isPaintModeActive = true;
         this.currentPaintingUnit = unit;
@@ -45,28 +45,28 @@ const AutoMoveManager = {
         this.lastClickTime = Date.now();
         this.clearPathVisuals();
         
-        console.log(`[AutoMove] ✓ Estado isPaintModeActive: ${this.isPaintModeActive}`);
-        console.log(`[AutoMove] ✓ Ruta inicial: 1 paso en (${unit.r}, ${unit.c})`);
+        0 && console.log(`[AutoMove] ✓ Estado isPaintModeActive: ${this.isPaintModeActive}`);
+        0 && console.log(`[AutoMove] ✓ Ruta inicial: 1 paso en (${unit.r}, ${unit.c})`);
         
         // Crear overlay de instrucciones
         this.showPaintModeUI();
-        console.log(`[AutoMove] ✓ UI overlay creada`);
+        0 && console.log(`[AutoMove] ✓ UI overlay creada`);
         
         // Iniciar temporizador de auto-confirmación
         this.resetAutoConfirmTimer();
-        console.log(`[AutoMove] ✓ Timer de auto-confirmación iniciado (${this.timeoutDuration}ms)`);
+        0 && console.log(`[AutoMove] ✓ Timer de auto-confirmación iniciado (${this.timeoutDuration}ms)`);
         
         // Instalar interceptor de clics en el mapa
         this.installClickInterceptor();
-        console.log(`[AutoMove] ✓ Interceptor de clics instalado`);
+        0 && console.log(`[AutoMove] ✓ Interceptor de clics instalado`);
         
         logMessage(`Modo Ruta Automática: Haz clic en cada hexágono. Auto-confirma en 2s sin clics.`, "info");
         
         // Actualizar visualización inicial
         this.updatePathVisuals();
-        console.log(`[AutoMove] ✓ Visualización inicial actualizada`);
+        0 && console.log(`[AutoMove] ✓ Visualización inicial actualizada`);
         
-        console.log(`%c[AutoMove] ✅ MODO PAINT COMPLETAMENTE ACTIVO`, 'background: #4CAF50; color: white; font-weight: bold; padding: 5px;');
+        0 && console.log(`%c[AutoMove] ✅ MODO PAINT COMPLETAMENTE ACTIVO`, 'background: #4CAF50; color: white; font-weight: bold; padding: 5px;');
         
         return true;
     },
@@ -75,7 +75,7 @@ const AutoMoveManager = {
      * Desactiva el modo paint
      */
     deactivatePaintMode() {
-        console.log(`%c[AutoMove] 🛑 DESACTIVANDO MODO PAINT`, 'background: #f44336; color: white; font-weight: bold; padding: 5px;');
+        0 && console.log(`%c[AutoMove] 🛑 DESACTIVANDO MODO PAINT`, 'background: #f44336; color: white; font-weight: bold; padding: 5px;');
         
         this.isPaintModeActive = false;
         this.currentPaintingUnit = null;
@@ -93,10 +93,10 @@ const AutoMoveManager = {
             }
             this.autoConfirmTimeout = null;
             this.autoConfirmUsingManager = false;
-            console.log("[AutoMove] ✓ Timer cancelado");
+            0 && console.log("[AutoMove] ✓ Timer cancelado");
         }
         
-        console.log("[AutoMove] ✓ Modo paint desactivado completamente");
+        0 && console.log("[AutoMove] ✓ Modo paint desactivado completamente");
     },
     
     /**
@@ -109,7 +109,7 @@ const AutoMoveManager = {
             return;
         }
         
-        console.log("[AutoMove] Instalando interceptor de clics...");
+        0 && console.log("[AutoMove] Instalando interceptor de clics...");
         this.clickHandler = this.handlePaintClick.bind(this);
         
         // Instalar en múltiples eventos para máxima captura
@@ -117,7 +117,7 @@ const AutoMoveManager = {
         gameBoard.addEventListener('mousedown', this.clickHandler, true);
         gameBoard.addEventListener('touchstart', this.clickHandler, true);
         
-        console.log("[AutoMove] ✓ Interceptor instalado en click, mousedown y touchstart");
+        0 && console.log("[AutoMove] ✓ Interceptor instalado en click, mousedown y touchstart");
     },
     
     /**
@@ -126,100 +126,100 @@ const AutoMoveManager = {
     removeClickInterceptor() {
         const gameBoard = document.getElementById('gameBoard');
         if (!gameBoard || !this.clickHandler) {
-            console.log("[AutoMove] No hay interceptor para remover");
+            0 && console.log("[AutoMove] No hay interceptor para remover");
             return;
         }
         
-        console.log("[AutoMove] Removiendo interceptor de clics...");
+        0 && console.log("[AutoMove] Removiendo interceptor de clics...");
         gameBoard.removeEventListener('click', this.clickHandler, true);
         gameBoard.removeEventListener('mousedown', this.clickHandler, true);
         gameBoard.removeEventListener('touchstart', this.clickHandler, true);
         this.clickHandler = null;
-        console.log("[AutoMove] ✓ Interceptor removido");
+        0 && console.log("[AutoMove] ✓ Interceptor removido");
     },
     
     /**
      * Maneja clics en modo paint
      */
     handlePaintClick(event) {
-        console.log(`%c[AutoMove] 🖱️ EVENTO CAPTURADO: ${event.type}`, 'background: #2196F3; color: white; font-weight: bold; padding: 3px;');
-        console.log(`[AutoMove] isPaintModeActive: ${this.isPaintModeActive}`);
-        console.log(`[AutoMove] currentPaintingUnit: ${this.currentPaintingUnit ? this.currentPaintingUnit.name : 'null'}`);
+        0 && console.log(`%c[AutoMove] 🖱️ EVENTO CAPTURADO: ${event.type}`, 'background: #2196F3; color: white; font-weight: bold; padding: 3px;');
+        0 && console.log(`[AutoMove] isPaintModeActive: ${this.isPaintModeActive}`);
+        0 && console.log(`[AutoMove] currentPaintingUnit: ${this.currentPaintingUnit ? this.currentPaintingUnit.name : 'null'}`);
         
         if (!this.isPaintModeActive || !this.currentPaintingUnit) {
-            console.warn("[AutoMove] ⚠️ Evento capturado pero modo paint no está activo, ignorando");
+            0 && console.warn("[AutoMove] ⚠️ Evento capturado pero modo paint no está activo, ignorando");
             return;
         }
         
-        console.log("[AutoMove] ✓ Modo paint activo, procesando clic...");
+        0 && console.log("[AutoMove] ✓ Modo paint activo, procesando clic...");
         
         // Evitar que el clic llegue a otros handlers
         event.stopPropagation();
         event.stopImmediatePropagation();
         event.preventDefault();
         
-        console.log("[AutoMove] ✓ Propagación detenida");
+        0 && console.log("[AutoMove] ✓ Propagación detenida");
         
         const hex = this.getHexFromMouseEvent(event);
-        console.log(`[AutoMove] Hex detectado: ${hex ? `(${hex.r}, ${hex.c})` : 'null'}`);
+        0 && console.log(`[AutoMove] Hex detectado: ${hex ? `(${hex.r}, ${hex.c})` : 'null'}`);
         
         if (!hex) {
-            console.warn("[AutoMove] ⚠️ No se pudo determinar el hex clickeado");
+            0 && console.warn("[AutoMove] ⚠️ No se pudo determinar el hex clickeado");
             return;
         }
         
         // Resetear temporizador
         this.lastClickTime = Date.now();
         this.resetAutoConfirmTimer();
-        console.log("[AutoMove] ✓ Timer reseteado");
+        0 && console.log("[AutoMove] ✓ Timer reseteado");
         
         // Obtener el último hexágono en la ruta
         const lastHex = this.paintedPath[this.paintedPath.length - 1];
-        console.log(`[AutoMove] Último hex en ruta: (${lastHex.r}, ${lastHex.c})`);
+        0 && console.log(`[AutoMove] Último hex en ruta: (${lastHex.r}, ${lastHex.c})`);
         
         // Verificar si es el mismo hex (ignorar)
         if (hex.r === lastHex.r && hex.c === lastHex.c) {
-            console.log("[AutoMove] ℹ️ Mismo hex que el último, ignorando");
+            0 && console.log("[AutoMove] ℹ️ Mismo hex que el último, ignorando");
             return;
         }
         
         // Verificar si es un hex adyacente
         const isAdjacent = this.areHexesAdjacent(lastHex, hex);
-        console.log(`[AutoMove] ¿Es adyacente? ${isAdjacent}`);
+        0 && console.log(`[AutoMove] ¿Es adyacente? ${isAdjacent}`);
         
         if (!isAdjacent) {
             logMessage("Solo puedes seleccionar hexágonos adyacentes", "warning");
-            console.warn("[AutoMove] ❌ Hex no es adyacente");
+            0 && console.warn("[AutoMove] ❌ Hex no es adyacente");
             return;
         }
         
         // Verificar si ya está en la ruta (permitir retroceder eliminando)
         const existingIndex = this.paintedPath.findIndex(p => p.r === hex.r && p.c === hex.c);
-        console.log(`[AutoMove] ¿Ya está en ruta? ${existingIndex !== -1 ? 'Sí, índice ' + existingIndex : 'No'}`);
+        0 && console.log(`[AutoMove] ¿Ya está en ruta? ${existingIndex !== -1 ? 'Sí, índice ' + existingIndex : 'No'}`);
         
         if (existingIndex !== -1) {
             // Retroceder hasta ese punto
             this.paintedPath = this.paintedPath.slice(0, existingIndex + 1);
             this.updatePathVisuals();
-            console.log(`[AutoMove] 🔙 Ruta retrocedida hasta (${hex.r}, ${hex.c})`);
+            0 && console.log(`[AutoMove] 🔙 Ruta retrocedida hasta (${hex.r}, ${hex.c})`);
             logMessage(`Ruta retrocedida. Pasos: ${this.paintedPath.length - 1}`, "info");
             return;
         }
         
         // Validar que el movimiento es legal
         const isValid = this.isValidPathStep(this.currentPaintingUnit, lastHex, hex);
-        console.log(`[AutoMove] ¿Es válido el movimiento? ${isValid}`);
+        0 && console.log(`[AutoMove] ¿Es válido el movimiento? ${isValid}`);
         
         if (!isValid) {
             logMessage("Ese hexágono no es válido para la ruta", "warning");
-            console.warn("[AutoMove] ❌ Movimiento no válido");
+            0 && console.warn("[AutoMove] ❌ Movimiento no válido");
             return;
         }
         
         // Agregar a la ruta
         this.paintedPath.push({ r: hex.r, c: hex.c });
         this.updatePathVisuals();
-        console.log(`%c[AutoMove] ✅ PASO AGREGADO: (${hex.r}, ${hex.c}). Total: ${this.paintedPath.length} pasos`, 'background: #4CAF50; color: white; font-weight: bold; padding: 3px;');
+        0 && console.log(`%c[AutoMove] ✅ PASO AGREGADO: (${hex.r}, ${hex.c}). Total: ${this.paintedPath.length} pasos`, 'background: #4CAF50; color: white; font-weight: bold; padding: 3px;');
         logMessage(`Paso ${this.paintedPath.length - 1} agregado a la ruta`, "success");
     },
     
@@ -239,7 +239,7 @@ const AutoMoveManager = {
         // Crear nuevo temporizador
         const confirmCallback = () => {
             if (this.isPaintModeActive && this.paintedPath.length > 1) {
-                console.log("[AutoMove] ⏰ Timeout alcanzado, confirmando ruta automáticamente");
+                0 && console.log("[AutoMove] ⏰ Timeout alcanzado, confirmando ruta automáticamente");
                 this.confirmPath();
             }
         };
@@ -313,12 +313,12 @@ const AutoMoveManager = {
         
         // Agregar listeners a los botones
         document.getElementById('confirmPathBtn').addEventListener('click', () => {
-            console.log("[AutoMove] 🔘 Botón Confirmar presionado");
+            0 && console.log("[AutoMove] 🔘 Botón Confirmar presionado");
             this.confirmPath();
         });
         
         document.getElementById('cancelPathBtn').addEventListener('click', () => {
-            console.log("[AutoMove] 🔘 Botón Cancelar presionado");
+            0 && console.log("[AutoMove] 🔘 Botón Cancelar presionado");
             this.cancelPaintMode();
         });
     },
@@ -330,7 +330,7 @@ const AutoMoveManager = {
         const overlay = document.getElementById('paintModeOverlay');
         if (overlay) {
             overlay.remove();
-            console.log("[AutoMove] ✓ UI overlay removida");
+            0 && console.log("[AutoMove] ✓ UI overlay removida");
         }
     },
     
@@ -349,7 +349,7 @@ const AutoMoveManager = {
      * Cancela el modo paint sin confirmar
      */
     cancelPaintMode() {
-        console.log("[AutoMove] ❌ Modo de ruta cancelado por el usuario");
+        0 && console.log("[AutoMove] ❌ Modo de ruta cancelado por el usuario");
         logMessage("Modo de ruta automática cancelado", "info");
         this.deactivatePaintMode();
     },
@@ -365,54 +365,54 @@ const AutoMoveManager = {
             // Evento touch
             clientX = event.touches[0].clientX;
             clientY = event.touches[0].clientY;
-            console.log(`[AutoMove] Evento TOUCH detectado`);
+            0 && console.log(`[AutoMove] Evento TOUCH detectado`);
         } else if (event.clientX !== undefined && event.clientY !== undefined) {
             // Evento mouse
             clientX = event.clientX;
             clientY = event.clientY;
-            console.log(`[AutoMove] Evento MOUSE detectado`);
+            0 && console.log(`[AutoMove] Evento MOUSE detectado`);
         } else {
             console.error("[AutoMove] ❌ No se pudieron obtener coordenadas del evento");
             return null;
         }
         
-        console.log(`[AutoMove] Coordenadas del clic: clientX=${clientX}, clientY=${clientY}`);
+        0 && console.log(`[AutoMove] Coordenadas del clic: clientX=${clientX}, clientY=${clientY}`);
         
         // Usar elementFromPoint para encontrar el elemento en las coordenadas del clic
         const elementAtPoint = document.elementFromPoint(clientX, clientY);
-        console.log(`[AutoMove] Elemento en punto:`, elementAtPoint?.className || elementAtPoint?.tagName);
+        0 && console.log(`[AutoMove] Elemento en punto:`, elementAtPoint?.className || elementAtPoint?.tagName);
         
         // Buscar el hexágono en el elemento o sus ancestros
         let hexElement = elementAtPoint;
         let attempts = 0;
         while (hexElement && attempts < 10) {
-            console.log(`[AutoMove] Intento ${attempts + 1}: elemento`, hexElement.className || hexElement.tagName);
+            0 && console.log(`[AutoMove] Intento ${attempts + 1}: elemento`, hexElement.className || hexElement.tagName);
             
             // Verificar si este elemento es un hex
             if (hexElement.classList && hexElement.classList.contains('hex')) {
-                console.log(`[AutoMove] ✓ Elemento hex encontrado en intento ${attempts + 1}`);
+                0 && console.log(`[AutoMove] ✓ Elemento hex encontrado en intento ${attempts + 1}`);
                 
                 // Intentar obtener las coordenadas desde atributos data
                 const dataR = hexElement.getAttribute('data-r');
                 const dataC = hexElement.getAttribute('data-c');
                 
-                console.log(`[AutoMove] data-r="${dataR}", data-c="${dataC}"`);
+                0 && console.log(`[AutoMove] data-r="${dataR}", data-c="${dataC}"`);
                 
                 if (dataR !== null && dataC !== null) {
                     const r = parseInt(dataR);
                     const c = parseInt(dataC);
-                    console.log(`[AutoMove] ✓ Coordenadas obtenidas desde atributos: (${r}, ${c})`);
+                    0 && console.log(`[AutoMove] ✓ Coordenadas obtenidas desde atributos: (${r}, ${c})`);
                     
                     // Verificar que existan en el board
                     if (board[r] && board[r][c]) {
                         return { r, c };
                     } else {
-                        console.warn(`[AutoMove] ⚠️ Hex (${r}, ${c}) no existe en board`);
+                        0 && console.warn(`[AutoMove] ⚠️ Hex (${r}, ${c}) no existe en board`);
                     }
                 }
                 
                 // Si el hex no tiene atributos data, buscar por elemento
-                console.log(`[AutoMove] Buscando hex por elemento en board...`);
+                0 && console.log(`[AutoMove] Buscando hex por elemento en board...`);
                 return this.findHexByElement(hexElement);
             }
             
@@ -420,7 +420,7 @@ const AutoMoveManager = {
             attempts++;
         }
         
-        console.warn(`[AutoMove] ⚠️ No se encontró elemento hex en el punto del clic después de ${attempts} intentos`);
+        0 && console.warn(`[AutoMove] ⚠️ No se encontró elemento hex en el punto del clic después de ${attempts} intentos`);
         return this.findHexInBoard(clientX, clientY);
     },
     
@@ -433,13 +433,13 @@ const AutoMoveManager = {
         for (let r = 0; r < board.length; r++) {
             for (let c = 0; c < board[r].length; c++) {
                 if (board[r][c] && board[r][c].element === hexElement) {
-                    console.log(`[AutoMove] ✓ Hex encontrado por elemento: (${r}, ${c})`);
+                    0 && console.log(`[AutoMove] ✓ Hex encontrado por elemento: (${r}, ${c})`);
                     return { r, c };
                 }
             }
         }
         
-        console.warn(`[AutoMove] ⚠️ No se encontró hex por elemento en board`);
+        0 && console.warn(`[AutoMove] ⚠️ No se encontró hex por elemento en board`);
         return null;
     },
     
@@ -447,7 +447,7 @@ const AutoMoveManager = {
      * Busca un hex en el board por coordenadas de pantalla (fallback)
      */
     findHexInBoard(clientX, clientY) {
-        console.log(`[AutoMove] Usando método fallback para encontrar hex...`);
+        0 && console.log(`[AutoMove] Usando método fallback para encontrar hex...`);
         
         // Buscar todos los elementos hex y ver cuál está más cerca del clic
         let closestHex = null;
@@ -474,9 +474,9 @@ const AutoMoveManager = {
         }
         
         if (closestHex) {
-            console.log(`[AutoMove] ✓ Hex más cercano encontrado: (${closestHex.r}, ${closestHex.c}) a ${Math.round(closestDistance)}px`);
+            0 && console.log(`[AutoMove] ✓ Hex más cercano encontrado: (${closestHex.r}, ${closestHex.c}) a ${Math.round(closestDistance)}px`);
         } else {
-            console.warn(`[AutoMove] ⚠️ No se pudo encontrar ningún hex cercano`);
+            0 && console.warn(`[AutoMove] ⚠️ No se pudo encontrar ningún hex cercano`);
         }
         
         return closestHex;
@@ -497,52 +497,52 @@ const AutoMoveManager = {
      */
     isValidPathStep(unit, fromHex, toHex) {
         if (!unit || !fromHex || !toHex) {
-            console.log(`[AutoMove] Validación fallida: datos inválidos`);
+            0 && console.log(`[AutoMove] Validación fallida: datos inválidos`);
             return false;
         }
         
         const targetHexData = board[toHex.r]?.[toHex.c];
         if (!targetHexData) {
-            console.log(`[AutoMove] Validación fallida: hex no existe`);
+            0 && console.log(`[AutoMove] Validación fallida: hex no existe`);
             return false;
         }
         
-        console.log(`[AutoMove] 🔍 Validando movimiento a (${toHex.r}, ${toHex.c})`);
-        console.log(`[AutoMove] Terreno: ${targetHexData.terrain}`);
+        0 && console.log(`[AutoMove] 🔍 Validando movimiento a (${toHex.r}, ${toHex.c})`);
+        0 && console.log(`[AutoMove] Terreno: ${targetHexData.terrain}`);
         
         // Verificar que el hex sea adyacente (básico para cada paso)
         const neighbors = getHexNeighbors(fromHex.r, fromHex.c);
         const isAdjacent = neighbors.some(n => n.r === toHex.r && n.c === toHex.c);
         if (!isAdjacent) {
-            console.log(`[AutoMove] Validación fallida: no es adyacente`);
+            0 && console.log(`[AutoMove] Validación fallida: no es adyacente`);
             return false;
         }
         
         // Verificar tipo de unidad (naval vs terrestre)
         const unitRegimentData = REGIMENT_TYPES[unit.regiments[0]?.type];
         const isNaval = unitRegimentData?.is_naval || false;
-        console.log(`[AutoMove] Unidad naval: ${isNaval}`);
+        0 && console.log(`[AutoMove] Unidad naval: ${isNaval}`);
         
         // Obtener tipo de terreno
         const terrainType = TERRAIN_TYPES[targetHexData.terrain];
-        console.log(`[AutoMove] TerrainType encontrado:`, terrainType);
+        0 && console.log(`[AutoMove] TerrainType encontrado:`, terrainType);
         
         if (!terrainType) {
-            console.log(`[AutoMove] Validación fallida: tipo de terreno desconocido (${targetHexData.terrain})`);
+            0 && console.log(`[AutoMove] Validación fallida: tipo de terreno desconocido (${targetHexData.terrain})`);
             return false;
         }
         
-        console.log(`[AutoMove] isImpassableForLand: ${terrainType.isImpassableForLand}`);
-        console.log(`[AutoMove] isImpassableForNaval: ${terrainType.isImpassableForNaval}`);
+        0 && console.log(`[AutoMove] isImpassableForLand: ${terrainType.isImpassableForLand}`);
+        0 && console.log(`[AutoMove] isImpassableForNaval: ${terrainType.isImpassableForNaval}`);
         
         // Verificar si el terreno es transitable para este tipo de unidad
         if (isNaval && terrainType.isImpassableForNaval) {
-            console.log(`[AutoMove] Validación fallida: terreno intransitable para unidades navales (${targetHexData.terrain})`);
+            0 && console.log(`[AutoMove] Validación fallida: terreno intransitable para unidades navales (${targetHexData.terrain})`);
             return false;
         }
         
         if (!isNaval && terrainType.isImpassableForLand) {
-            console.log(`[AutoMove] Validación fallida: terreno intransitable para unidades terrestres (${targetHexData.terrain})`);
+            0 && console.log(`[AutoMove] Validación fallida: terreno intransitable para unidades terrestres (${targetHexData.terrain})`);
             return false;
         }
         
@@ -550,17 +550,17 @@ const AutoMoveManager = {
         // Solo rechazar si hay una unidad enemiga
         const unitOnHex = getUnitOnHex(toHex.r, toHex.c);
         if (unitOnHex && unitOnHex.player !== unit.player) {
-            console.log(`[AutoMove] Validación fallida: unidad enemiga en destino`);
+            0 && console.log(`[AutoMove] Validación fallida: unidad enemiga en destino`);
             return false;
         }
         
         // Verificar si es territorio enemigo con ciudad
         if (targetHexData.owner && targetHexData.owner !== unit.player && targetHexData.isCity) {
-            console.log(`[AutoMove] Validación fallida: ciudad enemiga`);
+            0 && console.log(`[AutoMove] Validación fallida: ciudad enemiga`);
             return false;
         }
         
-        console.log(`[AutoMove] ✓ Validación exitosa para (${toHex.r}, ${toHex.c})`);
+        0 && console.log(`[AutoMove] ✓ Validación exitosa para (${toHex.r}, ${toHex.c})`);
         return true;
     },
     
@@ -637,7 +637,7 @@ const AutoMoveManager = {
             return;
         }
         
-        console.log(`%c[AutoMove] ✅ CONFIRMANDO RUTA`, 'background: #4CAF50; color: white; font-weight: bold; padding: 5px;');
+        0 && console.log(`%c[AutoMove] ✅ CONFIRMANDO RUTA`, 'background: #4CAF50; color: white; font-weight: bold; padding: 5px;');
         
         const unit = this.currentPaintingUnit;
         
@@ -646,8 +646,8 @@ const AutoMoveManager = {
         unit.autoMoveCurrentStep = 0;
         unit.autoMoveActive = true;
         
-        console.log(`[AutoMove] Ruta guardada en unidad:`, unit.autoMovePath);
-        console.log(`[AutoMove] Total de pasos: ${unit.autoMovePath.length}`);
+        0 && console.log(`[AutoMove] Ruta guardada en unidad:`, unit.autoMovePath);
+        0 && console.log(`[AutoMove] Total de pasos: ${unit.autoMovePath.length}`);
         
         logMessage(`Ruta automática confirmada para ${unit.name} (${unit.autoMovePath.length} pasos)`, "success");
         
@@ -669,7 +669,7 @@ const AutoMoveManager = {
     showConfirmedPath(unit) {
         if (!unit || !unit.autoMovePath || unit.autoMovePath.length === 0) return;
         
-        console.log(`[AutoMove] Mostrando ruta confirmada para ${unit.name}`);
+        0 && console.log(`[AutoMove] Mostrando ruta confirmada para ${unit.name}`);
         
         // Limpiar visualización anterior
         this.clearConfirmedPathVisuals(unit);
@@ -708,7 +708,7 @@ const AutoMoveManager = {
             }
         }
         
-        console.log(`[AutoMove] ✓ Visualización de ruta confirmada completada`);
+        0 && console.log(`[AutoMove] ✓ Visualización de ruta confirmada completada`);
     },
     
     /**
@@ -731,7 +731,7 @@ const AutoMoveManager = {
     cancelAutoMove(unit) {
         if (!unit) return;
         
-        console.log(`[AutoMove] Cancelando ruta automática de ${unit.name}`);
+        0 && console.log(`[AutoMove] Cancelando ruta automática de ${unit.name}`);
         
         unit.autoMovePath = null;
         unit.autoMoveCurrentStep = 0;
@@ -740,7 +740,7 @@ const AutoMoveManager = {
         this.clearConfirmedPathVisuals(unit);
         
         logMessage(`Ruta automática cancelada para ${unit.name}`, "info");
-        console.log(`[AutoMove] ✓ Ruta cancelada`);
+        0 && console.log(`[AutoMove] ✓ Ruta cancelada`);
     },
     
     /**
@@ -751,17 +751,17 @@ const AutoMoveManager = {
             return false;
         }
         
-        console.log(`[AutoMove] ⚙️ Ejecutando paso automático para ${unit.name}`);
+        0 && console.log(`[AutoMove] ⚙️ Ejecutando paso automático para ${unit.name}`);
         
         // Verificar que es el turno del jugador
         if (unit.player !== gameState.currentPlayer) {
-            console.log(`[AutoMove] ⏸️ No es el turno del jugador ${unit.player}`);
+            0 && console.log(`[AutoMove] ⏸️ No es el turno del jugador ${unit.player}`);
             return false;
         }
         
         // Verificar que la unidad no ha actuado este turno
         if (unit.hasMoved || unit.hasAttacked) {
-            console.log(`[AutoMove] ⏸️ Unidad ${unit.id} ya ha actuado este turno`);
+            0 && console.log(`[AutoMove] ⏸️ Unidad ${unit.id} ya ha actuado este turno`);
             return false;
         }
         
@@ -769,17 +769,17 @@ const AutoMoveManager = {
         const nextStep = unit.autoMovePath[unit.autoMoveCurrentStep];
         if (!nextStep) {
             // Ruta completada
-            console.log(`[AutoMove] 🏁 Ruta completada para ${unit.name}`);
+            0 && console.log(`[AutoMove] 🏁 Ruta completada para ${unit.name}`);
             this.cancelAutoMove(unit);
             logMessage(`${unit.name} ha completado su ruta automática`, "success");
             return false;
         }
         
-        console.log(`[AutoMove] Paso ${unit.autoMoveCurrentStep + 1}/${unit.autoMovePath.length}: (${nextStep.r}, ${nextStep.c})`);
+        0 && console.log(`[AutoMove] Paso ${unit.autoMoveCurrentStep + 1}/${unit.autoMovePath.length}: (${nextStep.r}, ${nextStep.c})`);
         
         // Validar que el movimiento sigue siendo válido
         if (!this.isValidPathStep(unit, { r: unit.r, c: unit.c }, nextStep)) {
-            console.warn(`[AutoMove] ⚠️ Ruta bloqueada en paso ${unit.autoMoveCurrentStep + 1}`);
+            0 && console.warn(`[AutoMove] ⚠️ Ruta bloqueada en paso ${unit.autoMoveCurrentStep + 1}`);
             logMessage(`Ruta bloqueada para ${unit.name}. Movimiento automático cancelado.`, "warning");
             this.cancelAutoMove(unit);
             return false;
@@ -799,7 +799,7 @@ const AutoMoveManager = {
                 return false;
             }
             
-            console.log(`[AutoMove] ✅ Movimiento ejecutado exitosamente`);
+            0 && console.log(`[AutoMove] ✅ Movimiento ejecutado exitosamente`);
             
             // Avanzar al siguiente paso
             unit.autoMoveCurrentStep++;
@@ -847,7 +847,7 @@ const AutoMoveManager = {
         
         if (currentPlayerUnits.length === 0) return;
         
-        console.log(`%c[AutoMove] 🔄 Procesando ${currentPlayerUnits.length} unidades con movimiento automático`, 'background: #FF9800; color: white; font-weight: bold; padding: 5px;');
+        0 && console.log(`%c[AutoMove] 🔄 Procesando ${currentPlayerUnits.length} unidades con movimiento automático`, 'background: #FF9800; color: white; font-weight: bold; padding: 5px;');
         
         for (const unit of currentPlayerUnits) {
             const success = await this.executeAutoMoveStep(unit);
@@ -857,7 +857,7 @@ const AutoMoveManager = {
             }
         }
         
-        console.log(`[AutoMove] ✅ Procesamiento de movimientos automáticos completado`);
+        0 && console.log(`[AutoMove] ✅ Procesamiento de movimientos automáticos completado`);
     },
     
     /**
@@ -929,4 +929,4 @@ if (typeof document !== 'undefined') {
     document.head.appendChild(styleSheet);
 }
 
-console.log("autoMoveManager.js CARGADO ✅");
+0 && console.log("autoMoveManager.js CARGADO ✅");

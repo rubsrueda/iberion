@@ -4,8 +4,8 @@
  * Proporciona métodos para obtener datos y actualizar vistas
  */
 
-console.log('%c🔥🔥🔥 LEDGER MANAGER CARGADO 🔥🔥🔥', 'background: red; color: yellow; font-size: 20px; padding: 10px;');
-console.log('[ledgerManager.js] Archivo cargado en:', new Date().toISOString());
+0 && console.log('%c🔥🔥🔥 LEDGER MANAGER CARGADO 🔥🔥🔥', 'background: red; color: yellow; font-size: 20px; padding: 10px;');
+0 && console.log('[ledgerManager.js] Archivo cargado en:', new Date().toISOString());
 
 const LedgerManager = {
     isOpen: false,
@@ -15,24 +15,24 @@ const LedgerManager = {
      * Abre el cuaderno de estado
      */
     open: function() {
-        console.log('%c[LedgerManager.open] 🟢 INICIANDO APERTURA DEL CUADERNO', 'background: lime; color: black; font-size: 16px; padding: 5px;');
-        console.log('[LedgerManager.open] Estado actual isOpen:', this.isOpen);
+        0 && console.log('%c[LedgerManager.open] 🟢 INICIANDO APERTURA DEL CUADERNO', 'background: lime; color: black; font-size: 16px; padding: 5px;');
+        0 && console.log('[LedgerManager.open] Estado actual isOpen:', this.isOpen);
         this.isOpen = true;
-        console.log('[LedgerManager.open] isOpen ahora es:', this.isOpen);
+        0 && console.log('[LedgerManager.open] isOpen ahora es:', this.isOpen);
         
-        console.log('[LedgerManager.open] Buscando modal con ID "ledgerModal"...');
+        0 && console.log('[LedgerManager.open] Buscando modal con ID "ledgerModal"...');
         const modal = document.getElementById('ledgerModal');
-        console.log('[LedgerManager.open] Modal encontrado:', modal);
-        console.log('[LedgerManager.open] Modal es null?', modal === null);
+        0 && console.log('[LedgerManager.open] Modal encontrado:', modal);
+        0 && console.log('[LedgerManager.open] Modal es null?', modal === null);
         if (!modal) {
             console.error('%c[LedgerManager.open] ❌ FATAL: Modal #ledgerModal no existe en HTML', 'background: red; color: white; font-size: 16px; padding: 5px;');
             console.error('[LedgerManager.open] Verifica que index.html incluye ledgerUI.js');
             return;
         }
         
-        console.log('[LedgerManager.open] Modal encontrado. Aplicando estilos FORZADOS...');
-        console.log('[LedgerManager.open] Display ANTES:', modal.style.display);
-        console.log('[LedgerManager.open] Computed style ANTES:', window.getComputedStyle(modal).display);
+        0 && console.log('[LedgerManager.open] Modal encontrado. Aplicando estilos FORZADOS...');
+        0 && console.log('[LedgerManager.open] Display ANTES:', modal.style.display);
+        0 && console.log('[LedgerManager.open] Computed style ANTES:', window.getComputedStyle(modal).display);
         
         // MÉTODO NUCLEAR: Reescribir TODOS los estilos con !important
         // Ignoramos completamente cualquier CSS global
@@ -50,37 +50,37 @@ const LedgerManager = {
             overflow: auto !important;
         `);
         
-        console.log('%c[LedgerManager.open] ✅ ESTILOS APLICADOS', 'background: green; color: white; font-size: 14px; padding: 5px;');
-        console.log('[LedgerManager.open] Display DESPUÉS:', modal.style.display);
-        console.log('[LedgerManager.open] Position DESPUÉS:', modal.style.position);
-        console.log('[LedgerManager.open] Z-index DESPUÉS:', modal.style.zIndex);
-        console.log('[LedgerManager.open] Computed display DESPUÉS:', window.getComputedStyle(modal).display);
-        console.log('[LedgerManager.open] OffsetWidth:', modal.offsetWidth);
-        console.log('[LedgerManager.open] OffsetHeight:', modal.offsetHeight);
+        0 && console.log('%c[LedgerManager.open] ✅ ESTILOS APLICADOS', 'background: green; color: white; font-size: 14px; padding: 5px;');
+        0 && console.log('[LedgerManager.open] Display DESPUÉS:', modal.style.display);
+        0 && console.log('[LedgerManager.open] Position DESPUÉS:', modal.style.position);
+        0 && console.log('[LedgerManager.open] Z-index DESPUÉS:', modal.style.zIndex);
+        0 && console.log('[LedgerManager.open] Computed display DESPUÉS:', window.getComputedStyle(modal).display);
+        0 && console.log('[LedgerManager.open] OffsetWidth:', modal.offsetWidth);
+        0 && console.log('[LedgerManager.open] OffsetHeight:', modal.offsetHeight);
         
         // Actualizar pantallas si LedgerUI está disponible
-        console.log('[LedgerManager.open] Verificando LedgerUI...');
-        console.log('[LedgerManager.open] LedgerUI definido?', typeof LedgerUI !== 'undefined');
+        0 && console.log('[LedgerManager.open] Verificando LedgerUI...');
+        0 && console.log('[LedgerManager.open] LedgerUI definido?', typeof LedgerUI !== 'undefined');
         if (typeof LedgerUI !== 'undefined') {
-            console.log('[LedgerManager.open] ✅ LedgerUI disponible, actualizando pantallas...');
+            0 && console.log('[LedgerManager.open] ✅ LedgerUI disponible, actualizando pantallas...');
             this.updateAllDisplays();
         } else {
-            console.warn('[LedgerManager.open] ⚠️ LedgerUI no está disponible');
+            0 && console.warn('[LedgerManager.open] ⚠️ LedgerUI no está disponible');
         }
-        console.log('%c[LedgerManager.open] 🎉 APERTURA COMPLETADA', 'background: lime; color: black; font-size: 16px; padding: 5px;');
+        0 && console.log('%c[LedgerManager.open] 🎉 APERTURA COMPLETADA', 'background: lime; color: black; font-size: 16px; padding: 5px;');
     },
 
     /**
      * Cierra el cuaderno
      */
     close: function() {
-        console.log('[LedgerManager] Cerrando cuaderno de estado...');
+        0 && console.log('[LedgerManager] Cerrando cuaderno de estado...');
         this.isOpen = false;
         
         const modal = document.getElementById('ledgerModal');
         if (modal) {
             modal.setAttribute('style', 'display: none !important;');
-            console.log('[LedgerManager] ✅ Cuaderno cerrado');
+            0 && console.log('[LedgerManager] ✅ Cuaderno cerrado');
         }
     },
 

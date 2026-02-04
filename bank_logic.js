@@ -11,12 +11,12 @@ const BankManager = {
         // Si estamos en red y NO soy el anfitrión, NO CALCULO NADA. 
         // Espero a que el anfitrión me mande los resultados en el siguiente sync.
         if (typeof NetworkManager !== 'undefined' && NetworkManager.conn && NetworkManager.conn.open && !NetworkManager.esAnfitrion) {
-            console.log("[Banca] Soy Cliente: Omitiendo lógica de Banca (Espero datos del Host).");
+            0 && console.log("[Banca] Soy Cliente: Omitiendo lógica de Banca (Espero datos del Host).");
             return;
         }
         // -----------------------------------------------------
 
-        console.log("%c[Banca] Ejecutando turno de La Banca (Autoridad)...", "color: olive; font-weight: bold;");
+        0 && console.log("%c[Banca] Ejecutando turno de La Banca (Autoridad)...", "color: olive; font-weight: bold;");
 
         // PASO 1: Mover y gestionar las caravanas que ya están en el mapa.
         this.manageExistingCaravans();
@@ -24,7 +24,7 @@ const BankManager = {
         // PASO 2: Comprobar si se debe crear una nueva caravana.
         this.createNewCaravanIfNeeded();
         
-        console.log("[Banca] Turno de La Banca completado.");
+        0 && console.log("[Banca] Turno de La Banca completado.");
     },
 
     /**
@@ -36,7 +36,7 @@ const BankManager = {
         const activeCaravans = units.filter(u => u.player === this.PLAYER_ID && u.tradeRoute).length;
         
         if (activeCaravans >= maxSimultaneousCaravans) {
-            console.log(`[Banca] Límite de ${maxSimultaneousCaravans} caravanas alcanzado. No se crea nueva.`);
+            0 && console.log(`[Banca] Límite de ${maxSimultaneousCaravans} caravanas alcanzado. No se crea nueva.`);
             return;
         }
         
@@ -118,7 +118,7 @@ const BankManager = {
         const path = findInfrastructurePath(originCity, targetCity);
 
         if (!path) {
-            console.warn(`[Banca] No se encontró una ruta de infraestructura válida a ${targetCity.name}.`);
+            0 && console.warn(`[Banca] No se encontró una ruta de infraestructura válida a ${targetCity.name}.`);
             return false; // Devolver 'false' en caso de fallo
         }
 
@@ -206,7 +206,7 @@ const BankManager = {
     recomposeCaravan: function(unit) {
         if (unit.player !== this.PLAYER_ID) return;
 
-        console.log(`[Banca] Recomponiendo caravana "${unit.name}".`);
+        0 && console.log(`[Banca] Recomponiendo caravana "${unit.name}".`);
         const newComposition = this.calculateCaravanComposition();
         unit.regiments = newComposition;
         

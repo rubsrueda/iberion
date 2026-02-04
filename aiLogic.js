@@ -1,5 +1,5 @@
 // aiLogic.js (20250827 - Lógica de Despliegue y Turno Unificada)
-console.log("aiLogic.js CARGADO - Módulo de IA Estratégica v5.0 (Diseño Final)");
+0 && console.log("aiLogic.js CARGADO - Módulo de IA Estratégica v5.0 (Diseño Final)");
 
 const AiManager = {
 
@@ -38,7 +38,7 @@ const AiManager = {
             const missionList = this.generateMissionList(strategy, analysis);
             console.groupEnd();
             
-            if (missionList.length === 0) { console.warn("No se generaron misiones. Finalizando despliegue."); console.groupEnd(); return; }
+            if (missionList.length === 0) { 0 && console.warn("No se generaron misiones. Finalizando despliegue."); console.groupEnd(); return; }
 
             // 4. FASE DE DESPLIEGUE
             console.group("%c4. FASE DE DESPLIEGUE (UNIDADES)", "color: #add8e6; font-weight: bold;");
@@ -55,11 +55,11 @@ const AiManager = {
                 const placementSpot = this.findBestSpotForMission(mission, currentAvailableSpots, unitDefinition);
 
                 if (!placementSpot) {
-                    console.log(`Misión ${mission.type} en (${mission.objectiveHex.r},${mission.objectiveHex.c}) abortada: no se encontró un buen spot adyacente.`);
+                    0 && console.log(`Misión ${mission.type} en (${mission.objectiveHex.r},${mission.objectiveHex.c}) abortada: no se encontró un buen spot adyacente.`);
                     continue;
                 }
                 
-                console.log(`%c-> Decisión Final Misión #${deployedCount + 1}: Para [${mission.type} en (${mission.objectiveHex.r},${mission.objectiveHex.c})], voy a desplegar un [${unitDefinition.name}] en (${placementSpot.r},${placementSpot.c}).`, "font-weight: bold;");
+                0 && console.log(`%c-> Decisión Final Misión #${deployedCount + 1}: Para [${mission.type} en (${mission.objectiveHex.r},${mission.objectiveHex.c})], voy a desplegar un [${unitDefinition.name}] en (${placementSpot.r},${placementSpot.c}).`, "font-weight: bold;");
                 playerResources.oro -= unitDefinition.cost;
                 const newUnitData = this.createUnitObject(unitDefinition, playerNumber, placementSpot);
                 placeFinalizedDivision(newUnitData, placementSpot.r, placementSpot.c);
@@ -70,7 +70,7 @@ const AiManager = {
             console.groupEnd();
 
         } finally {
-            console.log(`%c[IA] FIN DE FASE DE DESPLIEGUE. Unidades creadas: ${gameState.unitsPlacedByPlayer?.[playerNumber] || 0}`, "background: #333; color: #ffa500;");
+            0 && console.log(`%c[IA] FIN DE FASE DE DESPLIEGUE. Unidades creadas: ${gameState.unitsPlacedByPlayer?.[playerNumber] || 0}`, "background: #333; color: #ffa500;");
             console.groupEnd();
         }
     },
@@ -98,16 +98,16 @@ const AiManager = {
     logAnalysis: function(analysis) {
         const { valuableResources, defensivePoints, humanThreats, availableSpots } = analysis;
         const terrain = (h) => TERRAIN_TYPES[h.terrain]?.name.substring(0,3) || '???';
-        console.log("-> Lista de Recursos Valiosos (Top 5):", valuableResources.slice(0, 5).map(r => `(${r.hex.r},${r.hex.c})[${terrain(r.hex)}] Prio:${r.priority.toFixed(0)}`).join('; ') || 'Ninguno');
-        console.log("-> Lista de Puntos Defensivos (Top 5):", defensivePoints.slice(0, 5).map(p => `(${p.hex.r},${p.hex.c})[${terrain(p.hex)}] Prio:${p.priority.toFixed(0)}`).join('; ') || 'Ninguno');
-        console.log("-> Lista de Amenazas Humanas:", humanThreats.length > 0 ? humanThreats.map(t => `${t.name} en (${t.r},${t.c})[${terrain(board[t.r][t.c])}]`).join('; ') : 'Ninguna');
-        console.log(`-> Puntos de Despliegue Disponibles: ${availableSpots.length} en todo el mapa.`);
+        0 && console.log("-> Lista de Recursos Valiosos (Top 5):", valuableResources.slice(0, 5).map(r => `(${r.hex.r},${r.hex.c})[${terrain(r.hex)}] Prio:${r.priority.toFixed(0)}`).join('; ') || 'Ninguno');
+        0 && console.log("-> Lista de Puntos Defensivos (Top 5):", defensivePoints.slice(0, 5).map(p => `(${p.hex.r},${p.hex.c})[${terrain(p.hex)}] Prio:${p.priority.toFixed(0)}`).join('; ') || 'Ninguno');
+        0 && console.log("-> Lista de Amenazas Humanas:", humanThreats.length > 0 ? humanThreats.map(t => `${t.name} en (${t.r},${t.c})[${terrain(board[t.r][t.c])}]`).join('; ') : 'Ninguna');
+        0 && console.log(`-> Puntos de Despliegue Disponibles: ${availableSpots.length} en todo el mapa.`);
     },
 
     determineDeploymentStrategy: function(analysis) {
         const { humanThreats, valuableResources, defensivePoints } = analysis;
         if (humanThreats.length === 0) {
-            console.log("-> Clasificación: Humano No Detectado. Estrategia: EXPANSIÓN PROACTIVA.");
+            0 && console.log("-> Clasificación: Humano No Detectado. Estrategia: EXPANSIÓN PROACTIVA.");
             return 'proactive_expansion';
         }
         
@@ -116,11 +116,11 @@ const AiManager = {
         );
 
         if (isTargetingPois) {
-            console.log("-> Clasificación: Humano busca controlar el mapa. Estrategia: COMPETIR POR EL MAPA.");
+            0 && console.log("-> Clasificación: Humano busca controlar el mapa. Estrategia: COMPETIR POR EL MAPA.");
             return 'compete_expansionist';
         }
         
-        console.log("-> Clasificación: Despliegue pasivo detectado. Estrategia: EXPANSIÓN MÁXIMA.");
+        0 && console.log("-> Clasificación: Despliegue pasivo detectado. Estrategia: EXPANSIÓN MÁXIMA.");
         return 'max_expansion';
     },
 
@@ -138,7 +138,7 @@ const AiManager = {
                 break;
         }
         
-        console.log("-> Misiones generadas:", missionList.length > 0 ? missionList.map(m => `(${m.objectiveHex.r},${m.objectiveHex.c})`).join('; ') : 'Ninguna');
+        0 && console.log("-> Misiones generadas:", missionList.length > 0 ? missionList.map(m => `(${m.objectiveHex.r},${m.objectiveHex.c})`).join('; ') : 'Ninguna');
         return missionList;
     },
 
@@ -151,7 +151,7 @@ const AiManager = {
         const isContested = enemyRegimentsNearTarget > 0;
         const objectiveTerrain = board[mission.objectiveHex.r]?.[mission.objectiveHex.c]?.terrain;
 
-        console.log(`-> Análisis Misión: Disputado=${isContested} (Amenaza de ${enemyRegimentsNearTarget} regs.), Terreno Obj.=${objectiveTerrain}`);
+        0 && console.log(`-> Análisis Misión: Disputado=${isContested} (Amenaza de ${enemyRegimentsNearTarget} regs.), Terreno Obj.=${objectiveTerrain}`);
 
         if (isContested) {
             role = 'conqueror'; name = 'Grupo de Asalto';
@@ -186,7 +186,7 @@ const AiManager = {
         const fullRegiments = compositionTypes.map(type => ({...REGIMENT_TYPES[type], type}));
         const totalCost = fullRegiments.reduce((sum, reg) => sum + (reg.cost?.oro || 0), 0);
         
-        console.log(`-> Definición: Rol=${role}, Nombre=${name}, Composición=[${compositionTypes.join(', ')}], Coste=${totalCost} oro.`);
+        0 && console.log(`-> Definición: Rol=${role}, Nombre=${name}, Composición=[${compositionTypes.join(', ')}], Coste=${totalCost} oro.`);
         return { regiments: fullRegiments, cost: totalCost, role, name };
     },
 
@@ -206,7 +206,7 @@ const AiManager = {
         }
 
         if (validAdjacentSpots.length === 0) {
-            console.warn(`-> No se encontró ningún spot de despliegue ADYACENTE y válido para la misión en (${targetHex.r},${targetHex.c}).`);
+            0 && console.warn(`-> No se encontró ningún spot de despliegue ADYACENTE y válido para la misión en (${targetHex.r},${targetHex.c}).`);
             return null; // Si no hay adyacentes, aborta esta misión por ahora
         }
 
@@ -264,7 +264,7 @@ const AiManager = {
 
     executeTurn: function(aiPlayerNumber, aiLevel) {
         try {
-            console.log(`%c[IA Turn] INICIO para Jugador IA ${aiPlayerNumber}`, "color: purple; font-weight:bold;");
+            0 && console.log(`%c[IA Turn] INICIO para Jugador IA ${aiPlayerNumber}`, "color: purple; font-weight:bold;");
             
             this.manageEmpire(aiPlayerNumber, aiLevel);
             const activeAiUnits = units.filter(u => u.player === aiPlayerNumber && u.currentHealth > 0 && u.r !== -1);
@@ -443,7 +443,7 @@ const AiManager = {
     endAiTurn: function(aiPlayerNumber) {
         if (gameState.currentPhase !== "gameOver" && gameState.currentPlayer === aiPlayerNumber) {
             if (domElements.endTurnBtn && !domElements.endTurnBtn.disabled) {
-                console.log(`%c[AI Manager] Finalizando turno para Jugador ${aiPlayerNumber}`, "color: purple;");
+                0 && console.log(`%c[AI Manager] Finalizando turno para Jugador ${aiPlayerNumber}`, "color: purple;");
                 setTimeout(() => {
                     if(domElements.endTurnBtn) domElements.endTurnBtn.click();
                 }, 250);

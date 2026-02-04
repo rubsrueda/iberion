@@ -1,5 +1,5 @@
 // domElements.js
-console.log("domElements.js: Script cargado. Variables declaradas, esperando DOMContentLoaded.");
+0 && console.log("domElements.js: Script cargado. Variables declaradas, esperando DOMContentLoaded.");
 
 // --- Declaración global explícita de domElements como 'var'. ---
 var domElements = {}; 
@@ -221,7 +221,7 @@ domElements.techTreeScreen = null;
 
 function initializeDomElements() {
     if (domElements.domElementsInitialized) return;
-    console.log("domElements.js: Inicializando referencias a elementos DOM...");
+    0 && console.log("domElements.js: Inicializando referencias a elementos DOM...");
     
     // --- Reseteo de propiedades de estado de UI (incluyendo las nuevas de zoom) ---
     domElements.isPanning = false;
@@ -345,7 +345,7 @@ function initializeDomElements() {
     domElements.divisionRegimentCount = document.getElementById('divisionRegimentCount');
     domElements.cancelUnitManagementBtn = document.getElementById('cancelUnitManagementBtn');
     domElements.finalizeUnitManagementBtn = document.getElementById('finalizeUnitManagementBtn');
-    console.log("--- LOG INIT --- domElements.js: floatingEndTurnBtn inicializado:", domElements.floatingEndTurnBtn);
+    0 && console.log("--- LOG INIT --- domElements.js: floatingEndTurnBtn inicializado:", domElements.floatingEndTurnBtn);
     domElements.floatingMenuPanel = document.getElementById('floatingMenuPanel');
     domElements.contextualInfoPanel = document.getElementById('contextualInfoPanel');
     domElements.closeContextualPanelBtn = document.getElementById('closeContextualPanelBtn');
@@ -454,7 +454,7 @@ function initializeDomElements() {
     domElements.techTreeScreen = document.getElementById('techTreeScreen');
     if (!domElements.welcomeHelpModalEl) console.error("DOM CRIT: welcomeHelpModalEl NO ENCONTRADO");
     if (!domElements.closeTechTreeBtn) console.error("DOM CRIT: closeTechTreeBtn NO ENCONTRADO. Verifica index.html.");
-    else console.log("DOM OK: closeTechTreeBtn encontrado.");
+    else 0 && console.log("DOM OK: closeTechTreeBtn encontrado.");
 
     if (!domElements.welcomeHelpTitleEl) console.error("DOM CRIT: welcomeHelpTitleEl NO ENCONTRADO");
     if (!domElements.welcomeHelpSectionsEl) console.error("DOM CRIT: welcomeHelpSectionsEl NO ENCONTRADO");
@@ -470,13 +470,13 @@ function initializeDomElements() {
     if (!domElements.gameContainer) console.error("DOM CRIT: gameContainer (clase '.game-container') NO ENCONTRADO. ¿El juego táctico está en el HTML?");
     //if (!domElements.startCampaignBtnEl) console.error("DOM CRIT: startCampaignBtnEl NO ENCONTRADO");
     //if (!domElements.startSkirmishBtnEl) console.error("DOM CRIT: startSkirmishBtnEl (ID: 'startSkirmishBtn') NO ENCONTRADO. Verifica index.html."); 
-    //else console.log("DOM OK: startSkirmishBtnEl encontrado.");
+    //else 0 && console.log("DOM OK: startSkirmishBtnEl encontrado.");
 
     //if (!domElements.startTutorialBtn) console.error("DOM CRIT: startTutorialBtn NO ENCONTRADO"); 
     
     domElements.domElementsInitialized = true;
-    console.log("domElements.js: Referencias a elementos DOM completamente inicializadas.");
-     console.log("domElements object:", domElements);
+    0 && console.log("domElements.js: Referencias a elementos DOM completamente inicializadas.");
+     0 && console.log("domElements object:", domElements);
 }
 
 document.addEventListener('DOMContentLoaded', initializeDomElements);

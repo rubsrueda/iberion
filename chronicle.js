@@ -27,7 +27,7 @@ const Chronicle = {
                 logToConsole(message, 'chronicle');
             }
             // También lo mandamos a la consola del navegador para un registro persistente.
-            console.log(`[CRÓNICA] ${message}`);
+            0 && console.log(`[CRÓNICA] ${message}`);
         }
     },
 

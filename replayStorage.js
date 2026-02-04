@@ -70,7 +70,7 @@ const ReplayStorage = {
         // Generar share_token si no existe
         if (!replayData.share_token) {
             replayData.share_token = `replay_${replayData.match_id}_${crypto.getRandomValues(new Uint8Array(8)).join('')}`;
-            console.log('[ReplayStorage] Share token generado:', replayData.share_token);
+            0 && console.log('[ReplayStorage] Share token generado:', replayData.share_token);
         }
 
         // Guardar localmente como fallback (siempre)
@@ -82,15 +82,15 @@ const ReplayStorage = {
                 savedAt: new Date().toISOString()
             });
             localStorage.setItem('localReplays', JSON.stringify(localReplays));
-            console.log('[ReplayStorage] ✅ Replay guardado localmente como fallback');
-            console.log('[ReplayStorage] Share token disponible:', replayData.share_token);
+            0 && console.log('[ReplayStorage] ✅ Replay guardado localmente como fallback');
+            0 && console.log('[ReplayStorage] Share token disponible:', replayData.share_token);
         } catch (err) {
-            console.warn('[ReplayStorage] Error al guardar localmente:', err);
+            0 && console.warn('[ReplayStorage] Error al guardar localmente:', err);
         }
 
         // Si no está autenticado, no guardar en BD pero devolver true (tiene fallback local)
         if (!PlayerDataManager.currentPlayer || !PlayerDataManager.currentPlayer.auth_id) {
-            console.warn('[ReplayStorage] No autenticado. Replay disponible solo en localStorage');
+            0 && console.warn('[ReplayStorage] No autenticado. Replay disponible solo en localStorage');
             return true; // Devolver true porque está guardado localmente
         }
 
@@ -98,7 +98,7 @@ const ReplayStorage = {
             // Comprimir datos antes de guardar
             let compressedTimeline = this.compressTimeline(replayData.timeline);
             
-            console.log(`[ReplayStorage] Tamaño del timeline comprimido: ${this._getByteLength(compressedTimeline)} bytes`);
+            0 && console.log(`[ReplayStorage] Tamaño del timeline comprimido: ${this._getByteLength(compressedTimeline)} bytes`);
             
             // Metadata ya viene como string desde replayEngine.js
             let finalMetadata = replayData.metadata;
@@ -111,7 +111,7 @@ const ReplayStorage = {
                 finalMetadata = JSON.stringify({ t: Date.now() });
             }
             
-            console.log(`[ReplayStorage] Tamaño de metadata: ${finalMetadata.length} bytes`);
+            0 && console.log(`[ReplayStorage] Tamaño de metadata: ${finalMetadata.length} bytes`);
             
             // Validar tamaños antes de insertar
             if (this._getByteLength(compressedTimeline) > 250) {
@@ -129,7 +129,7 @@ const ReplayStorage = {
                 timeline_compressed: this._getByteLength(compressedTimeline),
                 created_at: this._getByteLength(createdAt)
             };
-            console.log('[ReplayStorage] Tamaños (bytes):', fieldSizes);
+            0 && console.log('[ReplayStorage] Tamaños (bytes):', fieldSizes);
 
             if (fieldSizes.user_id > 250) {
                 console.error('[ReplayStorage] user_id demasiado largo. Requiere ajuste de esquema o auth_id válido.');
@@ -177,7 +177,7 @@ const ReplayStorage = {
                             created_at: this._getByteLength(ultraPayload.created_at)
                         });
                     } else {
-                        console.log('[ReplayStorage] ✅ Replay guardado con payload ultra-minimalista');
+                        0 && console.log('[ReplayStorage] ✅ Replay guardado con payload ultra-minimalista');
                         return true;
                     }
                 }
@@ -185,7 +185,7 @@ const ReplayStorage = {
             }
 
             // ⭐ VERIFICACIÓN CRÍTICA: Confirmar que el dato se guardó realmente
-            console.log('[ReplayStorage] Verificando que el replay se guardó correctamente...');
+            0 && console.log('[ReplayStorage] Verificando que el replay se guardó correctamente...');
             const { data: verifyData, error: verifyError } = await supabaseClient
                 .from('game_replays')
                 .select('match_id, created_at')
@@ -194,23 +194,23 @@ const ReplayStorage = {
 
             if (verifyError) {
                 console.error('[ReplayStorage] ⚠️ ADVERTENCIA: Replay no encontrado en verificación:', verifyError);
-                console.warn('[ReplayStorage] INSERT puede haber fallado silenciosamente');
+                0 && console.warn('[ReplayStorage] INSERT puede haber fallado silenciosamente');
                 return false;
             }
 
             if (verifyData) {
-                console.log(`[ReplayStorage] ✅ VERIFICADO: Replay ${safeMatchId} existe en Supabase`);
-                console.log(`[ReplayStorage] Record encontrado:`, verifyData);
+                0 && console.log(`[ReplayStorage] ✅ VERIFICADO: Replay ${safeMatchId} existe en Supabase`);
+                0 && console.log(`[ReplayStorage] Record encontrado:`, verifyData);
                 return true;
             }
 
-            console.log(`[ReplayStorage] ✅ Replay ${safeMatchId} guardado exitosamente en Supabase`);
-            console.log(`[ReplayStorage] Payload enviado:`, payload);
+            0 && console.log(`[ReplayStorage] ✅ Replay ${safeMatchId} guardado exitosamente en Supabase`);
+            0 && console.log(`[ReplayStorage] Payload enviado:`, payload);
             return true;
 
         } catch (err) {
             console.error('[ReplayStorage] Excepción:', err);
-            console.warn('[ReplayStorage] Pero el replay está guardado localmente, así que devolvemos true');
+            0 && console.warn('[ReplayStorage] Pero el replay está guardado localmente, así que devolvemos true');
             return true; // Devolver true porque está en localStorage
         }
     },
@@ -228,7 +228,7 @@ const ReplayStorage = {
                 .single();
 
             if (data) {
-                console.log('[ReplayStorage] Replay cargado desde Supabase');
+                0 && console.log('[ReplayStorage] Replay cargado desde Supabase');
                 // Descomprimir timeline
                 const timeline = this.decompressTimeline(data.timeline_compressed);
                 return {
@@ -239,12 +239,12 @@ const ReplayStorage = {
             }
 
             // 2. Si no está en BD, buscar en localStorage
-            console.log('[ReplayStorage] Replay no encontrado en BD, buscando en localStorage...');
+            0 && console.log('[ReplayStorage] Replay no encontrado en BD, buscando en localStorage...');
             const localReplays = JSON.parse(localStorage.getItem('localReplays') || '[]');
             const localReplay = localReplays.find(r => r.match_id === replayId);
             
             if (localReplay) {
-                console.log('[ReplayStorage] Replay cargado desde localStorage');
+                0 && console.log('[ReplayStorage] Replay cargado desde localStorage');
                 return localReplay;
             }
 
@@ -259,7 +259,7 @@ const ReplayStorage = {
                 const localReplays = JSON.parse(localStorage.getItem('localReplays') || '[]');
                 const localReplay = localReplays.find(r => r.match_id === replayId);
                 if (localReplay) {
-                    console.log('[ReplayStorage] Fallback: Replay cargado desde localStorage');
+                    0 && console.log('[ReplayStorage] Fallback: Replay cargado desde localStorage');
                     return localReplay;
                 }
             } catch (err2) {
@@ -280,11 +280,11 @@ const ReplayStorage = {
         try {
             const localReplays = JSON.parse(localStorage.getItem('localReplays') || '[]');
             if (localReplays.length > 0) {
-                console.log('[ReplayStorage] Cargados', localReplays.length, 'replays desde localStorage');
+                0 && console.log('[ReplayStorage] Cargados', localReplays.length, 'replays desde localStorage');
                 allReplays = allReplays.concat(localReplays);
             }
         } catch (err) {
-            console.warn('[ReplayStorage] Error cargando replays locales:', err);
+            0 && console.warn('[ReplayStorage] Error cargando replays locales:', err);
         }
 
         // 2. Cargar desde Supabase si estamos autenticados
@@ -299,14 +299,14 @@ const ReplayStorage = {
                 if (error) {
                     console.error('[ReplayStorage] Error obteniendo replays de BD:', error);
                 } else if (data && data.length > 0) {
-                    console.log('[ReplayStorage] Cargados', data.length, 'replays desde Supabase');
+                    0 && console.log('[ReplayStorage] Cargados', data.length, 'replays desde Supabase');
                     allReplays = allReplays.concat(data);
                 }
             } catch (err) {
                 console.error('[ReplayStorage] Excepción obteniendo replays:', err);
             }
         } else {
-            console.log('[ReplayStorage] No autenticado, usando solo replays locales');
+            0 && console.log('[ReplayStorage] No autenticado, usando solo replays locales');
         }
 
         return allReplays || [];

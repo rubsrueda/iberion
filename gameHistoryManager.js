@@ -13,10 +13,10 @@ const GameHistoryManager = {
      * Carga el historial de partidas del jugador
      */
     async loadHistory() {
-        console.log('[GameHistoryManager] Cargando historial...');
+        0 && console.log('[GameHistoryManager] Cargando historial...');
 
         if (!PlayerDataManager.currentPlayer || !PlayerDataManager.currentPlayer.auth_id) {
-            console.warn('[GameHistoryManager] No autenticado');
+            0 && console.warn('[GameHistoryManager] No autenticado');
             return [];
         }
 
@@ -46,7 +46,7 @@ const GameHistoryManager = {
                 };
             });
 
-            console.log(`[GameHistoryManager] Cargadas ${this.games.length} partidas`);
+            0 && console.log(`[GameHistoryManager] Cargadas ${this.games.length} partidas`);
             return this.games;
 
         } catch (err) {
@@ -59,7 +59,7 @@ const GameHistoryManager = {
      * Abre el modal de historial
      */
     open: async function() {
-        console.log('[GameHistoryManager] Abriendo historial...');
+        0 && console.log('[GameHistoryManager] Abriendo historial...');
         
         this.isOpen = true;
         
@@ -98,7 +98,7 @@ const GameHistoryManager = {
         const game = this.getGameDetails(gameIndex);
         if (!game) return;
 
-        console.log('[GameHistoryManager] Abriendo crónica para:', game.matchId);
+        0 && console.log('[GameHistoryManager] Abriendo crónica para:', game.matchId);
 
         if (typeof ChronicleIntegration !== 'undefined') {
             await ChronicleIntegration.openReplay(game.matchId);
@@ -127,7 +127,7 @@ const GameHistoryManager = {
         const game = this.getGameDetails(gameIndex);
         if (!game) return;
 
-        console.log('[GameHistoryManager] Compartiendo replay:', game.matchId);
+        0 && console.log('[GameHistoryManager] Compartiendo replay:', game.matchId);
         
         // Generar token de compartición
         if (typeof ReplayStorage !== 'undefined') {
@@ -137,7 +137,7 @@ const GameHistoryManager = {
                 const pathName = window.location.pathname.split('/').filter(p => p).slice(0, -1).join('/');
                 const normalizedPath = pathName ? `/${pathName}` : '';
                 const shareUrl = `${baseUrl}${normalizedPath}/?replay=${token}`;
-                console.log('[GameHistoryManager] Enlace de compartición:', shareUrl);
+                0 && console.log('[GameHistoryManager] Enlace de compartición:', shareUrl);
                 return shareUrl;
             }
         }
@@ -152,7 +152,7 @@ const GameHistoryManager = {
 
         if (!confirm(`¿Eliminar partida del ${game.date}?`)) return false;
 
-        console.log('[GameHistoryManager] Eliminando partida:', game.matchId);
+        0 && console.log('[GameHistoryManager] Eliminando partida:', game.matchId);
 
         try {
             if (typeof ReplayStorage !== 'undefined') {

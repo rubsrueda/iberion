@@ -31,7 +31,7 @@ const ReplayRenderer = {
         this.unitsOnMap = {};
         this.eventsToAnimate = [];
 
-        console.log(`[ReplayRenderer] Inicializado para replay de ${replayData.timeline.length} turnos`);
+        0 && console.log(`[ReplayRenderer] Inicializado para replay de ${replayData.timeline.length} turnos`);
         
         // Dibujar estado inicial
         this.drawFrame();
@@ -142,7 +142,7 @@ const ReplayRenderer = {
         const turnData = this.replayData.timeline[this.currentTurn];
         if (!turnData) return;
 
-        console.log(`[ReplayRenderer] Reproduciendo turno ${turnData.turn}`);
+        0 && console.log(`[ReplayRenderer] Reproduciendo turno ${turnData.turn}`);
 
         // Procesar cada evento del turno
         for (const event of turnData.events) {
@@ -362,7 +362,7 @@ const ReplayRenderer = {
             this.animationFrameId = setTimeout(() => this.playLoop(), baseDelay);
         } else {
             this.isPlaying = false;
-            console.log('[ReplayRenderer] Replay finalizado');
+            0 && console.log('[ReplayRenderer] Replay finalizado');
         }
     },
 

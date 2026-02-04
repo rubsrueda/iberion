@@ -29,9 +29,9 @@ const PlayerDataManager = {
             redirectUrl = window.location.origin + '/iberion/';
         }
         
-        console.log('🔐 Iniciando login con Google...');
-        console.log('📍 Hostname:', window.location.hostname);
-        console.log('📍 Redirect URL configurada:', redirectUrl);
+        0 && console.log('🔐 Iniciando login con Google...');
+        0 && console.log('📍 Hostname:', window.location.hostname);
+        0 && console.log('📍 Redirect URL configurada:', redirectUrl);
 
         const { data, error } = await supabaseClient.auth.signInWithOAuth({
             provider: 'google',
@@ -45,14 +45,14 @@ const PlayerDataManager = {
             console.error('❌ Error OAuth:', error);
             logMessage("Error al conectar con Google: " + error.message, "error");
         } else {
-            console.log('✅ Redirigiendo a Google para autenticación...');
+            0 && console.log('✅ Redirigiendo a Google para autenticación...');
         }
     },
 
     // respuesta de Google y manejo de OAuth callback
     initAuthListener: function() {
         if (this.authInitialized) {
-            console.log('⚠️  Auth listener ya inicializado, ignorando...');
+            0 && console.log('⚠️  Auth listener ya inicializado, ignorando...');
             return;
         }
         this.authInitialized = true;
@@ -62,7 +62,7 @@ const PlayerDataManager = {
         const accessToken = hashParams.get('access_token');
         
         if (accessToken) {
-            console.log('🔑 Token OAuth detectado en URL, procesando callback...');
+            0 && console.log('🔑 Token OAuth detectado en URL, procesando callback...');
             window.oauthCallbackDetected = true; // Flag global para main.js
             // Limpiar el hash de la URL después de procesar
             setTimeout(() => {
@@ -71,11 +71,11 @@ const PlayerDataManager = {
         }
         
         supabaseClient.auth.onAuthStateChange(async (event, session) => {
-            console.log("🔔 Evento Supabase:", event, "| Processing:", this.isProcessingAuth);
+            0 && console.log("🔔 Evento Supabase:", event, "| Processing:", this.isProcessingAuth);
 
             // Manejar cierre de sesión
             if (event === 'SIGNED_OUT') {
-                console.log('🚪 Usuario desconectado');
+                0 && console.log('🚪 Usuario desconectado');
                 this.currentPlayer = null;
                 this.isProcessingAuth = false;
                 window.oauthCallbackDetected = false;
@@ -89,12 +89,12 @@ const PlayerDataManager = {
             if (session && session.user && !this.isProcessingAuth) {
                 this.isProcessingAuth = true;
                 const userId = session.user.id;
-                console.log('👤 Usuario autenticado:', session.user.email);
+                0 && console.log('👤 Usuario autenticado:', session.user.email);
 
                 // 🛡️ ESCUDO: Si ya tenemos el jugador cargado y es el mismo ID,
                 // NO descargues nada de la nube. Deja que el flujo local mande.
                 if (this.currentPlayer && this.currentPlayer.auth_id === userId) {
-                    console.log("⚡ Usuario ya cargado en memoria, usando datos locales.");
+                    0 && console.log("⚡ Usuario ya cargado en memoria, usando datos locales.");
                     this.isProcessingAuth = false;
                     if (typeof showMainMenu === 'function') {
                         showMainMenu();
@@ -103,7 +103,7 @@ const PlayerDataManager = {
                 }
 
                 // Solo entramos aquí si es la PRIMERA vez que carga o si no hay datos en memoria
-                console.log("Carga inicial o cambio de usuario. Buscando perfil...");
+                0 && console.log("Carga inicial o cambio de usuario. Buscando perfil...");
                 const { data: profile } = await supabaseClient
                     .from('profiles')
                     .select('profile_data')
@@ -113,7 +113,7 @@ const PlayerDataManager = {
                 if (profile && profile.profile_data) {
                     this.currentPlayer = profile.profile_data;
                     this.currentPlayer.auth_id = userId;
-                    console.log("✅ Perfil recuperado de la nube correctamente.");
+                    0 && console.log("✅ Perfil recuperado de la nube correctamente.");
                     
                     // Verificar recompensas pendientes de raids
                     if (typeof RaidManager !== 'undefined' && RaidManager.checkPendingRewards) {
@@ -124,15 +124,15 @@ const PlayerDataManager = {
                         }, 2000); // Esperar 2s para que todo se cargue
                     }
                 } else {
-                    console.log("Creando nuevo perfil de General...");
+                    0 && console.log("Creando nuevo perfil de General...");
                     const username = session.user.email.split('@')[0];
                     this.currentPlayer = this.createNewPlayer(username, "google-auth");
                     this.currentPlayer.auth_id = userId;
                     await this.saveCurrentPlayer();
-                    console.log("✅ Nuevo perfil creado en la nube.");
+                    0 && console.log("✅ Nuevo perfil creado en la nube.");
                 }
 
-                console.log('✅ Autenticación completada, cerrando login y mostrando menú...');
+                0 && console.log('✅ Autenticación completada, cerrando login y mostrando menú...');
                 
                 // Ocultar pantalla de login si está visible
                 if (typeof domElements !== 'undefined' && domElements.loginScreen) {
@@ -150,7 +150,7 @@ const PlayerDataManager = {
                 // Si hay un replay pendiente para ver (compartido por otro jugador)
                 const pendingReplayToken = sessionStorage.getItem('pendingReplayToken');
                 if (pendingReplayToken) {
-                    console.log('[PlayerDataManager] Procesando deep link para replay:', pendingReplayToken);
+                    0 && console.log('[PlayerDataManager] Procesando deep link para replay:', pendingReplayToken);
                     sessionStorage.removeItem('pendingReplayToken');
                     
                     // Esperar un poco para que el menú esté listo
@@ -160,7 +160,7 @@ const PlayerDataManager = {
                             if (typeof ReplayStorage !== 'undefined' && ReplayStorage.loadSharedReplay) {
                                 const replayData = await ReplayStorage.loadSharedReplay(pendingReplayToken);
                                 if (replayData) {
-                                    console.log('[PlayerDataManager] Replay cargado exitosamente:', replayData.match_id);
+                                    0 && console.log('[PlayerDataManager] Replay cargado exitosamente:', replayData.match_id);
                                     // Abrir el visor de replay
                                     if (typeof ReplayUI !== 'undefined' && ReplayUI.openReplayModal) {
                                         ReplayUI.openReplayModal(replayData, null);
@@ -181,7 +181,7 @@ const PlayerDataManager = {
                 }
             } else if (!session && event === 'INITIAL_SESSION') {
                 // No hay sesión inicial
-                console.log('⚠️  No hay sesión guardada');
+                0 && console.log('⚠️  No hay sesión guardada');
                 this.isProcessingAuth = false;
             }
         });
@@ -255,7 +255,7 @@ const PlayerDataManager = {
         await supabaseClient.auth.signOut();
         this.currentPlayer = null;
         localStorage.removeItem('lastUser');
-        console.log("Sesión cerrada.");
+        0 && console.log("Sesión cerrada.");
     },
 
     createNewPlayer: function(username, password) {
@@ -322,7 +322,7 @@ const PlayerDataManager = {
         
         // Si el jugador no tiene al héroe en absoluto (ni siquiera como "fantasma")
         if (!heroInstance) {
-            console.log(`Creando nueva entrada "fantasma" para ${heroId}`);
+            0 && console.log(`Creando nueva entrada "fantasma" para ${heroId}`);
             heroInstance = {
                 id: heroId,
                 level: 0,
@@ -484,7 +484,7 @@ const PlayerDataManager = {
     saveCurrentPlayer: async function() {
         // Validación de seguridad
         if (!this.currentPlayer || !this.currentPlayer.auth_id) {
-            console.warn("[Save] No hay jugador activo o ID para guardar.");
+            0 && console.warn("[Save] No hay jugador activo o ID para guardar.");
             return;
         }
 
@@ -493,7 +493,7 @@ const PlayerDataManager = {
             const uid = p.auth_id;
 
             // DIAGNÓSTICO
-            console.log(`[Cloud Save] Guardando ID: ${uid} | Alianza: ${p.alliance_id}`);
+            0 && console.log(`[Cloud Save] Guardando ID: ${uid} | Alianza: ${p.alliance_id}`);
 
             // Preparamos el paquete forzando tipos y columnas externas
             const cleanPayload = {
@@ -555,7 +555,7 @@ const PlayerDataManager = {
                 console.error("Detalle:", error.details, error.message);
                 logMessage("Error de sincronización con la nube.", "error");
             } else {
-                console.log(`✅ Perfil guardado. Alianza vinculada: ${cleanPayload.alliance_id}`);
+                0 && console.log(`✅ Perfil guardado. Alianza vinculada: ${cleanPayload.alliance_id}`);
             }
 
         } catch (err) {
@@ -600,7 +600,7 @@ const PlayerDataManager = {
      */
     syncMatchResult: async function(xpGained, matchData) {
         if (!this.currentPlayer) {
-            console.warn('[syncMatchResult] No hay currentPlayer, retornando valores por defecto');
+            0 && console.warn('[syncMatchResult] No hay currentPlayer, retornando valores por defecto');
             return { level: 1, xp: 0, xpNext: 1000 };
         }
 
@@ -853,7 +853,7 @@ const PlayerDataManager = {
 
         // 6. Se omite el modal de resultados para evitar pantallas redundantes.
         
-        console.log("Progreso de carrera aplicado con éxito.");
+        0 && console.log("Progreso de carrera aplicado con éxito.");
     },
 
     analyzeMatchEmotion: function() {
@@ -922,7 +922,7 @@ const PlayerDataManager = {
     debugAddGold: async function(amount = 1000) {
         if (!this.currentPlayer) {
             console.error("%c[Debug] No hay jugador activo", 'background: #ff0000; color: #fff; font-weight: bold;');
-            console.log("Inicia sesión primero");
+            0 && console.log("Inicia sesión primero");
             return;
         }
 
@@ -930,15 +930,15 @@ const PlayerDataManager = {
         this.currentPlayer.currencies.gold += amount;
         const after = this.currentPlayer.currencies.gold;
 
-        console.log("%c=== AGREGAR ORO (DEBUG) ===", 'background: #ffcc00; color: #000; font-weight: bold; padding: 10px;');
-        console.log("Jugador:", this.currentPlayer.username);
-        console.log("Oro antes:", before.toLocaleString());
-        console.log("Cantidad agregada:", amount.toLocaleString());
-        console.log("Oro después:", after.toLocaleString());
+        0 && console.log("%c=== AGREGAR ORO (DEBUG) ===", 'background: #ffcc00; color: #000; font-weight: bold; padding: 10px;');
+        0 && console.log("Jugador:", this.currentPlayer.username);
+        0 && console.log("Oro antes:", before.toLocaleString());
+        0 && console.log("Cantidad agregada:", amount.toLocaleString());
+        0 && console.log("Oro después:", after.toLocaleString());
 
         // Guardar en la BD
         await this.saveCurrentPlayer();
-        console.log("%c✅ Oro actualizado y guardado", 'background: #00ff00; color: #000; font-weight: bold;');
+        0 && console.log("%c✅ Oro actualizado y guardado", 'background: #00ff00; color: #000; font-weight: bold;');
 
         // Actualizar UI si está visible
         if (typeof UIManager !== 'undefined' && UIManager.updateResourceDisplays) {
@@ -962,14 +962,14 @@ const PlayerDataManager = {
         this.currentPlayer.currencies.gems += amount;
         const after = this.currentPlayer.currencies.gems;
 
-        console.log("%c=== AGREGAR GEMAS (DEBUG) ===", 'background: #9966ff; color: #fff; font-weight: bold; padding: 10px;');
-        console.log("Jugador:", this.currentPlayer.username);
-        console.log("Gemas antes:", before);
-        console.log("Cantidad agregada:", amount);
-        console.log("Gemas después:", after);
+        0 && console.log("%c=== AGREGAR GEMAS (DEBUG) ===", 'background: #9966ff; color: #fff; font-weight: bold; padding: 10px;');
+        0 && console.log("Jugador:", this.currentPlayer.username);
+        0 && console.log("Gemas antes:", before);
+        0 && console.log("Cantidad agregada:", amount);
+        0 && console.log("Gemas después:", after);
 
         await this.saveCurrentPlayer();
-        console.log("%c✅ Gemas actualizadas y guardadas", 'background: #00ff00; color: #000; font-weight: bold;');
+        0 && console.log("%c✅ Gemas actualizadas y guardadas", 'background: #00ff00; color: #000; font-weight: bold;');
 
         if (typeof UIManager !== 'undefined' && UIManager.updateResourceDisplays) {
             UIManager.updateResourceDisplays();
@@ -988,7 +988,7 @@ const PlayerDataManager = {
             return;
         }
 
-        console.log("%c=== AGREGAR TODAS LAS MONEDAS (DEBUG) ===", 'background: #00ccff; color: #000; font-weight: bold; padding: 10px;');
+        0 && console.log("%c=== AGREGAR TODAS LAS MONEDAS (DEBUG) ===", 'background: #00ccff; color: #000; font-weight: bold; padding: 10px;');
         
         const before = { ...this.currentPlayer.currencies };
         
@@ -1000,7 +1000,7 @@ const PlayerDataManager = {
 
         const after = this.currentPlayer.currencies;
 
-        console.log("Jugador:", this.currentPlayer.username);
+        0 && console.log("Jugador:", this.currentPlayer.username);
         console.table({
             "Oro": { antes: before.gold, agregado: 10000 * multiplier, después: after.gold },
             "Gemas": { antes: before.gems, agregado: 500 * multiplier, después: after.gems },
@@ -1010,7 +1010,7 @@ const PlayerDataManager = {
         });
 
         await this.saveCurrentPlayer();
-        console.log("%c✅ Todas las monedas actualizadas y guardadas", 'background: #00ff00; color: #000; font-weight: bold;');
+        0 && console.log("%c✅ Todas las monedas actualizadas y guardadas", 'background: #00ff00; color: #000; font-weight: bold;');
 
         if (typeof UIManager !== 'undefined' && UIManager.updateResourceDisplays) {
             UIManager.updateResourceDisplays();
@@ -1028,10 +1028,10 @@ const PlayerDataManager = {
             return;
         }
 
-        console.log("%c=== MONEDAS DEL JUGADOR ===", 'background: #0066ff; color: #fff; font-weight: bold; padding: 10px;');
-        console.log("Jugador:", this.currentPlayer.username);
-        console.log("ID:", this.currentPlayer.auth_id);
-        console.log("\nMonedas actuales:");
+        0 && console.log("%c=== MONEDAS DEL JUGADOR ===", 'background: #0066ff; color: #fff; font-weight: bold; padding: 10px;');
+        0 && console.log("Jugador:", this.currentPlayer.username);
+        0 && console.log("ID:", this.currentPlayer.auth_id);
+        0 && console.log("\nMonedas actuales:");
         console.table(this.currentPlayer.currencies);
 
         return this.currentPlayer.currencies;

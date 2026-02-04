@@ -95,7 +95,7 @@ const CoordValidator = {
                     boardDimensions: board ? `${board.length}x${board[0]?.length || 0}` : 'undefined'
                 });
             } else {
-                console.warn(warnMsg);
+                0 && console.warn(warnMsg);
             }
         }
         
@@ -237,7 +237,7 @@ const CoordValidator = {
      */
     logDebugInfo(r, c) {
         const info = this.getDebugInfo(r, c);
-        console.log('[CoordValidator] Debug Info:', info);
+        0 && console.log('[CoordValidator] Debug Info:', info);
         return info;
     },
     
@@ -303,5 +303,5 @@ if (typeof Logger !== 'undefined') {
     Logger.info('CoordValidator', 'Sistema de validación de coordenadas inicializado');
     Logger.debug('CoordValidator', 'Comandos disponibles en window.coordDebug');
 } else {
-    console.log('[CoordValidator] Sistema inicializado. Comandos en window.coordDebug');
+    0 && console.log('[CoordValidator] Sistema inicializado. Comandos en window.coordDebug');
 }

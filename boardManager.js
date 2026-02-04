@@ -9,7 +9,7 @@ const PAN_MOVE_THRESHOLD = 5;
 // --- INICIALIZACIÓN PARA PARTIDAS DE ESCARAMUZA ---
 function initializeNewGameBoardDOMAndData(selectedResourceLevel = 'min', selectedBoardSize = 'small', isNavalMap = false, gameMode = 'development') {
 
-console.log(`boardManager.js: initializeNewGameBoardDOMAndData ha sido llamada. Naval: ${isNavalMap}, Modo: ${gameMode}`);
+0 && console.log(`boardManager.js: initializeNewGameBoardDOMAndData ha sido llamada. Naval: ${isNavalMap}, Modo: ${gameMode}`);
 
 const boardDimensions = BOARD_SIZES[selectedBoardSize] || BOARD_SIZES['small'];
 const B_ROWS = boardDimensions.rows;
@@ -65,7 +65,7 @@ if (gameState) {
 if (!isNavalMap) {
     if (isInvasionMode) {
         // MODO INVASIÓN: Distribución Asimétrica
-        console.log('[INVASION] Creando distribución asimétrica de territorio...');
+        0 && console.log('[INVASION] Creando distribución asimétrica de territorio...');
         
         // Jugador 1: Ciudad base en esquina (punto de invasión - rol de atacante)
         const attackerBaseR = 1;
@@ -167,7 +167,7 @@ if (typeof Chronicle !== 'undefined') {
     });
 }
 
-console.log("boardManager.js: initializeNewGameBoardDOMAndData completada.");
+0 && console.log("boardManager.js: initializeNewGameBoardDOMAndData completada.");
 }
 
 /**
@@ -177,7 +177,7 @@ console.log("boardManager.js: initializeNewGameBoardDOMAndData completada.");
  * @param {string} resourceLevel - Nivel de recursos ('min', 'med', 'max').
 */
 function generateProceduralMap(B_ROWS, B_COLS, resourceLevel, isNavalMap = false, gameMode = 'development') {
-    console.log(`Iniciando generación procedural de mapa... Naval: ${isNavalMap}`);
+    0 && console.log(`Iniciando generación procedural de mapa... Naval: ${isNavalMap}`);
     const totalHexes = B_ROWS * B_COLS;
 
     // --- GENERACIÓN DE MAPA NAVAL ---
@@ -255,7 +255,7 @@ function generateProceduralMap(B_ROWS, B_COLS, resourceLevel, isNavalMap = false
 
     // 2. Si encontramos un destino, "excavamos" una línea recta hacia él.
     if (targetLand) {
-        console.log(`[MapGen] Abriendo ruta comercial forzada hacia (${targetLand.r}, ${targetLand.c})`);
+        0 && console.log(`[MapGen] Abriendo ruta comercial forzada hacia (${targetLand.r}, ${targetLand.c})`);
         
         let crawlerR = bankCityR;
         let crawlerC = bankCityC;
@@ -297,7 +297,7 @@ function generateProceduralMap(B_ROWS, B_COLS, resourceLevel, isNavalMap = false
         }
     } else {
         // Fallback extremo: Si todo el mapa es agua/bosque, limpiar un radio de 2 alrededor.
-        console.log("[MapGen] Fallback: Limpiando área perimetral.");
+        0 && console.log("[MapGen] Fallback: Limpiando área perimetral.");
         const neighbors = getHexNeighbors(bankCityR, bankCityC);
         for (const n of neighbors) {
             if(board[n.r]?.[n.c]) board[n.r][n.c].terrain = 'plains';
@@ -308,7 +308,7 @@ function generateProceduralMap(B_ROWS, B_COLS, resourceLevel, isNavalMap = false
     // --- 2. Colocar Recursos ---
     placeResourcesOnGeneratedMap(B_ROWS, B_COLS, resourceLevel);
 
-    console.log("Generación procedural de mapa completada.");
+    0 && console.log("Generación procedural de mapa completada.");
 }
 
 /**
@@ -316,7 +316,7 @@ function generateProceduralMap(B_ROWS, B_COLS, resourceLevel, isNavalMap = false
  * 70-80% del mapa es agua, con dos islas/archipiélagos que pueden estar conectados opcionalmente.
  */
 function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel, gameMode = 'development') {
-    console.log("Generando mapa naval de archipiélagos...");
+    0 && console.log("Generando mapa naval de archipiélagos...");
     const totalHexes = B_ROWS * B_COLS;
     const isInvasionMode = gameMode === 'invasion';
     
@@ -349,7 +349,7 @@ function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel, gameMode = '
     
     // 5. OPCIONALMENTE CONECTAR CON FRANJA DE TIERRA (50% de probabilidad)
     if (Math.random() < 0.5) {
-        console.log("Conectando archipiélagos con franja de tierra...");
+        0 && console.log("Conectando archipiélagos con franja de tierra...");
         createLandBridge(arch1CenterR, arch1CenterC, arch2CenterR, arch2CenterC, B_ROWS, B_COLS);
     }
     
@@ -436,7 +436,7 @@ function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel, gameMode = '
     // 9. COLOCAR RECURSOS
     placeResourcesOnGeneratedMap(B_ROWS, B_COLS, resourceLevel);
     
-    console.log("Generación de mapa naval completada.");
+    0 && console.log("Generación de mapa naval completada.");
 }
 
 /**
@@ -549,7 +549,7 @@ function addTerrainVarietyToLand(maxR, maxC) {
  * @param {number} targetAmount - El número de hexágonos a convertir.
 */
 function generateContiguousTerrain(rows, cols, terrainType, targetAmount) {
-console.log(`Generando río (${terrainType}) - Objetivo: ${targetAmount} hexágonos`);
+0 && console.log(`Generando río (${terrainType}) - Objetivo: ${targetAmount} hexágonos`);
 let placedCount = 0;
 const placedHexes = new Set(); // Para rastrear hexágonos ya convertidos a este terreno
 
@@ -565,7 +565,7 @@ startR = Math.floor(Math.random() * rows);
 startC = Math.random() < 0.5 ? 0 : cols - 1;
 safetyAttempts++;
 }
-    if (safetyAttempts === 100) console.warn(`No se pudo encontrar un inicio para el río lejos de capitales.`);
+    if (safetyAttempts === 100) 0 && console.warn(`No se pudo encontrar un inicio para el río lejos de capitales.`);
      
 let currentR = startR;
 let currentC = startC;
@@ -576,7 +576,7 @@ let pathLength = Math.floor(targetAmount * 1.5); // Intentar un camino un poco m
 
 // Determinar la dirección general de movimiento (alejarse del borde de inicio)
 const biasDirection = startC === 0 ? 'right' : (startC === cols - 1 ? 'left' : (startR === 0 ? 'down' : 'up'));
-    console.log(`[River Gen] Iniciando en (${startR}, ${startC}), bias: ${biasDirection}`);
+    0 && console.log(`[River Gen] Iniciando en (${startR}, ${startC}), bias: ${biasDirection}`);
 
 
 // Bucle principal del caminante
@@ -598,7 +598,7 @@ const hexKey = `${currentR},${currentC}`;
  } else if (currentHex?.isCapital) {
       // Si el caminante intenta pasar sobre una capital, se salta este hex y se intenta mover desde aquí
       // sin convertirlo a agua.
-      console.log(`[River Gen] Caminante intentó pasar sobre capital en (${currentR}, ${currentC}). Saltando conversión.`);
+      0 && console.log(`[River Gen] Caminante intentó pasar sobre capital en (${currentR}, ${currentC}). Saltando conversión.`);
       // No hacemos 'continue' aquí, simplemente no lo convertimos. El caminante intenta moverse desde aquí.
  }
 
@@ -622,7 +622,7 @@ const hexKey = `${currentR},${currentC}`;
 
  // Si no hay vecinos válidos a los que moverse (ej: golpeó el borde del mapa o quedó rodeado)
  if (moveOptions.length === 0) {
-      console.log(`[River Gen] Caminante atascado en (${currentR}, ${currentC}). No hay vecinos válidos.`);
+      0 && console.log(`[River Gen] Caminante atascado en (${currentR}, ${currentC}). No hay vecinos válidos.`);
       // Opcional: intentar un salto aleatorio a otro lugar si se atasca.
       // Por ahora, simplemente romper el bucle.
       break;
@@ -662,12 +662,12 @@ const hexKey = `${currentR},${currentC}`;
  // if (Math.random() < 0.02) { // 2% chance to jump
  //      currentR = Math.floor(Math.random() * rows);
  //      currentC = Math.floor(Math.random() * cols);
- //      console.log(`[River Gen] Caminante saltó a (${currentR}, ${currentC})`);
+ //      0 && console.log(`[River Gen] Caminante saltó a (${currentR}, ${currentC})`);
  // }
 
 } // Fin del bucle for (pathLength)
 
-    console.log(`Finalizada generación de ${terrainType}. Colocados: ${placedCount} hexágonos.`);
+    0 && console.log(`Finalizada generación de ${terrainType}. Colocados: ${placedCount} hexágonos.`);
 }
 
 /**
@@ -919,7 +919,7 @@ let _boundMouseDown, _boundMouseWheel, _boundTouchStart, _boundTouchMove, _bound
  * Esta versión NO clona el tablero, preservando los listeners de los hexágonos.
 */
 function removeBoardPanningListeners() {
-console.log("%c[PANNING CLEANUP] Eliminando listeners de paneo específicos...", "color: orange;");
+0 && console.log("%c[PANNING CLEANUP] Eliminando listeners de paneo específicos...", "color: orange;");
 const gameBoard = document.getElementById('gameBoard');
 if (!gameBoard) return;
 
@@ -1128,12 +1128,12 @@ lastTouchY_pan_bm = null;
 };
 gameBoard.addEventListener('touchend', _boundTouchEnd);
 
-console.log("BoardManager: Panning and Zoom listeners (versión específica) inicializados.");
+0 && console.log("BoardManager: Panning and Zoom listeners (versión específica) inicializados.");
 applyTransform();
 }
 
 function createHexDOMElementWithListener(r, c) {
-//    console.log(`[BoardManager] Creando listener para hex (${r},${c})`);
+//    0 && console.log(`[BoardManager] Creando listener para hex (${r},${c})`);
 const hexEl = document.createElement('div');
 hexEl.classList.add('hex');
 hexEl.dataset.r = r;
@@ -1145,7 +1145,7 @@ hexEl.style.left = `${xPos}px`;
 hexEl.style.top = `${yPos}px`;
 
 hexEl.addEventListener('click', (event) => { 
-    console.log(`[HEX CLICK LISTENER] Clic detectado en listener directo para (${r},${c})`); 
+    0 && console.log(`[HEX CLICK LISTENER] Clic detectado en listener directo para (${r},${c})`); 
     // No detener propagación aquí si la unidad tiene pointer-events: none,
     // onHexClick debe decidir qué hacer.
     event.stopPropagation();
@@ -1156,7 +1156,7 @@ return hexEl;
 
 // --- FUNCIÓN PARA INICIALIZAR TABLERO PARA ESCENARIOS DE CAMPAÑA ---
 async function initializeGameBoardForScenario(mapTacticalData, scenarioData) {
-console.log("boardManager.js: initializeGameBoardForScenario ha sido llamada.");
+0 && console.log("boardManager.js: initializeGameBoardForScenario ha sido llamada.");
 
 // Reseteo de variables de paneo globales
 if (typeof domElements !== 'undefined' && domElements.currentBoardTranslateX !== 'undefined') domElements.currentBoardTranslateX = 0; // Usar domElements
@@ -1239,7 +1239,7 @@ mapTacticalData.resourceNodes?.forEach(node => {
     if (hexForResource && hexForResource.terrain !== 'water') {
         addResourceNodeToBoardData(node.r, node.c, node.type);
     } else {
-        console.warn(`[ScenarioMap] Recurso '${node.type}' definido en (${node.r},${node.c}) pero el hexágono es agua. No se colocará.`);
+        0 && console.warn(`[ScenarioMap] Recurso '${node.type}' definido en (${node.r},${node.c}) pero el hexágono es agua. No se colocará.`);
     }
 });
 
@@ -1258,7 +1258,7 @@ initializeTerritoryData();
 renderFullBoardVisualState();
 if (typeof updateFogOfWar === "function") updateFogOfWar();
 initializeBoardPanning(); 
-console.log("boardManager.js: initializeGameBoardForScenario completada.");
+0 && console.log("boardManager.js: initializeGameBoardForScenario completada.");
 }
 
 // --- FUNCIONES HELPER PARA LA INICIALIZACIÓN DE ESCENARIOS ---
@@ -1320,7 +1320,7 @@ unitData.element = unitElement;
 const targetHexData = board[unitData.r]?.[unitData.c];
 if (targetHexData) {
     if (targetHexData.unit) {
-        console.warn(`Conflicto al colocar unidad: ${unitData.name} en (${unitData.r},${unitData.c}). Ya hay una unidad: ${targetHexData.unit.name}. La nueva unidad no se colocará.`);
+        0 && console.warn(`Conflicto al colocar unidad: ${unitData.name} en (${unitData.r},${unitData.c}). Ya hay una unidad: ${targetHexData.unit.name}. La nueva unidad no se colocará.`);
         unitElement.remove(); 
         return;
     }
@@ -1400,7 +1400,7 @@ resourceTypesArray.forEach(type => {
         attempts++;
     }
     if (countPlaced < cantidadPorTipo) {
-        console.warn(`No se pudieron colocar todas las instancias de ${type}. Colocadas: ${countPlaced}/${cantidadPorTipo}`);
+        0 && console.warn(`No se pudieron colocar todas las instancias de ${type}. Colocadas: ${countPlaced}/${cantidadPorTipo}`);
     }
 });
 logMessage(`Generación de recursos completada.`);
@@ -1460,7 +1460,7 @@ function addCityToBoardData(r, c, owner, name, isCapitalInitial = false) {
         if (typeof renderSingleHexVisuals === 'function') renderSingleHexVisuals(r, c);
 
     } else {
-        console.warn(`Intento de añadir ciudad en hexágono inválido: (${r},${c})`);
+        0 && console.warn(`Intento de añadir ciudad en hexágono inválido: (${r},${c})`);
     }
 }
 
@@ -1468,7 +1468,7 @@ function addResourceNodeToBoardData(r, c, type) {
 if (board[r]?.[c] && RESOURCE_NODES_DATA[type]) {
 board[r][c].resourceNode = type;
 } else {
-         console.warn(`Intento de añadir nodo de recurso inválido: (${r},${c}) tipo ${type}`);
+         0 && console.warn(`Intento de añadir nodo de recurso inválido: (${r},${c}) tipo ${type}`);
 }
 }
 
@@ -1488,8 +1488,8 @@ units.forEach(unit => {
     if (unit.element && !unit.element.parentElement && domElements.gameBoard) { // Usar domElements.gameBoard
         domElements.gameBoard.appendChild(unit.element); // Usar domElements.gameBoard
     }
-    if (typeof positionUnitElement === "function") positionUnitElement(unit); else console.warn("positionUnitElement no definida");
-    if (typeof UIManager !== 'undefined' && UIManager.updateUnitStrengthDisplay) UIManager.updateUnitStrengthDisplay(unit); else console.warn("updateUnitStrengthDisplay no definida");
+    if (typeof positionUnitElement === "function") positionUnitElement(unit); else 0 && console.warn("positionUnitElement no definida");
+    if (typeof UIManager !== 'undefined' && UIManager.updateUnitStrengthDisplay) UIManager.updateUnitStrengthDisplay(unit); else 0 && console.warn("updateUnitStrengthDisplay no definida");
 });
 }
 
@@ -1559,7 +1559,7 @@ function renderSingleHexVisuals(r, c) {
  * @param {number} pathWidth - El grosor del camino a crear (ej: 1 para un camino simple).
 */
 function ensurePathBetweenPoints(startCoords, endCoords, pathWidth = 1) {
-    console.log(`Asegurando un camino entre (${startCoords.r},${startCoords.c}) y (${endCoords.r},${endCoords.c})`);
+    0 && console.log(`Asegurando un camino entre (${startCoords.r},${startCoords.c}) y (${endCoords.r},${endCoords.c})`);
 
 // Usamos A* para encontrar el camino más corto posible, ignorando el tipo de terreno temporalmente.
 let queue = [{ r: startCoords.r, c: startCoords.c, path: [] }];
@@ -1586,7 +1586,7 @@ if (current.r === endCoords.r && current.c === endCoords.c) {
 }
 
 if (pathToCarve) {
-        console.log(`Camino encontrado. Tallando ${pathToCarve.length} hexágonos.`);
+        0 && console.log(`Camino encontrado. Tallando ${pathToCarve.length} hexágonos.`);
 // "Tallar" el camino y sus alrededores para darle anchura.
 pathToCarve.forEach(hexCoords => {
 // Obtener el hexágono principal y sus vecinos para crear un camino más ancho.
@@ -1602,12 +1602,12 @@ hexesToClear.forEach(h => {
      });
  });
 } else {
-console.warn("No se pudo encontrar una ruta para tallar el corredor estratégico.");
+0 && console.warn("No se pudo encontrar una ruta para tallar el corredor estratégico.");
 }
 }
 
 function initializeTerritoryData() {
-console.log("Inicializando Nacionalidad y Estabilidad de todo el territorio...");
+0 && console.log("Inicializando Nacionalidad y Estabilidad de todo el territorio...");
 if (!board || board.length === 0) return;
 
 for (let r = 0; r < board.length; r++) {
@@ -1621,14 +1621,14 @@ for (let r = 0; r < board.length; r++) {
         }
     }
 }
-console.log("Inicialización de territorio completada.");
+0 && console.log("Inicialización de territorio completada.");
 }
 
 /**
  * (NUEVO) Inicializa el tablero para la modalidad de juego "Iberia Magna".
 */
 function initializeIberiaMagnaMap() {
-console.log("boardManager.js: Inicializando el mapa de Iberia Magna.");
+0 && console.log("boardManager.js: Inicializando el mapa de Iberia Magna.");
 
 const mapData = GAME_DATA_REGISTRY.maps['IBERIA_MAGNA'];
 const B_ROWS = mapData.rows;
@@ -1687,7 +1687,7 @@ let ruinsPlaced = 0;
 let attempts = 0;
 const maxAttempts = numberOfRuins * 20; // Para evitar bucles infinitos en mapas pequeños
     
-    console.log(`[Mapa] Intentando generar ${numberOfRuins} ruinas iniciales...`);
+    0 && console.log(`[Mapa] Intentando generar ${numberOfRuins} ruinas iniciales...`);
 
 // Recopilamos todas las casillas candidatas primero
 const candidateHexes = [];
@@ -1727,7 +1727,7 @@ hex.feature = 'ruins';
 ruinsPlaced++;
 }
 
-    console.log(`[Mapa] ${ruinsPlaced} ruinas generadas en el mapa.`);
+    0 && console.log(`[Mapa] ${ruinsPlaced} ruinas generadas en el mapa.`);
 }
 
 /**
@@ -1745,7 +1745,7 @@ function generateBarbarianCities(rows, cols, density) {
     else if (density === 'med') numCities = 4;
     else if (density === 'high') numCities = 6;
 
-    console.log(`[Mapa] Generando ${numCities} Ciudades Bárbaras (J9)...`);
+    0 && console.log(`[Mapa] Generando ${numCities} Ciudades Bárbaras (J9)...`);
     let placed = 0;
     let attempts = 0;
 
@@ -1807,7 +1807,7 @@ function generateBarbarianCities(rows, cols, density) {
                 }
 
                 placed++;
-                console.log(`Ciudad Bárbara fundada en (${r},${c}): ${structureType}`);
+                0 && console.log(`Ciudad Bárbara fundada en (${r},${c}): ${structureType}`);
             }
         }
     }
@@ -1904,10 +1904,10 @@ function initializeRaidMap(stageConfig, stageData) {
     const myUid = PlayerDataManager.currentPlayer?.auth_id;
     const mySlotIdx = (stageData.slots || []).indexOf(myUid); 
     
-    console.log("[Raid Map] ===== ASIGNACIÓN DE SLOT =====");
-    console.log("[Raid Map] Mi UID:", myUid);
-    console.log("[Raid Map] Slots disponibles:", stageData.slots);
-    console.log("[Raid Map] Mi slot index:", mySlotIdx);
+    0 && console.log("[Raid Map] ===== ASIGNACIÓN DE SLOT =====");
+    0 && console.log("[Raid Map] Mi UID:", myUid);
+    0 && console.log("[Raid Map] Slots disponibles:", stageData.slots);
+    0 && console.log("[Raid Map] Mi slot index:", mySlotIdx);
     
     if (mySlotIdx === -1) {
         console.error("%c[Raid Map] ERROR: El jugador NO tiene slot asignado!", 'background: #ff0000; color: #fff; font-weight: bold; padding: 5px;');
@@ -1916,8 +1916,8 @@ function initializeRaidMap(stageConfig, stageData) {
             {r: 1, c: 2}, {r: 1, c: 6}, {r: 1, c: 10}, {r: 1, c: 14},
             {r: 10, c: 2}, {r: 10, c: 6}, {r: 10, c: 10}, {r: 10, c: 14}
         ];
-        console.log(`%c[Raid Map] Jugador asignado al SLOT ${mySlotIdx}`, 'background: #00ff00; color: #000; font-weight: bold; padding: 5px;');
-        console.log(`[Raid Map] Fortaleza en: (${fortressPositions[mySlotIdx].r}, ${fortressPositions[mySlotIdx].c})`);
+        0 && console.log(`%c[Raid Map] Jugador asignado al SLOT ${mySlotIdx}`, 'background: #00ff00; color: #000; font-weight: bold; padding: 5px;');
+        0 && console.log(`[Raid Map] Fortaleza en: (${fortressPositions[mySlotIdx].r}, ${fortressPositions[mySlotIdx].c})`);
     }
 
     // 2. PINTADO DEL MAPA
@@ -1951,7 +1951,7 @@ function initializeRaidMap(stageConfig, stageData) {
                     // Es MI fortaleza
                     owner = 1;
                     cityName = "Tu Base";
-                    console.log("[Raid Map] Creando MI fortaleza en", {r, c, portIndex, mySlotIdx});
+                    0 && console.log("[Raid Map] Creando MI fortaleza en", {r, c, portIndex, mySlotIdx});
                     // Centrar cámara en mi base
                     if(typeof centerMapOn === 'function') setTimeout(()=>centerMapOn(r,c), 100);
                 } else if (slotOwnerUid && slotOwnerUid !== null) {
@@ -1960,12 +1960,12 @@ function initializeRaidMap(stageConfig, stageData) {
                     // Buscar el nombre del jugador en stageData.units
                     const allyUnit = stageData.units?.[slotOwnerUid];
                     cityName = allyUnit?.player_name || `Aliado ${portIndex+1}`;
-                    console.log("[Raid Map] Fortaleza de aliado en", {r, c, portIndex, owner: slotOwnerUid, name: cityName});
+                    0 && console.log("[Raid Map] Fortaleza de aliado en", {r, c, portIndex, owner: slotOwnerUid, name: cityName});
                 } else {
                     // Slot vacío - fortaleza neutral/disponible
                     owner = null; // NULL para que no aparezca ningún owner
                     cityName = `Slot ${portIndex+1} (Libre)`;
-                    console.log("[Raid Map] Fortaleza disponible en", {r, c, portIndex});
+                    0 && console.log("[Raid Map] Fortaleza disponible en", {r, c, portIndex});
                 }
             }
             
@@ -1976,7 +1976,7 @@ function initializeRaidMap(stageConfig, stageData) {
                 struct = 'Fortaleza'; // SÍ tienen estructura de fortaleza
                 owner = 2; // IA - para marcar que son del "enemigo"
                 cityName = (c===0) ? "Punto de Salida" : "Objetivo Final";
-                console.log("[Raid Map] Base IA creada en", {r, c, name: cityName});
+                0 && console.log("[Raid Map] Base IA creada en", {r, c, name: cityName});
             }
 
             // CRÍTICO: Inicializar board[r][c] ANTES de llamar a addCityToBoardData
@@ -2003,7 +2003,7 @@ function initializeRaidMap(stageConfig, stageData) {
                 });
                 // IMPORTANTE: Para que el botón funcione, la celda debe ser ciudad
                 board[r][c].isCity = true;
-                console.log("[Raid Map] Agregada MI fortaleza a gameState.cities:", {r, c, name: cityName});
+                0 && console.log("[Raid Map] Agregada MI fortaleza a gameState.cities:", {r, c, name: cityName});
             }
 
             renderSingleHexVisuals(r, c);
@@ -2011,13 +2011,13 @@ function initializeRaidMap(stageConfig, stageData) {
     }
 
     // 3. COLOCAR AL JEFE (Lectura Real)
-    console.log("[Raid Map] ===== INICIANDO COLOCACIÓN DE CARAVANA =====");
-    console.log("[Raid Map] stageData completo:", JSON.stringify(stageData, null, 2));
-    console.log("[Raid Map] stageConfig:", stageConfig);
+    0 && console.log("[Raid Map] ===== INICIANDO COLOCACIÓN DE CARAVANA =====");
+    0 && console.log("[Raid Map] stageData completo:", JSON.stringify(stageData, null, 2));
+    0 && console.log("[Raid Map] stageConfig:", stageConfig);
     
     // CORRECCIÓN: Si caravan_pos.c es 0, forzar a 1
     if (stageData.caravan_pos && stageData.caravan_pos.c === 0) {
-        console.warn("[Raid Map] Detectada posición incorrecta de caravana (c=0), corrigiendo a c=1");
+        0 && console.warn("[Raid Map] Detectada posición incorrecta de caravana (c=0), corrigiendo a c=1");
         stageData.caravan_pos.c = 1;
     }
     
@@ -2037,20 +2037,20 @@ function initializeRaidMap(stageConfig, stageData) {
             console.error("[Raid Map] Esto indica que stageData no fue actualizado correctamente en la transición");
             
             // Forzar regeneración de regimientos correctos
-            console.warn("[Raid Map] Regenerando regimientos según la configuración de la etapa actual...");
+            0 && console.warn("[Raid Map] Regenerando regimientos según la configuración de la etapa actual...");
             bossRegiments = null; // Forzar regeneración en el siguiente bloque
         }
     }
     
     // Si no hay regimientos, generarlos ahora basado en la configuración
     if (!bossRegiments || bossRegiments.length === 0) {
-        console.warn("[Raid Map] No hay regimientos del boss. Generando desde config...");
+        0 && console.warn("[Raid Map] No hay regimientos del boss. Generando desde config...");
         const regimentType = stageConfig.regimentType || "Barco de Guerra";
         const regimentCount = stageConfig.regimentCount || 30;
         
         if (!REGIMENT_TYPES[regimentType]) {
             console.error("[Raid Map] Tipo de regimiento no encontrado:", regimentType);
-            console.log("[Raid Map] REGIMENT_TYPES disponibles:", Object.keys(REGIMENT_TYPES));
+            0 && console.log("[Raid Map] REGIMENT_TYPES disponibles:", Object.keys(REGIMENT_TYPES));
         }
         
         const baseUnitStats = REGIMENT_TYPES[regimentType] || REGIMENT_TYPES["Infantería Pesada"];
@@ -2067,33 +2067,33 @@ function initializeRaidMap(stageConfig, stageData) {
         // Actualizar stageData para que persista
         stageData.boss_regiments = bossRegiments;
         
-        console.log("[Raid Map] Regimientos generados:", bossRegiments.length, "x", regimentType);
+        0 && console.log("[Raid Map] Regimientos generados:", bossRegiments.length, "x", regimentType);
     }
     
     if (bossRegiments && bossRegiments.length > 0) {
         const firstType = bossRegiments[0].type;
         const regDef = REGIMENT_TYPES[firstType];
         
-        console.log("%c[Raid Map] CREANDO BOSS DE LA CARAVANA", 'background: #00ff00; color: #000; font-weight: bold; padding: 5px;');
-        console.log("[Raid Map] Tipo de regimiento:", firstType);
-        console.log("[Raid Map] Definición:", regDef);
-        console.log("[Raid Map] Etapa actual:", RaidManager?.currentRaid?.current_stage || 'N/A');
-        console.log("[Raid Map] Nombre de etapa:", stageConfig.name);
-        console.log("[Raid Map] Tipo de etapa:", stageConfig.type);
+        0 && console.log("%c[Raid Map] CREANDO BOSS DE LA CARAVANA", 'background: #00ff00; color: #000; font-weight: bold; padding: 5px;');
+        0 && console.log("[Raid Map] Tipo de regimiento:", firstType);
+        0 && console.log("[Raid Map] Definición:", regDef);
+        0 && console.log("[Raid Map] Etapa actual:", RaidManager?.currentRaid?.current_stage || 'N/A');
+        0 && console.log("[Raid Map] Nombre de etapa:", stageConfig.name);
+        0 && console.log("[Raid Map] Tipo de etapa:", stageConfig.type);
         
         // Determinar sprite según tipo de etapa
         let bossSprite = 'images/sprites/onlycaraban128.png'; // Default
         if (regDef && regDef.sprite) {
             bossSprite = regDef.sprite;
-            console.log("[Raid Map] → Usando sprite del tipo de regimiento:", bossSprite);
+            0 && console.log("[Raid Map] → Usando sprite del tipo de regimiento:", bossSprite);
         } else if (stageConfig.type === 'naval') {
             bossSprite = 'images/sprites/barco256.png';
-            console.log("[Raid Map] → Usando sprite naval por defecto:", bossSprite);
+            0 && console.log("[Raid Map] → Usando sprite naval por defecto:", bossSprite);
         } else {
-            console.log("[Raid Map] → Usando sprite de caravana por defecto:", bossSprite);
+            0 && console.log("[Raid Map] → Usando sprite de caravana por defecto:", bossSprite);
         }
         
-        console.log("%c[Raid Map] SPRITE FINAL:", 'background: #ffff00; color: #000; font-weight: bold; padding: 5px;', bossSprite);
+        0 && console.log("%c[Raid Map] SPRITE FINAL:", 'background: #ffff00; color: #000; font-weight: bold; padding: 5px;', bossSprite);
         
         const bossUnit = {
             id: 'boss_caravan',
@@ -2108,7 +2108,7 @@ function initializeRaidMap(stageConfig, stageData) {
             regiments: bossRegiments // Array real de 30, 40 o 50
         };
         
-        console.log("[Raid Map] Creando unidad boss:", {
+        0 && console.log("[Raid Map] Creando unidad boss:", {
             name: bossUnit.name,
             regimentCount: bossUnit.regiments.length,
             position: {r: bossUnit.r, c: bossUnit.c},
@@ -2118,49 +2118,49 @@ function initializeRaidMap(stageConfig, stageData) {
         // Calcular stats y vida actuales
         if (typeof calculateRegimentStats === 'function') {
             calculateRegimentStats(bossUnit);
-            console.log("[Raid Map] Stats calculados por calculateRegimentStats");
+            0 && console.log("[Raid Map] Stats calculados por calculateRegimentStats");
         } else {
-            console.warn("[Raid Map] calculateRegimentStats no disponible, calculando manualmente");
+            0 && console.warn("[Raid Map] calculateRegimentStats no disponible, calculando manualmente");
         }
         
         bossUnit.maxHealth = bossUnit.regiments.reduce((sum, r) => sum + (r.maxHealth || r.health), 0);
         
-        console.log("%c[Raid Map] === ASIGNACIÓN DE HP DEL BOSS ===", 'background: #0066ff; color: #fff; font-weight: bold;');
-        console.log("[Raid Map] HP máximo calculado desde regimientos:", bossUnit.maxHealth);
-        console.log("[Raid Map] HP actual desde stageData.caravan_hp:", stageData.caravan_hp);
-        console.log("[Raid Map] HP máximo desde stageData.caravan_max_hp:", stageData.caravan_max_hp);
+        0 && console.log("%c[Raid Map] === ASIGNACIÓN DE HP DEL BOSS ===", 'background: #0066ff; color: #fff; font-weight: bold;');
+        0 && console.log("[Raid Map] HP máximo calculado desde regimientos:", bossUnit.maxHealth);
+        0 && console.log("[Raid Map] HP actual desde stageData.caravan_hp:", stageData.caravan_hp);
+        0 && console.log("[Raid Map] HP máximo desde stageData.caravan_max_hp:", stageData.caravan_max_hp);
         
         bossUnit.currentHealth = stageData.caravan_hp || bossUnit.maxHealth;
         
         // Asegurar que el HP actual no exceda el máximo
         if (bossUnit.currentHealth > bossUnit.maxHealth) {
-            console.warn("%c[Raid Map] ⚠️ HP actual excede el máximo, corrigiendo...", 'background: #ff6600; color: #fff;');
+            0 && console.warn("%c[Raid Map] ⚠️ HP actual excede el máximo, corrigiendo...", 'background: #ff6600; color: #fff;');
             bossUnit.currentHealth = bossUnit.maxHealth;
         }
         
         // VALIDACIÓN CRÍTICA: Detectar herencia de daño de fase anterior
         if (stageData.caravan_hp && stageData.caravan_max_hp) {
             const hpPercentage = (stageData.caravan_hp / stageData.caravan_max_hp) * 100;
-            console.log("[Raid Map] Porcentaje de HP:", hpPercentage.toFixed(1) + "%");
+            0 && console.log("[Raid Map] Porcentaje de HP:", hpPercentage.toFixed(1) + "%");
             
             if (hpPercentage < 100) {
-                console.warn(
+                0 && console.warn(
                     "%c[Raid Map] ⚠️ ADVERTENCIA: La caravana ya tiene daño!",
                     'background: #ff0000; color: #fff; font-weight: bold; padding: 5px;'
                 );
-                console.warn("[Raid Map] Esto puede indicar herencia de daño de la fase anterior");
-                console.warn("[Raid Map] HP actual:", stageData.caravan_hp);
-                console.warn("[Raid Map] HP máximo:", stageData.caravan_max_hp);
-                console.warn("[Raid Map] HP faltante:", stageData.caravan_max_hp - stageData.caravan_hp);
+                0 && console.warn("[Raid Map] Esto puede indicar herencia de daño de la fase anterior");
+                0 && console.warn("[Raid Map] HP actual:", stageData.caravan_hp);
+                0 && console.warn("[Raid Map] HP máximo:", stageData.caravan_max_hp);
+                0 && console.warn("[Raid Map] HP faltante:", stageData.caravan_max_hp - stageData.caravan_hp);
             } else {
-                console.log("%c[Raid Map] ✅ La caravana tiene HP completo", 'background: #00ff00; color: #000;');
+                0 && console.log("%c[Raid Map] ✅ La caravana tiene HP completo", 'background: #00ff00; color: #000;');
             }
         }
 
-        console.log("[Raid Map] HP FINAL asignado al boss:", bossUnit.currentHealth, "/", bossUnit.maxHealth);
+        0 && console.log("[Raid Map] HP FINAL asignado al boss:", bossUnit.currentHealth, "/", bossUnit.maxHealth);
 
         placeBossUnitDirectly(bossUnit);
-        console.log("[Raid Map] Boss colocado exitosamente. Total de unidades:", units.length);
+        0 && console.log("[Raid Map] Boss colocado exitosamente. Total de unidades:", units.length);
     } else {
         console.error("[Raid Map] ERROR CRÍTICO: No se pudieron generar regimientos para el boss");
         alert("Error al cargar la Caravana. Por favor, recarga la página.");
@@ -2193,12 +2193,12 @@ function initializeRaidMap(stageConfig, stageData) {
     if (typeof UIManager !== 'undefined') UIManager.updateAllUIDisplays();
     if (typeof initializeBoardPanning === 'function') initializeBoardPanning();
     
-    console.log("[Raid Map] Mapa de Raid inicializado completamente");
+    0 && console.log("[Raid Map] Mapa de Raid inicializado completamente");
 }
 
 // Función para actualizar la posición de la caravana en el mapa sin reiniciar todo
 function updateCaravanPosition(newR, newC) {
-    console.log("[Raid] Actualizando posición de caravana a:", {r: newR, c: newC});
+    0 && console.log("[Raid] Actualizando posición de caravana a:", {r: newR, c: newC});
     
     // Buscar la unidad boss en el array
     const bossUnit = getUnitById('boss_caravan') || units.find(u => u.isBoss);
@@ -2233,7 +2233,7 @@ function updateCaravanPosition(newR, newC) {
         bossUnit.element.style.left = `${xPos}px`;
         bossUnit.element.style.top = `${yPos}px`;
         
-        console.log("[Raid] Posición visual actualizada a:", {xPos, yPos});
+        0 && console.log("[Raid] Posición visual actualizada a:", {xPos, yPos});
     }
     
     // Mostrar mensaje
@@ -2255,7 +2255,7 @@ function placeBossUnitDirectly(unit) {
     unitEl.style.border = "3px solid #f1c40f"; // Borde dorado
     unitEl.style.zIndex = "100";
     
-    console.log("[placeBossUnit] Colocando unidad boss:", unit.name, "en posición", {r: unit.r, c: unit.c});
+    0 && console.log("[placeBossUnit] Colocando unidad boss:", unit.name, "en posición", {r: unit.r, c: unit.c});
     
     // Imagen de fondo
     if (unit.sprite && (unit.sprite.includes('/') || unit.sprite.includes('.'))) {
@@ -2264,14 +2264,14 @@ function placeBossUnitDirectly(unit) {
          unitEl.style.backgroundRepeat = "no-repeat";
          unitEl.style.backgroundPosition = "center";
          unitEl.textContent = "";
-         console.log("[placeBossUnit] Usando imagen:", unit.sprite);
+         0 && console.log("[placeBossUnit] Usando imagen:", unit.sprite);
     } else {
         unitEl.textContent = unit.sprite || '🚩';
         unitEl.style.fontSize = "30px";
         unitEl.style.display = "flex";
         unitEl.style.alignItems = "center";
         unitEl.style.justifyContent = "center";
-        console.log("[placeBossUnit] Usando emoji:", unit.sprite);
+        0 && console.log("[placeBossUnit] Usando emoji:", unit.sprite);
     }
     
     // Barra de Vida
@@ -2282,7 +2282,7 @@ function placeBossUnitDirectly(unit) {
     hpBar.textContent = hpPercent + '%';
     unitEl.appendChild(hpBar);
     
-    console.log("[placeBossUnit] HP del boss:", unit.currentHealth, "/", unit.maxHealth, "=", hpPercent + "%");
+    0 && console.log("[placeBossUnit] HP del boss:", unit.currentHealth, "/", unit.maxHealth, "=", hpPercent + "%");
 
     if (domElements.gameBoard) domElements.gameBoard.appendChild(unitEl);
     
@@ -2302,8 +2302,8 @@ function placeBossUnitDirectly(unit) {
     unitEl.style.left = `${xPos}px`;
     unitEl.style.top = `${yPos}px`;
     
-    console.log("[placeBossUnit] Posición calculada:", {xPos, yPos});
-    console.log("[placeBossUnit] Boss colocado exitosamente. Total units:", units.length);
+    0 && console.log("[placeBossUnit] Posición calculada:", {xPos, yPos});
+    0 && console.log("[placeBossUnit] Boss colocado exitosamente. Total units:", units.length);
 }
 
 // Helper para crear unidades en el mapa del Raid

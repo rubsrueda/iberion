@@ -1,12 +1,12 @@
 // techScreenUI.js
-console.log("techScreenUI.js CARGADO (Versión corregida con DOMContentLoaded)");
+0 && console.log("techScreenUI.js CARGADO (Versión corregida con DOMContentLoaded)");
 
 // DEFINIR FUNCIONES GLOBALMENTE (fuera de DOMContentLoaded para que estén disponibles inmediatamente)
 function openTechTreeScreen() {
     const screen = document.getElementById('techTreeScreen');
     const container = document.getElementById('techTreeContainer'); 
 
- console.log("--- LOG ESTADO --- techScreenUI.js -> openTechTreeScreen INICIO: researchedTechnologies =", JSON.parse(JSON.stringify(gameState?.playerResources?.[1]?.researchedTechnologies || [])));
+ 0 && console.log("--- LOG ESTADO --- techScreenUI.js -> openTechTreeScreen INICIO: researchedTechnologies =", JSON.parse(JSON.stringify(gameState?.playerResources?.[1]?.researchedTechnologies || [])));
 
     if (!screen || !container || !TECHNOLOGY_TREE_DATA || !gameState || !gameState.playerResources) {
         console.error("openTechTreeScreen: Faltan dependencias.");
@@ -57,7 +57,7 @@ function openTechTreeScreen() {
             nodeDiv.addEventListener('click', function(event) {
                 event.stopPropagation();
                 const techIdToOpen = this.getAttribute('data-tech-id');
-                console.log(`Clic detectado en el nodo. Abriendo modal para: ${techIdToOpen}`);
+                0 && console.log(`Clic detectado en el nodo. Abriendo modal para: ${techIdToOpen}`);
                 openTechDetailModal(techIdToOpen);
             });
             
@@ -158,8 +158,8 @@ window.openTechTreeScreen = openTechTreeScreen;
     function closeTechTreeScreen() {
         const screen = document.getElementById('techTreeScreen');
         if (screen) screen.style.display = 'none';
-        console.log("[TechTree] Pantalla del árbol de tecnologías cerrada.");
-        console.log("--- LOG ESTADO --- techScreenUI.js -> closeTechTreeScreen FIN: researchedTechnologies =", JSON.parse(JSON.stringify(gameState?.playerResources?.[1]?.researchedTechnologies || [])));
+        0 && console.log("[TechTree] Pantalla del árbol de tecnologías cerrada.");
+        0 && console.log("--- LOG ESTADO --- techScreenUI.js -> closeTechTreeScreen FIN: researchedTechnologies =", JSON.parse(JSON.stringify(gameState?.playerResources?.[1]?.researchedTechnologies || [])));
     }
     
     // Exportar a window
@@ -408,7 +408,7 @@ function RequestResearchTech(techId) {
         const modal = document.getElementById('techDetailModal');
 
         // --- LÍNEA AÑADIDA PARA DEPURAR ---
-        console.log("Referencia al elemento del modal:", modal);
+        0 && console.log("Referencia al elemento del modal:", modal);
 
             if (!techData || !modal) {
                 console.error("Error en openTechDetailModal:", {techData, modal});
@@ -495,18 +495,18 @@ function RequestResearchTech(techId) {
         };
 
         // --- 3. Mostrar el modal ---
-        console.log("Intentando mostrar el modal de detalle. Elemento:", modal);
+        0 && console.log("Intentando mostrar el modal de detalle. Elemento:", modal);
         modal.style.display = 'flex';
-        console.log("Estilo 'display' cambiado a 'flex'. El modal debería estar visible.");
+        0 && console.log("Estilo 'display' cambiado a 'flex'. El modal debería estar visible.");
     }
     
     // Exportar a window
     window.openTechDetailModal = openTechDetailModal;
 
 // Todas las funciones principales están exportadas a window
-console.log("✅ techScreenUI.js: Todas las funciones exportadas correctamente");
-console.log("   - openTechTreeScreen:", typeof window.openTechTreeScreen);
-console.log("   - closeTechTreeScreen:", typeof window.closeTechTreeScreen);
-console.log("   - _executeResearch:", typeof window._executeResearch);
-console.log("   - refreshTechTreeContent:", typeof window.refreshTechTreeContent);
-console.log("   - openTechDetailModal:", typeof window.openTechDetailModal);
+0 && console.log("✅ techScreenUI.js: Todas las funciones exportadas correctamente");
+0 && console.log("   - openTechTreeScreen:", typeof window.openTechTreeScreen);
+0 && console.log("   - closeTechTreeScreen:", typeof window.closeTechTreeScreen);
+0 && console.log("   - _executeResearch:", typeof window._executeResearch);
+0 && console.log("   - refreshTechTreeContent:", typeof window.refreshTechTreeContent);
+0 && console.log("   - openTechDetailModal:", typeof window.openTechDetailModal);

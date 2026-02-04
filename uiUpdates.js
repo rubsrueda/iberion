@@ -21,7 +21,7 @@ function isEnemyScouted(enemyUnit) {
         const distance = hexDistance(scoutUnit.r, scoutUnit.c, enemyUnit.r, enemyUnit.c);
         const scoutRange = scoutUnit.visionRange || 2; // Rango de visión del explorador
         if (distance <= scoutRange) {
-            console.log(`[Scout Check] Unidad enemiga ${enemyUnit.name} está en rango del explorador ${scoutUnit.name}.`);
+            0 && console.log(`[Scout Check] Unidad enemiga ${enemyUnit.name} está en rango del explorador ${scoutUnit.name}.`);
             return true;
         }
     }
@@ -101,13 +101,13 @@ const UIManager = {
         // 3. <<== LÓGICA DE RESTAURACIÓN INTELIGENTE ==>>
         // Si HEMOS guardado un listener original (porque el tutorial se usó), lo restauramos.
         if (this._originalEndTurnButtonListener) {
-            console.log("[UIManager] Restaurando listener de fin de turno guardado (post-tutorial).");
+            0 && console.log("[UIManager] Restaurando listener de fin de turno guardado (post-tutorial).");
             newBtn.addEventListener('click', this._originalEndTurnButtonListener);
         } 
         // Si NO hemos guardado un listener (porque el tutorial nunca se ejecutó), 
         // simplemente añadimos el listener estándar del juego.
         else if (typeof handleEndTurn === "function") {
-            console.log("[UIManager] Añadiendo listener de fin de turno estándar (sin tutorial previo).");
+            0 && console.log("[UIManager] Añadiendo listener de fin de turno estándar (sin tutorial previo).");
             newBtn.addEventListener('click', handleEndTurn);
         } else {
             console.error("CRÍTICO: no se puede restaurar el listener del botón Fin de Turno porque handleEndTurn no está definido.");
@@ -735,7 +735,7 @@ const UIManager = {
     renderAllUnitsFromData: function() {
         if (!this._domElements.gameBoard) return;
 
-        console.log(`[RENDER ALL] Iniciando re-dibujado completo de ${units.length} unidades.`);
+        0 && console.log(`[RENDER ALL] Iniciando re-dibujado completo de ${units.length} unidades.`);
 
         // Paso 1: Eliminar todos los divs de unidades existentes.
         this._domElements.gameBoard.querySelectorAll('.unit').forEach(el => el.remove());
@@ -848,7 +848,7 @@ const UIManager = {
                 positionUnitElement(unit);
             }
         }
-        console.log("[RENDER ALL] Re-dibujado completo finalizado.");
+        0 && console.log("[RENDER ALL] Re-dibujado completo finalizado.");
     },
 
     showRewardToast: function(message, icon = '🏆') {
@@ -901,7 +901,7 @@ const UIManager = {
         
         // --- Inicia el temporizador de autocierre ---
         const autocloseUnitPanel = () => {
-            console.log("Autocerrando panel contextual de unidad...");
+            0 && console.log("Autocerrando panel contextual de unidad...");
             this._domElements.contextualInfoPanel.classList.remove('visible');
                 // Usa this._reopenBtn para mostrar el botón
             if (this._reopenBtn) this._reopenBtn.style.display = 'block';
@@ -1077,7 +1077,7 @@ const UIManager = {
         
         // --- Inicia el temporizador de autocierre ---
         const autocloseHexPanel = () => {
-            console.log("Autocerrando panel contextual de hexágono...");
+            0 && console.log("Autocerrando panel contextual de hexágono...");
             this._domElements.contextualInfoPanel.classList.remove('visible');
                 // Usa this._reopenBtn para mostrar el botón
             if (this._reopenBtn) this._reopenBtn.style.display = 'block'; 
@@ -1370,7 +1370,7 @@ const UIManager = {
         const autoclosePanel = () => {
             const infoPanel = document.getElementById('contextualInfoPanel');
             if (infoPanel && infoPanel.classList.contains('visible')) {
-                console.log("Cerrando panel contextual automáticamente...");
+                0 && console.log("Cerrando panel contextual automáticamente...");
                 infoPanel.classList.remove('visible');
 
                 // También mostramos el botón de reabrir
@@ -1395,7 +1395,7 @@ const UIManager = {
     },
 
     updateVictoryPointsDisplay: function() {
-        console.log("%c[UI] Se ha llamado a updateVictoryPointsDisplay.", "color: lime; font-weight: bold;"); // <-- AÑADE ESTO
+        0 && console.log("%c[UI] Se ha llamado a updateVictoryPointsDisplay.", "color: lime; font-weight: bold;"); // <-- AÑADE ESTO
 
         const tracker = document.getElementById('victory-points-tracker');
         if (!tracker) {
@@ -1408,7 +1408,7 @@ const UIManager = {
             return;
         }
 
-        console.log("[UI] Mostrando tracker. Asignando 'display: flex'."); // <-- AÑADE ESTO
+        0 && console.log("[UI] Mostrando tracker. Asignando 'display: flex'."); // <-- AÑADE ESTO
         tracker.style.display = 'flex';
 
         const summaryEl = document.getElementById('victory-points-summary');
@@ -1477,7 +1477,7 @@ const UIManager = {
 
         // Validación: Si progress es undefined, usar valores por defecto
         if (!progress) {
-            console.warn('[showPostMatchSummary] progress es undefined, usando valores por defecto');
+            0 && console.warn('[showPostMatchSummary] progress es undefined, usando valores por defecto');
             progress = { level: 1, xp: 0, xpNext: 1000 };
         }
 
@@ -1489,7 +1489,7 @@ const UIManager = {
                 
                 // 🔴 MOSTRAR LA CRÓNICA DESPUÉS DE CERRAR EL MODAL
                 if (typeof LegacyManager !== 'undefined' && !gameState.isCampaignBattle) {
-                    console.log('[showPostMatchSummary] ABRIENDO CRÓNICA...');
+                    0 && console.log('[showPostMatchSummary] ABRIENDO CRÓNICA...');
                     setTimeout(() => {
                         LegacyManager.open(gameState.winner);
                     }, 300);

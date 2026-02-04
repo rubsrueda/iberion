@@ -30,7 +30,7 @@ const SaveGameDebounce = {
         const key = `${isAutoSave}_${saveName}`;
         
         if (this.isProcessing) {
-            console.log(`[SaveGame] Guardado ya en progreso. Pendiente: ${key}`);
+            0 && console.log(`[SaveGame] Guardado ya en progreso. Pendiente: ${key}`);
             this.pendingRequests.set(key, { saveName, isAutoSave });
             return false;
         }
@@ -61,7 +61,7 @@ function _readLocalSaves() {
         const raw = localStorage.getItem(LOCAL_SAVE_KEY);
         return raw ? JSON.parse(raw) : [];
     } catch (e) {
-        console.warn("[LocalSave] Error leyendo localStorage:", e);
+        0 && console.warn("[LocalSave] Error leyendo localStorage:", e);
         return [];
     }
 }
@@ -71,7 +71,7 @@ function _writeLocalSaves(list) {
         localStorage.setItem(LOCAL_SAVE_KEY, JSON.stringify(list));
         return true;
     } catch (e) {
-        console.warn("[LocalSave] Error escribiendo localStorage:", e);
+        0 && console.warn("[LocalSave] Error escribiendo localStorage:", e);
         return false;
     }
 }
@@ -143,7 +143,7 @@ async function saveGameUnified(saveName, isAutoSave = false) {
 async function saveGameUnifiedInternal(saveName, isAutoSave = false) {
     // Validación: jugador debe estar autenticado
     if (!PlayerDataManager.currentPlayer || !PlayerDataManager.currentPlayer.auth_id) {
-        console.warn("[SaveGame] Jugador no autenticado. Guardando localmente.");
+        0 && console.warn("[SaveGame] Jugador no autenticado. Guardando localmente.");
         // Permitir guardado local si no hay login
         const { boardState, unitsState } = _prepareGameDataForSave();
 
@@ -275,7 +275,7 @@ async function saveGameUnifiedInternal(saveName, isAutoSave = false) {
             
             if (existing) {
                 // Actualizar la partida existente
-                console.log(`[SaveGame] Actualizando partida existente: ${existing.id}`);
+                0 && console.log(`[SaveGame] Actualizando partida existente: ${existing.id}`);
                 const result = await supabaseClient
                     .from('game_saves')
                     .update({
@@ -287,7 +287,7 @@ async function saveGameUnifiedInternal(saveName, isAutoSave = false) {
                 error = result.error;
             } else {
                 // Insertar nueva partida (o actualizar si ya existe)
-                console.log(`[SaveGame] Insertando nueva partida: ${saveData.save_name}`);
+                0 && console.log(`[SaveGame] Insertando nueva partida: ${saveData.save_name}`);
                 const result = await supabaseClient
                     .from('game_saves')
                     .upsert([saveData], { onConflict: 'user_id,save_name' });
@@ -304,7 +304,7 @@ async function saveGameUnifiedInternal(saveName, isAutoSave = false) {
                 }
                 return true;
             } else {
-                console.log(`[SaveGame] '${saveName}' guardada exitosamente (${gameType})`);
+                0 && console.log(`[SaveGame] '${saveName}' guardada exitosamente (${gameType})`);
                 if (!isAutoSave) {
                     logMessage(`¡Partida '${saveName}' guardada con éxito!`, "success");
                 }

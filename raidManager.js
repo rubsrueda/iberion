@@ -1,5 +1,5 @@
 // raidManager.js
-console.log("raidManager.js CARGADO - Motor de Incursión.");
+0 && console.log("raidManager.js CARGADO - Motor de Incursión.");
 
 const RaidManager = {
     currentRaid: null,
@@ -7,7 +7,7 @@ const RaidManager = {
 
     // 1. INICIAR (Solo Líder)
     startNewRaid: async function(aliId) {
-        console.log("Iniciando Incursión: Generando División Real...");
+        0 && console.log("Iniciando Incursión: Generando División Real...");
         const now = new Date();
         
         // 1. LEER CONFIGURACIÓN (De constants.js ya existente)
@@ -72,12 +72,12 @@ const RaidManager = {
         const uid = player.auth_id;
         let stageData = this.currentRaid.stage_data; // Cambiar a 'let' para poder reasignar
         
-        console.log("[Raid] Intentando entrar al Raid ID:", this.currentRaid.id);
-        console.log("[Raid] Datos del jugador:", {uid, username: player.username, gold: player.currencies.gold});
+        0 && console.log("[Raid] Intentando entrar al Raid ID:", this.currentRaid.id);
+        0 && console.log("[Raid] Datos del jugador:", {uid, username: player.username, gold: player.currencies.gold});
         
         // === MIGRACIÓN: Corregir raids existentes sin stage_start_time ===
         if (!stageData.stage_start_time) {
-            console.warn("[Raid] Raid antiguo detectado. Aplicando migración...");
+            0 && console.warn("[Raid] Raid antiguo detectado. Aplicando migración...");
             
             // Usar el start_time del raid completo como referencia
             const raidStartTime = new Date(this.currentRaid.start_time);
@@ -95,7 +95,7 @@ const RaidManager = {
             
             // Si estamos en la etapa incorrecta, forzar transición
             if (expectedStage > this.currentRaid.current_stage) {
-                console.log(`[Raid] Etapa incorrecta detectada. Forzando transición: ${this.currentRaid.current_stage} → ${expectedStage}`);
+                0 && console.log(`[Raid] Etapa incorrecta detectada. Forzando transición: ${this.currentRaid.current_stage} → ${expectedStage}`);
                 await this.transitionToStage(expectedStage);
                 return; // Salir y dejar que se vuelva a llamar
             }
@@ -103,19 +103,19 @@ const RaidManager = {
             // Resetear posición a inicial para recalcular correctamente
             stageData.caravan_pos = { r: 6, c: 1 };
             
-            console.log("[Raid] Migración completada. stage_start_time:", stageData.stage_start_time);
+            0 && console.log("[Raid] Migración completada. stage_start_time:", stageData.stage_start_time);
         }
 
         // A. Verificar si ya estoy dentro (Reconexión)
         let mySlotIdx = stageData.slots.indexOf(uid);
-        console.log("[Raid] Slot actual del jugador:", mySlotIdx);
+        0 && console.log("[Raid] Slot actual del jugador:", mySlotIdx);
         
         // B. Si no estoy dentro, intentar pagar y ocupar slot
         if (mySlotIdx === -1) {
             
             // Buscar hueco
             mySlotIdx = stageData.slots.indexOf(null);
-            console.log("[Raid] Buscando slot disponible. Encontrado:", mySlotIdx);
+            0 && console.log("[Raid] Buscando slot disponible. Encontrado:", mySlotIdx);
             
             if (mySlotIdx === -1) {
                 alert("El mapa está lleno (8/8). Debes esperar a que alguien se retire o muera.");
@@ -130,11 +130,11 @@ const RaidManager = {
             // Cobrar
             player.currencies.gold -= RAID_CONFIG.ENTRY_COST;
             await PlayerDataManager.saveCurrentPlayer();
-            console.log("[Raid] Cobrado " + RAID_CONFIG.ENTRY_COST + " oro. Restante:", player.currencies.gold);
+            0 && console.log("[Raid] Cobrado " + RAID_CONFIG.ENTRY_COST + " oro. Restante:", player.currencies.gold);
 
             // Asignar Slot y Unidad Inicial
             stageData.slots[mySlotIdx] = uid;
-            console.log("[Raid] Slot asignado:", mySlotIdx);
+            0 && console.log("[Raid] Slot asignado:", mySlotIdx);
             
             // Definir unidad según etapa (Tierra/Mar)
             const stageType = RAID_CONFIG.STAGES?.[this.currentRaid.current_stage]?.type || 'land';
@@ -151,9 +151,9 @@ const RaidManager = {
                 {r: 10, c: 2}, {r: 10, c: 6}, {r: 10, c: 10}, {r: 10, c: 14}
             ];
             
-            console.log(`%c[Raid] ¡JUGADOR ASIGNADO AL SLOT ${mySlotIdx}!`, 'background: #00ff00; color: #000; font-weight: bold; padding: 5px;');
-            console.log(`[Raid] Fortaleza asignada en posición: (${fortressPositions[mySlotIdx].r}, ${fortressPositions[mySlotIdx].c})`);
-            console.log(`[Raid] Unidad inicial aparecerá en: (${spawnRow}, ${spawnCol})`);
+            0 && console.log(`%c[Raid] ¡JUGADOR ASIGNADO AL SLOT ${mySlotIdx}!`, 'background: #00ff00; color: #000; font-weight: bold; padding: 5px;');
+            0 && console.log(`[Raid] Fortaleza asignada en posición: (${fortressPositions[mySlotIdx].r}, ${fortressPositions[mySlotIdx].c})`);
+            0 && console.log(`[Raid] Unidad inicial aparecerá en: (${spawnRow}, ${spawnCol})`);
 
             if (!stageData.units) stageData.units = {};
             
@@ -168,7 +168,7 @@ const RaidManager = {
                 player_name: player.username
             };
             
-            console.log("[Raid] Unidad inicial creada en posición:", {r: spawnRow, c: spawnCol});
+            0 && console.log("[Raid] Unidad inicial creada en posición:", {r: spawnRow, c: spawnCol});
             
             // Guardar ocupación en DB
             const { error, data: updatedRaid } = await supabaseClient
@@ -187,14 +187,14 @@ const RaidManager = {
             // CRÍTICO: Actualizar currentRaid con los datos recién guardados
             this.currentRaid = updatedRaid;
             
-            console.log("[Raid] Slot guardado exitosamente en la base de datos");
-            console.log("[Raid] Slot actualizado en currentRaid:", this.currentRaid.stage_data.slots);
+            0 && console.log("[Raid] Slot guardado exitosamente en la base de datos");
+            0 && console.log("[Raid] Slot actualizado en currentRaid:", this.currentRaid.stage_data.slots);
         } else {
-            console.log("[Raid] El jugador ya estaba en un slot. Reconectando...");
+            0 && console.log("[Raid] El jugador ya estaba en un slot. Reconectando...");
         }
 
         // B2. CRÍTICO: Recargar datos FRESCOS desde la BD antes de renderizar
-        console.log("[Raid] Recargando datos actualizados desde la base de datos...");
+        0 && console.log("[Raid] Recargando datos actualizados desde la base de datos...");
         const { data: freshRaidData, error: refreshError } = await supabaseClient
             .from('alliance_raids')
             .select('*')
@@ -203,21 +203,21 @@ const RaidManager = {
         
         if (freshRaidData && !refreshError) {
             this.currentRaid = freshRaidData;
-            console.log("[Raid] Datos actualizados. Etapa:", this.currentRaid.current_stage);
-            console.log("[Raid] Regimientos del boss:", this.currentRaid.stage_data.boss_regiments?.length || 0);
-            console.log("[Raid] Tipo de regimiento:", this.currentRaid.stage_data.boss_regiments?.[0]?.type || 'N/A');
-            console.log("%c[Raid] HP de caravana:", 'background: #00ff00; color: #000; font-weight: bold;', 
+            0 && console.log("[Raid] Datos actualizados. Etapa:", this.currentRaid.current_stage);
+            0 && console.log("[Raid] Regimientos del boss:", this.currentRaid.stage_data.boss_regiments?.length || 0);
+            0 && console.log("[Raid] Tipo de regimiento:", this.currentRaid.stage_data.boss_regiments?.[0]?.type || 'N/A');
+            0 && console.log("%c[Raid] HP de caravana:", 'background: #00ff00; color: #000; font-weight: bold;', 
                 this.currentRaid.stage_data.caravan_hp, "/", this.currentRaid.stage_data.caravan_max_hp);
             
             // CRÍTICO: Actualizar la referencia de stageData para que apunte a los datos frescos
             stageData = this.currentRaid.stage_data;
-            console.log("[Raid] ✅ Referencia de stageData actualizada a datos frescos");
+            0 && console.log("[Raid] ✅ Referencia de stageData actualizada a datos frescos");
         } else {
             console.error("[Raid] Error al recargar datos:", refreshError);
         }
 
         // C. Inicializar gameState para el modo Raid
-        console.log("[Raid] Inicializando gameState para modo Raid...");
+        0 && console.log("[Raid] Inicializando gameState para modo Raid...");
         
         // Resetear gameState completamente para evitar conflictos
         Object.keys(gameState).forEach(key => delete gameState[key]);
@@ -269,20 +269,20 @@ const RaidManager = {
             gameState.matchSnapshots = [];
         }
         
-        console.log("[Raid] gameState inicializado correctamente");
+        0 && console.log("[Raid] gameState inicializado correctamente");
 
         // D. Cargar Mapa Visual - IMPORTANTE: Usar this.currentRaid.stage_data actualizado
         this.showRaidMap(this.currentRaid.stage_data);
         
         // E. Calcular y aplicar movimiento automático de la caravana basado en tiempo transcurrido
-        console.log("[Raid] === CALCULANDO POSICIÓN DE CARAVANA ===");
-        console.log("[Raid] Etapa actual:", this.currentRaid.current_stage);
-        console.log("[Raid] stage_start_time:", stageData.stage_start_time);
-        console.log("[Raid] Posición actual antes de calcular:", JSON.stringify(stageData.caravan_pos));
+        0 && console.log("[Raid] === CALCULANDO POSICIÓN DE CARAVANA ===");
+        0 && console.log("[Raid] Etapa actual:", this.currentRaid.current_stage);
+        0 && console.log("[Raid] stage_start_time:", stageData.stage_start_time);
+        0 && console.log("[Raid] Posición actual antes de calcular:", JSON.stringify(stageData.caravan_pos));
         
         await this.calculateCaravanPath(stageData);
         
-        console.log("[Raid] Posición después de calcular:", JSON.stringify(stageData.caravan_pos));
+        0 && console.log("[Raid] Posición después de calcular:", JSON.stringify(stageData.caravan_pos));
         
         // F. Iniciar monitoreo en tiempo real del HP
         this.startHPMonitoring();
@@ -320,13 +320,13 @@ const RaidManager = {
             }
         }
 
-        console.log("[Raid] Iniciando monitoreo en tiempo real del HP");
+        0 && console.log("[Raid] Iniciando monitoreo en tiempo real del HP");
         
         // Verificar HP cada 3 segundos (aumentado de 2 a 3)
         const monitorCallback = async () => {
             // No monitorear si estamos en medio de una actualización
             if (this.isUpdatingHP) {
-                console.log("[Raid] Monitoreo saltado - actualización en progreso");
+                0 && console.log("[Raid] Monitoreo saltado - actualización en progreso");
                 return;
             }
 
@@ -349,7 +349,7 @@ const RaidManager = {
 
                 // Si el HP remoto es diferente al local, actualizar
                 if (remoteHP !== localHP) {
-                    console.log(`%c[Raid] HP actualizado: ${localHP} → ${remoteHP}`, 'background: #00ccff; color: #000;');
+                    0 && console.log(`%c[Raid] HP actualizado: ${localHP} → ${remoteHP}`, 'background: #00ccff; color: #000;');
                     
                     this.currentRaid.stage_data.caravan_hp = remoteHP;
 
@@ -368,7 +368,7 @@ const RaidManager = {
 
                     // Si llegó a 0, iniciar distribución de recompensas
                     if (remoteHP <= 0 && !raid.stage_data.is_victory) {
-                        console.log("[Raid] ¡Caravana destruida detectada! Iniciando recompensas...");
+                        0 && console.log("[Raid] ¡Caravana destruida detectada! Iniciando recompensas...");
                         
                         // Obtener el log completo para distribuir recompensas
                         const { data: fullRaid } = await supabaseClient
@@ -418,7 +418,7 @@ const RaidManager = {
             }
             this.hpMonitoringInterval = null;
             this.usingIntervalManager = false;
-            console.log("[Raid] Monitoreo de HP detenido");
+            0 && console.log("[Raid] Monitoreo de HP detenido");
         }
     },
 
@@ -489,7 +489,7 @@ const RaidManager = {
 
         // Si la etapa calculada es mayor que la guardada, hay que hacer TRANSICIÓN
         if (calculatedStage > this.currentRaid.current_stage) {
-            console.log(`[Raid] Transición de tiempo detectada: Etapa ${this.currentRaid.current_stage} -> ${calculatedStage}`);
+            0 && console.log(`[Raid] Transición de tiempo detectada: Etapa ${this.currentRaid.current_stage} -> ${calculatedStage}`);
             await this.transitionToStage(calculatedStage);
         } else {
             // Estamos en la etapa correcta, verificamos si ya se ganó
@@ -547,7 +547,7 @@ const RaidManager = {
 
         if (!error) {
             this.currentRaid = data;
-            console.log(`[Raid] Etapa ${newStageIdx} iniciada con ${config.regimentType}.`);
+            0 && console.log(`[Raid] Etapa ${newStageIdx} iniciada con ${config.regimentType}.`);
             this.showRaidMap(); // Cargar mapa nuevo
         }
     },
@@ -576,13 +576,13 @@ const RaidManager = {
         
         const nextStage = this.currentRaid.current_stage + 1;
         if (nextStage > 4) {
-            console.log("[Raid Debug] Ya estás en la última etapa");
+            0 && console.log("[Raid Debug] Ya estás en la última etapa");
             return;
         }
         
-        console.log(`[Raid Debug] Forzando transición: Etapa ${this.currentRaid.current_stage} → ${nextStage}`);
+        0 && console.log(`[Raid Debug] Forzando transición: Etapa ${this.currentRaid.current_stage} → ${nextStage}`);
         await this.transitionToStage(nextStage);
-        console.log("[Raid Debug] ✅ Transición completada");
+        0 && console.log("[Raid Debug] ✅ Transición completada");
     },
 
     // 3. MOSTRAR MAPA
@@ -594,7 +594,7 @@ const RaidManager = {
             ? RAID_CONFIG.STAGES[stageNum] 
             : { name: "Zona Desconocida", type: "land", mapType: "plains", caravan: "Caravana" };
         
-        console.log("[Raid] Cargando mapa de incursión. Etapa:", stageNum, "Config:", config);
+        0 && console.log("[Raid] Cargando mapa de incursión. Etapa:", stageNum, "Config:", config);
         
         // Cerrar todos los modales EXCEPTO ledgerModal y legacyModal
         document.querySelectorAll('.modal:not(#ledgerModal):not(#legacyModal)').forEach(m => m.style.display = 'none');
@@ -630,12 +630,12 @@ const RaidManager = {
         // Calcular en qué etapa DEBERÍAMOS estar basándonos en el tiempo
         const expectedStage = Math.min(TOTAL_STAGES, Math.floor(hoursFromStart / HOURS_PER_STAGE) + 1);
         
-        console.log(`[Raid] Verificando etapas. Horas desde inicio: ${hoursFromStart.toFixed(2)}h`);
-        console.log(`[Raid] Etapa actual: ${this.currentRaid.current_stage}, Etapa esperada: ${expectedStage}`);
+        0 && console.log(`[Raid] Verificando etapas. Horas desde inicio: ${hoursFromStart.toFixed(2)}h`);
+        0 && console.log(`[Raid] Etapa actual: ${this.currentRaid.current_stage}, Etapa esperada: ${expectedStage}`);
         
         // Si el raid ha pasado las 48 horas (4 etapas * 12h), FINALIZAR
         if (hoursFromStart >= TOTAL_STAGES * HOURS_PER_STAGE) {
-            console.log("[Raid] ⏰ El raid ha EXPIRADO (>48h). Finalizando automáticamente...");
+            0 && console.log("[Raid] ⏰ El raid ha EXPIRADO (>48h). Finalizando automáticamente...");
             
             // Si la caravana llegó al final = Derrota
             // Si la caravana murió = Victoria
@@ -666,7 +666,7 @@ const RaidManager = {
         
         // Si la etapa actual es menor a la esperada, avanzar automáticamente
         if (this.currentRaid.current_stage < expectedStage) {
-            console.log(`[Raid] ⏩ Avanzando automáticamente de etapa ${this.currentRaid.current_stage} → ${expectedStage}`);
+            0 && console.log(`[Raid] ⏩ Avanzando automáticamente de etapa ${this.currentRaid.current_stage} → ${expectedStage}`);
             
             // Actualizar la etapa en la DB
             const { data, error } = await supabaseClient
@@ -684,7 +684,7 @@ const RaidManager = {
             // Actualizar currentRaid local
             this.currentRaid = data;
             
-            console.log(`[Raid] ✅ Etapa actualizada a ${expectedStage}`);
+            0 && console.log(`[Raid] ✅ Etapa actualizada a ${expectedStage}`);
             
             // Notificar al jugador si está en el raid
             if (gameState.isRaid) {
@@ -714,14 +714,14 @@ const RaidManager = {
         const stageStartTime = new Date(stageData.stage_start_time || this.currentRaid.start_time);
         const hoursElapsed = (now - stageStartTime) / (1000 * 60 * 60);
         
-        console.log("[Raid] Calculando posición de caravana. Horas desde inicio de etapa:", hoursElapsed.toFixed(2));
+        0 && console.log("[Raid] Calculando posición de caravana. Horas desde inicio de etapa:", hoursElapsed.toFixed(2));
         
         if (hoursElapsed <= 0) return false; // Nada que calcular
 
         const speed = RAID_CONFIG.CARAVAN_SPEED; // 3 casillas/hora
         const totalMovesExpected = Math.floor(hoursElapsed * speed);
         
-        console.log("[Raid] Movimientos esperados desde inicio de etapa:", totalMovesExpected);
+        0 && console.log("[Raid] Movimientos esperados desde inicio de etapa:", totalMovesExpected);
         
         // Calcular la posición ideal (sin obstáculos)
         const startCol = 1; // Siempre empieza en columna 1
@@ -729,7 +729,7 @@ const RaidManager = {
         
         // Si la caravana ya está en su posición esperada o más adelante, no hacer nada
         if (stageData.caravan_pos.c >= targetCol) {
-            console.log("[Raid] Caravana ya está en posición correcta o adelantada:", stageData.caravan_pos);
+            0 && console.log("[Raid] Caravana ya está en posición correcta o adelantada:", stageData.caravan_pos);
             return false;
         }
         
@@ -737,7 +737,7 @@ const RaidManager = {
         let movesPending = targetCol - stageData.caravan_pos.c;
         let moved = false;
         
-        console.log("[Raid] Moviendo caravana de columna", stageData.caravan_pos.c, "a", targetCol);
+        0 && console.log("[Raid] Moviendo caravana de columna", stageData.caravan_pos.c, "a", targetCol);
         
         // Bucle de movimiento
         for (let i = 0; i < movesPending; i++) {
@@ -746,7 +746,7 @@ const RaidManager = {
             // Objetivo: Llegar a la columna objetivo
             if (curr.c >= 24) {
                 stageData.is_defeat = true; // La caravana escapó
-                console.log("[Raid] ¡La caravana escapó! Derrota.");
+                0 && console.log("[Raid] ¡La caravana escapó! Derrota.");
                 break;
             }
 
@@ -768,20 +768,20 @@ const RaidManager = {
                 moved = true;
             } else {
                 // Bloqueada completamente - se queda quieta
-                console.log("[Raid] Caravana bloqueada en", curr);
+                0 && console.log("[Raid] Caravana bloqueada en", curr);
                 break;
             }
         }
         
         // Si hubo movimiento, actualizar en la DB
         if (moved && this.currentRaid) {
-            console.log("[Raid] Nueva posición de caravana:", stageData.caravan_pos);
+            0 && console.log("[Raid] Nueva posición de caravana:", stageData.caravan_pos);
             
             // VALIDACIÓN CRÍTICA: Verificar que el HP no se haya corrompido
             const expectedMaxHp = stageData.caravan_max_hp;
             const currentHp = stageData.caravan_hp;
             
-            console.log("[Raid] Validación antes de guardar - HP:", currentHp, "/", expectedMaxHp);
+            0 && console.log("[Raid] Validación antes de guardar - HP:", currentHp, "/", expectedMaxHp);
             
             if (currentHp > expectedMaxHp) {
                 console.error("%c[Raid] ERROR: HP actual excede el máximo!", 'background: #ff0000; color: #fff; font-weight: bold;');
@@ -815,7 +815,7 @@ const RaidManager = {
     // Función para registrar daño (Llamar desde attackUnit en unit_Actions.js si gameState.isRaid es true)
     recordDamage: async function(damageAmount, updatedBossRegiments = null) {
         if (!this.currentRaid) {
-            console.warn("[Raid] No hay raid activo para registrar daño");
+            0 && console.warn("[Raid] No hay raid activo para registrar daño");
             return;
         }
 
@@ -831,10 +831,10 @@ const RaidManager = {
         const myUid = PlayerDataManager.currentPlayer.auth_id;
         const myName = PlayerDataManager.currentPlayer.username;
         
-        console.log("%c[Raid] === REGISTRANDO DAÑO Y ACTUALIZANDO REGIMIENTOS ===", 'background: #ff6600; color: #fff; font-weight: bold;');
-        console.log("[Raid] Jugador:", myName);
-        console.log("[Raid] Daño infligido:", damageAmount);
-        console.log("[Raid] Regimientos actualizados recibidos:", updatedBossRegiments ? updatedBossRegiments.length : 'ninguno');
+        0 && console.log("%c[Raid] === REGISTRANDO DAÑO Y ACTUALIZANDO REGIMIENTOS ===", 'background: #ff6600; color: #fff; font-weight: bold;');
+        0 && console.log("[Raid] Jugador:", myName);
+        0 && console.log("[Raid] Daño infligido:", damageAmount);
+        0 && console.log("[Raid] Regimientos actualizados recibidos:", updatedBossRegiments ? updatedBossRegiments.length : 'ninguno');
         
         // CRÍTICO: NO calcular HP localmente, leer siempre el valor más reciente de la BD
         try {
@@ -856,9 +856,9 @@ const RaidManager = {
                 const hpBeforeAttack = raid.stage_data.caravan_hp;
                 const hpAfterAttack = Math.max(0, hpBeforeAttack - damageAmount);
                 
-                console.log("[Raid] HP en BD (antes del ataque):", hpBeforeAttack);
-                console.log("[Raid] HP después de restar daño:", hpAfterAttack);
-                console.log("[Raid] Diferencia:", hpBeforeAttack - hpAfterAttack);
+                0 && console.log("[Raid] HP en BD (antes del ataque):", hpBeforeAttack);
+                0 && console.log("[Raid] HP después de restar daño:", hpAfterAttack);
+                0 && console.log("[Raid] Diferencia:", hpBeforeAttack - hpAfterAttack);
                 
                 // Validación: Detectar valores anómalos
                 if (hpAfterAttack > hpBeforeAttack) {
@@ -870,7 +870,7 @@ const RaidManager = {
                 
                 // 3. CRÍTICO: Actualizar boss_regiments con los regimientos debilitados
                 if (updatedBossRegiments && Array.isArray(updatedBossRegiments)) {
-                    console.log("%c[Raid] 🔧 ACTUALIZANDO boss_regiments con HP reducido", 'background: #00ffff; color: #000; font-weight: bold;');
+                    0 && console.log("%c[Raid] 🔧 ACTUALIZANDO boss_regiments con HP reducido", 'background: #00ffff; color: #000; font-weight: bold;');
                     // Limpiar campos innecesarios de los regimientos antes de guardar
                     raid.stage_data.boss_regiments = updatedBossRegiments.map(reg => ({
                         type: reg.type,
@@ -880,10 +880,10 @@ const RaidManager = {
                     
                     // Log para depuración
                     const totalRegHP = raid.stage_data.boss_regiments.reduce((sum, r) => sum + r.health, 0);
-                    console.log("[Raid] Total HP de regimientos guardados:", totalRegHP);
-                    console.log("[Raid] Primer regimiento HP:", raid.stage_data.boss_regiments[0]?.health);
+                    0 && console.log("[Raid] Total HP de regimientos guardados:", totalRegHP);
+                    0 && console.log("[Raid] Primer regimiento HP:", raid.stage_data.boss_regiments[0]?.health);
                 } else {
-                    console.warn("[Raid] ⚠️ No se recibieron regimientos actualizados, solo se actualiza HP total");
+                    0 && console.warn("[Raid] ⚠️ No se recibieron regimientos actualizados, solo se actualiza HP total");
                 }
                 
                 // 4. Actualizar log de daño acumulado
@@ -895,7 +895,7 @@ const RaidManager = {
                     amount: currentDmg + damageAmount
                 };
                 
-                console.log("[Raid] Daño acumulado de", myName, ":", log.damage_by_user[myUid].amount);
+                0 && console.log("[Raid] Daño acumulado de", myName, ":", log.damage_by_user[myUid].amount);
                 
                 // 5. Actualizar HP con el valor calculado desde la BD
                 raid.stage_data.caravan_hp = hpAfterAttack;
@@ -903,7 +903,7 @@ const RaidManager = {
                 // Si la caravana fue destruida, marcar victoria
                 if (raid.stage_data.caravan_hp <= 0) {
                     raid.stage_data.is_victory = true;
-                    console.log("[Raid] ¡VICTORIA! La caravana ha sido destruida.");
+                    0 && console.log("[Raid] ¡VICTORIA! La caravana ha sido destruida.");
                 }
                 
                 const { error: updateError } = await supabaseClient
@@ -920,11 +920,11 @@ const RaidManager = {
                     return;
                 }
                 
-                console.log("[Raid] Daño registrado exitosamente en la base de datos");
+                0 && console.log("[Raid] Daño registrado exitosamente en la base de datos");
                 
                 // CRÍTICO: Actualizar this.currentRaid con el nuevo HP
                 this.currentRaid.stage_data.caravan_hp = hpAfterAttack;
-                console.log("%c[Raid] ✅ HP actualizado en currentRaid local", 'background: #00ff00; color: #000;');
+                0 && console.log("%c[Raid] ✅ HP actualizado en currentRaid local", 'background: #00ff00; color: #000;');
                 
                 // Actualizar visualmente la vida de la caravana en el mapa
                 const bossUnit = getUnitById('boss_caravan') || units.find(u => u.isBoss);
@@ -936,14 +936,14 @@ const RaidManager = {
                         if (hpBar) {
                             const hpPercent = Math.ceil((bossUnit.currentHealth / bossUnit.maxHealth) * 100);
                             hpBar.textContent = hpPercent + '%';
-                            console.log("[Raid] Barra de vida actualizada:", hpPercent + "%");
+                            0 && console.log("[Raid] Barra de vida actualizada:", hpPercent + "%");
                         }
                     }
                 }
                 
                 // Chequear victoria
                 if (hpAfterAttack <= 0) {
-                    console.log("[Raid] ¡VICTORIA! Iniciando distribución de recompensas...");
+                    0 && console.log("[Raid] ¡VICTORIA! Iniciando distribución de recompensas...");
                     // Delay pequeño para asegurar que la animación de combate termine
                     setTimeout(() => {
                         this.distributeRewards(log.damage_by_user);
@@ -960,18 +960,18 @@ const RaidManager = {
     distributeRewards: async function(damageMap) {
         // Prevenir ejecución duplicada
         if (this._rewardsDistributed) {
-            console.log("[Raid Rewards] Recompensas ya distribuidas, ignorando llamada duplicada");
+            0 && console.log("[Raid Rewards] Recompensas ya distribuidas, ignorando llamada duplicada");
             return;
         }
         this._rewardsDistributed = true;
         
-        console.log("¡VICTORIA EN RAID! Calculando recompensas...");
-        console.log("[Raid Rewards] Mapa de daño:", damageMap);
+        0 && console.log("¡VICTORIA EN RAID! Calculando recompensas...");
+        0 && console.log("[Raid Rewards] Mapa de daño:", damageMap);
         
         let totalDamage = 0;
         for (let uid in damageMap) totalDamage += damageMap[uid].amount;
         
-        console.log("[Raid Rewards] Daño total:", totalDamage);
+        0 && console.log("[Raid Rewards] Daño total:", totalDamage);
         
         // Pool de Premios Base (Escala según etapa)
         const stageMultiplier = this.currentRaid?.current_stage || 1;
@@ -997,7 +997,7 @@ const RaidManager = {
             };
         }
         
-        console.log("[Raid Rewards] Recompensas calculadas para todos:", allRewards);
+        0 && console.log("[Raid Rewards] Recompensas calculadas para todos:", allRewards);
         
         // PASO 2: Guardar en la BD (estructura nueva: raid.rewards_data)
         try {
@@ -1011,7 +1011,7 @@ const RaidManager = {
                 })
                 .eq('id', this.currentRaid.id);
             
-            console.log("[Raid Rewards] ✅ Recompensas guardadas en BD para TODOS los jugadores");
+            0 && console.log("[Raid Rewards] ✅ Recompensas guardadas en BD para TODOS los jugadores");
         } catch (dbError) {
             console.error("[Raid Rewards] Error guardando recompensas:", dbError);
         }
@@ -1028,14 +1028,14 @@ const RaidManager = {
                 alert("Error al procesar recompensas. Tus recompensas estarán disponibles cuando vuelvas a conectarte.");
             }
         } else {
-            console.warn("[Raid Rewards] No participé en este raid");
+            0 && console.warn("[Raid Rewards] No participé en este raid");
             alert("No participaste en el daño a la caravana. ¡Necesitas atacarla para obtener recompensas!");
         }
     },
     
     // Nueva función: Reclamar recompensas de un raid
     claimMyRewards: async function(rewardsData) {
-        console.log("[Raid Rewards] Reclamando mis recompensas:", rewardsData);
+        0 && console.log("[Raid Rewards] Reclamando mis recompensas:", rewardsData);
         
         // Otorgar recompensas
         PlayerDataManager.currentPlayer.currencies.gems += rewardsData.gems;
@@ -1056,7 +1056,7 @@ const RaidManager = {
         
         await PlayerDataManager.saveCurrentPlayer();
         
-        console.log("[Raid Rewards] ✅ Recompensas aplicadas y guardadas");
+        0 && console.log("[Raid Rewards] ✅ Recompensas aplicadas y guardadas");
         
         // Marcar como reclamadas en la BD
         try {
@@ -1076,7 +1076,7 @@ const RaidManager = {
                     .update({ rewards_data: raid.rewards_data })
                     .eq('id', this.currentRaid.id);
                 
-                console.log("[Raid Rewards] ✅ Marcado como reclamado en BD");
+                0 && console.log("[Raid Rewards] ✅ Marcado como reclamado en BD");
             }
         } catch (err) {
             console.error("[Raid Rewards] Error marcando como reclamado:", err);
@@ -1135,7 +1135,7 @@ const RaidManager = {
             .update({ stage_data: this.currentRaid.stage_data })
             .eq('id', this.currentRaid.id);
 
-        console.log("Unidad guardada en la nube del Raid.");
+        0 && console.log("Unidad guardada en la nube del Raid.");
     },
 
     // === UTILIDADES DE DEBUG ===
@@ -1147,11 +1147,11 @@ const RaidManager = {
         
         if (!aliId) {
             console.error("[Raid Debug] No hay allianceId. Pasa el ID como parámetro: debugResetRaid('tu-alliance-id')");
-            console.log("[Raid Debug] O ejecuta desde el currentRaid:", this.currentRaid?.alliance_id);
+            0 && console.log("[Raid Debug] O ejecuta desde el currentRaid:", this.currentRaid?.alliance_id);
             return;
         }
         
-        console.log("[Raid Debug] Eliminando raids activos de alianza:", aliId);
+        0 && console.log("[Raid Debug] Eliminando raids activos de alianza:", aliId);
         
         // Marcar todos los raids activos como completados
         const { error } = await supabaseClient
@@ -1165,8 +1165,8 @@ const RaidManager = {
             return;
         }
         
-        console.log("[Raid Debug] ✅ Raids anteriores cerrados");
-        console.log("[Raid Debug] Vuelve al HQ de tu alianza para iniciar uno nuevo");
+        0 && console.log("[Raid Debug] ✅ Raids anteriores cerrados");
+        0 && console.log("[Raid Debug] Vuelve al HQ de tu alianza para iniciar uno nuevo");
         
         // Cerrar el juego actual y volver al menú
         if (typeof domElements !== 'undefined' && domElements.gameContainer) {
@@ -1188,46 +1188,46 @@ const RaidManager = {
     // Ver estado detallado del raid actual
     debugShowRaidState: function() {
         if (!this.currentRaid) {
-            console.log("[Raid Debug] No hay raid activo cargado");
+            0 && console.log("[Raid Debug] No hay raid activo cargado");
             return;
         }
         
-        console.log("[Raid Debug] === ESTADO DEL RAID ===");
-        console.log("ID:", this.currentRaid.id);
-        console.log("Alianza:", this.currentRaid.alliance_id);
-        console.log("Inicio:", this.currentRaid.start_time);
-        console.log("Etapa actual:", this.currentRaid.current_stage);
-        console.log("Estado:", this.currentRaid.status);
-        console.log("");
-        console.log("=== STAGE DATA ===");
-        console.log("stage_start_time:", this.currentRaid.stage_data.stage_start_time);
-        console.log("Posición caravana:", this.currentRaid.stage_data.caravan_pos);
-        console.log("HP caravana:", this.currentRaid.stage_data.caravan_hp, "/", this.currentRaid.stage_data.caravan_max_hp);
-        console.log("Regimientos:", this.currentRaid.stage_data.boss_regiments?.length || 0);
-        console.log("Slots ocupados:", this.currentRaid.stage_data.slots.filter(s => s !== null).length, "/ 8");
-        console.log("Victoria:", this.currentRaid.stage_data.is_victory);
-        console.log("Derrota:", this.currentRaid.stage_data.is_defeat);
+        0 && console.log("[Raid Debug] === ESTADO DEL RAID ===");
+        0 && console.log("ID:", this.currentRaid.id);
+        0 && console.log("Alianza:", this.currentRaid.alliance_id);
+        0 && console.log("Inicio:", this.currentRaid.start_time);
+        0 && console.log("Etapa actual:", this.currentRaid.current_stage);
+        0 && console.log("Estado:", this.currentRaid.status);
+        0 && console.log("");
+        0 && console.log("=== STAGE DATA ===");
+        0 && console.log("stage_start_time:", this.currentRaid.stage_data.stage_start_time);
+        0 && console.log("Posición caravana:", this.currentRaid.stage_data.caravan_pos);
+        0 && console.log("HP caravana:", this.currentRaid.stage_data.caravan_hp, "/", this.currentRaid.stage_data.caravan_max_hp);
+        0 && console.log("Regimientos:", this.currentRaid.stage_data.boss_regiments?.length || 0);
+        0 && console.log("Slots ocupados:", this.currentRaid.stage_data.slots.filter(s => s !== null).length, "/ 8");
+        0 && console.log("Victoria:", this.currentRaid.stage_data.is_victory);
+        0 && console.log("Derrota:", this.currentRaid.stage_data.is_defeat);
         
         // Calcular tiempo transcurrido
         const now = new Date();
         const start = new Date(this.currentRaid.start_time);
         const stageStart = new Date(this.currentRaid.stage_data.stage_start_time || start);
         
-        console.log("");
-        console.log("=== TIEMPO ===");
-        console.log("Horas desde inicio total:", ((now - start) / (1000*60*60)).toFixed(2));
-        console.log("Horas desde inicio de etapa:", ((now - stageStart) / (1000*60*60)).toFixed(2));
-        console.log("Posición esperada (col):", Math.min(24, 1 + Math.floor(((now - stageStart) / (1000*60*60)) * 3)));
+        0 && console.log("");
+        0 && console.log("=== TIEMPO ===");
+        0 && console.log("Horas desde inicio total:", ((now - start) / (1000*60*60)).toFixed(2));
+        0 && console.log("Horas desde inicio de etapa:", ((now - stageStart) / (1000*60*60)).toFixed(2));
+        0 && console.log("Posición esperada (col):", Math.min(24, 1 + Math.floor(((now - stageStart) / (1000*60*60)) * 3)));
     },
 
     // Verificar consistencia de datos del raid (nueva función de debug)
     debugCheckConsistency: function() {
         if (!this.currentRaid) {
-            console.log("%c[Raid Debug] No hay raid activo cargado", 'background: #ff0000; color: #fff; font-weight: bold; padding: 5px;');
+            0 && console.log("%c[Raid Debug] No hay raid activo cargado", 'background: #ff0000; color: #fff; font-weight: bold; padding: 5px;');
             return;
         }
 
-        console.log("%c[Raid Debug] VERIFICACIÓN DE CONSISTENCIA", 'background: #0066ff; color: #fff; font-weight: bold; padding: 10px;');
+        0 && console.log("%c[Raid Debug] VERIFICACIÓN DE CONSISTENCIA", 'background: #0066ff; color: #fff; font-weight: bold; padding: 10px;');
         
         const stageData = this.currentRaid.stage_data;
         const currentStage = this.currentRaid.current_stage;
@@ -1238,26 +1238,26 @@ const RaidManager = {
             return;
         }
 
-        console.log("Etapa actual:", currentStage, "-", expectedConfig.name);
-        console.log("Tipo:", expectedConfig.type);
+        0 && console.log("Etapa actual:", currentStage, "-", expectedConfig.name);
+        0 && console.log("Tipo:", expectedConfig.type);
         
         let hasErrors = false;
 
         // Verificar regimientos
-        console.log("\n--- VERIFICACIÓN DE REGIMIENTOS ---");
+        0 && console.log("\n--- VERIFICACIÓN DE REGIMIENTOS ---");
         if (stageData.boss_regiments && stageData.boss_regiments.length > 0) {
             const actualType = stageData.boss_regiments[0].type;
             const expectedType = expectedConfig.regimentType;
             const actualCount = stageData.boss_regiments.length;
             const expectedCount = expectedConfig.regimentCount;
             
-            console.log("Tipo esperado:", expectedType);
-            console.log("Tipo actual:", actualType);
-            console.log("Match:", actualType === expectedType ? "✅" : "❌");
+            0 && console.log("Tipo esperado:", expectedType);
+            0 && console.log("Tipo actual:", actualType);
+            0 && console.log("Match:", actualType === expectedType ? "✅" : "❌");
             
-            console.log("Cantidad esperada:", expectedCount);
-            console.log("Cantidad actual:", actualCount);
-            console.log("Match:", actualCount === expectedCount ? "✅" : "❌");
+            0 && console.log("Cantidad esperada:", expectedCount);
+            0 && console.log("Cantidad actual:", actualCount);
+            0 && console.log("Match:", actualCount === expectedCount ? "✅" : "❌");
             
             if (actualType !== expectedType || actualCount !== expectedCount) {
                 console.error(
@@ -1272,14 +1272,14 @@ const RaidManager = {
         }
         
         // Verificar posición
-        console.log("\n--- VERIFICACIÓN DE POSICIÓN ---");
+        0 && console.log("\n--- VERIFICACIÓN DE POSICIÓN ---");
         if (stageData.caravan_pos) {
-            console.log("Posición actual:", stageData.caravan_pos);
+            0 && console.log("Posición actual:", stageData.caravan_pos);
             if (stageData.caravan_pos.c < 1) {
                 console.error("❌ Posición inválida (columna < 1)");
                 hasErrors = true;
             } else {
-                console.log("✅ Posición válida");
+                0 && console.log("✅ Posición válida");
             }
         } else {
             console.error("⚠️ No hay posición de caravana");
@@ -1287,15 +1287,15 @@ const RaidManager = {
         }
         
         // Verificar HP
-        console.log("\n--- VERIFICACIÓN DE HP ---");
-        console.log("HP actual:", stageData.caravan_hp);
-        console.log("HP máximo:", stageData.caravan_max_hp);
+        0 && console.log("\n--- VERIFICACIÓN DE HP ---");
+        0 && console.log("HP actual:", stageData.caravan_hp);
+        0 && console.log("HP máximo:", stageData.caravan_max_hp);
         
         // Calcular HP esperado basado en regimientos
         let expectedHp = 0;
         if (stageData.boss_regiments && stageData.boss_regiments.length > 0) {
             expectedHp = stageData.boss_regiments.reduce((sum, r) => sum + (r.maxHealth || r.health), 0);
-            console.log("HP esperado según regimientos:", expectedHp);
+            0 && console.log("HP esperado según regimientos:", expectedHp);
         }
         
         if (stageData.caravan_hp > stageData.caravan_max_hp) {
@@ -1307,12 +1307,12 @@ const RaidManager = {
             console.error("   Actual:", stageData.caravan_max_hp);
             hasErrors = true;
         } else {
-            console.log("✅ HP máximo válido");
+            0 && console.log("✅ HP máximo válido");
         }
         
         // CRÍTICO: Verificar si hay herencia de daño
         const hpPercentage = (stageData.caravan_hp / stageData.caravan_max_hp) * 100;
-        console.log("Porcentaje de HP:", hpPercentage.toFixed(1) + "%");
+        0 && console.log("Porcentaje de HP:", hpPercentage.toFixed(1) + "%");
         
         if (hpPercentage < 100) {
             console.error(
@@ -1324,20 +1324,20 @@ const RaidManager = {
             console.error("Esto NO debería ocurrir en una fase nueva");
             hasErrors = true;
         } else {
-            console.log("✅ La caravana tiene HP completo (sin daño heredado)");
+            0 && console.log("✅ La caravana tiene HP completo (sin daño heredado)");
         }
         
         // Resultado final
-        console.log("\n" + "=".repeat(50));
+        0 && console.log("\n" + "=".repeat(50));
         if (hasErrors) {
             console.error(
                 "%c¡SE ENCONTRARON INCONSISTENCIAS!",
                 'background: #ff0000; color: #fff; font-weight: bold; padding: 10px;'
             );
-            console.log("%cRecomendación: Usa RaidManager.debugForceNextStage() para forzar la transición correcta", 
+            0 && console.log("%cRecomendación: Usa RaidManager.debugForceNextStage() para forzar la transición correcta", 
                 'background: #ffff00; color: #000; font-weight: bold; padding: 5px;');
         } else {
-            console.log(
+            0 && console.log(
                 "%c✅ TODOS LOS DATOS SON CONSISTENTES",
                 'background: #00ff00; color: #000; font-weight: bold; padding: 10px;'
             );
@@ -1351,7 +1351,7 @@ const RaidManager = {
             return;
         }
 
-        console.log("%c=== REPARACIÓN DE HP DE CARAVANA ===", 'background: #ff6600; color: #fff; font-weight: bold; padding: 10px;');
+        0 && console.log("%c=== REPARACIÓN DE HP DE CARAVANA ===", 'background: #ff6600; color: #fff; font-weight: bold; padding: 10px;');
         
         const stageData = this.currentRaid.stage_data;
         const currentStage = this.currentRaid.current_stage;
@@ -1362,8 +1362,8 @@ const RaidManager = {
             return;
         }
 
-        console.log("Etapa actual:", currentStage, "-", config.name);
-        console.log("HP actual:", stageData.caravan_hp, "/", stageData.caravan_max_hp);
+        0 && console.log("Etapa actual:", currentStage, "-", config.name);
+        0 && console.log("HP actual:", stageData.caravan_hp, "/", stageData.caravan_max_hp);
         
         // Recalcular HP correcto basado en la configuración de la etapa
         const regimentType = config.regimentType;
@@ -1377,18 +1377,18 @@ const RaidManager = {
 
         const correctMaxHP = regimentCount * baseStats.health;
         
-        console.log("\n--- VALORES CORRECTOS ---");
-        console.log("Tipo de regimiento:", regimentType);
-        console.log("Cantidad:", regimentCount);
-        console.log("HP por regimiento:", baseStats.health);
-        console.log("HP máximo correcto:", correctMaxHP);
+        0 && console.log("\n--- VALORES CORRECTOS ---");
+        0 && console.log("Tipo de regimiento:", regimentType);
+        0 && console.log("Cantidad:", regimentCount);
+        0 && console.log("HP por regimiento:", baseStats.health);
+        0 && console.log("HP máximo correcto:", correctMaxHP);
         
         if (stageData.caravan_hp === correctMaxHP && stageData.caravan_max_hp === correctMaxHP) {
-            console.log("%c✅ El HP ya es correcto, no se necesita reparación", 'background: #00ff00; color: #000; font-weight: bold;');
+            0 && console.log("%c✅ El HP ya es correcto, no se necesita reparación", 'background: #00ff00; color: #000; font-weight: bold;');
             return;
         }
 
-        console.log("\n%c⚠️ Se detectó HP incorrecto. Reparando...", 'background: #ff0000; color: #fff; font-weight: bold;');
+        0 && console.log("\n%c⚠️ Se detectó HP incorrecto. Reparando...", 'background: #ff0000; color: #fff; font-weight: bold;');
         
         // Regenerar regimientos correctos
         const newRegiments = [];
@@ -1416,9 +1416,9 @@ const RaidManager = {
             return;
         }
 
-        console.log("%c✅ HP REPARADO EXITOSAMENTE", 'background: #00ff00; color: #000; font-weight: bold; padding: 10px;');
-        console.log("Nuevo HP:", correctMaxHP, "/", correctMaxHP);
-        console.log("\n⚠️ IMPORTANTE: Sal y vuelve a entrar al raid para ver los cambios");
+        0 && console.log("%c✅ HP REPARADO EXITOSAMENTE", 'background: #00ff00; color: #000; font-weight: bold; padding: 10px;');
+        0 && console.log("Nuevo HP:", correctMaxHP, "/", correctMaxHP);
+        0 && console.log("\n⚠️ IMPORTANTE: Sal y vuelve a entrar al raid para ver los cambios");
         
         // Actualizar el currentRaid local
         this.currentRaid.stage_data = stageData;
@@ -1428,11 +1428,11 @@ const RaidManager = {
     checkPendingRewards: async function() {
         const myUid = PlayerDataManager.currentPlayer?.auth_id;
         if (!myUid) {
-            console.log('[Raid] No hay usuario autenticado, saltando check de recompensas pendientes');
+            0 && console.log('[Raid] No hay usuario autenticado, saltando check de recompensas pendientes');
             return;
         }
         
-        console.log('[Raid] Verificando recompensas pendientes para:', myUid);
+        0 && console.log('[Raid] Verificando recompensas pendientes para:', myUid);
         
         try {
             const { data: completedRaids, error } = await supabaseClient
@@ -1446,7 +1446,7 @@ const RaidManager = {
             }
             
             if (!completedRaids || completedRaids.length === 0) {
-                console.log('[Raid] No hay raids completados');
+                0 && console.log('[Raid] No hay raids completados');
                 return;
             }
             
@@ -1465,7 +1465,7 @@ const RaidManager = {
             }
             
             if (pendingCount > 0) {
-                console.log(`[Raid] ✅ ${pendingCount} recompensa(s) pendiente(s) entregada(s)`);
+                0 && console.log(`[Raid] ✅ ${pendingCount} recompensa(s) pendiente(s) entregada(s)`);
             }
         } catch (error) {
             console.error('[Raid] Error verificando recompensas pendientes:', error);

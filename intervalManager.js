@@ -10,7 +10,7 @@ class IntervalManager {
     constructor() {
         this.intervals = new Map();
         this.timeouts = new Map();
-        console.log('[IntervalManager] Inicializado');
+        0 && console.log('[IntervalManager] Inicializado');
     }
     
     /**
@@ -40,7 +40,7 @@ class IntervalManager {
             createdAt: Date.now()
         });
         
-        console.log(`[IntervalManager] Interval creado: ${id} (cada ${delay}ms)`);
+        0 && console.log(`[IntervalManager] Interval creado: ${id} (cada ${delay}ms)`);
         return intervalId;
     }
     
@@ -56,7 +56,7 @@ class IntervalManager {
         if (interval) {
             clearInterval(interval.intervalId);
             this.intervals.delete(id);
-            console.log(`[IntervalManager] Interval eliminado: ${id}`);
+            0 && console.log(`[IntervalManager] Interval eliminado: ${id}`);
             return true;
         }
         
@@ -96,7 +96,7 @@ class IntervalManager {
             createdAt: Date.now()
         });
         
-        console.log(`[IntervalManager] Timeout creado: ${id} (en ${delay}ms)`);
+        0 && console.log(`[IntervalManager] Timeout creado: ${id} (en ${delay}ms)`);
         return timeoutId;
     }
     
@@ -112,7 +112,7 @@ class IntervalManager {
         if (timeout) {
             clearTimeout(timeout.timeoutId);
             this.timeouts.delete(id);
-            console.log(`[IntervalManager] Timeout eliminado: ${id}`);
+            0 && console.log(`[IntervalManager] Timeout eliminado: ${id}`);
             return true;
         }
         
@@ -140,7 +140,7 @@ class IntervalManager {
         keysToDelete.forEach(id => this.intervals.delete(id));
         
         if (count > 0) {
-            console.log(`[IntervalManager] Eliminados ${count} intervals con prefijo: ${prefix}`);
+            0 && console.log(`[IntervalManager] Eliminados ${count} intervals con prefijo: ${prefix}`);
         }
     }
     
@@ -164,7 +164,7 @@ class IntervalManager {
         keysToDelete.forEach(id => this.timeouts.delete(id));
         
         if (count > 0) {
-            console.log(`[IntervalManager] Eliminados ${count} timeouts con prefijo: ${prefix}`);
+            0 && console.log(`[IntervalManager] Eliminados ${count} timeouts con prefijo: ${prefix}`);
         }
     }
     
@@ -173,14 +173,14 @@ class IntervalManager {
      * Usar al salir del juego o cambiar de pantalla principal
      */
     clearAll() {
-        console.log(`[IntervalManager] Limpiando ${this.intervals.size} intervals y ${this.timeouts.size} timeouts...`);
+        0 && console.log(`[IntervalManager] Limpiando ${this.intervals.size} intervals y ${this.timeouts.size} timeouts...`);
         
         // Limpiar intervals
         for (const [id, interval] of this.intervals) {
             try {
                 clearInterval(interval.intervalId);
             } catch (error) {
-                console.warn(`[IntervalManager] Error limpiando interval ${id}:`, error);
+                0 && console.warn(`[IntervalManager] Error limpiando interval ${id}:`, error);
             }
         }
         
@@ -189,13 +189,13 @@ class IntervalManager {
             try {
                 clearTimeout(timeout.timeoutId);
             } catch (error) {
-                console.warn(`[IntervalManager] Error limpiando timeout ${id}:`, error);
+                0 && console.warn(`[IntervalManager] Error limpiando timeout ${id}:`, error);
             }
         }
         
         this.intervals.clear();
         this.timeouts.clear();
-        console.log('[IntervalManager] Todos los intervals y timeouts eliminados');
+        0 && console.log('[IntervalManager] Todos los intervals y timeouts eliminados');
     }
     
     /**
@@ -256,11 +256,11 @@ class IntervalManager {
      */
     logStats() {
         const stats = this.getStats();
-        console.log('[IntervalManager] Estadísticas:');
-        console.log('  Total intervals:', stats.totalIntervals);
-        console.log('  Total timeouts:', stats.totalTimeouts);
-        console.log('  Intervals activos:', stats.intervals);
-        console.log('  Timeouts activos:', stats.timeouts);
+        0 && console.log('[IntervalManager] Estadísticas:');
+        0 && console.log('  Total intervals:', stats.totalIntervals);
+        0 && console.log('  Total timeouts:', stats.totalTimeouts);
+        0 && console.log('  Intervals activos:', stats.intervals);
+        0 && console.log('  Timeouts activos:', stats.timeouts);
     }
 }
 

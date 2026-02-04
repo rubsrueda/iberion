@@ -1,7 +1,7 @@
 processEndGameProgression: async function(winningPlayerNumber) {
         // 1. Verificación de seguridad: ¿Hay un jugador logueado?
         if (!this.currentPlayer || !this.currentPlayer.auth_id) {
-            console.warn("[PROGRESIÓN] No hay sesión activa para guardar progreso.");
+            0 && console.warn("[PROGRESIÓN] No hay sesión activa para guardar progreso.");
             return;
         }
 
@@ -52,7 +52,7 @@ processEndGameProgression: async function(winningPlayerNumber) {
             UIManager.showPostMatchSummary(playerWon, xpGained, progress, matchData);
         }
 
-        console.log(`%c[PROGRESIÓN] Finalizada con éxito. XP: +${xpGained}`, "color: #2ecc71; font-weight: bold;");
+        0 && console.log(`%c[PROGRESIÓN] Finalizada con éxito. XP: +${xpGained}`, "color: #2ecc71; font-weight: bold;");
     },
 
     // FUNCIÓN PARA EL BOTÓN DE RECLAMAR

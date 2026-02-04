@@ -1,5 +1,5 @@
 // networkManager.js - VERSIÓN CORREGIDA (SERIALIZACIÓN SEGURA)
-console.log("networkManager.js CARGADO - v4.0");
+0 && console.log("networkManager.js CARGADO - v4.0");
 
 const NetworkManager = {
     miId: null,
@@ -86,7 +86,7 @@ const NetworkManager = {
         const estadoInicial = this._prepararEstadoParaNube();
         const hostUuid = PlayerDataManager.currentPlayer?.auth_id || crypto.randomUUID();
         
-        console.log(`[Host] Subiendo partida ${matchId} con host ID: ${hostUuid}`);
+        0 && console.log(`[Host] Subiendo partida ${matchId} con host ID: ${hostUuid}`);
         
         if (!hostUuid) {
             console.error("[Host] Error: No hay auth_id disponible. PlayerDataManager:", PlayerDataManager.currentPlayer);
@@ -110,7 +110,7 @@ const NetworkManager = {
             return null;
         }
         
-        console.log(`[Host] Partida ${matchId} creada exitosamente en Supabase.`);
+        0 && console.log(`[Host] Partida ${matchId} creada exitosamente en Supabase.`);
 
         // Sistema de Polling (Esperar al J2)
         this._clearMatchPolling();
@@ -123,7 +123,7 @@ const NetworkManager = {
                 .single();
 
             if (data && data.guest_id) {
-                console.log("¡JUGADOR 2 CONECTADO!");
+                0 && console.log("¡JUGADOR 2 CONECTADO!");
                 this._clearMatchPolling();
                 
                 if (document.getElementById('host-player-list')) {
@@ -156,7 +156,7 @@ const NetworkManager = {
     // 2. UNIRSE (CLIENTE)
     unirsePartidaEnNube: async function(codigoInput) {
         const matchId = codigoInput.trim().toUpperCase();
-        console.log(`[Cliente] Buscando: ${matchId}...`);
+        0 && console.log(`[Cliente] Buscando: ${matchId}...`);
 
         const { data, error } = await supabaseClient.from('active_matches').select('*').eq('match_id', matchId).single();
 
@@ -166,7 +166,7 @@ const NetworkManager = {
             return false;
         }
         
-        console.log(`[Cliente] Partida encontrada. Host: ${data.host_id}`);
+        0 && console.log(`[Cliente] Partida encontrada. Host: ${data.host_id}`);
 
         const guestUuid = PlayerDataManager.currentPlayer?.auth_id || crypto.randomUUID();
         
@@ -187,7 +187,7 @@ const NetworkManager = {
             return false;
         }
 
-        console.log("[Cliente] Unido exitosamente. Reconstruyendo...");
+        0 && console.log("[Cliente] Unido exitosamente. Reconstruyendo...");
 
         // --- ORDEN DE CARGA CORREGIDO ---
         // 1. Establecer identidad ANTES de cargar datos para que la UI sepa quién soy
@@ -209,7 +209,7 @@ const NetworkManager = {
     // 3. SUBIR TURNO
     subirTurnoANube: async function() {
         if (!this.miId) return;
-        console.log("☁️ Guardando turno...");
+        0 && console.log("☁️ Guardando turno...");
 
         // Usamos la función segura
         const estadoGuardar = this._prepararEstadoParaNube();
@@ -238,7 +238,7 @@ const NetworkManager = {
                 const nuevoEstado = payload.new.game_state;
                 // Si el timestamp es más nuevo, actualizamos
                 if (nuevoEstado.timestamp > (gameState.lastActionTimestamp || 0)) {
-                    console.log("📥 Sincronizando estado remoto...");
+                    0 && console.log("📥 Sincronizando estado remoto...");
                     reconstruirJuegoDesdeDatos(nuevoEstado);
                     gameState.lastActionTimestamp = nuevoEstado.timestamp;
                 }
@@ -248,7 +248,7 @@ const NetworkManager = {
 
     // Nueva función para recuperar estado de emergencia
     cargarPartidaDeNube: async function(gameCode) {
-        console.log(`[Nube] ☁️ Buscando actualizaciones en partida ${gameCode}...`);
+        0 && console.log(`[Nube] ☁️ Buscando actualizaciones en partida ${gameCode}...`);
         
         // Buscamos en 'active_matches' que es donde guardas el estado vivo
         const { data, error } = await supabaseClient
@@ -263,25 +263,25 @@ const NetworkManager = {
         const localTs = gameState.lastActionTimestamp || 0;
         const cloudTs = cloudState.timestamp || 0;
 
-        console.log(`[Sync Check] Local: ${localTs} | Nube: ${cloudTs}`);
+        0 && console.log(`[Sync Check] Local: ${localTs} | Nube: ${cloudTs}`);
 
         // REGLA DE ORO: Solo cargamos si la nube es REALMENTE más nueva.
         // Si son iguales, preferimos quedarnos como estamos para evitar parpadeos o reversiones.
         if (cloudTs > localTs) { 
-            console.log("✅ ¡La nube tiene datos nuevos! Actualizando...");
+            0 && console.log("✅ ¡La nube tiene datos nuevos! Actualizando...");
             if (typeof reconstruirJuegoDesdeDatos === 'function') {
                 reconstruirJuegoDesdeDatos(cloudState);
                 return true;
             }
         } else {
-            console.log("⏸️ Datos de nube antiguos o iguales. Ignorando.");
+            0 && console.log("⏸️ Datos de nube antiguos o iguales. Ignorando.");
         }
         return false;
     },
 
     // Nueva función para cargar desde la lista
     cargarPartidaDesdeLista: function(matchData) {
-        console.log("Cargando partida seleccionada:", matchData.match_id);
+        0 && console.log("Cargando partida seleccionada:", matchData.match_id);
         
         this.miId = matchData.match_id;
         const uid = PlayerDataManager.currentPlayer?.auth_id;
@@ -303,7 +303,7 @@ const NetworkManager = {
         const isModeAI = matchData.status === 'VS_AI' || gameState.playerTypes['player2'].includes('ai');
         
         if (isModeAI) {
-            console.log("[Carga] Modo VS IA detectado. Desactivando espera de red.");
+            0 && console.log("[Carga] Modo VS IA detectado. Desactivando espera de red.");
             
             // Si es el turno de la IA (J2), forzar su ejecución
             if (gameState.currentPlayer === 2) {

@@ -14,10 +14,10 @@ function logMessage(msg, type = 'info') {
             console.error(msg);
             break;
         case 'warning':
-            console.warn(msg);
+            0 && console.warn(msg);
             break;
         default:
-            console.log(msg);
+            0 && console.log(msg);
     }
 
     // 2. Si la función de la consola en pantalla existe, la llamamos para mostrar el mensaje.
@@ -111,7 +111,7 @@ function getUnitById(unitId) {
 }
 
 function isHexSupplied(startR, startC, playerId) {
-   // console.log(`%c[DEBUG Suministro] Chequeando suministro para (${startR},${startC}) de J${playerId}`, "background: yellow; color: black;");
+   // 0 && console.log(`%c[DEBUG Suministro] Chequeando suministro para (${startR},${startC}) de J${playerId}`, "background: yellow; color: black;");
 
     if (!board || board.length === 0 || !board[0] || !board[startR] || !board[startR][startC]) {
         console.error(`[isHexSupplied] Tablero o hexágono inicial (${startR},${startC}) no inicializado/válido.`);
@@ -121,7 +121,7 @@ function isHexSupplied(startR, startC, playerId) {
     
     // === CASO 1: La unidad YA ESTÁ en una fuente de suministro propia ===
     if (startHexData.owner === playerId && (startHexData.isCapital || startHexData.structure === "Fortaleza")) {
-        console.log(`%c[isHexSupplied] (${startR},${startC}) está directamente en una fuente de suministro propia (Capital/Fortaleza). SÍ SUMINISTRADA.`, "color: lightgreen;");
+        0 && console.log(`%c[isHexSupplied] (${startR},${startC}) está directamente en una fuente de suministro propia (Capital/Fortaleza). SÍ SUMINISTRADA.`, "color: lightgreen;");
         return true;
     }
 
@@ -144,7 +144,7 @@ function isHexSupplied(startR, startC, playerId) {
         // Esta condición ya no es la misma que la del inicio para evitar doble conteo y mejorar la lógica.
         if (current.r !== startR || current.c !== startC) { // Si no es el hexágono de partida
             if (currentHexData.owner === playerId && (currentHexData.isCapital || currentHexData.structure === "Fortaleza")) {
-                //console.log(`%c[isHexSupplied] (${startR},${startC}) está suministrada via ruta a fuente en (${current.r},${current.c}). SÍ SUMINISTRADA.`, "color: lightgreen;");
+                //0 && console.log(`%c[isHexSupplied] (${startR},${startC}) está suministrada via ruta a fuente en (${current.r},${current.c}). SÍ SUMINISTRADA.`, "color: lightgreen;");
                 return true;
             }
         }
@@ -170,7 +170,7 @@ function isHexSupplied(startR, startC, playerId) {
             }
         }
     }
-    //console.log(`%c[isHexSupplied] (${startR},${startC}) NO está suministrada (no se encontró ruta).`, "color: red;");
+    //0 && console.log(`%c[isHexSupplied] (${startR},${startC}) NO está suministrada (no se encontró ruta).`, "color: red;");
     return false;
 }
 
@@ -179,31 +179,31 @@ function isHexSuppliedForReinforce(r, c, playerId) {
     if (!hexData) return false;
 
     // LOG: Muestra la info de la casilla donde está la unidad
-    console.log(`[Reinforce Check] Unidad en (${r},${c}), J${playerId}.`);
+    0 && console.log(`[Reinforce Check] Unidad en (${r},${c}), J${playerId}.`);
 
     // Caso 1: La unidad está DIRECTAMENTE en una Capital o Fortaleza propia.
     if (hexData.owner === playerId && (hexData.isCapital || hexData.structure === "Fortaleza")) {
-        //console.log(`%c[DEBUG Reforzar] OK: Unidad en fuente de refuerzo directa. (owner:${hexData.owner}, isCapital:${hexData.isCapital}, structure:${hexData.structure})`, "color: green;");
+        //0 && console.log(`%c[DEBUG Reforzar] OK: Unidad en fuente de refuerzo directa. (owner:${hexData.owner}, isCapital:${hexData.isCapital}, structure:${hexData.structure})`, "color: green;");
         return true;
     }
 
     // Caso 2: La unidad está ADYACENTE a una Capital o Fortaleza propia.
     const neighbors = getHexNeighbors(r, c);
-    console.log(`[Reinforce Check] Buscando en ${neighbors.length} vecinos...`);
+    0 && console.log(`[Reinforce Check] Buscando en ${neighbors.length} vecinos...`);
     for (const neighbor of neighbors) {
         const neighborHexData = board[neighbor.r]?.[neighbor.c];
         if (neighborHexData) {
             // LOG: Muestra la info de cada vecino
-            console.log(`  - Vecino en (${neighbor.r},${neighbor.c}): owner=${neighborHexData.owner}, isCapital=${neighborHexData.isCapital}, structure=${neighborHexData.structure}`);
+            0 && console.log(`  - Vecino en (${neighbor.r},${neighbor.c}): owner=${neighborHexData.owner}, isCapital=${neighborHexData.isCapital}, structure=${neighborHexData.structure}`);
             
             if (neighborHexData.owner === playerId && (neighborHexData.isCapital || neighborHexData.structure === "Fortaleza")) {
-                console.log(`%c[DEBUG Reforzar] OK: Adyacente a fuente de refuerzo en (${neighbor.r},${neighbor.c}).`, "color: green;");
+                0 && console.log(`%c[DEBUG Reforzar] OK: Adyacente a fuente de refuerzo en (${neighbor.r},${neighbor.c}).`, "color: green;");
                 return true;
             }
         }
     }
 
-    console.log(`%c[DEBUG Reforzar] FALLO: No se encontró fuente de refuerzo para (${r},${c}).`, "color: red;");
+    0 && console.log(`%c[DEBUG Reforzar] FALLO: No se encontró fuente de refuerzo para (${r},${c}).`, "color: red;");
     return false;
 }
 
@@ -214,7 +214,7 @@ function getRandomTerrainType() {
     );
 
     if (availableTerrains.length === 0) {
-        console.warn("No hay terrenos transitables definidos en TERRAIN_TYPES. Devolviendo 'plains'.");
+        0 && console.warn("No hay terrenos transitables definidos en TERRAIN_TYPES. Devolviendo 'plains'.");
         return 'plains'; // Fallback por si acaso
     }
     
@@ -563,9 +563,9 @@ function renderEquipIcon(iconValue, className = "item-icon") {
                 const requestWakeLock = async () => {
                     try {
                         wakeLock = await navigator.wakeLock.request('screen');
-                        console.log('💡 Wake Lock activo: Pantalla no se apagará.');
+                        0 && console.log('💡 Wake Lock activo: Pantalla no se apagará.');
                     } catch (err) {
-                        console.log(`Error Wake Lock: ${err.name}, ${err.message}`);
+                        0 && console.log(`Error Wake Lock: ${err.name}, ${err.message}`);
                     }
                 };
                 requestWakeLock();
@@ -577,9 +577,9 @@ function renderEquipIcon(iconValue, className = "item-icon") {
                     }
                 });
             } catch (err) {
-                console.warn("Wake Lock no soportado.");
+                0 && console.warn("Wake Lock no soportado.");
             }
         }
     }
 
-console.log("utils.js se ha cargado.");
+0 && console.log("utils.js se ha cargado.");

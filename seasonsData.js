@@ -1,5 +1,5 @@
 // seasonsData.js
-console.log("seasonsData.js CARGADO - Biblioteca de Temporadas (Economía Global).");
+0 && console.log("seasonsData.js CARGADO - Biblioteca de Temporadas (Economía Global).");
 
 const BATTLE_PASS_SEASONS = {
   

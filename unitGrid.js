@@ -63,7 +63,7 @@ const UnitGrid = {
         if (typeof Logger !== 'undefined') {
             Logger.info('UnitGrid', `Grid inicializado con ${indexed} unidades`);
         } else {
-            console.log(`[UnitGrid] Grid inicializado con ${indexed} unidades`);
+            0 && console.log(`[UnitGrid] Grid inicializado con ${indexed} unidades`);
         }
     },
     
@@ -393,7 +393,7 @@ const UnitGrid = {
      */
     logStats() {
         const stats = this.getStats();
-        console.log('[UnitGrid] Estadísticas:', stats);
+        0 && console.log('[UnitGrid] Estadísticas:', stats);
         return stats;
     }
 };
@@ -415,5 +415,5 @@ if (typeof Logger !== 'undefined') {
     Logger.info('UnitGrid', 'Sistema de indexación espacial inicializado');
     Logger.debug('UnitGrid', 'Comandos disponibles en window.unitGridDebug');
 } else {
-    console.log('[UnitGrid] Sistema inicializado. Comandos en window.unitGridDebug');
+    0 && console.log('[UnitGrid] Sistema inicializado. Comandos en window.unitGridDebug');
 }

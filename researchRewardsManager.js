@@ -1,6 +1,6 @@
 // researchRewardsManager.js
 // Sistema de recompensas de puntos de investigación por acciones clave
-console.log("researchRewardsManager.js CARGADO");
+0 && console.log("researchRewardsManager.js CARGADO");
 
 /**
  * Configuración de puntos de investigación otorgados por cada acción.
@@ -45,7 +45,7 @@ const ResearchRewardsManager = {
         // Inicializar contadores si no existen
         this._ensureResearchRewardsState();
         
-        console.log("[ResearchRewards] Sistema de recompensas de investigación inicializado.");
+        0 && console.log("[ResearchRewards] Sistema de recompensas de investigación inicializado.");
     },
 
     /**
@@ -56,7 +56,7 @@ const ResearchRewardsManager = {
      */
     grantResearchPoints: function(playerId, amount, reason = "") {
         if (!gameState.playerResources[playerId]) {
-            console.warn(`[ResearchRewards] Jugador ${playerId} no tiene recursos inicializados.`);
+            0 && console.warn(`[ResearchRewards] Jugador ${playerId} no tiene recursos inicializados.`);
             return;
         }
 
@@ -70,7 +70,7 @@ const ResearchRewardsManager = {
         const reasonText = reason ? ` (${reason})` : "";
         logMessage(`+${amount} 💡 Puntos de Investigación${reasonText}`, "event");
         
-        console.log(`[ResearchRewards] J${playerId} recibe ${amount} puntos de investigación${reasonText}. Total: ${gameState.playerResources[playerId].researchPoints}`);
+        0 && console.log(`[ResearchRewards] J${playerId} recibe ${amount} puntos de investigación${reasonText}. Total: ${gameState.playerResources[playerId].researchPoints}`);
         
         // Actualizar UI
         if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {

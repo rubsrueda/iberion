@@ -1,5 +1,5 @@
 // adManager.js
-console.log("adManager.js CARGADO - Sistema Google AdSense H5 listo.");
+0 && console.log("adManager.js CARGADO - Sistema Google AdSense H5 listo.");
 
 const AdManager = {
     isPremium: false, // Se actualizará al cargar perfil
@@ -11,14 +11,14 @@ const AdManager = {
             adConfig({
                 preloadAdBreaks: 'on',
                 sound: 'on', // El juego tiene sonido
-                onReady: () => console.log("[Ads] API de Google lista."),
+                onReady: () => 0 && console.log("[Ads] API de Google lista."),
             });
         }
         
         // Verificar si el usuario es Premium
         if (PlayerDataManager.currentPlayer && PlayerDataManager.currentPlayer.is_premium) {
             this.isPremium = true;
-            console.log("[Ads] Usuario Premium detectado. Anuncios desactivados.");
+            0 && console.log("[Ads] Usuario Premium detectado. Anuncios desactivados.");
         }
     },
 
@@ -33,7 +33,7 @@ const AdManager = {
             return;
         }
 
-        console.log(`[Ads] Solicitando Interstitial: ${placementName}`);
+        0 && console.log(`[Ads] Solicitando Interstitial: ${placementName}`);
         
         // Pausar audio del juego
         if (typeof AudioManager !== 'undefined') AudioManager.stopMusic();
@@ -43,20 +43,20 @@ const AdManager = {
             adBreak({
                 type: 'next', // 'next' es para transiciones, 'start' para inicio
                 name: placementName,
-                beforeAd: () => { console.log("[Ads] Anuncio comenzando..."); },
+                beforeAd: () => { 0 && console.log("[Ads] Anuncio comenzando..."); },
                 afterAd: () => { 
-                    console.log("[Ads] Anuncio finalizado.");
+                    0 && console.log("[Ads] Anuncio finalizado.");
                     if (typeof AudioManager !== 'undefined') AudioManager.playMusic('menu_theme');
                     if (onComplete) onComplete();
                 },
                 adBreakDone: (placementInfo) => {
-                    console.log("[Ads] Resultado:", placementInfo.breakStatus); 
+                    0 && console.log("[Ads] Resultado:", placementInfo.breakStatus); 
                     // breakStatus puede ser: 'viewed', 'dismissed', 'frequency_capped'
                 }
             });
         } else {
                 // MODO SIMULACIÓN PARA DESARROLLO (LOCALHOST)
-                console.warn("[Ads] Google no disponible. Simulando anuncio local...");
+                0 && console.warn("[Ads] Google no disponible. Simulando anuncio local...");
                 
                 // Crear una pantalla negra falsa
                 const mockAd = document.createElement('div');
@@ -78,7 +78,7 @@ const AdManager = {
      * El jugador DEBE ver el anuncio completo para ganar.
      */
     showRewardedAd: function(onRewardGranted) {
-        console.log("[Ads] Solicitando Anuncio Recompensado...");
+        0 && console.log("[Ads] Solicitando Anuncio Recompensado...");
         
         if (typeof AudioManager !== 'undefined') AudioManager.stopMusic();
 
@@ -86,7 +86,7 @@ const AdManager = {
             adBreak({
                 type: 'reward', 
                 name: 'bonus_gems',
-                beforeAd: () => { console.log("[Ads] Reward video start"); },
+                beforeAd: () => { 0 && console.log("[Ads] Reward video start"); },
                 afterAd: () => { 
                     if (typeof AudioManager !== 'undefined') AudioManager.playMusic('menu_theme');
                 },
@@ -95,11 +95,11 @@ const AdManager = {
                     showAdFn();
                 },
                 adViewed: () => {
-                    console.log("[Ads] ¡Anuncio visto completo!");
+                    0 && console.log("[Ads] ¡Anuncio visto completo!");
                     if (onRewardGranted) onRewardGranted();
                 },
                 adDismissed: () => {
-                    console.log("[Ads] El usuario cerró el anuncio antes de tiempo.");
+                    0 && console.log("[Ads] El usuario cerró el anuncio antes de tiempo.");
                     if(typeof showToast === 'function') showToast("Debes ver el anuncio completo para recibir la recompensa.", "warning");
                 },
                 adBreakDone: (placementInfo) => {
@@ -110,7 +110,7 @@ const AdManager = {
                 }
             });
         } else {
-            console.warn("[Ads] Google API no disponible.");
+            0 && console.warn("[Ads] Google API no disponible.");
             if(typeof showToast === 'function') showToast("Error de conexión con el proveedor de anuncios.", "error");
         }
     }

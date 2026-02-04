@@ -1,5 +1,5 @@
 // Archivo: ai_deploymentLogic.js(20250827)
-console.log("ai_deploymentLogic.js CARGADO - Módulo de IA para la Fase de Despliegue.");
+0 && console.log("ai_deploymentLogic.js CARGADO - Módulo de IA para la Fase de Despliegue.");
 
 const AiDeploymentManager = {
     
@@ -16,12 +16,12 @@ const AiDeploymentManager = {
                 limit = gameState.deploymentUnitLimit;
             }
             let unitsToPlaceCount = (limit === Infinity) ? 5 : (limit - (gameState.unitsPlacedByPlayer?.[playerNumber] || 0));
-            if (unitsToPlaceCount <= 0) { console.log("Límite de unidades para desplegar ya alcanzado."); console.groupEnd(); return; }
+            if (unitsToPlaceCount <= 0) { 0 && console.log("Límite de unidades para desplegar ya alcanzado."); console.groupEnd(); return; }
 
             const analysis = this.analyzeEnvironment(playerNumber);
             const strategy = this.determineDeploymentStrategy(analysis);
             const missionList = this.generateMissionList(strategy, analysis);
-            if (missionList.length === 0) { console.warn("No se generaron misiones. Finalizando despliegue."); console.groupEnd(); return; }
+            if (missionList.length === 0) { 0 && console.warn("No se generaron misiones. Finalizando despliegue."); console.groupEnd(); return; }
 
             let deployedCount = 0;
             let tempOccupiedSpots = new Set();
@@ -51,7 +51,7 @@ const AiDeploymentManager = {
             console.groupEnd();
 
             // Después de que toda la lógica de despliegue ha terminado, pasa el turno.
-            console.log(`[IA DEPLOY] Despliegue completado. Finalizando turno de la IA en 1 segundo...`);
+            0 && console.log(`[IA DEPLOY] Despliegue completado. Finalizando turno de la IA en 1 segundo...`);
 
             
             setTimeout(() => {
@@ -160,7 +160,7 @@ const AiDeploymentManager = {
         }
 
         if (validAdjacentSpots.length === 0) {
-            console.warn(`-> No se encontró ningún spot de despliegue ADYACENTE y VÁLIDO para la misión en (${targetHex.r},${targetHex.c}).`);
+            0 && console.warn(`-> No se encontró ningún spot de despliegue ADYACENTE y VÁLIDO para la misión en (${targetHex.r},${targetHex.c}).`);
             return null;
         }
 
@@ -195,7 +195,7 @@ const AiDeploymentManager = {
         newUnit.currentHealth = newUnit.maxHealth;
         newUnit.currentMovement = newUnit.movement;
         
-        console.log(`[IA DEPLOY] Unidad ${newUnit.name} creada con stats: Atk=${newUnit.attack}, Def=${newUnit.defense}`);
+        0 && console.log(`[IA DEPLOY] Unidad ${newUnit.name} creada con stats: Atk=${newUnit.attack}, Def=${newUnit.defense}`);
         return newUnit;
     },
 

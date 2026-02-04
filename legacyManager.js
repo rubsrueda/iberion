@@ -12,17 +12,17 @@ const LegacyManager = {
      * Abre la Crónica al terminar la partida
      */
     open: function(winnerPlayerId) {
-        console.log('[LegacyManager.open] Abriendo Crónica. Ganador:', winnerPlayerId);
-        console.log('[LegacyManager.open] LegacyUI disponible?', typeof LegacyUI !== 'undefined');
+        0 && console.log('[LegacyManager.open] Abriendo Crónica. Ganador:', winnerPlayerId);
+        0 && console.log('[LegacyManager.open] LegacyUI disponible?', typeof LegacyUI !== 'undefined');
         
         this.isOpen = true;
         
         if (typeof LegacyUI !== 'undefined') {
-            console.log('[LegacyManager.open] Mostrando modal...');
+            0 && console.log('[LegacyManager.open] Mostrando modal...');
             LegacyUI.showModal();
-            console.log('[LegacyManager.open] Modal mostrado, actualizando displays...');
+            0 && console.log('[LegacyManager.open] Modal mostrado, actualizando displays...');
             this.updateAllDisplays(winnerPlayerId);
-            console.log('[LegacyManager.open] Displays actualizados');
+            0 && console.log('[LegacyManager.open] Displays actualizados');
         } else {
             console.error('[LegacyManager.open] LegacyUI no está definido');
         }
@@ -74,10 +74,10 @@ const LegacyManager = {
      * PESTAÑA 1: LÍNEA DE TIEMPO (Gráfico XY)
      */
     _updateTimeline: function(winnerPlayerId) {
-        console.log('[LegacyManager._updateTimeline] Iniciando...', winnerPlayerId);
+        0 && console.log('[LegacyManager._updateTimeline] Iniciando...', winnerPlayerId);
         
         const stats = StatTracker.gameStats;
-        console.log('[LegacyManager._updateTimeline] Stats:', stats);
+        0 && console.log('[LegacyManager._updateTimeline] Stats:', stats);
         
         if (!stats || !stats.players) {
             console.error('[LegacyManager._updateTimeline] No hay estadísticas disponibles');
@@ -95,7 +95,7 @@ const LegacyManager = {
         }
         
         const players = Object.values(stats.players);
-        console.log('[LegacyManager._updateTimeline] Jugadores encontrados:', players.length);
+        0 && console.log('[LegacyManager._updateTimeline] Jugadores encontrados:', players.length);
 
         // Preparar datos para gráfico (timeline por turno)
         const graphData = {
@@ -108,7 +108,7 @@ const LegacyManager = {
         for (let t = 1; t <= totalTurns; t++) {
             graphData.turns.push(t);
         }
-        console.log('[LegacyManager._updateTimeline] Turnos totales:', totalTurns);
+        0 && console.log('[LegacyManager._updateTimeline] Turnos totales:', totalTurns);
 
         // Eje Y: puntuación por jugador (se podría cambiar a military, economy, etc.)
         players.forEach(player => {
@@ -123,10 +123,10 @@ const LegacyManager = {
                 isWinner: player.playerId === winnerPlayerId
             };
             graphData.series.push(series);
-            console.log('[LegacyManager._updateTimeline] Serie agregada:', series.name, 'Ganador?', series.isWinner);
+            0 && console.log('[LegacyManager._updateTimeline] Serie agregada:', series.name, 'Ganador?', series.isWinner);
         });
 
-        console.log('[LegacyManager._updateTimeline] GraphData completo:', graphData);
+        0 && console.log('[LegacyManager._updateTimeline] GraphData completo:', graphData);
         LegacyUI.displayTimeline(graphData);
     },
 

@@ -69,7 +69,7 @@ const IBERIA_MAGNA_MAP_DATA = {
 
 if (typeof GAME_DATA_REGISTRY !== 'undefined') {
     GAME_DATA_REGISTRY.maps['IBERIA_MAGNA'] = IBERIA_MAGNA_MAP_DATA;
-    console.log("Mapa 'IBERIA_MAGNA' (v4.0 por Capas) registrado con éxito.");
+    0 && console.log("Mapa 'IBERIA_MAGNA' (v4.0 por Capas) registrado con éxito.");
 } else {
     console.error("Error: GAME_DATA_REGISTRY no está definido.");
 }

@@ -1,6 +1,6 @@
 // BattlePassManager.js v3.0 (Completo con Misiones)
 
-console.log("[BattlePassManager] Iniciando carga...");
+0 && console.log("[BattlePassManager] Iniciando carga...");
 
 const BattlePassManager = {
     currentSeason: null,
@@ -21,7 +21,7 @@ const BattlePassManager = {
         if (typeof SEASON_CONFIG !== 'undefined' && SEASON_CONFIG.ACTIVE_SEASON_KEY) {
             activeKey = SEASON_CONFIG.ACTIVE_SEASON_KEY;
         } else {
-            console.warn("BattlePassManager: SEASON_CONFIG no encontrado. Usando 'SEASON_1' por defecto.");
+            0 && console.warn("BattlePassManager: SEASON_CONFIG no encontrado. Usando 'SEASON_1' por defecto.");
         }
 
         // Cargamos los datos de la temporada
@@ -57,14 +57,14 @@ const BattlePassManager = {
     loadAllData: async function() {
         // Verificar si el usuario está autenticado
         if (!PlayerDataManager.currentPlayer?.auth_id) {
-            console.warn("[BattlePassManager] Usuario no autenticado. Usando datos locales.");
+            0 && console.warn("[BattlePassManager] Usuario no autenticado. Usando datos locales.");
             
             // Intentar cargar desde localStorage
             const localData = localStorage.getItem('battlePassProgress');
             if (localData) {
                 try {
                     this.userProgress = JSON.parse(localData);
-                    console.log("[BattlePassManager] Datos cargados desde localStorage.");
+                    0 && console.log("[BattlePassManager] Datos cargados desde localStorage.");
                 } catch (e) {
                     console.error("Error al parsear datos locales:", e);
                 }
@@ -99,7 +99,7 @@ const BattlePassManager = {
             .single();
 
         if (!passData) {
-            console.log("[BattlePassManager] Creando nuevo registro de pase para usuario.");
+            0 && console.log("[BattlePassManager] Creando nuevo registro de pase para usuario.");
             const { data: newPass } = await supabaseClient
                 .from('user_battle_pass')
                 .insert({ 
@@ -119,7 +119,7 @@ const BattlePassManager = {
             this.userProgress.claimed_rewards = [];
         }
         
-        console.log("[BattlePassManager] Progreso cargado:", this.userProgress);
+        0 && console.log("[BattlePassManager] Progreso cargado:", this.userProgress);
 
         // 2. CARGAR O GENERAR MISIONES DIARIAS
         await this.checkDailyMissionsGen(uid);
@@ -219,7 +219,7 @@ const BattlePassManager = {
             
             // Si detectamos que el nivel no coincide, lo corregimos automáticamente
             if (correctLevel > this.userProgress.current_level) {
-                console.log(`[BattlePassManager] Auto-corrección de nivel: ${this.userProgress.current_level} → ${correctLevel}`);
+                0 && console.log(`[BattlePassManager] Auto-corrección de nivel: ${this.userProgress.current_level} → ${correctLevel}`);
                 this.userProgress.current_level = correctLevel;
                 // Guardar inmediatamente
                 this.saveUserProgress();
@@ -571,7 +571,7 @@ const BattlePassManager = {
     saveUserProgress: async function() {
         try {
             if (!PlayerDataManager.currentPlayer?.auth_id) {
-                console.warn("[BattlePassManager] No hay usuario autenticado. Guardando en localStorage.");
+                0 && console.warn("[BattlePassManager] No hay usuario autenticado. Guardando en localStorage.");
                 // Fallback a localStorage para debug
                 localStorage.setItem('battlePassProgress', JSON.stringify(this.userProgress));
                 return;
@@ -583,7 +583,7 @@ const BattlePassManager = {
                 this.currentSeason = BATTLE_PASS_SEASONS[activeKey];
                 
                 if (!this.currentSeason) {
-                    console.warn("[BattlePassManager] No se pudo cargar la temporada para guardar progreso.");
+                    0 && console.warn("[BattlePassManager] No se pudo cargar la temporada para guardar progreso.");
                     return;
                 }
             }
@@ -605,7 +605,7 @@ const BattlePassManager = {
                 // Guardar localmente como respaldo
                 localStorage.setItem('battlePassProgress', JSON.stringify(this.userProgress));
             } else {
-                console.log("[BattlePassManager] Progreso guardado exitosamente en Supabase.");
+                0 && console.log("[BattlePassManager] Progreso guardado exitosamente en Supabase.");
             }
         } catch (error) {
             console.error("[BattlePassManager] Error en saveUserProgress:", error);
@@ -639,7 +639,7 @@ const BattlePassManager = {
          try {
              // Validación de seguridad
              if (!this.userProgress) {
-                 console.warn("[BattlePassManager] userProgress no inicializado. Cargando datos...");
+                 0 && console.warn("[BattlePassManager] userProgress no inicializado. Cargando datos...");
                  await this.loadAllData();
                  if (!this.userProgress) {
                      console.error("[BattlePassManager] No se pudo inicializar userProgress.");
@@ -684,7 +684,7 @@ const BattlePassManager = {
                  await PlayerDataManager.saveCurrentPlayer();
              }
              
-             console.log(`[BattlePassManager] XP agregado: +${xpAmount}. XP Total: ${oldXp} → ${this.userProgress.current_xp}. Nivel: ${oldLvl} → ${this.userProgress.current_level}`);
+             0 && console.log(`[BattlePassManager] XP agregado: +${xpAmount}. XP Total: ${oldXp} → ${this.userProgress.current_xp}. Nivel: ${oldLvl} → ${this.userProgress.current_level}`);
              
              // Actualizar visualización si el modal está abierto
              const modal = document.getElementById('battlePassModal');
@@ -730,7 +730,7 @@ const BattlePassManager = {
     },
 };
 
-console.log("[BattlePassManager] Carga completada. Objeto definido:", typeof BattlePassManager);
+0 && console.log("[BattlePassManager] Carga completada. Objeto definido:", typeof BattlePassManager);
 
 // LISTENERS UNIFICADOS (Importante actualizar para los Tabs)
 document.addEventListener('click', (e) => {

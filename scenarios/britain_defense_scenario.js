@@ -29,11 +29,11 @@ if (typeof GAME_DATA_REGISTRY !== 'undefined' && GAME_DATA_REGISTRY.scenarios) {
     // La CLAVE para el registro es la cadena "BRITAIN_DEFENSE_SCENARIO"
     // El VALOR es la constante BRITAIN_DEFENSE_SCENARIO que acabamos de definir
     GAME_DATA_REGISTRY.scenarios["BRITAIN_DEFENSE_SCENARIO"] = BRITAIN_DEFENSE_SCENARIO;
-    console.log('REGISTRO OK: BRITAIN_DEFENSE_SCENARIO se ha registrado en GAME_DATA_REGISTRY.scenarios');
+    0 && console.log('REGISTRO OK: BRITAIN_DEFENSE_SCENARIO se ha registrado en GAME_DATA_REGISTRY.scenarios');
 } else {
     console.error("ERROR DE REGISTRO en britain_defense_scenario.js: GAME_DATA_REGISTRY o GAME_DATA_REGISTRY.scenarios no está definido.");
 }
 
 // Este log confirma que la constante en SÍ MISMA está definida en este script.
 // No necesariamente que el registro haya funcionado.
-console.log("DEFINICIÓN LOCAL: BRITAIN_DEFENSE_SCENARIO (constante) definido:", typeof BRITAIN_DEFENSE_SCENARIO);
+0 && console.log("DEFINICIÓN LOCAL: BRITAIN_DEFENSE_SCENARIO (constante) definido:", typeof BRITAIN_DEFENSE_SCENARIO);

@@ -9,7 +9,7 @@
 
 const LedgerButtonIntegration = {
     initialize: function() {
-        console.log('[LedgerButtonIntegration] Botón deshabilitado - ya existe en barra superior');
+        0 && console.log('[LedgerButtonIntegration] Botón deshabilitado - ya existe en barra superior');
         
         // Solo configurar atajo de teclado (L)
         this._setupKeyboardShortcut();
@@ -26,7 +26,7 @@ const LedgerButtonIntegration = {
                 }
             }
         });
-        console.log('[LedgerButtonIntegration] Atajo de teclado "L" configurado');
+        0 && console.log('[LedgerButtonIntegration] Atajo de teclado "L" configurado');
     }
 };
 

@@ -9,14 +9,14 @@ const AutoResearchManager = {
      * Inicializa el sistema
      */
     init() {
-        console.log("[AutoResearch] Sistema de Auto-Investigación inicializado");
+        0 && console.log("[AutoResearch] Sistema de Auto-Investigación inicializado");
     },
     
     /**
      * Activa un plan de investigación para llegar a una tecnología objetivo
      */
     activateResearchPlan(playerId, targetTechId) {
-        console.log(`[AutoResearch] 🎯 Activando plan de investigación para ${targetTechId}`);
+        0 && console.log(`[AutoResearch] 🎯 Activando plan de investigación para ${targetTechId}`);
         
         if (!TECHNOLOGY_TREE_DATA[targetTechId]) {
             console.error(`[AutoResearch] ❌ Tecnología ${targetTechId} no existe`);
@@ -35,7 +35,7 @@ const AutoResearchManager = {
         // Verificar si ya está investigada
         if (playerTechs.includes(targetTechId)) {
             logMessage("Esta tecnología ya está investigada", "info");
-            console.log(`[AutoResearch] ⚠️ ${targetTechId} ya está investigada`);
+            0 && console.log(`[AutoResearch] ⚠️ ${targetTechId} ya está investigada`);
             return false;
         }
         
@@ -56,7 +56,7 @@ const AutoResearchManager = {
             activated: true
         };
         
-        console.log(`[AutoResearch] ✅ Plan activado. Camino:`, researchPath.map(t => TECHNOLOGY_TREE_DATA[t].name));
+        0 && console.log(`[AutoResearch] ✅ Plan activado. Camino:`, researchPath.map(t => TECHNOLOGY_TREE_DATA[t].name));
         logMessage(`Plan de investigación activado: ${researchPath.length} tecnología${researchPath.length > 1 ? 's' : ''} hasta ${TECHNOLOGY_TREE_DATA[targetTechId].name}`, "success");
         
         // Actualizar UI del árbol tecnológico si está abierto
@@ -100,7 +100,7 @@ const AutoResearchManager = {
         // Ordenar las tecnologías por dependencias (de prerequisitos a objetivo)
         const sortedPath = this.topologicalSort([...allNeeded]);
         
-        console.log(`[AutoResearch] Camino calculado para ${targetTechId}:`, sortedPath);
+        0 && console.log(`[AutoResearch] Camino calculado para ${targetTechId}:`, sortedPath);
         return sortedPath;
     },
     
@@ -115,7 +115,7 @@ const AutoResearchManager = {
         const visit = (techId) => {
             if (visited.has(techId)) return;
             if (visiting.has(techId)) {
-                console.warn(`[AutoResearch] ⚠️ Dependencia circular detectada en ${techId}`);
+                0 && console.warn(`[AutoResearch] ⚠️ Dependencia circular detectada en ${techId}`);
                 return;
             }
             
@@ -147,12 +147,12 @@ const AutoResearchManager = {
      */
     cancelResearchPlan(playerId) {
         if (!this.activeResearchPlans[playerId]) {
-            console.log(`[AutoResearch] ⚠️ No hay plan activo para jugador ${playerId}`);
+            0 && console.log(`[AutoResearch] ⚠️ No hay plan activo para jugador ${playerId}`);
             return;
         }
         
         const plan = this.activeResearchPlans[playerId];
-        console.log(`[AutoResearch] ❌ Plan cancelado: ${TECHNOLOGY_TREE_DATA[plan.targetTech].name}`);
+        0 && console.log(`[AutoResearch] ❌ Plan cancelado: ${TECHNOLOGY_TREE_DATA[plan.targetTech].name}`);
         logMessage("Plan de investigación cancelado", "info");
         
         delete this.activeResearchPlans[playerId];
@@ -166,7 +166,7 @@ const AutoResearchManager = {
         const plan = this.activeResearchPlans[playerId];
         if (!plan || !plan.activated) return;
         
-        console.log(`[AutoResearch] 🔬 Procesando auto-investigación para jugador ${playerId}`);
+        0 && console.log(`[AutoResearch] 🔬 Procesando auto-investigación para jugador ${playerId}`);
         
         const playerResources = gameState.playerResources[playerId];
         if (!playerResources) return;
@@ -175,7 +175,7 @@ const AutoResearchManager = {
         
         // Verificar si el plan ya se completó
         if (playerTechs.includes(plan.targetTech)) {
-            console.log(`[AutoResearch] 🎉 ¡Objetivo alcanzado! ${TECHNOLOGY_TREE_DATA[plan.targetTech].name}`);
+            0 && console.log(`[AutoResearch] 🎉 ¡Objetivo alcanzado! ${TECHNOLOGY_TREE_DATA[plan.targetTech].name}`);
             logMessage(`¡Plan de investigación completado! ${TECHNOLOGY_TREE_DATA[plan.targetTech].name} investigada`, "success");
             delete this.activeResearchPlans[playerId];
             this.updateTechTreeVisualization(playerId);
@@ -195,7 +195,7 @@ const AutoResearchManager = {
         }
         
         if (!nextTech) {
-            console.warn(`[AutoResearch] ⚠️ No se encontró siguiente tecnología en el plan`);
+            0 && console.warn(`[AutoResearch] ⚠️ No se encontró siguiente tecnología en el plan`);
             return;
         }
         
@@ -206,7 +206,7 @@ const AutoResearchManager = {
         for (const resourceKey in tech.cost) {
             if ((playerResources[resourceKey] || 0) < tech.cost[resourceKey]) {
                 canAfford = false;
-                console.log(`[AutoResearch] ⏳ Esperando recursos: Necesita ${tech.cost[resourceKey]} ${resourceKey}, tiene ${playerResources[resourceKey] || 0}`);
+                0 && console.log(`[AutoResearch] ⏳ Esperando recursos: Necesita ${tech.cost[resourceKey]} ${resourceKey}, tiene ${playerResources[resourceKey] || 0}`);
                 break;
             }
         }
@@ -217,7 +217,7 @@ const AutoResearchManager = {
         }
         
         // ¡Investigar!
-        console.log(`[AutoResearch] 🔬 Auto-investigando: ${tech.name}`);
+        0 && console.log(`[AutoResearch] 🔬 Auto-investigando: ${tech.name}`);
         
         // Restar recursos
         for (const resourceKey in tech.cost) {
@@ -396,4 +396,4 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-console.log("[AutoResearch] autoResearchManager.js cargado");
+0 && console.log("[AutoResearch] autoResearchManager.js cargado");

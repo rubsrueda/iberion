@@ -64,7 +64,7 @@ const ReplayAPI = {
                 return null;
             }
 
-            console.log('[ReplayAPI] Token generado:', token);
+            0 && console.log('[ReplayAPI] Token generado:', token);
             return token;
         } catch (err) {
             console.error('[ReplayAPI] Excepción:', err);
@@ -90,7 +90,7 @@ const ReplayAPI = {
 
         try {
             await navigator.clipboard.writeText(url);
-            console.log('[ReplayAPI] Enlace copiado al portapapeles');
+            0 && console.log('[ReplayAPI] Enlace copiado al portapapeles');
             return true;
         } catch (err) {
             console.error('[ReplayAPI] Error al copiar:', err);
@@ -140,7 +140,7 @@ const ReplayAPI = {
                 return false;
             }
 
-            console.log('[ReplayAPI] Replay marcado como público');
+            0 && console.log('[ReplayAPI] Replay marcado como público');
             return true;
         } catch (err) {
             console.error('[ReplayAPI] Excepción:', err);
@@ -192,7 +192,7 @@ const ReplayAPI = {
                 return false;
             }
 
-            console.log('[ReplayAPI] Replay eliminado');
+            0 && console.log('[ReplayAPI] Replay eliminado');
             return true;
         } catch (err) {
             console.error('[ReplayAPI] Excepción:', err);

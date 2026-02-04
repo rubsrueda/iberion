@@ -1,6 +1,6 @@
 // spatialIndex.js
 // Índice espacial para búsquedas rápidas de unidades por posición
-console.log("spatialIndex.js CARGADO - Índice Espacial de Unidades v1.0");
+0 && console.log("spatialIndex.js CARGADO - Índice Espacial de Unidades v1.0");
 
 /**
  * Sistema de índice espacial para búsquedas O(1) en lugar de O(n)

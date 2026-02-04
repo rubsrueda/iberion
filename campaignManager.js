@@ -16,7 +16,7 @@ let campaignState = {
 // En campaignManager.js, REEMPLAZA la función showScreen COMPLETA
 
 function showScreen(screenToShow) {
-    console.log(`[showScreen] Intentando mostrar: ${screenToShow ? screenToShow.id : 'NADA'} y ocultar el resto.`);
+    0 && console.log(`[showScreen] Intentando mostrar: ${screenToShow ? screenToShow.id : 'NADA'} y ocultar el resto.`);
     
     // Creamos una lista COMPLETA de todas las pantallas/contenedores que actúan como "pantallas principales".
     const screens = [
@@ -49,7 +49,7 @@ function showScreen(screenToShow) {
 
 // --- INICIO DE FUNCIÓN: initializeCampaignMode ---
 function initializeCampaignMode() {
-    console.log("CampaignManager: Initializing Campaign Mode...");
+    0 && console.log("CampaignManager: Initializing Campaign Mode...");
     showScreen(domElements.worldMapScreenEl); // Usar domElements
 
     if (typeof WORLD_MAP_DATA === 'undefined') {
@@ -74,7 +74,7 @@ function initializeCampaignMode() {
 
 // --- INICIO DE FUNCIÓN: setupMainMenuListeners ---
 function setupMainMenuListeners() { // Esta función será llamada por main.js -> initApp
-    console.log("CampaignManager: setting up main menu listeners...");
+    0 && console.log("CampaignManager: setting up main menu listeners...");
     // Asegurarse que todos los elementos se acceden a través de domElements
    /* if (!domElements.startCampaignBtnEl || !domElements.startSkirmishBtnEl || !domElements.startTutorialBtn || !domElements.backToMainMenuBtn_fromCampaign || !domElements.backToMainMenuBtn_fromSetup || !domElements.closeScenarioBriefingBtnEl || !domElements.startScenarioBattleBtnEl) {
         console.error("CampaignManager: Faltan uno o más botones del menú principal/navegación. Asegúrate que domElements.js los inicializó.");
@@ -119,7 +119,7 @@ function setupMainMenuListeners() { // Esta función será llamada por main.js -
 // --- INICIO DE FUNCIÓN: renderWorldMap ---
 function renderWorldMap() {
     if (!worldData || !domElements.territoryMarkerContainerEl) { // Usar domElements
-        console.warn("CampaignManager - renderWorldMap: worldData o territoryMarkerContainerEl no listos.");
+        0 && console.warn("CampaignManager - renderWorldMap: worldData o territoryMarkerContainerEl no listos.");
         return;
     }
     domElements.territoryMarkerContainerEl.innerHTML = ''; // Usar domElements
@@ -240,7 +240,7 @@ function handleStartScenarioBattle() {
 
 // --- INICIO DE FUNCIÓN: handleTacticalBattleResult ---
 function handleTacticalBattleResult(playerWon, battleTerritoryId) {
-    console.log(`CampaignManager: Resultado de batalla en ${battleTerritoryId}: Jugador ${playerWon ? 'GANÓ' : 'PERDIÓ'}`);
+    0 && console.log(`CampaignManager: Resultado de batalla en ${battleTerritoryId}: Jugador ${playerWon ? 'GANÓ' : 'PERDIÓ'}`);
     showScreen(domElements.worldMapScreenEl); // Usar domElements
     if (!worldData || !worldData.territories[battleTerritoryId]) {
         console.error("CampaignManager - handleTacticalBattleResult: Datos de territorio no encontrados:", battleTerritoryId);
@@ -294,7 +294,7 @@ function saveCampaignProgress() {
         localStorage.setItem('hexEvolvedCampaignState', JSON.stringify({
             conqueredTerritories: Array.from(campaignState.conqueredTerritories)
         }));
-        console.log("CampaignManager: Progreso de campaña guardado.");
+        0 && console.log("CampaignManager: Progreso de campaña guardado.");
     } catch (e) { console.error("CampaignManager: Error guardando progreso de campaña:", e); }
 }
 // --- FIN DE FUNCIÓN: saveCampaignProgress ---
@@ -307,14 +307,14 @@ function loadCampaignProgress() {
         try {
             const parsedState = JSON.parse(savedState);
             campaignState.conqueredTerritories = new Set(parsedState.conqueredTerritories || []);
-            console.log("CampaignManager: Progreso de campaña cargado:", campaignState.conqueredTerritories);
+            0 && console.log("CampaignManager: Progreso de campaña cargado:", campaignState.conqueredTerritories);
         } catch (e) {
             console.error("CampaignManager: Error parseando estado de campaña guardado:", e);
             campaignState.conqueredTerritories = new Set();
         }
     } else {
         campaignState.conqueredTerritories = new Set();
-        console.log("CampaignManager: No hay progreso de campaña guardado, iniciando nuevo.");
+        0 && console.log("CampaignManager: No hay progreso de campaña guardado, iniciando nuevo.");
     }
 }
 // --- FIN DE FUNCIÓN: loadCampaignProgress ---
@@ -323,8 +323,8 @@ function loadCampaignProgress() {
 // --- INICIO DE FUNCIÓN: updateCampaignMessages ---
 function updateCampaignMessages(message) {
     if (domElements.campaignMessagesEl) domElements.campaignMessagesEl.textContent = message; // Usar domElements
-    else console.warn("CampaignManager: campaignMessagesEl no encontrado para mostrar mensaje:", message);
-    console.log("CAMPAIGN MSG: " + message);
+    else 0 && console.warn("CampaignManager: campaignMessagesEl no encontrado para mostrar mensaje:", message);
+    0 && console.log("CAMPAIGN MSG: " + message);
 }
 // --- FIN DE FUNCIÓN: updateCampaignMessages ---
 
@@ -333,7 +333,7 @@ function updateCampaignMessages(message) {
 // se ejecuta después de que el DOM está listo, PERO la inicialización principal
 // de listeners y la muestra de la primera pantalla ahora es orquestada por main.js -> initApp
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("CampaignManager: DOMContentLoaded. Las funciones de CampaignManager están listas.");
+    0 && console.log("CampaignManager: DOMContentLoaded. Las funciones de CampaignManager están listas.");
     // Ya no llamamos a initializeDomElements() aquí.
     // Ya no llamamos a setupMainMenuListeners() ni showScreen() aquí directamente.
     // main.js -> initApp se encargará de llamar a setupMainMenuListeners()

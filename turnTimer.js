@@ -1,5 +1,5 @@
 // turnTimer.js
-console.log("turnTimer.js CARGADO - Gestor de tiempo por turno listo.");
+0 && console.log("turnTimer.js CARGADO - Gestor de tiempo por turno listo.");
 
 const TurnTimerManager = {
     timerInterval: null,
@@ -27,11 +27,11 @@ const TurnTimerManager = {
     start: function(totalSeconds) {
         // Si no hay límite de tiempo (Infinity), no hacemos nada.
         if (!isFinite(totalSeconds)) {
-            console.log("[TIMER] Turno sin límite de tiempo.");
+            0 && console.log("[TIMER] Turno sin límite de tiempo.");
             return;
         }
 
-        console.log(`[TIMER] Iniciando temporizador de ${totalSeconds} segundos.`);
+        0 && console.log(`[TIMER] Iniciando temporizador de ${totalSeconds} segundos.`);
         
         // Detener cualquier temporizador anterior por seguridad
         this.stop();
@@ -56,7 +56,7 @@ const TurnTimerManager = {
             // Si NO es un juego de red, o si SÍ es un juego de red Y YO soy el anfitrión...
                 if (!isNetworkGame() || NetworkManager.esAnfitrion) {
                     
-                    console.log("[TIMER] ¡Tiempo agotado! Forzando fin de turno (Local o Anfitrión).");
+                    0 && console.log("[TIMER] ¡Tiempo agotado! Forzando fin de turno (Local o Anfitrión).");
                     
                     // El Anfitrión y el juego local tienen autoridad para llamar a handleEndTurn directamente.
                     if (typeof handleEndTurn === 'function') {
@@ -67,7 +67,7 @@ const TurnTimerManager = {
 
                 } else {
                     // Si soy un CLIENTE en un juego de red...
-                    console.log("[TIMER] ¡Tiempo agotado! Soy un Cliente, enviando petición de fin de turno al Anfitrión.");
+                    0 && console.log("[TIMER] ¡Tiempo agotado! Soy un Cliente, enviando petición de fin de turno al Anfitrión.");
                     
                     // 1. Crear la acción de fin de turno.
                     const endTurnAction = { 
@@ -103,7 +103,7 @@ const TurnTimerManager = {
             }
             this.timerInterval = null;
             this.usingIntervalManager = false;
-            console.log("[TIMER] Temporizador detenido.");
+            0 && console.log("[TIMER] Temporizador detenido.");
         }
         
         // Ocultar el contador y resetear estilos

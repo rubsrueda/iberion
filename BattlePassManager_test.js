@@ -1,6 +1,6 @@
 // BattlePassManager_test.js - Versión minimalista de prueba
 
-console.log("[BattlePassManager_test] Iniciando carga...");
+0 && console.log("[BattlePassManager_test] Iniciando carga...");
 
 const BattlePassManager = {
     currentSeason: null,
@@ -9,15 +9,15 @@ const BattlePassManager = {
     currentTab: 'rewards',
     
     open: async function() {
-        console.log("[BattlePassManager] open() llamado");
-        console.log("Modal elemento:", document.getElementById('battlePassModal'));
+        0 && console.log("[BattlePassManager] open() llamado");
+        0 && console.log("Modal elemento:", document.getElementById('battlePassModal'));
     },
     
     switchTab: function(tabName) {
-        console.log("[BattlePassManager] switchTab():", tabName);
+        0 && console.log("[BattlePassManager] switchTab():", tabName);
         this.currentTab = tabName;
     }
 };
 
-console.log("[BattlePassManager_test] Objeto definido correctamente");
-console.log("typeof BattlePassManager:", typeof BattlePassManager);
+0 && console.log("[BattlePassManager_test] Objeto definido correctamente");
+0 && console.log("typeof BattlePassManager:", typeof BattlePassManager);

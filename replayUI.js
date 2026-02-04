@@ -188,7 +188,7 @@ const ReplayUI = {
             // Validar que events existe y es iterable
             const events = turnData.events || [];
             if (!Array.isArray(events)) {
-                console.warn('[ReplayUI] events no es un array:', turnData);
+                0 && console.warn('[ReplayUI] events no es un array:', turnData);
                 continue;
             }
             

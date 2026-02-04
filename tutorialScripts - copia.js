@@ -1,5 +1,5 @@
 // tutorialScripts.js
-console.log("tutorialScripts.js CARGADO - v8.1 - VALIDACIÓN FINAL 40 PASOS");
+0 && console.log("tutorialScripts.js CARGADO - v8.1 - VALIDACIÓN FINAL 40 PASOS");
 
 const TUTORIAL_SCRIPTS = {
     completo: [
@@ -32,7 +32,7 @@ const TUTORIAL_SCRIPTS = {
             highlightElementId: 'floatingCreateDivisionBtn',
             
             onStepStart: () => {
-                console.log("[TUTORIAL] Transición a fase de DESPLIEGUE.");
+                0 && console.log("[TUTORIAL] Transición a fase de DESPLIEGUE.");
                 gameState.currentPhase = "deployment"; // 1. Cambiamos la fase
 
                 // 2. ¡LE DECIMOS A LA UI QUE SE ACTUALICE CON LA NUEVA FASE!
@@ -183,7 +183,7 @@ const TUTORIAL_SCRIPTS = {
             id: 16,
             message: "Tus tropas están heridas. Revisa a la división 💪 Sal de la pantalla y pulsa sobre <strong>Consolidar (🔁)</strong> combina supervivientes del mismo tipo para reducir Regimientos. ¡Pruébalo!",
             onStepStart: () => {
-                console.log("[TUTORIAL] Configurando paso 16: Consolidación");
+                0 && console.log("[TUTORIAL] Configurando paso 16: Consolidación");
 
                 // 1. Limpiar el tablero de unidades del jugador para evitar confusiones
                 const playerUnits = units.filter(u => u.player === 1);
@@ -239,7 +239,7 @@ const TUTORIAL_SCRIPTS = {
             id: 19,
             message: "¡A la práctica! Hemos detectado un puesto de avanzada enemigo. <strong>Mueve tu división principal para ocuparlo.</strong>",
             onStepStart: () => {
-                console.log("[TUTORIAL] Limpiando unidades enemigas residuales antes del paso 19.");
+                0 && console.log("[TUTORIAL] Limpiando unidades enemigas residuales antes del paso 19.");
                 const enemyUnits = units.filter(u => u.player === 2);
                 enemyUnits.forEach(unit => handleUnitDestroyed(unit, null));
                 const enemyHexR = 4;
@@ -264,7 +264,7 @@ const TUTORIAL_SCRIPTS = {
                     
                     // 3. La unidad más fuerte es nuestra "unidad principal".
                     const mainPlayerUnit = allPlayerUnits[0];
-                    console.log(`[TUTORIAL] Unidad principal identificada para el paso 19: ${mainPlayerUnit.name}`);
+                    0 && console.log(`[TUTORIAL] Unidad principal identificada para el paso 19: ${mainPlayerUnit.name}`);
 
                     // 4. Nos aseguramos de que esta unidad pueda moverse.
                     mainPlayerUnit.hasMoved = false;

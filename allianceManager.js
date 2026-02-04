@@ -446,7 +446,7 @@ function toggleChatWidget() {
  */
 AllianceManager.deployImperialCaravan = async function(allianceId) {
     try {
-        console.log(`[Alliance] Desplegando Caravana Imperial para alianza ${allianceId}...`);
+        0 && console.log(`[Alliance] Desplegando Caravana Imperial para alianza ${allianceId}...`);
         
         if (!gameState || !board || !units) {
             console.error("[Alliance] No se puede desplegar: gameState no inicializado.");
@@ -456,7 +456,7 @@ AllianceManager.deployImperialCaravan = async function(allianceId) {
         // 1. Encontrar una posición válida para desplegar (cerca de la capital del jugador)
         const playerCapital = gameState.cities.find(c => c.isCapital && c.owner === gameState.currentPlayer);
         if (!playerCapital) {
-            console.warn("[Alliance] No se encontró capital del jugador para desplegar Caravana.");
+            0 && console.warn("[Alliance] No se encontró capital del jugador para desplegar Caravana.");
             return false;
         }
 
@@ -472,7 +472,7 @@ AllianceManager.deployImperialCaravan = async function(allianceId) {
         }
 
         if (!deploySpot) {
-            console.warn("[Alliance] No hay espacio adyacente para desplegar Caravana Imperial.");
+            0 && console.warn("[Alliance] No hay espacio adyacente para desplegar Caravana Imperial.");
             return false;
         }
 
@@ -517,7 +517,7 @@ AllianceManager.deployImperialCaravan = async function(allianceId) {
         }
 
         logMessage(`¡La Caravana Imperial ha sido desplegada en (${deploySpot.r},${deploySpot.c})!`, "success");
-        console.log("[Alliance] Caravana Imperial desplegada exitosamente.");
+        0 && console.log("[Alliance] Caravana Imperial desplegada exitosamente.");
         return true;
 
     } catch (error) {
@@ -533,7 +533,7 @@ AllianceManager.enableAllyFortress = function(fortressR, fortressC) {
     try {
         const hexData = board[fortressR]?.[fortressC];
         if (!hexData) {
-            console.warn(`[Alliance] Fortaleza inválida en (${fortressR},${fortressC})`);
+            0 && console.warn(`[Alliance] Fortaleza inválida en (${fortressR},${fortressC})`);
             return false;
         }
 

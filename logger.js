@@ -42,7 +42,7 @@ const Logger = {
         const upperLevel = level.toUpperCase();
         if (this.LEVELS.hasOwnProperty(upperLevel)) {
             this.currentLevel = this.LEVELS[upperLevel];
-            console.log(`[Logger] Nivel configurado a: ${level}`);
+            0 && console.log(`[Logger] Nivel configurado a: ${level}`);
         } else {
             console.error(`[Logger] Nivel inválido: ${level}`);
         }
@@ -54,7 +54,7 @@ const Logger = {
      */
     setEnabledModules(modules) {
         this.enabledModules = modules || [];
-        console.log('[Logger] Módulos habilitados:', this.enabledModules);
+        0 && console.log('[Logger] Módulos habilitados:', this.enabledModules);
     },
     
     /**
@@ -63,7 +63,7 @@ const Logger = {
      */
     configure(options) {
         Object.assign(this.config, options);
-        console.log('[Logger] Configuración actualizada:', this.config);
+        0 && console.log('[Logger] Configuración actualizada:', this.config);
     },
     
     /**
@@ -155,13 +155,13 @@ const Logger = {
         this._saveToBuffer(module, message, 'DEBUG');
         
         if (this.config.colorize) {
-            console.log(`%c${formatted}`, 'color: #888');
+            0 && console.log(`%c${formatted}`, 'color: #888');
         } else {
-            console.log(formatted);
+            0 && console.log(formatted);
         }
         
         if (data !== null) {
-            console.log(data);
+            0 && console.log(data);
         }
     },
     
@@ -180,13 +180,13 @@ const Logger = {
         this._saveToBuffer(module, message, 'INFO');
         
         if (this.config.colorize) {
-            console.log(`%c${formatted}`, 'color: #2196F3');
+            0 && console.log(`%c${formatted}`, 'color: #2196F3');
         } else {
-            console.log(formatted);
+            0 && console.log(formatted);
         }
         
         if (data !== null) {
-            console.log(data);
+            0 && console.log(data);
         }
     },
     
@@ -205,13 +205,13 @@ const Logger = {
         this._saveToBuffer(module, message, 'WARN');
         
         if (this.config.colorize) {
-            console.warn(`%c${formatted}`, 'color: #FF9800; font-weight: bold');
+            0 && console.warn(`%c${formatted}`, 'color: #FF9800; font-weight: bold');
         } else {
-            console.warn(formatted);
+            0 && console.warn(formatted);
         }
         
         if (data !== null) {
-            console.warn(data);
+            0 && console.warn(data);
         }
     },
     
@@ -283,7 +283,7 @@ const Logger = {
         if (this.config.saveToStorage) {
             localStorage.removeItem('iberion_logs');
         }
-        console.log('[Logger] Buffer de logs limpiado');
+        0 && console.log('[Logger] Buffer de logs limpiado');
     },
     
     /**
@@ -304,7 +304,7 @@ const Logger = {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         
-        console.log('[Logger] Logs exportados');
+        0 && console.log('[Logger] Logs exportados');
     },
     
     /**
@@ -327,7 +327,7 @@ const Logger = {
             stats.byModule[entry.module] = (stats.byModule[entry.module] || 0) + 1;
         });
         
-        console.log('[Logger] Estadísticas:', stats);
+        0 && console.log('[Logger] Estadísticas:', stats);
         return stats;
     }
 };
@@ -345,18 +345,18 @@ try {
 if (forcedLevel) {
     Logger.setLevel(forcedLevel);
     Logger.configure({ colorize: true, saveToStorage: true });
-    console.log(`[Logger] Nivel forzado: ${forcedLevel}`);
+    0 && console.log(`[Logger] Nivel forzado: ${forcedLevel}`);
 } else if (window.location.hostname === 'localhost' || 
     window.location.hostname === '127.0.0.1' ||
     window.location.hostname.includes('dev') ||
     window.location.hostname.includes('staging')) {
     Logger.setLevel('debug');
     Logger.configure({ colorize: true, saveToStorage: true });
-    console.log('%c[Logger] Modo DESARROLLO activado', 'color: #4CAF50; font-weight: bold');
+    0 && console.log('%c[Logger] Modo DESARROLLO activado', 'color: #4CAF50; font-weight: bold');
 } else {
     Logger.setLevel('warn');
     Logger.configure({ colorize: false, saveToStorage: false });
-    console.log('[Logger] Modo PRODUCCIÓN activado');
+    0 && console.log('[Logger] Modo PRODUCCIÓN activado');
 }
 
 // Exponer globalmente
@@ -372,4 +372,4 @@ window.loggerDebug = {
     enableAll: () => Logger.setEnabledModules([])
 };
 
-console.log('[Logger] Sistema inicializado. Comandos disponibles en window.loggerDebug');
+0 && console.log('[Logger] Sistema inicializado. Comandos disponibles en window.loggerDebug');

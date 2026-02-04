@@ -3,26 +3,26 @@ const CACHE_VERSION = 'iberion-v1.007'; // Se actualiza automáticamente con ./v
 const FORCE_UPDATE = true; // Cambiar a false en producción
 
 self.addEventListener('install', (e) => {
-    console.log(`🔧 SW instalando: ${CACHE_VERSION}`);
+    0 && console.log(`🔧 SW instalando: ${CACHE_VERSION}`);
     // Forzar actualización inmediata
     self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
-    console.log(`✅ SW activando: ${CACHE_VERSION}`);
+    0 && console.log(`✅ SW activando: ${CACHE_VERSION}`);
     e.waitUntil(
         caches.keys().then(cacheNames => {
             return Promise.all(
                 cacheNames.map(cacheName => {
                     // Eliminar TODOS los cachés anteriores
                     if (cacheName !== CACHE_VERSION) {
-                        console.log(`🗑️  Eliminando caché antigua: ${cacheName}`);
+                        0 && console.log(`🗑️  Eliminando caché antigua: ${cacheName}`);
                         return caches.delete(cacheName);
                     }
                 })
             );
         }).then(() => {
-            console.log('🎯 Tomando control de todos los clientes');
+            0 && console.log('🎯 Tomando control de todos los clientes');
             return self.clients.claim();
         })
     );
