@@ -363,6 +363,10 @@ async function handleLoadGame() {
             if (!dataToRestore.board && localSave.board_state) dataToRestore.board = localSave.board_state;
             if (typeof reconstruirJuegoDesdeDatos === 'function') {
                 reconstruirJuegoDesdeDatos(dataToRestore);
+                // Mostrar el juego y ocultar el menú usando showScreen
+                if (typeof showScreen === 'function' && domElements.gameContainer) {
+                    showScreen(domElements.gameContainer);
+                }
                 logMessage("Partida local cargada.", "success");
             }
         }
@@ -401,6 +405,10 @@ async function handleLoadGame() {
             if (!dataToRestore.board && localSave.board_state) dataToRestore.board = localSave.board_state;
             if (typeof reconstruirJuegoDesdeDatos === 'function') {
                 reconstruirJuegoDesdeDatos(dataToRestore);
+                // Mostrar el juego y ocultar el menú usando showScreen
+                if (typeof showScreen === 'function' && domElements.gameContainer) {
+                    showScreen(domElements.gameContainer);
+                }
                 logMessage("Partida local cargada.", "success");
             }
         }
@@ -464,9 +472,13 @@ async function handleLoadGame() {
             else if (gameType === 'campaign') typeMsg = " (Campaña)";
             else if (gameType === 'raid') typeMsg = " (Raid)";
             
-            // Cerrar menús y mostrar juego
+            // Cerrar menús y mostrar juego usando showScreen() para asegurar z-index correcto
             if (domElements.setupScreen) domElements.setupScreen.style.display = 'none';
-            if (domElements.gameContainer) domElements.gameContainer.style.display = 'flex';
+            if (typeof showScreen === 'function' && domElements.gameContainer) {
+                showScreen(domElements.gameContainer);
+            } else {
+                if (domElements.gameContainer) domElements.gameContainer.style.display = 'flex';
+            }
             logMessage(`Partida cargada desde la nube${typeMsg}.`, "success");
         }
     }

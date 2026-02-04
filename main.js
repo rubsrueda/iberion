@@ -172,6 +172,15 @@ function showScreen(screenElement) {
         loginScreen.style.setProperty('z-index', '2000');
     }
 
+    // CRÍTICO: Si se muestra el gameContainer (que no es un .modal), ocultar explícitamente el mainMenuScreen
+    if (screenElement && (screenElement.id === 'gameContainer' || screenElement.classList.contains('game-container'))) {
+        const mainMenu = document.getElementById('mainMenuScreen');
+        if (mainMenu) {
+            mainMenu.style.setProperty('display', 'none');
+            console.log("[showScreen] Ocultando mainMenuScreen para mostrar gameContainer");
+        }
+    }
+
     // Muestra la pantalla solicitada
     if (screenElement) {
         if (screenElement.classList.contains('modal-overlay')) {
@@ -402,13 +411,17 @@ function initApp() {
             if (gameState && gameState.currentPhase && gameState.currentPhase !== 'gameOver') {
                 console.log("🎮 Partida activa detectada. Mostrando interfaz de juego...");
                 
-                // Ocultar explícitamente el menú principal
-                const mainMenu = document.getElementById('mainMenuScreen');
-                if (mainMenu) mainMenu.style.display = 'none';
-                
-                // Mostrar el contenedor del juego
-                const gameContainer = document.querySelector('.game-container') || domElements.gameContainer;
-                if (gameContainer) gameContainer.style.display = 'flex';
+                // Usar showScreen() para asegurar que se manejen correctamente todos los z-index y display
+                if (typeof showScreen === 'function' && domElements.gameContainer) {
+                    showScreen(domElements.gameContainer);
+                } else {
+                    // Fallback si showScreen no está disponible
+                    const mainMenu = document.getElementById('mainMenuScreen');
+                    if (mainMenu) mainMenu.style.display = 'none';
+                    
+                    const gameContainer = document.querySelector('.game-container') || domElements.gameContainer;
+                    if (gameContainer) gameContainer.style.display = 'flex';
+                }
                 
                 const tacticalUI = document.getElementById('tactical-ui-container') || domElements.tacticalUiContainer;
                 if (tacticalUI) tacticalUI.style.display = 'block';
