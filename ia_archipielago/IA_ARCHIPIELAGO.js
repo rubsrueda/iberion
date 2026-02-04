@@ -20,10 +20,28 @@ const IAArchipielago = {
     const infoTurno = IASentidos.getTurnInfo();
     if (infoTurno.currentPhase !== 'play') {
       console.log(`[IA_ARCHIPIELAGO] Fase incorrecta: ${infoTurno.currentPhase}, abortando`);
+
+      // Fallback: si por algún motivo se llamó en despliegue, intentar desplegar con IA clásica
+      if (infoTurno.currentPhase === 'deployment' && typeof AiDeploymentManager !== 'undefined' && AiDeploymentManager.deployUnitsAI) {
+        console.log(`[IA_ARCHIPIELAGO] Fallback de despliegue: llamando a AiDeploymentManager.deployUnitsAI(${myPlayer})`);
+        AiDeploymentManager.deployUnitsAI(myPlayer);
+        return;
+      }
+
       if (typeof handleEndTurn === 'function') {
         setTimeout(() => handleEndTurn(), 500);
       }
       return;
+    }
+
+    // Fallback crítico: si la IA no tiene unidades en el primer turno de Archipiélago, crear una unidad mínima
+    const isArchipelago = !!gameState.setupTempSettings?.navalMap;
+    if (isArchipelago && (gameState.turnNumber || 1) <= 1) {
+      const unidadesIA = IASentidos.getUnits(myPlayer);
+      if (!unidadesIA || unidadesIA.length === 0) {
+        console.warn(`[IA_ARCHIPIELAGO] ⚠️ IA sin unidades en turno inicial. Creando unidad de emergencia...`);
+        this.crearUnidadInicialDeEmergencia(myPlayer);
+      }
     }
 
     // Verificaciones de otros módulos
@@ -136,6 +154,89 @@ const IAArchipielago = {
     if (economia.oro >= 1000 && ciudades.length > 0) {
       console.log(`[IA_ARCHIPIELAGO] FASE 6: Creando caravanas comerciales...`);
       this.crearCaravanas(myPlayer, ciudades);
+    }
+  },
+
+  /**
+   * Crea una unidad mínima en Archipiélago si la IA no tiene ninguna.
+   * Evita partidas “muertas” en el primer turno.
+   */
+  crearUnidadInicialDeEmergencia(myPlayer) {
+    try {
+      const playerResources = gameState.playerResources?.[myPlayer];
+      if (!playerResources) return;
+
+      // Buscar capital o ciudad del jugador
+      const capital = gameState.cities?.find(c => c.owner === myPlayer && c.isCapital) ||
+                      gameState.cities?.find(c => c.owner === myPlayer);
+      if (!capital) {
+        console.warn(`[IA_ARCHIPIELAGO] No se encontró capital/ciudad para jugador ${myPlayer}.`);
+        return;
+      }
+
+      const candidateHexes = [
+        { r: capital.r, c: capital.c },
+        ...getHexNeighbors(capital.r, capital.c)
+      ];
+
+      const spot = candidateHexes.find(h => {
+        const hex = board[h.r]?.[h.c];
+        return hex && !hex.unit && hex.terrain !== 'water';
+      });
+
+      if (!spot) {
+        console.warn(`[IA_ARCHIPIELAGO] No se encontró hex libre para crear unidad de emergencia.`);
+        return;
+      }
+
+      // Definir unidad mínima
+      let regType = 'Infantería Ligera';
+      if (!REGIMENT_TYPES[regType] && REGIMENT_TYPES['Pueblo']) {
+        regType = 'Pueblo';
+      }
+      const regData = REGIMENT_TYPES[regType];
+      if (!regData) {
+        console.error(`[IA_ARCHIPIELAGO] REGIMENT_TYPES inválido. Abortando creación de emergencia.`);
+        return;
+      }
+
+      const cost = regData.cost?.oro || (regType === 'Pueblo' ? 80 : 150);
+      if (playerResources.oro < cost) {
+        // Permitir una unidad “gratuita” si la IA no puede pagar y no tiene unidades
+        console.warn(`[IA_ARCHIPIELAGO] Oro insuficiente (${playerResources.oro}). Creando unidad gratis para evitar bloqueo.`);
+      } else {
+        playerResources.oro -= cost;
+      }
+
+      const unitData = {
+        id: `u${unitIdCounter++}`,
+        player: myPlayer,
+        name: `Guardia Inicial IA`,
+        regiments: [{ ...regData, type: regType, id: `r${Date.now()}${Math.random()}`}],
+        r: spot.r,
+        c: spot.c,
+        hasMoved: false,
+        hasAttacked: false,
+        level: 0,
+        experience: 0,
+        morale: 50,
+        maxMorale: 125
+      };
+
+      if (typeof calculateRegimentStats === 'function') {
+        calculateRegimentStats(unitData);
+        unitData.currentHealth = unitData.maxHealth;
+        unitData.currentMovement = unitData.movement;
+      }
+
+      if (typeof placeFinalizedDivision === 'function') {
+        placeFinalizedDivision(unitData, spot.r, spot.c);
+        console.log(`[IA_ARCHIPIELAGO] ✓ Unidad de emergencia creada en (${spot.r},${spot.c}).`);
+      } else {
+        console.error(`[IA_ARCHIPIELAGO] placeFinalizedDivision no está disponible.`);
+      }
+    } catch (err) {
+      console.error(`[IA_ARCHIPIELAGO] Error creando unidad de emergencia:`, err);
     }
   },
 
