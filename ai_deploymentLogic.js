@@ -25,10 +25,32 @@ const AiDeploymentManager = {
 
             let deployedCount = 0;
             let tempOccupiedSpots = new Set();
+            
+            // GARANTIZAR al menos 1 unidad para evitar derrota inmediata
             for (const mission of missionList) {
-                if (deployedCount >= unitsToPlaceCount || playerResources.oro < 200) break;
+                if (deployedCount >= unitsToPlaceCount) break;
+                
+                // Si ya tenemos 1+ unidades, verificar oro mínimo (80 = costo Pueblo)
+                if (deployedCount > 0 && playerResources.oro < 80) break;
+                
                 const unitDefinition = this.defineUnitForMission(mission, analysis.humanThreats, playerResources);
-                if (!unitDefinition || playerResources.oro < unitDefinition.cost) continue;
+                if (!unitDefinition) continue;
+                
+                // Si no tenemos oro para esta unidad pero NO hemos desplegado nada, usar fallback
+                if (playerResources.oro < unitDefinition.cost) {
+                    if (deployedCount === 0) {
+                        console.warn(`[IA DEPLOY] ⚠️ Oro insuficiente (${playerResources.oro}). Usando unidad de emergencia (Pueblo).`);
+                        const fallbackUnit = this.createFallbackUnit(playerResources);
+                        if (!fallbackUnit || playerResources.oro < fallbackUnit.cost) {
+                            console.error(`[IA DEPLOY] 🚨 CRÍTICO: No hay oro ni para Pueblo. Fin de despliegue.`);
+                            break;
+                        }
+                        // Reemplazar definición con fallback
+                        Object.assign(unitDefinition, fallbackUnit);
+                    } else {
+                        continue; // No crear esta unidad costosa
+                    }
+                }
                 
                 const currentAvailableSpots = analysis.availableSpots.filter(spot => !tempOccupiedSpots.has(`${spot.r},${spot.c}`));
                 const placementSpot = this.findBestSpotForMission(mission, currentAvailableSpots, unitDefinition, playerNumber);
@@ -107,6 +129,32 @@ const AiDeploymentManager = {
         return missionList;
     },
 
+    /**
+     * CREAR UNIDAD DE EMERGENCIA (Pueblo)
+     * Cuando no hay oro para unidades normales
+     */
+    createFallbackUnit: function(playerResources) {
+        if (playerResources.oro < 80) return null; // Ni siquiera para Pueblo
+        
+        const puebloType = REGIMENT_TYPES['Pueblo'];
+        if (!puebloType) {
+            console.error(`[IA DEPLOY] 🚨 REGIMENT_TYPES['Pueblo'] no existe. Usando Infantería Ligera.`);
+            return {
+                regiments: [{...REGIMENT_TYPES['Infantería Ligera'], type: 'Infantería Ligera'}],
+                cost: REGIMENT_TYPES['Infantería Ligera'].cost?.oro || 150,
+                role: 'defender',
+                name: 'Guardia de Emergencia'
+            };
+        }
+        
+        return {
+            regiments: [{...puebloType, type: 'Pueblo'}],
+            cost: 80,
+            role: 'defender',
+            name: 'Asentamiento Defensivo'
+        };
+    },
+
     defineUnitForMission: function(mission, humanThreats, playerResources) {
         let compositionTypes = [], role = 'explorer', name = 'Tropa';
         const enemyRegimentsNearTarget = humanThreats.filter(threat => hexDistance(threat.r, threat.c, mission.objectiveHex.r, mission.objectiveHex.c) <= 3).reduce((sum, unit) => sum + (unit.regiments?.length || 1), 0);
@@ -126,16 +174,36 @@ const AiDeploymentManager = {
                 while(compositionTypes.length < divisionSize) compositionTypes.push('Arqueros');
             }
         } else {
-            compositionTypes.push('Infantería Ligera');
-            if (objectiveTerrain === 'plains') {
-                const difficultNeighbors = getHexNeighbors(mission.objectiveHex.r, mission.objectiveHex.c).filter(n => ['hills','forest','water'].includes(board[n.r]?.[n.c]?.terrain)).length;
-                if(difficultNeighbors <= 2) { name = 'Grupo de Captura Rápido'; compositionTypes = ['Caballería Ligera']; } 
-                else { name = 'Grupo de Exploración'; }
-            } else { name = 'Explorador Todoterreno'; }
+            // Si hay poco oro, usar Pueblo
+            if (playerResources.oro < 150) {
+                console.log(`[IA DEPLOY] Oro bajo (${playerResources.oro}). Usando Pueblo para esta misión.`);
+                compositionTypes.push('Pueblo');
+                role = 'defender';
+                name = 'Asentamiento';
+            } else {
+                compositionTypes.push('Infantería Ligera');
+                if (objectiveTerrain === 'plains') {
+                    const difficultNeighbors = getHexNeighbors(mission.objectiveHex.r, mission.objectiveHex.c).filter(n => ['hills','forest','water'].includes(board[n.r]?.[n.c]?.terrain)).length;
+                    if(difficultNeighbors <= 2) { name = 'Grupo de Captura Rápido'; compositionTypes = ['Caballería Ligera']; } 
+                    else { name = 'Grupo de Exploración'; }
+                } else { name = 'Explorador Todoterreno'; }
+            }
         }
         
         const fullRegiments = compositionTypes.map(type => ({...REGIMENT_TYPES[type], type}));
         const cost = fullRegiments.reduce((sum, reg) => sum + (reg.cost?.oro || 0), 0);
+        
+        // VALIDACIÓN: Si aún no podemos pagar, intentar con Pueblo
+        if (cost > playerResources.oro && playerResources.oro >= 80) {
+            console.warn(`[IA DEPLOY] No se puede pagar ${cost} oro. Downgrade a Pueblo (80 oro).`);
+            return {
+                regiments: [{...REGIMENT_TYPES['Pueblo'], type: 'Pueblo'}],
+                cost: 80,
+                role: 'defender',
+                name: 'Asentamiento de Emergencia'
+            };
+        }
+        
         return { regiments: fullRegiments, cost, role, name };
     },
 
