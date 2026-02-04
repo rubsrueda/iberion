@@ -1302,6 +1302,13 @@ function simpleAiTurn() {
     }
     */
    
+    const isArchipelago = !!gameState.setupTempSettings?.navalMap;
+    if (isArchipelago && typeof IAArchipielago !== 'undefined' && typeof IAArchipielago.ejecutarTurno === 'function') {
+        logMessage(`IA (Jugador ${aiActualPlayerNumber}) inicia su turno en Archipiélago... (IAArchipielago)`);
+        IAArchipielago.ejecutarTurno(aiActualPlayerNumber);
+        return;
+    }
+
     logMessage(`IA (Jugador ${aiActualPlayerNumber}, Nivel: ${aiLevel}) inicia su turno... (Usando AiGameplayManager)`);
     // Y aquí se llama al método del objeto correcto.
     AiGameplayManager.executeTurn(aiActualPlayerNumber, aiLevel);
