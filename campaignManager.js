@@ -38,6 +38,19 @@ function showScreen(screenToShow) {
         }
     });
     
+    // CRÍTICO: También ocultar explícitamente el mainMenuScreen si se está mostrando gameContainer
+    // Esto previene que el menú quede visible debajo del mapa (z-index issues)
+    if (screenToShow && (screenToShow.id === 'gameContainer' || screenToShow.classList.contains('game-container'))) {
+        const mainMenu = document.getElementById('mainMenuScreen');
+        if (mainMenu) {
+            mainMenu.style.setProperty('display', 'none', 'important');
+            mainMenu.style.setProperty('visibility', 'hidden', 'important');
+            mainMenu.style.setProperty('pointer-events', 'none', 'important');
+            mainMenu.style.setProperty('z-index', '0', 'important');
+            console.log("[showScreen] Ocultando EXPLÍCITAMENTE mainMenuScreen para mostrar gameContainer (campaignManager)");
+        }
+    }
+    
     // Mostramos solo la pantalla que queremos.
     if (screenToShow) {
         // Usamos 'flex' para modales y el contenedor del juego para un centrado correcto.

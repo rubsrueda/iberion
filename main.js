@@ -173,11 +173,14 @@ function showScreen(screenElement) {
     }
 
     // CRÍTICO: Si se muestra el gameContainer (que no es un .modal), ocultar explícitamente el mainMenuScreen
+    // Esto es ESENCIAL para evitar que el menú quede visible debajo del mapa después de inactividad o refresh
     if (screenElement && (screenElement.id === 'gameContainer' || screenElement.classList.contains('game-container'))) {
         const mainMenu = document.getElementById('mainMenuScreen');
         if (mainMenu) {
-            mainMenu.style.setProperty('display', 'none');
-            console.log("[showScreen] Ocultando mainMenuScreen para mostrar gameContainer");
+            mainMenu.style.setProperty('display', 'none', 'important');
+            mainMenu.style.setProperty('visibility', 'hidden', 'important');
+            mainMenu.style.setProperty('pointer-events', 'none', 'important');
+            console.log("[showScreen] Ocultando EXPLÍCITAMENTE mainMenuScreen para mostrar gameContainer");
         }
     }
 
@@ -315,8 +318,7 @@ function initApp() {
                 // --- RESET DE JUEGO ---
                 console.log("Reiniciando variables de juego...");
                 if (typeof resetGameStateVariables === 'function') {
-                    gameState.gameMode = 'development';
-                    resetGameStateVariables(2);
+                    resetGameStateVariables(2, Infinity, 'development');
                 } else {
                     console.error("ERROR CRÍTICO: resetGameStateVariables no existe.");
                 }
@@ -409,22 +411,41 @@ function initApp() {
             // CRÍTICO: Si estamos en una partida en red, asegurarse que el juego esté visible
             // y que el menú principal no bloquee la interfaz
             if (gameState && gameState.currentPhase && gameState.currentPhase !== 'gameOver') {
-                console.log("🎮 Partida activa detectada. Mostrando interfaz de juego...");
+                console.log("🎮 Partida activa detectada. Mostrando interfaz de juego después de inactividad...");
                 
-                // Usar showScreen() para asegurar que se manejen correctamente todos los z-index y display
-                if (typeof showScreen === 'function' && domElements.gameContainer) {
-                    showScreen(domElements.gameContainer);
-                } else {
-                    // Fallback si showScreen no está disponible
-                    const mainMenu = document.getElementById('mainMenuScreen');
-                    if (mainMenu) mainMenu.style.display = 'none';
-                    
-                    const gameContainer = document.querySelector('.game-container') || domElements.gameContainer;
-                    if (gameContainer) gameContainer.style.display = 'flex';
+                // Forzar ocultación BRUTAL del mainMenuScreen primero
+                const mainMenu = document.getElementById('mainMenuScreen');
+                if (mainMenu) {
+                    mainMenu.style.setProperty('display', 'none', 'important');
+                    mainMenu.style.setProperty('visibility', 'hidden', 'important');
+                    mainMenu.style.setProperty('pointer-events', 'none', 'important');
+                    mainMenu.style.setProperty('z-index', '0', 'important');
+                    console.log("🚀 [Visibilidad] mainMenuScreen ocultado forzadamente después de regreso.");
                 }
                 
+                // Mostrar gameContainer con z-index alto
+                const gameContainer = document.querySelector('.game-container') || domElements.gameContainer;
+                if (gameContainer) {
+                    gameContainer.style.setProperty('display', 'flex', 'important');
+                    gameContainer.style.setProperty('z-index', '100', 'important');
+                    gameContainer.style.setProperty('visibility', 'visible', 'important');
+                    console.log("🎮 [Visibilidad] gameContainer mostrado con z-index elevado.");
+                }
+                
+                // Mostrar UI táctica
                 const tacticalUI = document.getElementById('tactical-ui-container') || domElements.tacticalUiContainer;
-                if (tacticalUI) tacticalUI.style.display = 'block';
+                if (tacticalUI) {
+                    tacticalUI.style.setProperty('display', 'block', 'important');
+                    console.log("📊 [Visibilidad] UI táctica mostrada.");
+                }
+                
+                // Usar showScreen() como backup para asegurar que se manejen correctamente todos los z-index
+                if (typeof showScreen === 'function' && domElements.gameContainer) {
+                    setTimeout(() => {
+                        showScreen(domElements.gameContainer);
+                        console.log("✅ [Visibilidad] showScreen ejecutado después de inactividad.");
+                    }, 100); // Pequeño delay para asegurar que DOM está listo
+                }
             }
 
             // 1. ¿Estábamos en una partida Online?
@@ -1040,10 +1061,10 @@ function initApp() {
             // 2. INICIALIZAR EL ESTADO DEL JUEGO (Aquí se cargan los recursos de constants.js)
             if (typeof resetGameStateVariables === 'function') {
                 const turnTime = settings.turnTime === 'none' ? Infinity : parseInt(settings.turnTime);
-                gameState.gameMode = settings.gameMode || 'development';
+                const gameMode = settings.gameMode || 'development';
                 
-                // ¡ESTA ES LA LÍNEA CLAVE QUE FALTABA!
-                resetGameStateVariables(settings.numPlayers, turnTime);
+                // ¡ESTA ES LA LÍNEA CLAVE QUE FALTABA! PASAMOS gameMode COMO PARÁMETRO
+                resetGameStateVariables(settings.numPlayers, turnTime, gameMode);
                 
                 // Configurar detalles específicos
                 gameState.deploymentUnitLimit = settings.unitLimit === "unlimited" ? Infinity : parseInt(settings.unitLimit);
@@ -1231,12 +1252,11 @@ function initApp() {
             // 3. CAPTURAR MODO DE JUEGO ANTES DEL RESET
             const gameModeSelect = document.getElementById('gameModeSelect');
             const gameMode = gameModeSelect ? gameModeSelect.value : 'development';
-            gameState.gameMode = gameMode; // 'development' o 'invasion'
             console.log(`[SETUP] Modo de juego seleccionado: ${gameMode}`);
 
-            // 4. Resetear el estado del juego (usa gameMode para recursos iniciales)
+            // 4. Resetear el estado del juego (AHORA PASANDO GAME MODE COMO PARÁMETRO)
             if (typeof resetGameStateVariables === "function") {
-                resetGameStateVariables(numPlayers, turnDuration);
+                resetGameStateVariables(numPlayers, turnDuration, gameMode);
                 gameState.myPlayerNumber = 1;
             } else {
                 console.error("main.js: resetGameStateVariables no definida.");
@@ -2116,8 +2136,7 @@ if (newTutorialBtn) {
         
         
         if (typeof resetGameStateVariables === 'function') {
-            gameState.gameMode = 'development';
-            resetGameStateVariables(2);
+            resetGameStateVariables(2, Infinity, 'development');
         }
 
         //PlayerDataManager.login("General", "tutorial");
@@ -2316,6 +2335,31 @@ if (newGeneralNameDisplay) {
         });
     }
 
+    // ======================================================================
+    // ASEGURAR Z-INDEX CORRECTO DESPUÉS DE INICIALIZACIÓN
+    // ======================================================================
+    // Función de utilidad para corregir z-index si es necesario
+    function ensureCorrectZIndex() {
+        // Dar un poco de tiempo para que el DOM se estabilice
+        setTimeout(() => {
+            const mainMenu = document.getElementById('mainMenuScreen');
+            const gameContainer = document.querySelector('.game-container') || domElements.gameContainer;
+            
+            if (gameContainer && gameContainer.style.display !== 'none') {
+                // El gameContainer está visible, asegurar que mainMenuScreen no interfiera
+                if (mainMenu && mainMenu.style.display !== 'none') {
+                    console.warn("⚠️ [Z-Index] mainMenuScreen estaba visible con gameContainer. Corrigiendo...");
+                    mainMenu.style.setProperty('display', 'none', 'important');
+                    mainMenu.style.setProperty('visibility', 'hidden', 'important');
+                    mainMenu.style.setProperty('pointer-events', 'none', 'important');
+                }
+            }
+        }, 500);
+    }
+    
+    // Llamar a la función de corrección
+    ensureCorrectZIndex();
+
     console.log("main.js: initApp() FINALIZADO.");
 
 }
@@ -2441,8 +2485,8 @@ function iniciarPartidaLAN(settings) {
         return;
     }
     
-    gameState.gameMode = settings.gameMode || 'development';
-    resetGameStateVariables(2); // Asumiendo que LAN es para 2 jugadores
+    const gameMode = settings.gameMode || 'development';
+    resetGameStateVariables(2, Infinity, gameMode); // Asumiendo que LAN es para 2 jugadores, PASANDO gameMode
 
     gameState.playerTypes = settings.playerTypes;
     gameState.playerCivilizations = settings.playerCivilizations;

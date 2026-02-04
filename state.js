@@ -87,8 +87,8 @@ function resetGameStateForIberiaMagna() {
     console.log("state.js: gameState reseteado para Tronos de Iberia.");
 }
 
-function resetGameStateVariables(playerCount = 2, turnDuration = Infinity) { 
-    console.log(`state.js: Ejecutando resetGameStateVariables() para ${playerCount} jugadores...`);
+function resetGameStateVariables(playerCount = 2, turnDuration = Infinity, gameMode = 'development') { 
+    console.log(`state.js: Ejecutando resetGameStateVariables() para ${playerCount} jugadores, modo=${gameMode}...`);
 
     // Usamos ?. para asegurar que la lectura solo se hace si el elemento existe.
     const p1civ = domElements.player1Civ?.value || 'ninguna'; 
@@ -97,7 +97,8 @@ function resetGameStateVariables(playerCount = 2, turnDuration = Infinity) {
     const initialGameStateObject = {
         numPlayers: playerCount, // <-- Usa el parámetro
         currentPlayer: 1,
-        turnDurationSeconds: turnDuration, 
+        turnDurationSeconds: turnDuration,
+        gameMode: gameMode, // <-- ASEGURAR QUE gameMode SE PRESERVA
         eliminatedPlayers: [],
         currentPhase: "deployment",
         turnNumber: 1,
@@ -121,7 +122,7 @@ function resetGameStateVariables(playerCount = 2, turnDuration = Infinity) {
     // Este bucle ahora creará los jugadores necesarios dinámicamente
     for (let i = 1; i <= playerCount; i++) {
         // <<== MODO INVASIÓN: Recursos asimétricos ==>>
-        if (typeof INVASION_MODE_CONFIG !== 'undefined' && gameState.gameMode === 'invasion') {
+        if (typeof INVASION_MODE_CONFIG !== 'undefined' && gameMode === 'invasion') {
             if (i === 1) {
                 initialGameStateObject.playerResources[i] = JSON.parse(JSON.stringify(INVASION_MODE_CONFIG.ATTACKER_RESOURCES));
             } else if (i === 2) {

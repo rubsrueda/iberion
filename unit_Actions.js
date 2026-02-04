@@ -2642,26 +2642,38 @@ function handlePlacementModeClick(r, c) {
         const playerCities = gameState.cities.filter(c => c.owner === currentPlayer);
         const isAttacker = playerCities.length === 1; // El que tiene solo 1 ciudad es atacante
         
+        console.log(`[INVASION DEPLOY] Player ${currentPlayer}: ${playerCities.length} ciudades, isAttacker: ${isAttacker}`);
+        
         if (isAttacker) {
             // ATACANTE: Solo puede desplegar cerca de su base de invasión (radio 1)
             const attackerBase = playerCities[0];
             
             if (attackerBase) {
                 const distanceFromBase = hexDistance(attackerBase.r, attackerBase.c, r, c);
+                console.log(`[INVASION DEPLOY] Atacante a base (${attackerBase.r},${attackerBase.c}): distancia=${distanceFromBase}, radio=${INVASION_MODE_CONFIG.DEPLOYMENT_RADIUS}`);
                 if (distanceFromBase <= INVASION_MODE_CONFIG.DEPLOYMENT_RADIUS && hexData.terrain !== 'water') {
                     canPlace = true;
+                    console.log(`[INVASION DEPLOY] ✓ Distancia válida para colocar en (${r},${c})`);
                 } else {
                     logMessage(`Solo puedes desplegar dentro de ${INVASION_MODE_CONFIG.DEPLOYMENT_RADIUS} hex de tu base.`);
                     canPlace = false;
+                    console.log(`[INVASION DEPLOY] ✗ Distancia inválida o agua`);
                 }
+            } else {
+                console.error(`[INVASION DEPLOY] ERROR: Atacante sin ciudad base detectada`);
+                logMessage(`Error: No se encontró tu base de invasión.`);
+                canPlace = false;
             }
         } else {
-            // DEFENSOR: Puede desplegar en cualquier ciudad propia y alrededores (radio 2)
+            // DEFENSOR: Puede desplegar en cualquier ciudad propia y alrededores (radio 20)
             const defenderCities = playerCities;
             let nearCity = false;
             
+            console.log(`[INVASION DEPLOY] Defensor con ${defenderCities.length} ciudades`);
+            
             for (const city of defenderCities) {
                 const distanceFromCity = hexDistance(city.r, city.c, r, c);
+                console.log(`[INVASION DEPLOY] Distancia a ciudad (${city.r},${city.c}): ${distanceFromCity}, radio permitido: ${INVASION_MODE_CONFIG.DEFENDER_DEPLOYMENT_RADIUS}`);
                 if (distanceFromCity <= INVASION_MODE_CONFIG.DEFENDER_DEPLOYMENT_RADIUS) {
                     nearCity = true;
                     break;
@@ -2670,33 +2682,44 @@ function handlePlacementModeClick(r, c) {
             
             if (nearCity && hexData.terrain !== 'water') {
                 canPlace = true;
+                console.log(`[INVASION DEPLOY] ✓ Defensor puede colocar en (${r},${c})`);
             } else {
                 logMessage(`El Defensor debe desplegar cerca de sus ciudades.`);
                 canPlace = false;
+                console.log(`[INVASION DEPLOY] ✗ Defensor fuera de rango de ciudad`);
             }
         }
     }
-    // Lógica original para otros modos/fases
-    else if (hexData && !getUnitOnHex(r,c)) {
-        if (gameState.currentPhase === "deployment" && hexData.terrain !== 'water') {
-            canPlace = true;
-        } else if (gameState.currentPhase === "play" && placementMode.recruitHex) {
-            if (hexDistance(placementMode.recruitHex.r, placementMode.recruitHex.c, r, c) <= 1) {
+    // Lógica para MODOS NO-INVASIÓN
+    else if (gameState.gameMode !== 'invasion') {
+        console.log(`[DEPLOY] Modo no-invasión: ${gameState.gameMode}, fase: ${gameState.currentPhase}`);
+        
+        if (hexData && !getUnitOnHex(r,c)) {
+            if (gameState.currentPhase === "deployment" && hexData.terrain !== 'water') {
                 canPlace = true;
+                console.log(`[DEPLOY] Despliegue normal permitido en (${r},${c})`);
+            } else if (gameState.currentPhase === "play" && placementMode.recruitHex) {
+                if (hexDistance(placementMode.recruitHex.r, placementMode.recruitHex.c, r, c) <= 1) {
+                    canPlace = true;
+                    console.log(`[DEPLOY] Reclutamiento permitido en (${r},${c})`);
+                }
+            }
+        } else if (gameState.currentPhase === "deployment") {
+            // En despliegue inicial, permite colocar en cualquier casilla no-agua
+            if (hexData.terrain === 'water') {
+                reasonForNoPlacement = "No se pueden desplegar unidades de tierra en el agua.";
+                canPlace = false;
+            } else {
+                canPlace = true;
+                console.log(`[DEPLOY] Despliegue inicial permitido en (${r},${c})`);
             }
         }
     }
-    // Lógica para despliegue al INICIO de la partida (fallback)
-    else if (gameState.currentPhase === "deployment") {
-        // En despliegue, también ignoramos las reglas de movimiento. Se asume que la zona de despliegue es válida.
-        // Aquí puedes añadir tu lógica de zona de despliegue si la tienes.
-        // Por ahora, permitimos colocar en cualquier casilla que no sea agua.
-        if (hexData.terrain === 'water') {
-            reasonForNoPlacement = "No se pueden desplegar unidades de tierra en el agua.";
-            canPlace = false;
-        } else {
-            canPlace = true;
-        }
+    // Seguridad: Si gameMode es invasión pero llegó aquí, rechaza
+    else {
+        console.error(`[DEPLOY ERROR] gameMode=${gameState.gameMode} pero no procesado por lógica de invasión`);
+        canPlace = false;
+        logMessage("Error interno: modo invasión no procesado correctamente.");
     }
     
     if (canPlace) {

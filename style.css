@@ -1257,6 +1257,23 @@ body {
     left: 0 !important;
 }
 
+/* CUANDO ESTÁ OCULTO: Asegurar que realmente no interfiere */
+#mainMenuScreen.modal[style*="display: none"],
+#mainMenuScreen.modal[style*="display:none"],
+#mainMenuScreen.modal[style*="visibility: hidden"],
+#mainMenuScreen.modal[style*="visibility:hidden"] {
+    visibility: hidden !important;
+    pointer-events: none !important;
+    z-index: -1 !important;
+    position: absolute !important;
+    overflow: hidden !important;
+}
+
+/* Fallback: Si por algún motivo visibility está en hidden, asegurar que no interfiera */
+#mainMenuScreen.modal[style*="visibility"] {
+    pointer-events: none !important;
+}
+
 /* Elimina el fondo, borde y sombra de la caja de contenido. */
 #mainMenuScreen .modal-content {
     width: 90%; /* Ocupa el 90% del ancho de la pantalla */
