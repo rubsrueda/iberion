@@ -27,12 +27,11 @@ const AiDeploymentManager = {
             let tempOccupiedSpots = new Set();
             for (const mission of missionList) {
                 if (deployedCount >= unitsToPlaceCount || playerResources.oro < 200) break;
-
                 const unitDefinition = this.defineUnitForMission(mission, analysis.humanThreats, playerResources);
                 if (!unitDefinition || playerResources.oro < unitDefinition.cost) continue;
                 
                 const currentAvailableSpots = analysis.availableSpots.filter(spot => !tempOccupiedSpots.has(`${spot.r},${spot.c}`));
-                const placementSpot = this.findBestSpotForMission(mission, currentAvailableSpots, unitDefinition);
+                const placementSpot = this.findBestSpotForMission(mission, currentAvailableSpots, unitDefinition, playerNumber);
                 if (!placementSpot) continue;
 
                 playerResources.oro -= unitDefinition.cost;
@@ -140,27 +139,56 @@ const AiDeploymentManager = {
         return { regiments: fullRegiments, cost, role, name };
     },
 
-    findBestSpotForMission: function(mission, availableSpots, unitDefinition) {
+    findBestSpotForMission: function(mission, availableSpots, unitDefinition, playerNumber) {
         const targetHex = mission.objectiveHex;
         const adjacentHexes = getHexNeighbors(targetHex.r, targetHex.c);
         let validAdjacentSpots = [];
         
+        // <<== VALIDACIÓN DE DEPLOYMENT_RADIUS EN MODO INVASIÓN ==>>
+        let deploymentBase = null;
+        let deploymentRadius = Infinity; // Sin restricción por defecto
+        
+        if (gameState.gameMode === 'invasion' && gameState.currentPhase === 'deployment') {
+            const playerCities = gameState.cities.filter(c => c.owner === playerNumber);
+            const isAttacker = playerCities.length === 1;
+            
+            if (isAttacker && playerCities[0]) {
+                deploymentBase = playerCities[0];
+                deploymentRadius = INVASION_MODE_CONFIG.DEPLOYMENT_RADIUS;
+                console.log(`[IA DEPLOY] Modo Invasión detectado - ATACANTE restringido a radio ${deploymentRadius} desde base (${deploymentBase.r},${deploymentBase.c})`);
+            } else if (!isAttacker) {
+                deploymentBase = null; // Defensor puede desplegar en cualquier ciudad
+                deploymentRadius = INVASION_MODE_CONFIG.DEFENDER_DEPLOYMENT_RADIUS;
+                console.log(`[IA DEPLOY] Modo Invasión detectado - DEFENSOR con radio ${deploymentRadius}`);
+            }
+        }
+        
         for (const spot of availableSpots) {
-            if (adjacentHexes.some(adj => adj.r === spot.r && adj.c === spot.c)) {
-                const spotTerrain = board[spot.r]?.[spot.c]?.terrain;
-                const category = unitDefinition.regiments[0]?.category;
-                
-                // CORRECCIÓN: Validar si el terreno es intransitable para la categoría de la unidad
-                const isImpassable = IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[category]?.includes(spotTerrain) || TERRAIN_TYPES[spotTerrain]?.isImpassableForLand;
-
-                if (!isImpassable) {
-                    validAdjacentSpots.push(spot);
+            // 1. Comprobar si está adyacente al objetivo
+            if (!adjacentHexes.some(adj => adj.r === spot.r && adj.c === spot.c)) {
+                continue;
+            }
+            
+            // 2. Comprobar terreno transitable
+            const spotTerrain = board[spot.r]?.[spot.c]?.terrain;
+            const category = unitDefinition.regiments[0]?.category;
+            const isImpassable = IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[category]?.includes(spotTerrain) || TERRAIN_TYPES[spotTerrain]?.isImpassableForLand;
+            if (isImpassable) continue;
+            
+            // 3. CRÍTICO: Comprobar restricciones de deployment en modo invasión
+            if (deploymentBase) {
+                const distanceFromBase = hexDistance(deploymentBase.r, deploymentBase.c, spot.r, spot.c);
+                if (distanceFromBase > deploymentRadius) {
+                    console.log(`[IA DEPLOY] Spot (${spot.r},${spot.c}) rechazado - fuera de radio de deployment (distancia: ${distanceFromBase}, radio: ${deploymentRadius})`);
+                    continue;
                 }
             }
+            
+            validAdjacentSpots.push(spot);
         }
 
         if (validAdjacentSpots.length === 0) {
-            console.warn(`-> No se encontró ningún spot de despliegue ADYACENTE y VÁLIDO para la misión en (${targetHex.r},${targetHex.c}).`);
+            console.warn(`-> No se encontró ningún spot de despliegue VÁLIDO para la misión en (${targetHex.r},${targetHex.c}). Deployment restrictivo en modo invasión.`);
             return null;
         }
 

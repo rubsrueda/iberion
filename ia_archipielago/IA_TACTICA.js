@@ -49,6 +49,50 @@ const IATactica = {
     if (hex.isCapital) score += 2.0;
     console.log(`[IA_TACTICA] evaluarDefensaHex(${r},${c}): score=${score.toFixed(1)}, terrain=${hex.terrain}, structure=${hex.structure}`);
     return score;
+  },
+
+  /**
+   * ORGANIZAR FRENTE: Posiciona defensores en puntos clave del frente
+   */
+  organizarFrente(myPlayer, unidades, frente) {
+    if (frente.length === 0) {
+      console.log(`[IA_TACTICA] organizarFrente: No hay frente que organizar`);
+      return;
+    }
+
+    console.log(`[IA_TACTICA] organizarFrente: Organizando ${frente.length} puntos de frente`);
+    
+    for (const pf of frente) {
+      // Buscar punto de defensa cercano (colinas, bosque)
+      const defendersNearby = unidades.filter(u => hexDistance(u.r, u.c, pf.r, pf.c) <= 3);
+      
+      if (defendersNearby.length > 0) {
+        const mejorDefensor = defendersNearby[0];
+        console.log(`[IA_TACTICA] Posicionando defensor en frente (${pf.r},${pf.c})`);
+        
+        // Mover hacia el punto de frente
+        if (typeof _executeMoveUnit === 'function') {
+          _executeMoveUnit(mejorDefensor, pf.r, pf.c, true);
+        }
+      }
+    }
+  },
+
+  /**
+   * IDENTIFICAR PUNTOS DÉBILES EN EL FRENTE
+   */
+  identificarPuntosDebiles(myPlayer, frente) {
+    const puntosDebiles = [];
+    
+    for (const pf of frente) {
+      const defensaScore = this.evaluarDefensaHex(pf.r, pf.c);
+      if (defensaScore < 2.0) { // Poco terreno defensivo
+        puntosDebiles.push({ r: pf.r, c: pf.c, score: defensaScore });
+      }
+    }
+    
+    console.log(`[IA_TACTICA] identificarPuntosDebiles: ${puntosDebiles.length} puntos débiles detectados`);
+    return puntosDebiles;
   }
 };
 

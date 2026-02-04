@@ -506,12 +506,12 @@ const INVASION_MODE_CONFIG = {
     
     // Ciudades iniciales
     ATTACKER_CITIES: 1,     // Solo ciudad base (punto de invasión)
-    DEFENDER_CITIES: 5,     // Múltiples ciudades en territorio
+    DEFENDER_CITIES: 6,     // Múltiples ciudades en territorio
     
     // Restricciones de deployment
     DEPLOYMENT_RADIUS: 1,   // Radio de despliegue desde ciudad base (atacante)
     ATTACKER_DEPLOYMENT_UNIT_LIMIT: 7, // Regimientos máximos del atacante en fase de despliegue
-    DEFENDER_DEPLOYMENT_RADIUS: 2,   // Puede desplegar en cualquier ciudad propia
+    DEFENDER_DEPLOYMENT_RADIUS: 20,   // Puede desplegar en cualquier ciudad propia
 }
 const VICTORY_BY_POINTS_ENABLED_DEFAULT = true; // Si la victoria por puntos está activa por defecto
 
