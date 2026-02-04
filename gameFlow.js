@@ -1305,8 +1305,15 @@ function simpleAiTurn() {
     const isArchipelago = !!gameState.setupTempSettings?.navalMap;
     if (isArchipelago && typeof IAArchipielago !== 'undefined' && typeof IAArchipielago.ejecutarTurno === 'function') {
         logMessage(`IA (Jugador ${aiActualPlayerNumber}) inicia su turno en Archipiélago... (IAArchipielago)`);
+        console.log(`[simpleAiTurn] Detectado mapa Archipiélago (navalMap=${gameState.setupTempSettings.navalMap}), usando IAArchipielago`);
         IAArchipielago.ejecutarTurno(aiActualPlayerNumber);
         return;
+    }
+    
+    if (isArchipelago) {
+        console.warn(`[simpleAiTurn] Mapa Archipiélago detectado pero IAArchipielago NO disponible`);
+        console.warn(`  - IAArchipielago definido: ${typeof IAArchipielago !== 'undefined'}`);
+        console.warn(`  - Método ejecutarTurno disponible: ${typeof IAArchipielago?.ejecutarTurno === 'function'}`);
     }
 
     logMessage(`IA (Jugador ${aiActualPlayerNumber}, Nivel: ${aiLevel}) inicia su turno... (Usando AiGameplayManager)`);

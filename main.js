@@ -1059,6 +1059,7 @@ function initApp() {
                 gameState.currentPhase = "deployment"; // Asegurar fase
                 if (!gameState.setupTempSettings) gameState.setupTempSettings = {};
                 gameState.setupTempSettings.barbarianDensity = settings.barbarianDensity || 'med';
+                gameState.setupTempSettings.navalMap = settings.navalMap || false;
                 
                 // Leer Civilizaciones y Tipos de la Pantalla 2
                 const playerTypes = {};
@@ -2457,6 +2458,7 @@ function iniciarPartidaLAN(settings) {
     gameState.victoryByPointsEnabled = settings.victoryByPoints ?? VICTORY_BY_POINTS_ENABLED_DEFAULT;
     if (!gameState.setupTempSettings) gameState.setupTempSettings = {};
     gameState.setupTempSettings.barbarianDensity = settings.barbarianDensity || 'med';
+    gameState.setupTempSettings.navalMap = settings.navalMap || false;
     gameState.isCampaignBattle = false;
 
     showScreen(domElements.gameContainer);
