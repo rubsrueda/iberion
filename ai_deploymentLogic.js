@@ -53,7 +53,8 @@ const AiDeploymentManager = {
                 }
                 
                 const currentAvailableSpots = analysis.availableSpots.filter(spot => !tempOccupiedSpots.has(`${spot.r},${spot.c}`));
-                const placementSpot = this.findBestSpotForMission(mission, currentAvailableSpots, unitDefinition, playerNumber);
+                const isFirstUnit = deployedCount === 0;
+                const placementSpot = this.findBestSpotForMission(mission, currentAvailableSpots, unitDefinition, playerNumber, isFirstUnit, analysis.humanThreats);
                 if (!placementSpot) continue;
 
                 playerResources.oro -= unitDefinition.cost;
@@ -207,8 +208,16 @@ const AiDeploymentManager = {
         return { regiments: fullRegiments, cost, role, name };
     },
 
-    findBestSpotForMission: function(mission, availableSpots, unitDefinition, playerNumber) {
+    findBestSpotForMission: function(mission, availableSpots, unitDefinition, playerNumber, isFirstUnit = false, humanThreats = []) {
         const targetHex = mission.objectiveHex;
+        
+        // SALVAGUARDA CRÍTICA: Primera unidad debe estar ALEJADA del frente
+        if (isFirstUnit) {
+            console.log(`[IA DEPLOY] 🛡️ PRIMERA UNIDAD - Buscando posición DEFENSIVA LEJANA del enemigo`);
+            return this.findSafeDefensiveSpot(availableSpots, unitDefinition, playerNumber, humanThreats);
+        }
+        
+        // Para otras unidades: comportamiento normal (adyacente al objetivo)
         const adjacentHexes = getHexNeighbors(targetHex.r, targetHex.c);
         let validAdjacentSpots = [];
         
@@ -268,6 +277,93 @@ const AiDeploymentManager = {
         });
         
         return validAdjacentSpots[0];
+    },
+
+    /**
+     * ENCONTRAR POSICIÓN DEFENSIVA SEGURA PARA PRIMERA UNIDAD
+     * La primera unidad DEBE estar alejada del frente para sobrevivir
+     */
+    findSafeDefensiveSpot: function(availableSpots, unitDefinition, playerNumber, humanThreats = []) {
+        const capital = gameState.cities.find(c => c.owner === playerNumber && c.isCapital);
+        const candidateSpots = [];
+        
+        for (const spot of availableSpots) {
+            const spotTerrain = board[spot.r]?.[spot.c]?.terrain;
+            
+            // 1. Solo terreno transitable
+            const category = unitDefinition.regiments[0]?.category;
+            const isImpassable = IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[category]?.includes(spotTerrain) || 
+                                TERRAIN_TYPES[spotTerrain]?.isImpassableForLand;
+            if (isImpassable) continue;
+            
+            // 2. CRÍTICO: Debe estar ALEJADO del enemigo
+            const minDistToEnemy = Math.min(...humanThreats.map(threat => 
+                hexDistance(threat.r, threat.c, spot.r, spot.c)
+            ), Infinity);
+            
+            if (minDistToEnemy < 5) continue; // Debe estar a distancia 5+ del enemigo más cercano
+            
+            // 3. Preferencia: cercano a la capital
+            const distToCapital = capital ? hexDistance(capital.r, capital.c, spot.r, spot.c) : Infinity;
+            
+            // 4. Bonificación por terreno defensivo
+            const defensiveScore = (spotTerrain === 'hills') ? 3 : (spotTerrain === 'forest') ? 2 : 1;
+            
+            candidateSpots.push({
+                spot,
+                distToEnemy: minDistToEnemy,
+                distToCapital,
+                defensiveScore
+            });
+        }
+        
+        if (candidateSpots.length === 0) {
+            console.warn(`[IA DEPLOY] ⚠️ No hay posición segura a 5+ de distancia del enemigo. Usando la más lejana disponible.`);
+            
+            // Fallback: buscar la más lejana del enemigo sin importar distancia mínima
+            let safestSpot = null;
+            let maxDistance = -1;
+            
+            for (const spot of availableSpots) {
+                const spotTerrain = board[spot.r]?.[spot.c]?.terrain;
+                const category = unitDefinition.regiments[0]?.category;
+                const isImpassable = IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[category]?.includes(spotTerrain) || 
+                                    TERRAIN_TYPES[spotTerrain]?.isImpassableForLand;
+                if (isImpassable) continue;
+                
+                const minDist = Math.min(...humanThreats.map(threat => 
+                    hexDistance(threat.r, threat.c, spot.r, spot.c)
+                ), Infinity);
+                
+                if (minDist > maxDistance) {
+                    maxDistance = minDist;
+                    safestSpot = spot;
+                }
+            }
+            
+            if (safestSpot) {
+                console.log(`[IA DEPLOY] Usando posición a distancia ${maxDistance} del enemigo.`);
+                return safestSpot;
+            }
+            
+            console.error(`[IA DEPLOY] 🚨 No hay ningún spot disponible seguro. Usando cualquier spot.`);
+            return availableSpots[0] || null;
+        }
+        
+        // Ordenar por: 1) Defensa del terreno, 2) Distancia al capital, 3) Lejanía del enemigo
+        candidateSpots.sort((a, b) => {
+            if (a.defensiveScore !== b.defensiveScore) {
+                return b.defensiveScore - a.defensiveScore; // Mayor defensa primero
+            }
+            if (Math.abs(a.distToCapital - b.distToCapital) > 1) {
+                return a.distToCapital - b.distToCapital; // Más cercano a capital
+            }
+            return b.distToEnemy - a.distToEnemy; // Más lejano del enemigo
+        });
+        
+        console.log(`[IA DEPLOY] ✓ Primera unidad: Posición segura en (${candidateSpots[0].spot.r},${candidateSpots[0].spot.c}), distancia enemigo: ${candidateSpots[0].distToEnemy}, terreno: ${board[candidateSpots[0].spot.r]?.[candidateSpots[0].spot.c]?.terrain}`);
+        
+        return candidateSpots[0].spot;
     },
 
     // EN: ai_deploymentLogic.js
