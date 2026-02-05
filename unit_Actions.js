@@ -3825,6 +3825,16 @@ function _executeExploreRuins(payload) {
     // hex.looted = true;
 
     if (typeof renderSingleHexVisuals === 'function') renderSingleHexVisuals(r, c);
+    
+    // CRÍTICO: Actualizar visualmente la unidad si se le agregó un regimiento
+    if (selectedEvent.effect.type === 'add_regiment' && unit.element) {
+        if (typeof updateUnitSprite === 'function') {
+            updateUnitSprite(unit);
+        } else if (typeof renderUnitSprite === 'function') {
+            renderUnitSprite(unit);
+        }
+    }
+    
     if (UIManager) UIManager.hideContextualPanel();
 }
 

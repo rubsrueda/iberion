@@ -31,7 +31,19 @@ const ReplayRenderer = {
         this.unitsOnMap = {};
         this.eventsToAnimate = [];
 
-        console.log(`[ReplayRenderer] Inicializado para replay de ${replayData.timeline.length} turnos`);
+        // VALIDACIONES CRÍTICAS
+        if (!this.canvas || !this.ctx) {
+            console.error('[ReplayRenderer] Canvas o contexto 2D no disponible');
+            return;
+        }
+        
+        if (!replayData || !replayData.timeline) {
+            console.warn('[ReplayRenderer] replayData.timeline no disponible. Usando timeline vacío.');
+            this.replayData = replayData || { timeline: [] };
+        }
+        
+        const timelineLength = (replayData?.timeline?.length) || 0;
+        console.log(`[ReplayRenderer] Inicializado para replay de ${timelineLength} turnos`);
         
         // Dibujar estado inicial
         this.drawFrame();

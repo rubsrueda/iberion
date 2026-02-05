@@ -78,6 +78,26 @@ const AiDeploymentManager = {
             
             setTimeout(() => {
                 if (gameState.currentPlayer === playerNumber && gameState.currentPhase === 'deployment') {
+                    // VALIDACIÓN CRÍTICA: Si la IA no ha desplegado ninguna unidad, crear una de emergencia
+                    const playerUnits = units.filter(u => u.player === playerNumber);
+                    if (playerUnits.length === 0) {
+                        console.warn(`[IA DEPLOY] 🚨 CRÍTICO: La IA ${playerNumber} NO ha desplegado NINGUNA UNIDAD. Creando unidad de emergencia...`);
+                        const capital = gameState.cities.find(c => c.owner === playerNumber && c.isCapital);
+                        if (capital) {
+                            const emergencyUnit = AiDeploymentManager.createUnitObject({
+                                regiments: [{...REGIMENT_TYPES['Pueblo'], type: 'Pueblo'}],
+                                cost: 80,
+                                role: 'defender',
+                                name: 'Asentamiento de Emergencia'
+                            }, playerNumber, capital);
+                            placeFinalizedDivision(emergencyUnit, capital.r, capital.c);
+                            console.log(`[IA DEPLOY] ✅ Unidad de emergencia creada en la capital (${capital.r},${capital.c})`);
+                            gameState.playerResources[playerNumber].oro -= 80;
+                        } else {
+                            console.error(`[IA DEPLOY] 🚨 No se pudo crear unidad de emergencia: capital no encontrada`);
+                        }
+                    }
+                    
                     if (typeof handleEndTurn === "function") {
                         handleEndTurn();
                     } else {

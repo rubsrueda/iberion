@@ -90,6 +90,7 @@ body {
     align-items: flex-start;
    /* padding-bottom: 80px;*/
     box-sizing: border-box;
+    z-index: 200;
 }
 
 #gameBoard {

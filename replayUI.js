@@ -20,23 +20,59 @@ const ReplayUI = {
             return;
         }
 
+        // CRÍTICO: Asegurar que el modal sea visible y esté al frente
         modal.style.display = 'flex';
+        modal.style.visibility = 'visible';
+        modal.style.zIndex = '10500'; // Mayor que otros modales
+        modal.style.position = 'fixed';
+        modal.style.top = '0';
+        modal.style.left = '0';
+        modal.style.width = '100vw';
+        modal.style.height = '100vh';
 
         // Inicializar encabezado
-        document.getElementById('replayTitle').textContent = `CRÓNICA DE BATALLA #${replayData.match_id}`;
+        const titleEl = document.getElementById('replayTitle');
+        if (titleEl) {
+            titleEl.textContent = `CRÓNICA DE BATALLA #${replayData.match_id || 'DESCONOCIDO'}`;
+        } else {
+            console.warn('[ReplayUI] replayTitle no encontrado');
+        }
 
         // Inicializar canvas
         const canvas = document.getElementById('replayCanvas');
         if (canvas) {
-            this.renderer = Object.create(window.ReplayRenderer || {});
-            this.renderer.initialize(canvas, replayData, boardData);
+            try {
+                if (!this.renderer) {
+                    this.renderer = Object.create(window.ReplayRenderer || {});
+                }
+                if (this.renderer && typeof this.renderer.initialize === 'function') {
+                    this.renderer.initialize(canvas, replayData, boardData);
+                    console.log('[ReplayUI] Renderer inicializado correctamente');
+                } else {
+                    console.warn('[ReplayUI] ReplayRenderer no disponible o sin método initialize');
+                }
+            } catch (err) {
+                console.error('[ReplayUI] Error al inicializar renderer:', err);
+            }
+        } else {
+            console.error('[ReplayUI] replayCanvas no encontrado en el DOM');
         }
 
         // Cargar lista de eventos
-        this.updateEventList(replayData);
+        try {
+            this.updateEventList(replayData);
+        } catch (err) {
+            console.warn('[ReplayUI] Error al actualizar lista de eventos:', err);
+        }
 
         // Configurar controles
-        this.setupControls();
+        try {
+            this.setupControls();
+        } catch (err) {
+            console.warn('[ReplayUI] Error al configurar controles:', err);
+        }
+
+        console.log('[ReplayUI] Modal abierto exitosamente');
     },
 
     /**
@@ -360,3 +396,15 @@ const ReplayUI = {
 if (typeof window !== 'undefined') {
     window.ReplayUI = ReplayUI;
 }
+
+        if (this.renderer && this.renderer.stop) {
+            this.renderer.stop();
+            console.log('[ReplayUI] Reproducción detenida');
+        }
+        
+        // Limpiar refs
+        this.currentReplay = null;
+        this.renderer = null;
+        
+        console.log('[ReplayUI] Modal cerrado y memoria limpiada');
+    },
