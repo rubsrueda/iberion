@@ -825,23 +825,25 @@ function initApp() {
         domElements.barracksBtn.hasListener = true; // Previene añadir múltiples listeners
     }
    
-    // Configuración de Audio
+    // Configuración de Audio - SE CARGA Y APLICA ANTES DE HACER NADA
     if (typeof AudioManager !== 'undefined' && AudioManager.preload) {
         AudioManager.preload();
         
-        // --- APLICAR SETTINGS GUARDADOS AL INICIO ---
-        const savedSettings = JSON.parse(localStorage.getItem('iberion_settings'));
-        
-        if (savedSettings) {
-            // Si hay ajustes guardados, los respetamos con TUS valores (0.3 y 0.7)
-            AudioManager.setVolume(
-                savedSettings.music ? 0.3 : 0, 
-                savedSettings.sfx ? 0.7 : 0
-            );
+        // --- LLAMAR LA FUNCIÓN UNIFICADA PARA CARGAR Y APLICAR SETTINGS ---
+        // Esta función maneja localStorage, perfil Supabase y fallbacks
+        if (typeof loadAndApplySettings === 'function') {
+            loadAndApplySettings();
         } else {
-            // Si NO hay ajustes (es la primera vez), el AudioManager ya tiene por defecto 0.3 y 0.7
-            // No hace falta hacer nada, o puedes forzarlo:
-            AudioManager.setVolume(0.3, 0.7);
+            // Fallback por si la función no está lista
+            const savedSettings = JSON.parse(localStorage.getItem('iberion_settings'));
+            if (savedSettings) {
+                AudioManager.setVolume(
+                    savedSettings.music ? 0.3 : 0, 
+                    savedSettings.sfx ? 0.7 : 0
+                );
+            } else {
+                AudioManager.setVolume(0.3, 0.7);
+            }
         }
     }
 
@@ -2980,6 +2982,24 @@ function reconstruirJuegoDesdeDatos(datos) {
         // ================================================================
 
         logMessage(`Sincronizado. Turno: J${gameState.currentPlayer}`);
+
+        // CRÍTICO: SI EL TURNO ACTUAL ES DE IA, EJECUTAR SU TURNO AUTOMÁTICAMENTE
+        // Esto es necesario después de cargar una partida contra IA
+        const currentPlayerType = gameState.playerTypes && gameState.playerTypes[gameState.currentPlayer];
+        if (currentPlayerType === 'ai' && gameState.currentPhase === 'play') {
+            console.log(`[Reconstruir] Turno actual es de IA (J${gameState.currentPlayer}). Ejecutando turno automáticamente...`);
+            
+            // Delay breve para asegurar que la UI está completamente renderizada
+            setTimeout(() => {
+                if (typeof simpleAiTurn === 'function') {
+                    simpleAiTurn();
+                } else {
+                    console.error("[Reconstruir] simpleAiTurn no está definido. La IA no puede jugar.");
+                }
+            }, 500); // 500ms para asegurar que todo el render está completo
+        } else {
+            console.log(`[Reconstruir] Turno es de jugador humano (J${gameState.currentPlayer}) o no está en fase play. No ejecutando IA.`);
+        }
 
     } catch (error) { 
         console.error("Error crítico al reconstruir:", error);

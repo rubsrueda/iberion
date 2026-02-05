@@ -340,18 +340,71 @@ async function handleSaveGame() {
 }
 
 function showGameContainerFromLoad() {
-    if (typeof showScreen === 'function' && domElements.gameContainer) {
-        showScreen(domElements.gameContainer);
-    } else if (domElements.gameContainer) {
-        domElements.gameContainer.style.display = 'flex';
-    }
-
+    console.log('[showGameContainerFromLoad] Iniciando proceso de mostrar juego después de cargar...');
+    
+    // 1. Obtener referencias a elementos críticos
+    const gameContainer = document.querySelector('.game-container') || domElements.gameContainer;
     const mainMenu = document.getElementById('mainMenuScreen');
+    const setupScreen = document.getElementById('setupScreen');
+    const gameContainer2 = document.getElementById('gameContainer');
+    
+    // 2. Debug: Mostrar qué encontramos
+    console.log('[showGameContainerFromLoad] gameContainer (querySelector):', gameContainer ? '✓ encontrado' : '✗ NO encontrado');
+    console.log('[showGameContainerFromLoad] domElements.gameContainer:', domElements.gameContainer ? '✓ encontrado' : '✗ NO encontrado');
+    console.log('[showGameContainerFromLoad] gameContainer2 (byId):', gameContainer2 ? '✓ encontrado' : '✗ NO encontrado');
+    console.log('[showGameContainerFromLoad] mainMenu:', mainMenu ? '✓ encontrado' : '✗ NO encontrado');
+    
+    // 3. OCULTAR EXPLÍCITAMENTE POR ID
     if (mainMenu) {
         mainMenu.style.setProperty('display', 'none', 'important');
         mainMenu.style.setProperty('visibility', 'hidden', 'important');
         mainMenu.style.setProperty('pointer-events', 'none', 'important');
+        mainMenu.style.setProperty('z-index', '0', 'important');
+        console.log('[showGameContainerFromLoad] mainMenuScreen ocultado con force !important');
     }
+    
+    if (setupScreen) {
+        setupScreen.style.setProperty('display', 'none', 'important');
+        console.log('[showGameContainerFromLoad] setupScreen ocultado');
+    }
+    
+    // 4. MOSTRAR EL JUEGO DE MÚLTIPLES FORMAS PARA ASEGURAR
+    if (gameContainer) {
+        gameContainer.style.setProperty('display', 'flex', 'important');
+        gameContainer.style.setProperty('visibility', 'visible', 'important');
+        gameContainer.style.setProperty('z-index', '1200', 'important');
+        console.log('[showGameContainerFromLoad] .game-container mostrado con force !important y z-index:1200');
+    }
+    
+    if (gameContainer2) {
+        gameContainer2.style.setProperty('display', 'flex', 'important');
+        gameContainer2.style.setProperty('visibility', 'visible', 'important');
+        gameContainer2.style.setProperty('z-index', '1200', 'important');
+        console.log('[showGameContainerFromLoad] #gameContainer mostrado con force !important y z-index:1200');
+    }
+    
+    // 5. Intentar usar showScreen() si está disponible
+    if (typeof showScreen === 'function' && (gameContainer || gameContainer2)) {
+        const containerToShow = gameContainer || gameContainer2;
+        showScreen(containerToShow);
+        console.log('[showGameContainerFromLoad] showScreen() llamado exitosamente');
+    }
+    
+    // 6. Refrescar la UI táctica si existe
+    const tacticalUI = document.getElementById('tactical-ui-container') || domElements.tacticalUiContainer;
+    if (tacticalUI) {
+        tacticalUI.style.setProperty('display', 'block', 'important');
+        console.log('[showGameContainerFromLoad] tactical-ui-container mostrada');
+    }
+    
+    // 7. Verificación final: Asegurar que ya no hay ningún overlay modal visible
+    document.querySelectorAll('.modal').forEach(modal => {
+        if (modal.id !== 'postMatchModal' && modal.id !== 'replayModal') {
+            modal.style.setProperty('display', 'none', 'important');
+        }
+    });
+    
+    console.log('[showGameContainerFromLoad] ✓ Proceso completado. El juego debería ser visible ahora.');
 }
 
 async function handleLoadGame() {
@@ -379,7 +432,10 @@ async function handleLoadGame() {
             if (typeof reconstruirJuegoDesdeDatos === 'function') {
                 reconstruirJuegoDesdeDatos(dataToRestore);
                 // Mostrar el juego y ocultar el menú usando showScreen
-                showGameContainerFromLoad();
+                // Agregar pequeño delay para asegurar que el DOM está completamente actualizado
+                setTimeout(() => {
+                    showGameContainerFromLoad();
+                }, 100);
                 logMessage("Partida local cargada.", "success");
             }
         }
@@ -419,9 +475,9 @@ async function handleLoadGame() {
             if (typeof reconstruirJuegoDesdeDatos === 'function') {
                 reconstruirJuegoDesdeDatos(dataToRestore);
                 // Mostrar el juego y ocultar el menú usando showScreen
-                if (typeof showScreen === 'function' && domElements.gameContainer) {
-                    showScreen(domElements.gameContainer);
-                }
+                setTimeout(() => {
+                    showGameContainerFromLoad();
+                }, 100);
                 logMessage("Partida local cargada.", "success");
             }
         }
@@ -487,8 +543,12 @@ async function handleLoadGame() {
             
             // Cerrar menús y mostrar juego usando showScreen() para asegurar z-index correcto
             if (domElements.setupScreen) domElements.setupScreen.style.display = 'none';
-            showGameContainerFromLoad();
-            logMessage(`Partida cargada desde la nube${typeMsg}.`, "success");
+            
+            // IMPORTANTE: Agregar delay para asegurar que reconstruirJuegoDesdeDatos() terminó completamente
+            setTimeout(() => {
+                showGameContainerFromLoad();
+                logMessage(`Partida cargada desde la nube${typeMsg}.`, "success");
+            }, 100);
         }
     }
 }

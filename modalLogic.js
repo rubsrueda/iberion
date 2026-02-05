@@ -3796,28 +3796,141 @@ const DEFAULT_SETTINGS = {
     hints: true
 };
 
+/**
+ * Carga las configuraciones guardadas (localStorage o perfil Supabase)
+ * y las aplica inmediatamente al AudioManager
+ * Se puede llamar en cualquier momento (al iniciar, abrir modal, etc.)
+ */
+function loadAndApplySettings() {
+    try {
+        let settings = null;
+
+        // 1. Intentar cargar del perfil Supabase primero (más actualizado)
+        if (PlayerDataManager && PlayerDataManager.currentPlayer && PlayerDataManager.currentPlayer.settings) {
+            settings = PlayerDataManager.currentPlayer.settings;
+            console.log('[Settings] Configuración cargada del perfil Supabase:', settings);
+        }
+        // 2. Si no hay en Supabase, cargar de localStorage
+        else if (localStorage.getItem('iberion_settings')) {
+            settings = JSON.parse(localStorage.getItem('iberion_settings'));
+            console.log('[Settings] Configuración cargada de localStorage:', settings);
+        }
+        // 3. Si no hay en ningún lado, usar defaults
+        else {
+            settings = DEFAULT_SETTINGS;
+            console.log('[Settings] Usando configuración por defecto:', settings);
+        }
+
+        // Validar que settings sea un objeto válido
+        if (!settings || typeof settings !== 'object') {
+            settings = DEFAULT_SETTINGS;
+        }
+
+        // APLICAR INMEDIATAMENTE AL AUDIO MANAGER
+        if (typeof AudioManager !== 'undefined') {
+            AudioManager.setVolume(
+                settings.music ? 0.3 : 0,
+                settings.sfx ? 0.7 : 0
+            );
+            console.log('[Settings] Volúmenes aplicados: Música=' + (settings.music ? '0.3' : '0') + ', SFX=' + (settings.sfx ? '0.7' : '0'));
+        }
+
+        return settings;
+    } catch (err) {
+        console.error('[Settings] Error al cargar configuraciones:', err);
+        // Fallback seguro
+        if (typeof AudioManager !== 'undefined') {
+            AudioManager.setVolume(0.3, 0.7);
+        }
+        return DEFAULT_SETTINGS;
+    }
+}
+
 function openSettingsModal() {
     if (!domElements.settingsModal) return;
 
-    // 1. Cargar configuración actual
-    // Intentamos leer de Supabase (si existe en currencies/meta) o LocalStorage
-    let currentSettings = JSON.parse(localStorage.getItem('iberion_settings'));
-    
-    // Si hay perfil cargado, intentamos usar sus settings (si estuvieran guardados ahí)
-    if (PlayerDataManager.currentPlayer && PlayerDataManager.currentPlayer.settings) {
-        currentSettings = PlayerDataManager.currentPlayer.settings;
-    }
+    // CARGAR Y APLICAR CONFIGURACIÓN USANDO LA NUEVA FUNCIÓN
+    const currentSettings = loadAndApplySettings();
 
-    // Fallback a defecto
-    if (!currentSettings) currentSettings = DEFAULT_SETTINGS;
-
-    // 2. Reflejar en la UI
+    // Reflejar en la UI
     domElements.settingMusicToggle.checked = currentSettings.music;
     domElements.settingSfxToggle.checked = currentSettings.sfx;
     domElements.settingGoldConfirm.checked = currentSettings.goldConfirm;
     domElements.settingHints.checked = currentSettings.hints;
 
+    // AGREGAR EVENT LISTENERS A LOS TOGGLES PARA APLICAR CAMBIOS INMEDIATAMENTE
+    // Si ya existen listeners, no agreguemos duplicados
+    if (!domElements.settingMusicToggle._hasListener) {
+        domElements.settingMusicToggle.addEventListener('change', applySettingsInRealTime);
+        domElements.settingMusicToggle._hasListener = true;
+    }
+    if (!domElements.settingSfxToggle._hasListener) {
+        domElements.settingSfxToggle.addEventListener('change', applySettingsInRealTime);
+        domElements.settingSfxToggle._hasListener = true;
+    }
+    if (!domElements.settingGoldConfirm._hasListener) {
+        domElements.settingGoldConfirm.addEventListener('change', applySettingsInRealTime);
+        domElements.settingGoldConfirm._hasListener = true;
+    }
+    if (!domElements.settingHints._hasListener) {
+        domElements.settingHints.addEventListener('change', applySettingsInRealTime);
+        domElements.settingHints._hasListener = true;
+    }
+
     domElements.settingsModal.style.display = 'flex';
+}
+
+/**
+ * Se llama en tiempo real cuando el usuario cambia un toggle
+ * Aplica los cambios inmediatamente sin necesidad de guardar
+ */
+function applySettingsInRealTime() {
+    const newSettings = {
+        music: domElements.settingMusicToggle.checked,
+        sfx: domElements.settingSfxToggle.checked,
+        goldConfirm: domElements.settingGoldConfirm.checked,
+        hints: domElements.settingHints.checked
+    };
+
+    // APLICAR CAMBIOS INMEDIATAMENTE AL AUDIO
+    if (typeof AudioManager !== 'undefined') {
+        AudioManager.setVolume(
+            newSettings.music ? 0.3 : 0,
+            newSettings.sfx ? 0.7 : 0
+        );
+        console.log('[Settings] Cambios aplicados en tiempo real: Música=' + (newSettings.music ? '0.3' : '0') + ', SFX=' + (newSettings.sfx ? '0.7' : '0'));
+        
+        // Si la música se activó y no está sonando, reiniciar tema del menú
+        if (newSettings.music && !AudioManager.currentMusic && gameState.currentPhase !== 'play') {
+            AudioManager.playMusic('menu_theme');
+        }
+        // Si la música se desactivó, detenerla
+        if (!newSettings.music && AudioManager.currentMusic) {
+            AudioManager.stopMusic();
+        }
+    }
+
+    // GUARDAR AUTOMÁTICAMENTE EN BACKGROUND (sin mostrar mensaje)
+    saveSettingsInBackground(newSettings);
+}
+
+/**
+ * Guarda las configuraciones sin cerrar el modal ni mostrar mensajes
+ * Se llama automáticamente cuando el usuario cambia un toggle
+ */
+function saveSettingsInBackground(newSettings) {
+    // Guardar en LocalStorage
+    localStorage.setItem('iberion_settings', JSON.stringify(newSettings));
+
+    // Guardar en Perfil Nube (Si está logueado)
+    if (PlayerDataManager && PlayerDataManager.currentPlayer) {
+        PlayerDataManager.currentPlayer.settings = newSettings;
+        PlayerDataManager.saveCurrentPlayer().catch(err => {
+            console.warn('[Settings] No se pudo guardar en nube, pero se guardó localmente:', err);
+        });
+    }
+
+    console.log('[Settings] Configuración guardada automáticamente:', newSettings);
 }
 
 function saveSettings() {
@@ -3829,26 +3942,17 @@ function saveSettings() {
         hints: domElements.settingHints.checked
     };
 
-    // 2. APLICAR CAMBIOS (Inmediato)
-    
-    // Audio
+    // 2. YA ESTÁN APLICADOS POR applySettingsInRealTime(), 
+    //    pero reforzamos por si acaso
     if (typeof AudioManager !== 'undefined') {
-        AudioManager.setVolume(newSettings.music ? 0.3 : 0, newSettings.sfx ? 0.8 : 0);
-        if (newSettings.music) {
-            // Si la música estaba parada y ahora se activa, reiniciarla
-            if (!AudioManager.currentMusic && gameState.currentPhase !== 'play') AudioManager.playMusic('menu_theme');
-        }
+        AudioManager.setVolume(
+            newSettings.music ? 0.3 : 0, 
+            newSettings.sfx ? 0.7 : 0
+        );
     }
 
     // 3. PERSISTENCIA
-    // Guardar en LocalStorage (Siempre)
-    localStorage.setItem('iberion_settings', JSON.stringify(newSettings));
-
-    // Guardar en Perfil Nube (Si está logueado)
-    if (PlayerDataManager.currentPlayer) {
-        PlayerDataManager.currentPlayer.settings = newSettings;
-        PlayerDataManager.saveCurrentPlayer();
-    }
+    saveSettingsInBackground(newSettings);
 
     logMessage("Configuración guardada.", "success");
     domElements.settingsModal.style.display = 'none';
