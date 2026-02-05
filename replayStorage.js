@@ -95,10 +95,10 @@ const ReplayStorage = {
         }
 
         try {
-            // Comprimir datos antes de guardar
-            let compressedTimeline = this.compressTimeline(replayData.timeline);
+            // Serializar timeline (ya no comprimimos, el campo es TEXT)
+            const timelineJson = JSON.stringify(replayData.timeline);
             
-            console.log(`[ReplayStorage] Tamaño del timeline comprimido: ${this._getByteLength(compressedTimeline)} bytes`);
+            console.log(`[ReplayStorage] Tamaño del timeline: ${this._getByteLength(timelineJson)} bytes`);
             
             // Metadata ya viene como string desde replayEngine.js
             let finalMetadata = replayData.metadata;
@@ -106,17 +106,7 @@ const ReplayStorage = {
                 finalMetadata = JSON.stringify(finalMetadata);
             }
             
-            // Asegurar metadata <= 250 bytes (UTF-8)
-            if (this._getByteLength(finalMetadata) > 250) {
-                finalMetadata = JSON.stringify({ t: Date.now() });
-            }
-            
             console.log(`[ReplayStorage] Tamaño de metadata: ${finalMetadata.length} bytes`);
-            
-            // Validar tamaños antes de insertar
-            if (this._getByteLength(compressedTimeline) > 250) {
-                compressedTimeline = JSON.stringify({ t: replayData.timeline?.length || 0 });
-            }
             
             const safeMatchId = this._normalizeId(replayData.match_id, 'match');
             const userId = String(PlayerDataManager.currentPlayer.auth_id || '');
@@ -126,21 +116,16 @@ const ReplayStorage = {
                 match_id: this._getByteLength(safeMatchId),
                 user_id: this._getByteLength(userId),
                 metadata: this._getByteLength(finalMetadata),
-                timeline_compressed: this._getByteLength(compressedTimeline),
+                timeline_compressed: this._getByteLength(timelineJson),
                 created_at: this._getByteLength(createdAt)
             };
             console.log('[ReplayStorage] Tamaños (bytes):', fieldSizes);
-
-            if (fieldSizes.user_id > 250) {
-                console.error('[ReplayStorage] user_id demasiado largo. Requiere ajuste de esquema o auth_id válido.');
-                return false;
-            }
 
             const payload = {
                 match_id: safeMatchId,
                 user_id: userId,
                 metadata: finalMetadata,
-                timeline_compressed: compressedTimeline,
+                timeline_compressed: timelineJson,  // Campo TEXT puede manejar tamaño grande
                 created_at: createdAt
             };
 
@@ -151,36 +136,6 @@ const ReplayStorage = {
             if (error) {
                 console.error('[ReplayStorage] Error guardando replay:', error);
                 console.error('[ReplayStorage] Detalles:', error.details, error.message);
-                
-                if (error.code === '22001') {
-                    console.error('[ReplayStorage] Error por tamaño de datos. Reintento ultra-minimalista...');
-
-                    const ultraPayload = {
-                        match_id: this._normalizeId(safeMatchId, 'match'),
-                        user_id: userId,
-                        metadata: this._clampStringToMaxBytes(JSON.stringify({ t: Date.now() }), 250, '{}'),
-                        timeline_compressed: this._clampStringToMaxBytes(JSON.stringify({ t: replayData.timeline?.length || 0 }), 250, '{}'),
-                        created_at: this._clampStringToMaxBytes(createdAt, 250, '')
-                    };
-
-                    const { error: retryError } = await supabaseClient
-                        .from('game_replays')
-                        .insert([ultraPayload]);
-
-                    if (retryError) {
-                        console.error('[ReplayStorage] Reintento fallido:', retryError);
-                        console.error('[ReplayStorage] Tamaños reintento (bytes):', {
-                            match_id: this._getByteLength(ultraPayload.match_id),
-                            user_id: this._getByteLength(ultraPayload.user_id),
-                            metadata: this._getByteLength(ultraPayload.metadata),
-                            timeline_compressed: this._getByteLength(ultraPayload.timeline_compressed),
-                            created_at: this._getByteLength(ultraPayload.created_at)
-                        });
-                    } else {
-                        console.log('[ReplayStorage] ✅ Replay guardado con payload ultra-minimalista');
-                        return true;
-                    }
-                }
                 return false;
             }
 
@@ -394,53 +349,14 @@ const ReplayStorage = {
      */
     compressTimeline: function(timeline) {
         try {
-            const MAX_VARCHAR_LEN = 250;
-            // Limitar a máximo 100 eventos para reducir tamaño
-            const limited = timeline.slice(0, 100);
+            // La timeline tiene estructura: [{ turn, currentPlayer, events: [...] }]
+            // NO comprimir - guardar estructura completa para que el replay funcione
+            // El campo en BD ya es JSONB así que puede manejar objetos complejos
             
-            // Crear representación ultra-compacta del timeline
-            // Usar solo los datos absolutamente necesarios
-            const compact = limited.map(event => [
-                event.turn || 0,                    // 0: turn
-                event.action || '',                 // 1: action
-                event.player || 0,                  // 2: player
-                event.data ? [                      // 3: data (array compacto)
-                    event.data.from_r || 0,
-                    event.data.from_c || 0,
-                    event.data.to_r || 0,
-                    event.data.to_c || 0,
-                    event.data.unit_id || '',
-                    event.data.damage_dealt || 0
-                ] : null
-            ]);
-            
-            // Serializar a JSON lo más compacto posible
-            let json = JSON.stringify(compact);
-
-            // Si sigue siendo muy largo después de limitar, reducir más
-            if (this._getByteLength(json) > MAX_VARCHAR_LEN) {
-                // Usar solo turn, action, player (sin data)
-                const minimal = limited.map(event => [
-                    event.turn || 0,
-                    event.action || '',
-                    event.player || 0
-                ]);
-                json = JSON.stringify(minimal);
-            }
-
-            // Si aún no cabe en VARCHAR(255), usar resumen ultra-compacto
-            if (this._getByteLength(json) > MAX_VARCHAR_LEN) {
-                json = this.getUltraCompactTimeline(timeline);
-            }
-
-            // Fallback extremo: solo contar eventos
-            if (this._getByteLength(json) > MAX_VARCHAR_LEN) {
-                json = JSON.stringify({ t: timeline.length });
-            }
-
-            return json;
+            console.log('[ReplayStorage] Guardando timeline sin compresión (JSONB nativo)');
+            return JSON.stringify(timeline);
         } catch (err) {
-            console.error('[ReplayStorage] Error comprimiendo timeline:', err);
+            console.error('[ReplayStorage] Error serializando timeline:', err);
             return '[]';
         }
     },
@@ -450,77 +366,97 @@ const ReplayStorage = {
      */
     decompressTimeline: function(compressed) {
         try {
+            // Simplemente parsear el JSON - ya no hay compresión
             const data = JSON.parse(compressed);
             
-            let eventsArray = [];
-            
-            // Si es un resumen ultra-compacto (tiene 't', 'ts', 'e')
-            if (data.t && data.e && !Array.isArray(data[0])) {
-                // Es un resumen, convertir a eventos
-                eventsArray = data.e.map((e, i) => ({
-                    turn: e[0],
-                    action: e[1],
-                    player: 1,
-                    data: null
-                }));
-            }
-            // Si el primer elemento es un array (formato compacto)
-            else if (Array.isArray(data[0])) {
-                eventsArray = data.map(e => {
-                    // Si tiene 4 elementos, incluye data
-                    if (e.length >= 4 && e[3]) {
-                        return {
-                            turn: e[0],
-                            action: e[1],
-                            player: e[2],
-                            data: {
-                                from_r: e[3][0],
-                                from_c: e[3][1],
-                                to_r: e[3][2],
-                                to_c: e[3][3],
-                                unit_id: e[3][4],
-                                damage_dealt: e[3][5]
-                            }
-                        };
-                    } else {
-                        // Solo turn, action, player
-                        return {
-                            turn: e[0],
-                            action: e[1],
-                            player: e[2],
-                            data: null
-                        };
-                    }
-                });
-            }
-            // Si ya es un array de objetos con estructura de turno
-            else if (Array.isArray(data) && data.length > 0 && data[0].turn !== undefined) {
+            // Validar que tenga la estructura correcta
+            if (Array.isArray(data)) {
+                console.log(`[ReplayStorage] Timeline deserializada: ${data.length} turnos`);
                 return data;
             }
-            // Fallback vacío
-            else {
-                return [];
-            }
             
-            // Agrupar eventos por turno
-            const byTurn = {};
-            for (const event of eventsArray) {
-                const turnNum = event.turn || 1;
-                if (!byTurn[turnNum]) {
-                    byTurn[turnNum] = {
-                        turn: turnNum,
-                        currentPlayer: event.player || 1,
-                        events: [],
-                        timestamp: Date.now()
-                    };
-                }
-                byTurn[turnNum].events.push(event);
-            }
-            
-            return Object.values(byTurn);
-        } catch (err) {
-            console.error('[ReplayStorage] Error descomprimiendo:', err);
+            console.warn('[ReplayStorage] Timeline no es array, devolviendo vacío');
             return [];
+        } catch (err) {
+            console.error('[ReplayStorage] Error parseando timeline:', err);
+            return [];
+        }
+    },
+
+    /**
+     * Función de diagnóstico para verificar estructura de replays
+     * USO: await ReplayStorage.diagnoseReplay('match_id')
+     */
+    diagnoseReplay: async function(matchId) {
+        console.log(`=== DIAGNÓSTICO REPLAY: ${matchId} ===`);
+        
+        try {
+            const { data, error } = await supabaseClient
+                .from('game_replays')
+                .select('*')
+                .eq('match_id', matchId)
+                .single();
+            
+            if (error) {
+                console.error('❌ Error cargando replay:', error);
+                return;
+            }
+            
+            if (!data) {
+                console.error('❌ Replay no encontrado');
+                return;
+            }
+            
+            console.log('✅ Replay encontrado en BD');
+            console.log('📊 Tamaños:', {
+                metadata: this._getByteLength(data.metadata),
+                timeline_compressed: this._getByteLength(data.timeline_compressed)
+            });
+            
+            // Verificar timeline
+            const timeline = this.decompressTimeline(data.timeline_compressed);
+            console.log(`✅ Timeline deserializada: ${timeline.length} turnos`);
+            
+            // Verificar estructura de cada turno
+            let totalEvents = 0;
+            const eventTypes = {};
+            
+            for (let i = 0; i < timeline.length; i++) {
+                const turn = timeline[i];
+                
+                if (!turn.turn || !turn.events || !Array.isArray(turn.events)) {
+                    console.error(`❌ Turno ${i} tiene estructura incorrecta:`, turn);
+                    continue;
+                }
+                
+                totalEvents += turn.events.length;
+                
+                for (const event of turn.events) {
+                    if (!event.type) {
+                        console.error(`❌ Evento sin type en turno ${turn.turn}:`, event);
+                    } else {
+                        eventTypes[event.type] = (eventTypes[event.type] || 0) + 1;
+                    }
+                }
+            }
+            
+            console.log(`✅ Total eventos: ${totalEvents}`);
+            console.log('📊 Tipos de evento:', eventTypes);
+            
+            // Verificar que los tipos sean reconocidos por replayUI
+            const validTypes = ['MOVE', 'BATTLE', 'UNIT_DEATH', 'CONQUEST', 'BUILD'];
+            const unknownTypes = Object.keys(eventTypes).filter(t => !validTypes.includes(t));
+            
+            if (unknownTypes.length > 0) {
+                console.error('❌ Tipos de evento desconocidos:', unknownTypes);
+            } else {
+                console.log('✅ Todos los tipos de evento son válidos');
+            }
+            
+            console.log('=== FIN DIAGNÓSTICO ===');
+            
+        } catch (err) {
+            console.error('❌ Excepción en diagnóstico:', err);
         }
     }
 };
