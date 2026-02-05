@@ -2644,6 +2644,14 @@ function handlePlacementModeClick(r, c) {
         
         console.log(`[INVASION DEPLOY] Player ${currentPlayer}: ${playerCities.length} ciudades, isAttacker: ${isAttacker}`);
         
+        // Determinar si la unidad es naval
+        const isUnitNaval = unitToPlace.regiments && unitToPlace.regiments.some(reg => {
+            const regType = REGIMENT_TYPES[reg.type];
+            return regType && regType.is_naval === true;
+        });
+        
+        console.log(`[INVASION DEPLOY] Unidad: ${unitToPlace.name}, Naval: ${isUnitNaval}`);
+
         if (isAttacker) {
             // ATACANTE: Solo puede desplegar cerca de su base de invasión (radio 1)
             const attackerBase = playerCities[0];
@@ -2651,13 +2659,26 @@ function handlePlacementModeClick(r, c) {
             if (attackerBase) {
                 const distanceFromBase = hexDistance(attackerBase.r, attackerBase.c, r, c);
                 console.log(`[INVASION DEPLOY] Atacante a base (${attackerBase.r},${attackerBase.c}): distancia=${distanceFromBase}, radio=${INVASION_MODE_CONFIG.DEPLOYMENT_RADIUS}`);
-                if (distanceFromBase <= INVASION_MODE_CONFIG.DEPLOYMENT_RADIUS && hexData.terrain !== 'water') {
+                
+                // Validar terreno según tipo de unidad
+                let terrainValid = false;
+                if (isUnitNaval) {
+                    terrainValid = hexData.terrain === 'water';
+                } else {
+                    terrainValid = hexData.terrain !== 'water';
+                }
+                
+                if (distanceFromBase <= INVASION_MODE_CONFIG.DEPLOYMENT_RADIUS && terrainValid) {
                     canPlace = true;
                     console.log(`[INVASION DEPLOY] ✓ Distancia válida para colocar en (${r},${c})`);
                 } else {
-                    logMessage(`Solo puedes desplegar dentro de ${INVASION_MODE_CONFIG.DEPLOYMENT_RADIUS} hex de tu base.`);
+                    if (distanceFromBase > INVASION_MODE_CONFIG.DEPLOYMENT_RADIUS) {
+                        logMessage(`Solo puedes desplegar dentro de ${INVASION_MODE_CONFIG.DEPLOYMENT_RADIUS} hex de tu base.`);
+                    } else if (!terrainValid) {
+                        logMessage(isUnitNaval ? "Unidades navales solo en agua." : "Unidades terrestres no en agua.");
+                    }
                     canPlace = false;
-                    console.log(`[INVASION DEPLOY] ✗ Distancia inválida o agua`);
+                    console.log(`[INVASION DEPLOY] ✗ Distancia o terreno inválido`);
                 }
             } else {
                 console.error(`[INVASION DEPLOY] ERROR: Atacante sin ciudad base detectada`);
@@ -2680,13 +2701,25 @@ function handlePlacementModeClick(r, c) {
                 }
             }
             
-            if (nearCity && hexData.terrain !== 'water') {
+            // Validar terreno según tipo de unidad
+            let terrainValid = false;
+            if (isUnitNaval) {
+                terrainValid = hexData.terrain === 'water';
+            } else {
+                terrainValid = hexData.terrain !== 'water';
+            }
+            
+            if (nearCity && terrainValid) {
                 canPlace = true;
                 console.log(`[INVASION DEPLOY] ✓ Defensor puede colocar en (${r},${c})`);
             } else {
-                logMessage(`El Defensor debe desplegar cerca de sus ciudades.`);
+                if (!nearCity) {
+                    logMessage(`El Defensor debe desplegar cerca de sus ciudades.`);
+                } else if (!terrainValid) {
+                    logMessage(isUnitNaval ? "Unidades navales solo en agua." : "Unidades terrestres no en agua.");
+                }
                 canPlace = false;
-                console.log(`[INVASION DEPLOY] ✗ Defensor fuera de rango de ciudad`);
+                console.log(`[INVASION DEPLOY] ✗ Defensor fuera de rango o terreno inválido`);
             }
         }
     }
@@ -2696,13 +2729,37 @@ function handlePlacementModeClick(r, c) {
         // Debe estar a distancia 1 del hex de reclutamiento (ciudad/fortaleza)
         const distanceFromRecruitHex = hexDistance(placementMode.recruitHex.r, placementMode.recruitHex.c, r, c);
         
-        if (distanceFromRecruitHex <= 1 && hexData.terrain !== 'water') {
-            canPlace = true;
-            console.log(`[INVASION RECRUIT] Reclutamiento permitido en (${r},${c}) cerca de (${placementMode.recruitHex.r},${placementMode.recruitHex.c})`);
+        // Determinar si la unidad es naval
+        const isUnitNaval = unitToPlace.regiments && unitToPlace.regiments.some(reg => {
+            const regType = REGIMENT_TYPES[reg.type];
+            return regType && regType.is_naval === true;
+        });
+        
+        console.log(`[INVASION RECRUIT] Unidad: ${unitToPlace.name}, Naval: ${isUnitNaval}, Terreno: ${hexData.terrain}, Distancia: ${distanceFromRecruitHex}`);
+        
+        // Validar posición según tipo de unidad
+        let terrainValid = false;
+        if (isUnitNaval) {
+            terrainValid = hexData.terrain === 'water'; // Unidades navales SOLO en agua
         } else {
-            logMessage("Debes reclutar cerca de tu ciudad o fortaleza.");
+            terrainValid = hexData.terrain !== 'water'; // Unidades terrestres NO en agua
+        }
+        
+        if (distanceFromRecruitHex <= 1 && terrainValid) {
+            canPlace = true;
+            console.log(`[INVASION RECRUIT] ✓ Reclutamiento permitido en (${r},${c})`);
+        } else {
+            if (distanceFromRecruitHex > 1) {
+                logMessage("Debes reclutar cerca de tu ciudad o fortaleza.");
+            } else if (!terrainValid) {
+                if (isUnitNaval) {
+                    logMessage("Las unidades navales solo se pueden colocar en agua.");
+                } else {
+                    logMessage("Las unidades terrestres no se pueden colocar en agua.");
+                }
+            }
             canPlace = false;
-            console.log(`[INVASION RECRUIT] Distancia ${distanceFromRecruitHex} demasiado lejos de hex de reclutamiento`);
+            console.log(`[INVASION RECRUIT] ✗ Reclutamiento rechazado: distancia=${distanceFromRecruitHex}, terrainValid=${terrainValid}`);
         }
     }
     // Lógica para MODOS NO-INVASIÓN
