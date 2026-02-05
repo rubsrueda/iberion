@@ -172,6 +172,15 @@ function showScreen(screenElement) {
         loginScreen.style.setProperty('z-index', '2000');
     }
 
+    // CRÍTICO: Ocultar gameContainer cuando se muestra cualquier otra pantalla (excepto si gameContainer es lo que se intenta mostrar)
+    const gameContainer = document.querySelector('.game-container');
+    if (screenElement && screenElement.id !== 'gameContainer' && !screenElement.classList.contains('game-container')) {
+        if (gameContainer) {
+            gameContainer.style.setProperty('display', 'none', 'important');
+            console.log("[showScreen] Ocultando gameContainer para mostrar otra pantalla");
+        }
+    }
+
     // CRÍTICO: Si se muestra el gameContainer (que no es un .modal), ocultar explícitamente el mainMenuScreen
     // Esto es ESENCIAL para evitar que el menú quede visible debajo del mapa después de inactividad o refresh
     if (screenElement && (screenElement.id === 'gameContainer' || screenElement.classList.contains('game-container'))) {

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Sistema Replay</title>
+    <style>
+        body {
+            background: #1a1a1a;
+            color: #00f3ff;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        h1 {
+            color: #00ff00;
+        }
+        .status {
+            background: #2a2a2a;
+            padding: 10px;
+            margin: 10px 0;
+            border-left: 3px solid #00f3ff;
+        }
+        .success {
+            border-left-color: #00ff00;
+        }
+        .error {
+            border-left-color: #ff0000;
+            color: #ff6b6b;
+        }
+        .warning {
+            border-left-color: #ffff00;
+            color: #ffff99;
+        }
+        .code {
+            background: #000;
+            padding: 5px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        button {
+            background: #004a7f;
+            color: #00f3ff;
+            border: 1px solid #00f3ff;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        button:hover {
+            background: #006b9f;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Test Sistema Replay</h1>
+    
+    <div id="output"></div>
+    
+    <br>
+    <button onclick="testAll()">Test Completo</button>
+    <button onclick="testReplayRenderer()">Test ReplayRenderer</button>
+    <button onclick="testReplayUI()">Test ReplayUI</button>
+    <button onclick="testDOMElements()">Test Elementos DOM</button>
+    <button onclick="location.reload()">Recargar</button>
+
+    <script>
+        const output = document.getElementById('output');
+
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = 'status ' + type;
+            div.textContent = '» ' + message;
+            output.appendChild(div);
+            console.log(`[${type.toUpperCase()}]`, message);
+        }
+
+        function testReplayRenderer() {
+            log('=== TESTING ReplayRenderer ===', 'info');
+            
+            if (typeof window.ReplayRenderer === 'undefined') {
+                log('❌ ReplayRenderer NO ESTÁ CARGADO', 'error');
+                return false;
+            }
+            log('✓ ReplayRenderer está cargado', 'success');
+            
+            const methods = ['initialize', 'play', 'stop', 'seek', 'previousTurn', 'nextTurn', 'setPlaybackSpeed'];
+            let allMethodsExist = true;
+            
+            methods.forEach(method => {
+                if (typeof window.ReplayRenderer[method] === 'function') {
+                    log(`✓ Método <span class="code">${method}()</span> existe`, 'success');
+                } else {
+                    log(`❌ Método <span class="code">${method}()</span> NO EXISTE`, 'error');
+                    allMethodsExist = false;
+                }
+            });
+            
+            return allMethodsExist;
+        }
+
+        function testReplayUI() {
+            log('=== TESTING ReplayUI ===', 'info');
+            
+            if (typeof ReplayUI === 'undefined') {
+                log('❌ ReplayUI NO ESTÁ CARGADO', 'error');
+                return false;
+            }
+            log('✓ ReplayUI está cargado', 'success');
+            
+            const methods = ['openReplayModal', 'closeReplayModal', 'setupControls', 'updateEventList'];
+            let allMethodsExist = true;
+            
+            methods.forEach(method => {
+                if (typeof ReplayUI[method] === 'function') {
+                    log(`✓ Método <span class="code">${method}()</span> existe`, 'success');
+                } else {
+                    log(`❌ Método <span class="code">${method}()</span> NO EXISTE`, 'error');
+                    allMethodsExist = false;
+                }
+            });
+            
+            return allMethodsExist;
+        }
+
+        function testDOMElements() {
+            log('=== TESTING Elementos DOM ===', 'info');
+            
+            const elements = [
+                'replayModal',
+                'replayCanvas',
+                'replayTitle',
+                'replayPlayBtn',
+                'replayStopBtn',
+                'replayPrevTurnBtn',
+                'replayNextTurnBtn',
+                'replayTimeline'
+            ];
+            
+            let allExist = true;
+            elements.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    log(`✓ Elemento <span class="code">#${id}</span> encontrado`, 'success');
+                } else {
+                    log(`❌ Elemento <span class="code">#${id}</span> NO ENCONTRADO`, 'error');
+                    allExist = false;
+                }
+            });
+            
+            return allExist;
+        }
+
+        function testAll() {
+            output.innerHTML = '';
+            log('=== TEST COMPLETO DEL SISTEMA REPLAY ===', 'info');
+            
+            const test1 = testDOMElements();
+            const test2 = testReplayRenderer();
+            const test3 = testReplayUI();
+            
+            if (test1 && test2 && test3) {
+                log('✅ TODOS LOS TESTS PASARON', 'success');
+            } else {
+                log('❌ ALGUNOS TESTS FALLARON', 'error');
+            }
+        }
+
+        // Auto-run on load
+        window.addEventListener('load', function() {
+            log('Página cargada. Ejecutando tests automáticos...', 'info');
+            setTimeout(testAll, 1000);
+        });
+    </script>
+</body>
+</html>

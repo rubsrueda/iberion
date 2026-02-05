@@ -38,24 +38,36 @@ const ReplayUI = {
             console.warn('[ReplayUI] replayTitle no encontrado');
         }
 
-        // Inicializar canvas
+        // Verificar que ReplayRenderer esté disponible
+        if (!window.ReplayRenderer) {
+            console.error('[ReplayUI] ReplayRenderer no está cargado globalmente');
+            alert('Error: El renderizador de replays no está disponible.');
+            return;
+        }
+
+        // Inicializar canvas y renderer
         const canvas = document.getElementById('replayCanvas');
         if (canvas) {
             try {
-                if (!this.renderer) {
-                    this.renderer = Object.create(window.ReplayRenderer || {});
-                }
+                // Usar ReplayRenderer directamente
+                this.renderer = window.ReplayRenderer;
+                
                 if (this.renderer && typeof this.renderer.initialize === 'function') {
                     this.renderer.initialize(canvas, replayData, boardData);
-                    console.log('[ReplayUI] Renderer inicializado correctamente');
+                    console.log('[ReplayUI] Renderer inicializado correctamente con', replayData.timeline?.length || 0, 'turnos');
                 } else {
-                    console.warn('[ReplayUI] ReplayRenderer no disponible o sin método initialize');
+                    console.error('[ReplayUI] ReplayRenderer no tiene método initialize');
+                    alert('Error: El renderizador no está configurado correctamente.');
+                    return;
                 }
             } catch (err) {
                 console.error('[ReplayUI] Error al inicializar renderer:', err);
+                alert('Error al inicializar el visor de replay: ' + err.message);
+                return;
             }
         } else {
             console.error('[ReplayUI] replayCanvas no encontrado en el DOM');
+            return;
         }
 
         // Cargar lista de eventos
@@ -68,8 +80,11 @@ const ReplayUI = {
         // Configurar controles
         try {
             this.setupControls();
+            console.log('[ReplayUI] Controles configurados exitosamente');
         } catch (err) {
-            console.warn('[ReplayUI] Error al configurar controles:', err);
+            console.error('[ReplayUI] Error al configurar controles:', err);
+            alert('Error al configurar controles: ' + err.message);
+            return;
         }
 
         console.log('[ReplayUI] Modal abierto exitosamente');
@@ -80,52 +95,84 @@ const ReplayUI = {
      */
     setupControls: function() {
         // Botón Play
-        document.getElementById('replayPlayBtn').onclick = () => {
-            if (this.renderer) this.renderer.play();
-        };
+        const playBtn = document.getElementById('replayPlayBtn');
+        if (playBtn) {
+            playBtn.onclick = () => {
+                if (this.renderer && typeof this.renderer.play === 'function') {
+                    this.renderer.play();
+                }
+            };
+        }
 
         // Botón Stop
-        document.getElementById('replayStopBtn').onclick = () => {
-            if (this.renderer) this.renderer.stop();
-        };
+        const stopBtn = document.getElementById('replayStopBtn');
+        if (stopBtn) {
+            stopBtn.onclick = () => {
+                if (this.renderer && typeof this.renderer.stop === 'function') {
+                    this.renderer.stop();
+                }
+            };
+        }
 
         // Botón Previous Turn
-        document.getElementById('replayPrevTurnBtn').onclick = () => {
-            if (this.renderer) this.renderer.previousTurn();
-            this.updateTurnDisplay();
-        };
+        const prevBtn = document.getElementById('replayPrevTurnBtn');
+        if (prevBtn) {
+            prevBtn.onclick = () => {
+                if (this.renderer && typeof this.renderer.previousTurn === 'function') {
+                    this.renderer.previousTurn();
+                }
+                this.updateTurnDisplay();
+            };
+        }
 
         // Botón Next Turn
-        document.getElementById('replayNextTurnBtn').onclick = () => {
-            if (this.renderer) this.renderer.nextTurn();
-            this.updateTurnDisplay();
-        };
+        const nextBtn = document.getElementById('replayNextTurnBtn');
+        if (nextBtn) {
+            nextBtn.onclick = () => {
+                if (this.renderer && typeof this.renderer.nextTurn === 'function') {
+                    this.renderer.nextTurn();
+                }
+                this.updateTurnDisplay();
+            };
+        }
 
         // Timeline scrubber
-        document.getElementById('replayTimeline').oninput = (e) => {
-            const progress = parseFloat(e.target.value) / 100;
-            if (this.renderer) this.renderer.seek(progress);
-            this.updateTurnDisplay();
-        };
+        const timeline = document.getElementById('replayTimeline');
+        if (timeline) {
+            timeline.oninput = (e) => {
+                const progress = parseFloat(e.target.value) / 100;
+                if (this.renderer && typeof this.renderer.seek === 'function') {
+                    this.renderer.seek(progress);
+                }
+                this.updateTurnDisplay();
+            };
+        }
 
         // Botones de velocidad
-        document.querySelectorAll('.replay-speed-btn').forEach(btn => {
-            btn.onclick = (e) => {
-                // Remover clase active de todos
-                document.querySelectorAll('.replay-speed-btn').forEach(b => {
-                    b.classList.remove('active');
-                    b.style.background = '#4a7a9f';
-                    b.style.color = 'white';
-                });
-                // Añadir a clickeado
-                e.target.classList.add('active');
-                e.target.style.background = '#00f3ff';
-                e.target.style.color = '#000';
-                
-                const speed = parseFloat(e.target.dataset.speed);
-                if (this.renderer) this.renderer.setPlaybackSpeed(speed);
-            };
-        });
+        const speedBtns = document.querySelectorAll('.replay-speed-btn');
+        if (speedBtns && speedBtns.length > 0) {
+            speedBtns.forEach(btn => {
+                btn.onclick = (e) => {
+                    // Remover clase active de todos
+                    document.querySelectorAll('.replay-speed-btn').forEach(b => {
+                        b.classList.remove('active');
+                        b.style.background = '#4a7a9f';
+                        b.style.color = 'white';
+                    });
+                    // Añadir a clickeado
+                    e.target.classList.add('active');
+                    e.target.style.background = '#00f3ff';
+                    e.target.style.color = '#000';
+                    
+                    const speed = parseFloat(e.target.dataset.speed);
+                    if (this.renderer && typeof this.renderer.setPlaybackSpeed === 'function') {
+                        this.renderer.setPlaybackSpeed(speed);
+                    }
+                };
+            });
+        }
+
+        console.log('[ReplayUI.setupControls] Controles configurados correctamente');
     },
 
     /**
@@ -285,92 +332,6 @@ const ReplayUI = {
     },
 
     /**
-     * Configura los listeners de los controles del reproductor
-     */
-    setupControls: function() {
-        const playBtn = document.getElementById('replayPlayBtn');
-        const stopBtn = document.getElementById('replayStopBtn');
-        const prevTurnBtn = document.getElementById('replayPrevTurnBtn');
-        const nextTurnBtn = document.getElementById('replayNextTurnBtn');
-        const speedButtons = document.querySelectorAll('.replay-speed-btn');
-        const timeline = document.getElementById('replayTimeline');
-
-        if (playBtn) {
-            playBtn.onclick = () => {
-                if (this.renderer) this.renderer.togglePlayPause();
-                playBtn.textContent = this.renderer?.isPlaying ? '⏸ PAUSE' : '▶️ PLAY';
-            };
-        }
-
-        if (stopBtn) {
-            stopBtn.onclick = () => {
-                if (this.renderer) this.renderer.stop();
-                if (playBtn) playBtn.textContent = '▶️ PLAY';
-            };
-        }
-
-        if (prevTurnBtn) {
-            prevTurnBtn.onclick = () => {
-                if (this.renderer && this.renderer.currentTurn > 0) {
-                    this.renderer.goToTurn(this.renderer.currentTurn - 1);
-                    this.updateTimelineDisplay();
-                }
-            };
-        }
-
-        if (nextTurnBtn) {
-            nextTurnBtn.onclick = () => {
-                if (this.renderer && this.renderer.currentTurn < this.currentReplay.timeline.length - 1) {
-                    this.renderer.goToTurn(this.renderer.currentTurn + 1);
-                    this.updateTimelineDisplay();
-                }
-            };
-        }
-
-        speedButtons.forEach(btn => {
-            btn.onclick = () => {
-                speedButtons.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                const speed = parseInt(btn.dataset.speed);
-                if (this.renderer) this.renderer.setPlaybackSpeed(speed);
-            };
-        });
-
-        if (timeline) {
-            timeline.oninput = (e) => {
-                const turn = parseInt(e.target.value);
-                if (this.renderer) {
-                    this.renderer.goToTurn(turn);
-                    this.updateTimelineDisplay();
-                }
-            };
-            
-            // Establecer rango máximo
-            if (this.currentReplay) {
-                timeline.max = this.currentReplay.timeline.length - 1;
-            }
-        }
-    },
-
-    /**
-     * Actualiza la visualización del timeline y turno actual
-     */
-    updateTimelineDisplay: function() {
-        if (!this.renderer) return;
-
-        const timeline = document.getElementById('replayTimeline');
-        const turnDisplay = document.getElementById('replayTurnDisplay');
-
-        if (timeline) {
-            timeline.value = this.renderer.currentTurn;
-        }
-
-        if (turnDisplay) {
-            turnDisplay.textContent = `T${this.renderer.currentTurn}/${this.currentReplay.timeline.length}`;
-        }
-    },
-
-    /**
      * Genera un enlace compartible para el replay
      */
     generateShareLink: function() {
@@ -397,14 +358,3 @@ if (typeof window !== 'undefined') {
     window.ReplayUI = ReplayUI;
 }
 
-        if (this.renderer && this.renderer.stop) {
-            this.renderer.stop();
-            console.log('[ReplayUI] Reproducción detenida');
-        }
-        
-        // Limpiar refs
-        this.currentReplay = null;
-        this.renderer = null;
-        
-        console.log('[ReplayUI] Modal cerrado y memoria limpiada');
-    },

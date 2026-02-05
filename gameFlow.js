@@ -1271,7 +1271,15 @@ function simpleAiDeploymentTurn() {
     const aiPlayerNumber = gameState.currentPlayer;
     console.log(`[simpleAiDeploymentTurn] INICIO para Jugador IA ${aiPlayerNumber}.`);
 
-    // Llama al manager de despliegue que ya existe y funciona.
+    const useArchipelagoDeployment = gameState.gameMode === 'invasion' || !!gameState.setupTempSettings?.navalMap;
+
+    if (useArchipelagoDeployment && typeof IAArchipielago !== 'undefined' && typeof IAArchipielago.deployUnitsAI === 'function') {
+        console.log(`[simpleAiDeploymentTurn] Usando IA_ARCHIPIELAGO para despliegue (gameMode=${gameState.gameMode}, navalMap=${gameState.setupTempSettings?.navalMap})`);
+        IAArchipielago.deployUnitsAI(aiPlayerNumber);
+        return;
+    }
+
+    // Fallback: Llama al manager de despliegue clásico.
     if (typeof AiDeploymentManager !== 'undefined' && AiDeploymentManager.deployUnitsAI) {
         AiDeploymentManager.deployUnitsAI(aiPlayerNumber);
     } else {

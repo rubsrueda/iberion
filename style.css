@@ -90,7 +90,7 @@ body {
     align-items: flex-start;
    /* padding-bottom: 80px;*/
     box-sizing: border-box;
-    z-index: 200;
+    z-index: 1200;
 }
 
 #gameBoard {
@@ -3250,6 +3250,53 @@ body {
         /* Damos una altura fija a la lista de planos para que no ocupe toda la pantalla */
         max-height: 200px; /* O unos 25vh, como prefieras */
         flex-shrink: 0; /* Evita que se encoja */
+    }
+
+    /* --- 4. SOLUCIÓN PARA PANTALLA DE CONSTRUCCIÓN --- */
+    /* Reducir tamaño en teléfono para permitir cerrar cómodamente */
+    #buildStructureModal .modal-content {
+        width: 100%;
+        max-width: 320px !important;
+        max-height: 320px !important;
+        padding: 12px !important;
+        margin: auto;
+    }
+
+    #buildStructureModal .modal-header {
+        padding: 8px 12px !important;
+    }
+
+    #buildStructureModal .modal-header h3 {
+        font-size: 1em !important;
+        margin: 0 !important;
+    }
+
+    #buildStructureModal .modal-body {
+        padding: 8px 0 !important;
+        max-height: 200px !important;
+        overflow-y: auto !important;
+        flex-grow: 1;
+    }
+
+    #buildStructureModal #availableStructuresList {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    #buildStructureModal #availableStructuresList li {
+        padding: 6px 8px !important;
+        font-size: 0.85em !important;
+        margin: 2px 0 !important;
+    }
+
+    #buildStructureModal .modal-footer {
+        padding: 8px 12px !important;
+    }
+
+    #buildStructureModal #confirmBuildBtn {
+        padding: 8px 12px !important;
+        font-size: 0.9em !important;
+        width: 100%;
     }
 }
 

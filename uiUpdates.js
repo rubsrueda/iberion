@@ -1487,15 +1487,29 @@ const UIManager = {
             closeBtn.onclick = () => {
                 modal.style.display = 'none';
                 
-                // 🔴 MOSTRAR LA CRÓNICA DESPUÉS DE CERRAR EL MODAL
+                console.log('[postMatch] Botón "Volver al Cuartel General" presionado');
+                
+                // 1. Ocultar contenedor del juego EXPLÍCITAMENTE
+                if (domElements.gameContainer) {
+                    domElements.gameContainer.style.display = 'none';
+                    console.log('[postMatch] Game container ocultado');
+                }
+                
+                // 2. Mostrar el menú principal como paso PRIORITARIO
+                if (typeof showScreen === 'function') {
+                    showScreen(domElements.mainMenuScreenEl);
+                    console.log('[postMatch] Menú principal mostrado vía showScreen');
+                } else if (domElements.mainMenuScreenEl) {
+                    domElements.mainMenuScreenEl.style.display = 'flex';
+                    console.log('[postMatch] Menú principal mostrado directamente');
+                }
+                
+                // 3. MOSTRAR LA CRÓNICA SÓLO DESPUÉS de estar seguro que el menú está visible
                 if (typeof LegacyManager !== 'undefined' && !gameState.isCampaignBattle) {
-                    console.log('[showPostMatchSummary] ABRIENDO CRÓNICA...');
+                    console.log('[postMatch] Abriendo crónica de batalla...');
                     setTimeout(() => {
                         LegacyManager.open(gameState.winner);
-                    }, 300);
-                } else if (!gameState.isCampaignBattle) {
-                    // Solo regresar al menú si NO hay crónica
-                    showScreen(domElements.mainMenuScreenEl);
+                    }, 500);
                 }
             };
         }

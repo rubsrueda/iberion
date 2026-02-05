@@ -339,6 +339,21 @@ async function handleSaveGame() {
     await saveGameUnified(saveName, false);
 }
 
+function showGameContainerFromLoad() {
+    if (typeof showScreen === 'function' && domElements.gameContainer) {
+        showScreen(domElements.gameContainer);
+    } else if (domElements.gameContainer) {
+        domElements.gameContainer.style.display = 'flex';
+    }
+
+    const mainMenu = document.getElementById('mainMenuScreen');
+    if (mainMenu) {
+        mainMenu.style.setProperty('display', 'none', 'important');
+        mainMenu.style.setProperty('visibility', 'hidden', 'important');
+        mainMenu.style.setProperty('pointer-events', 'none', 'important');
+    }
+}
+
 async function handleLoadGame() {
     const hasAuth = PlayerDataManager.currentPlayer && PlayerDataManager.currentPlayer.auth_id;
     if (!hasAuth) {
@@ -364,9 +379,7 @@ async function handleLoadGame() {
             if (typeof reconstruirJuegoDesdeDatos === 'function') {
                 reconstruirJuegoDesdeDatos(dataToRestore);
                 // Mostrar el juego y ocultar el menú usando showScreen
-                if (typeof showScreen === 'function' && domElements.gameContainer) {
-                    showScreen(domElements.gameContainer);
-                }
+                showGameContainerFromLoad();
                 logMessage("Partida local cargada.", "success");
             }
         }
@@ -474,11 +487,7 @@ async function handleLoadGame() {
             
             // Cerrar menús y mostrar juego usando showScreen() para asegurar z-index correcto
             if (domElements.setupScreen) domElements.setupScreen.style.display = 'none';
-            if (typeof showScreen === 'function' && domElements.gameContainer) {
-                showScreen(domElements.gameContainer);
-            } else {
-                if (domElements.gameContainer) domElements.gameContainer.style.display = 'flex';
-            }
+            showGameContainerFromLoad();
             logMessage(`Partida cargada desde la nube${typeMsg}.`, "success");
         }
     }

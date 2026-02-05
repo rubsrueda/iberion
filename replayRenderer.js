@@ -397,6 +397,50 @@ const ReplayRenderer = {
         this.unitsOnMap = {};
         this.eventsToAnimate = [];
         this.drawFrame();
+    },
+
+    /**
+     * INTERFAZ PÚBLICA - Métodos alias para ReplayUI
+     */
+
+    /**
+     * Play: Inicia reproducción
+     */
+    play: function() {
+        if (!this.isPlaying) {
+            this.isPlaying = true;
+            this.playLoop();
+        }
+    },
+
+    /**
+     * Seek: Salta a un momento en el replay (0.0 - 1.0)
+     */
+    seek: function(progress) {
+        // Convertir progreso (0-1) a número de turno
+        const maxTurns = this.replayData?.timeline?.length || 1;
+        const targetTurn = Math.floor(progress * maxTurns);
+        this.goToTurn(targetTurn);
+    },
+
+    /**
+     * Previous Turn: Retrocede un turno
+     */
+    previousTurn: function() {
+        if (this.currentTurn > 0) {
+            this.currentTurn--;
+        }
+        this.drawFrame();
+    },
+
+    /**
+     * Next Turn: Avanza un turno
+     */
+    nextTurn: function() {
+        if (this.currentTurn < (this.replayData?.timeline?.length || 0)) {
+            this.currentTurn++;
+        }
+        this.drawFrame();
     }
 };
 

@@ -3,6 +3,27 @@
 // EJECUTA ACCIONES REALES: Movimiento, fusión, división, conquista, construcción, caravanas
 
 const IAArchipielago = {
+  deployUnitsAI(myPlayer) {
+    console.log(`[IA_ARCHIPIELAGO] Despliegue IA iniciado para Jugador ${myPlayer}.`);
+    if (gameState.currentPhase !== 'deployment') {
+      console.warn(`[IA_ARCHIPIELAGO] Fase incorrecta para despliegue: ${gameState.currentPhase}`);
+      return;
+    }
+
+    if (typeof AiDeploymentManager !== 'undefined' && AiDeploymentManager.deployUnitsAI) {
+      AiDeploymentManager.deployUnitsAI(myPlayer);
+    } else {
+      console.warn(`[IA_ARCHIPIELAGO] AiDeploymentManager no disponible. Usando emergencia.`);
+    }
+
+    // Salvaguarda: asegurar al menos una unidad en despliegue
+    const unidadesIA = IASentidos?.getUnits ? IASentidos.getUnits(myPlayer) : units.filter(u => u.player === myPlayer);
+    if (!unidadesIA || unidadesIA.length === 0) {
+      console.warn(`[IA_ARCHIPIELAGO] ⚠️ IA sin unidades tras despliegue. Creando unidad de emergencia...`);
+      this.crearUnidadInicialDeEmergencia(myPlayer);
+    }
+  },
+
   ejecutarTurno(myPlayer) {
     console.log(`\n========================================`);
     console.log(`[IA_ARCHIPIELAGO] ========= TURNO ${gameState.turnNumber} - JUGADOR ${myPlayer} =========`);
