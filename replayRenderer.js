@@ -151,14 +151,31 @@ const ReplayRenderer = {
      * Reproduce los eventos del turno actual
      */
     playTurn: function() {
-        const turnData = this.replayData.timeline[this.currentTurn];
-        if (!turnData) return;
+        if (!this.replayData || !this.replayData.timeline) {
+            console.error('[ReplayRenderer] No hay timeline disponible');
+            return;
+        }
 
-        console.log(`[ReplayRenderer] Reproduciendo turno ${turnData.turn}`);
+        const turnData = this.replayData.timeline[this.currentTurn];
+        if (!turnData) {
+            console.warn(`[ReplayRenderer] Turno ${this.currentTurn} no encontrado o fin de replay`);
+            return;
+        }
+
+        // Validar estructura del turno
+        if (!Array.isArray(turnData.events)) {
+            console.error(`[ReplayRenderer] Turno ${this.currentTurn} no tiene array de eventos:`, turnData);
+            this.currentTurn++;
+            return;
+        }
+
+        console.log(`[ReplayRenderer] Reproduciendo turno ${turnData.turn || this.currentTurn} (${turnData.events.length} eventos)`);
 
         // Procesar cada evento del turno
-        for (const event of turnData.events) {
-            this.processEvent(event);
+        if (turnData.events.length > 0) {
+            for (const event of turnData.events) {
+                this.processEvent(event);
+            }
         }
 
         this.currentTurn++;

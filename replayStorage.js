@@ -366,19 +366,43 @@ const ReplayStorage = {
      */
     decompressTimeline: function(compressed) {
         try {
-            // Simplemente parsear el JSON - ya no hay compresión
-            const data = JSON.parse(compressed);
+            // Simplemente parsear el JSON
+            let data = JSON.parse(compressed);
             
             // Validar que tenga la estructura correcta
             if (Array.isArray(data)) {
-                console.log(`[ReplayStorage] Timeline deserializada: ${data.length} turnos`);
-                return data;
+                // Validar que sea array de turnos (cada elemento debe tener 'events')
+                let isValidTimeline = true;
+                
+                if (data.length > 0) {
+                    const firstElement = data[0];
+                    
+                    // Si el primer elemento es un array simple (formato comprimido antiguo)
+                    if (Array.isArray(firstElement) && !firstElement.events) {
+                        console.warn('[ReplayStorage] Formato comprimido antiguo detectado, descartando');
+                        isValidTimeline = false;
+                    }
+                    // Si es un objeto pero NO tiene 'events' (estructura corrupta)
+                    else if (typeof firstElement === 'object' && !firstElement.events && !Array.isArray(firstElement)) {
+                        console.warn('[ReplayStorage] Estructura de turno inválida:', firstElement);
+                        isValidTimeline = false;
+                    }
+                }
+                
+                if (isValidTimeline) {
+                    console.log(`[ReplayStorage] Timeline válida deserializada: ${data.length} turnos`);
+                    return data;
+                }
             }
             
-            console.warn('[ReplayStorage] Timeline no es array, devolviendo vacío');
+            // Si llegó aquí, no es un array o está malformado
+            console.warn('[ReplayStorage] Estructura no es un array de turnos válido. Devolviendo vacío.');
+            console.warn('[ReplayStorage] Estructura recibida:', typeof data, Array.isArray(data) ? `array(${data.length})` : 'no-array');
+            
             return [];
         } catch (err) {
-            console.error('[ReplayStorage] Error parseando timeline:', err);
+            console.error('[ReplayStorage] Error parseando timeline JSON:', err);
+            console.error('[ReplayStorage] Compressed value type:', typeof compressed, 'length:', compressed?.length);
             return [];
         }
     },

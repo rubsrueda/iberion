@@ -49,6 +49,13 @@ const ReplayUI = {
         const canvas = document.getElementById('replayCanvas');
         if (canvas) {
             try {
+                // Validar que haya datos de timeline
+                if (!replayData.timeline || replayData.timeline.length === 0) {
+                    console.error('[ReplayUI] Replay no tiene eventos. Timeline vacío o corrompido.');
+                    alert('Error: El replay no contiene eventos válidos. Los datos pueden estar corrompidos.');
+                    return;
+                }
+
                 // Usar ReplayRenderer directamente
                 this.renderer = window.ReplayRenderer;
                 
