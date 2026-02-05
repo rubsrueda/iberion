@@ -2690,6 +2690,21 @@ function handlePlacementModeClick(r, c) {
             }
         }
     }
+    // <<== MODO INVASIÓN: Reclutamiento durante juego (fase "play") ==>>
+    else if (gameState.gameMode === 'invasion' && gameState.currentPhase === "play" && placementMode.recruitHex) {
+        // En fase de juego, el reclutamiento funciona igual que en modo normal
+        // Debe estar a distancia 1 del hex de reclutamiento (ciudad/fortaleza)
+        const distanceFromRecruitHex = hexDistance(placementMode.recruitHex.r, placementMode.recruitHex.c, r, c);
+        
+        if (distanceFromRecruitHex <= 1 && hexData.terrain !== 'water') {
+            canPlace = true;
+            console.log(`[INVASION RECRUIT] Reclutamiento permitido en (${r},${c}) cerca de (${placementMode.recruitHex.r},${placementMode.recruitHex.c})`);
+        } else {
+            logMessage("Debes reclutar cerca de tu ciudad o fortaleza.");
+            canPlace = false;
+            console.log(`[INVASION RECRUIT] Distancia ${distanceFromRecruitHex} demasiado lejos de hex de reclutamiento`);
+        }
+    }
     // Lógica para MODOS NO-INVASIÓN
     else if (gameState.gameMode !== 'invasion') {
         console.log(`[DEPLOY] Modo no-invasión: ${gameState.gameMode}, fase: ${gameState.currentPhase}`);
