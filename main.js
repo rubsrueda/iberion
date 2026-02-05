@@ -2981,6 +2981,37 @@ function reconstruirJuegoDesdeDatos(datos) {
         } 
         // ================================================================
 
+        // CRÍTICO: FORZAR VISIBILIDAD DEL JUEGO DESPUÉS DE CARGAR
+        console.log('[Reconstruir] Forzando visibilidad del game-container...');
+        const gameContainer = document.querySelector('.game-container');
+        const mainMenu = document.getElementById('mainMenuScreen');
+        const setupScreen = document.getElementById('setupScreen');
+        
+        if (gameContainer) {
+            gameContainer.style.setProperty('display', 'flex', 'important');
+            gameContainer.style.setProperty('visibility', 'visible', 'important');
+            gameContainer.style.setProperty('z-index', '1200', 'important');
+            console.log('[Reconstruir] ✓ game-container mostrado');
+        }
+        
+        if (mainMenu) {
+            mainMenu.style.setProperty('display', 'none', 'important');
+            mainMenu.style.setProperty('visibility', 'hidden', 'important');
+            mainMenu.style.setProperty('pointer-events', 'none', 'important');
+            console.log('[Reconstruir] ✓ mainMenuScreen ocultado');
+        }
+        
+        if (setupScreen) {
+            setupScreen.style.setProperty('display', 'none', 'important');
+            console.log('[Reconstruir] ✓ setupScreen ocultado');
+        }
+        
+        const tacticalUI = document.getElementById('tactical-ui-container');
+        if (tacticalUI) {
+            tacticalUI.style.setProperty('display', 'block', 'important');
+            console.log('[Reconstruir] ✓ tactical-ui-container mostrada');
+        }
+
         logMessage(`Sincronizado. Turno: J${gameState.currentPlayer}`);
 
         // CRÍTICO: SI EL TURNO ACTUAL ES DE IA, EJECUTAR SU TURNO AUTOMÁTICAMENTE
