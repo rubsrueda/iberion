@@ -264,6 +264,12 @@ const defaultColors = {
 
 ## 💡 Ideas Adicionales No Implementadas
 
+Agregar la posición inicial en el turno de despliegue (ciudades de origien y posicionamiento)
+Agregar los tipos de terreno (Agua, Llanura, Bosque, Montaña)
+Agregar iconos en colores de cada jugador conforme le pertenezcan.
+Agregar en cada División el número de Regimientos.
+
+
 1. **Heatmap de actividad**: Visualizar dónde hubo más batallas
 2. **Líneas de tiempo múltiples**: Ver evolución de varios jugadores en paralelo
 3. **Bookmarks**: Marcar momentos importantes del replay
