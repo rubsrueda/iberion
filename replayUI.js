@@ -100,6 +100,11 @@ const ReplayUI = {
             return;
         }
 
+        // ⭐ NUEVO: Mostrar leyenda automáticamente
+        setTimeout(() => {
+            this.showLegend();
+        }, 500);
+
         console.log('[ReplayUI] Modal abierto exitosamente');
     },
 
@@ -399,6 +404,92 @@ const ReplayUI = {
             
             default:
                 return `? Evento desconocido`;
+        }
+    },
+
+    /**
+     * ⭐ NUEVO: Muestra una leyenda de íconos en el panel de replay
+     */
+    showLegend: function() {
+        const legendPanel = document.getElementById('replayLegend');
+        if (!legendPanel) {
+            console.warn('[ReplayUI] Panel de leyenda no encontrado');
+            return;
+        }
+
+        // Definir leyenda con los íconos del juego
+        const legendItems = [
+            { icon: '🟰', label: 'Camino' },
+            { icon: '🏰', label: 'Fortaleza' },
+            { icon: '🧱', label: 'Fortaleza con Muralla' },
+            { icon: '🏡', label: 'Aldea' },
+            { icon: '🏘️', label: 'Ciudad' },
+            { icon: '🏙️', label: 'Metrópoli' },
+            { icon: '🔭', label: 'Atalaya' },
+            { icon: '⚔️', label: 'Batalla' },
+            { icon: '💀', label: 'Unidad Destruida' },
+            { icon: '📍', label: 'Movimiento' },
+            { icon: '🏗️', label: 'Construcción' }
+        ];
+
+        const legendHTML = `
+            <div style="
+                background: rgba(0, 0, 0, 0.85);
+                padding: 15px;
+                border-radius: 8px;
+                border: 2px solid #00f3ff;
+                max-width: 250px;
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                z-index: 1000;
+            ">
+                <h4 style="
+                    color: #00f3ff;
+                    margin: 0 0 10px 0;
+                    font-size: 14px;
+                    text-align: center;
+                    border-bottom: 1px solid #00f3ff;
+                    padding-bottom: 8px;
+                ">📖 LEYENDA</h4>
+                <div style="display: grid; gap: 6px; font-size: 12px;">
+                    ${legendItems.map(item => `
+                        <div style="
+                            display: flex;
+                            align-items: center;
+                            gap: 8px;
+                            color: #ddd;
+                        ">
+                            <span style="font-size: 16px; width: 24px; text-align: center;">${item.icon}</span>
+                            <span>${item.label}</span>
+                        </div>
+                    `).join('')}
+                </div>
+                <button onclick="ReplayUI.hideLegend()" style="
+                    margin-top: 10px;
+                    width: 100%;
+                    padding: 6px;
+                    background: #444;
+                    color: #fff;
+                    border: 1px solid #666;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 11px;
+                ">Cerrar Leyenda</button>
+            </div>
+        `;
+
+        legendPanel.innerHTML = legendHTML;
+        legendPanel.style.display = 'block';
+    },
+
+    /**
+     * ⭐ NUEVO: Oculta la leyenda
+     */
+    hideLegend: function() {
+        const legendPanel = document.getElementById('replayLegend');
+        if (legendPanel) {
+            legendPanel.style.display = 'none';
         }
     },
 

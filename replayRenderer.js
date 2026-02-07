@@ -95,58 +95,62 @@ const ReplayRenderer = {
 
                 this.drawHexagon(pos.x, pos.y, color);
 
-                // Dibujar propietario (overlay ligero)
+                // ⭐ MEJORADO: Dibujar propietario (overlay ligero)
                 if (hex.owner && hex.owner !== null) {
-                    let playerColor = null;
-                    
-                    // ⭐ MEJORADO: Protección completa contra metadata undefined
-                    try {
-                        if (this.replayData && this.replayData.metadata) {
-                            let metadata = this.replayData.metadata;
-                            
-                            // Parsear si es string
-                            if (typeof metadata === 'string') {
-                                try {
-                                    metadata = JSON.parse(metadata);
-                                } catch (e) {
-                                    console.warn('[ReplayRenderer] No se pudo parsear metadata en drawTerrain');
-                                    metadata = null;
-                                }
-                            }
-                            
-                            // Verificar que metadata y players existan
-                            if (metadata && metadata.players && Array.isArray(metadata.players) && metadata.players.length > 0) {
-                                const player = metadata.players.find(p => p && (p.id === hex.owner || p.player_number === hex.owner));
-                                if (player && player.color) {
-                                    playerColor = player.color;
-                                }
-                            }
-                        }
-                    } catch (err) {
-                        console.error('[ReplayRenderer] Error obteniendo color de metadata:', err);
-                    }
-                    
-                    // Si no se encontró color, usar colores por defecto
-                    if (!playerColor) {
-                        const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24'];
-                        playerColor = colors[((hex.owner || 1) - 1) % colors.length];
-                    }
-                    
+                    const playerColor = this.getPlayerColor(hex.owner);
                     this.ctx.fillStyle = playerColor + '40'; // Transparencia
                     this.drawHexagon(pos.x, pos.y, playerColor + '40');
                 }
 
-                // Dibujar estructura si existe
-                if (hex.structure || hex.isCity) {
-                    this.drawStructure(pos.x, pos.y, hex.structure || 'ciudad');
+                // ⭐ MEJORADO: Dibujar estructura usando STRUCTURE_TYPES
+                if (hex.structure) {
+                    this.drawStructure(pos.x, pos.y, hex.structure);
+                }
+                // Si es ciudad pero no tiene structure definida
+                else if (hex.isCity) {
+                    const structureType = hex.isCapital ? 'Metrópoli' : 'Ciudad';
+                    this.drawStructure(pos.x, pos.y, structureType);
                 }
             }
         }
     },
 
     /**
+     * ⭐ NUEVO: Helper para obtener color de un jugador desde metadata
+     */
+    getPlayerColor: function(playerId) {
+        if (!playerId) return '#ffffff';
+        
+        // Intentar obtener desde metadata
+        try {
+            if (this.replayData && this.replayData.metadata) {
+                let metadata = this.replayData.metadata;
+                
+                if (typeof metadata === 'string') {
+                    metadata = JSON.parse(metadata);
+                }
+                
+                if (metadata && metadata.players && Array.isArray(metadata.players)) {
+                    const player = metadata.players.find(p => 
+                        p && (p.id === playerId || p.player_number === playerId)
+                    );
+                    if (player && player.color) {
+                        return player.color;
+                    }
+                }
+            }
+        } catch (err) {
+            // Silenciar error y usar fallback
+        }
+        
+        // Colores por defecto
+        const defaultColors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#ff9ff3', '#95e1d3', '#feca57', '#a29bfe'];
+        return defaultColors[((playerId || 1) - 1) % defaultColors.length];
+    },
+
+    /**
      * Dibuja todas las unidades en sus posiciones actuales
-     * ⭐ MEJORADO: Completamente defensivo contra metadata undefined
+     * ⭐ MEJORADO: Usa getPlayerColor helper
      */
     drawUnits: function() {
         for (const unitId in this.unitsOnMap) {
@@ -154,42 +158,7 @@ const ReplayRenderer = {
             if (!unit || unit.isDead) continue;
 
             const pos = this.hexToPixel(unit.r, unit.c);
-            
-            // ⭐ MEJORADO: Obtener color con fallback robusto
-            let playerColor = null;
-            
-            // Intentar obtener color de metadata si existe
-            try {
-                if (this.replayData && this.replayData.metadata) {
-                    let metadata = this.replayData.metadata;
-                    
-                    // Parsear si es string
-                    if (typeof metadata === 'string') {
-                        try {
-                            metadata = JSON.parse(metadata);
-                        } catch (e) {
-                            console.warn('[ReplayRenderer] No se pudo parsear metadata en drawUnits');
-                            metadata = null;
-                        }
-                    }
-                    
-                    // Verificar que metadata y players existan
-                    if (metadata && metadata.players && Array.isArray(metadata.players) && metadata.players.length > 0) {
-                        const player = metadata.players.find(p => p && (p.id === unit.playerId || p.player_number === unit.playerId));
-                        if (player && player.color) {
-                            playerColor = player.color;
-                        }
-                    }
-                }
-            } catch (err) {
-                console.error('[ReplayRenderer] Error obteniendo color de metadata:', err);
-            }
-            
-            // Usar colores por defecto si no se pudo obtener de metadata
-            if (!playerColor) {
-                const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24'];
-                playerColor = colors[((unit.playerId || 1) - 1) % colors.length];
-            }
+            const playerColor = this.getPlayerColor(unit.playerId);
 
             this.drawUnit(pos.x, pos.y, unit.name, playerColor);
         }
@@ -243,6 +212,11 @@ const ReplayRenderer = {
 
         console.log(`[ReplayRenderer] Reproduciendo turno ${turnData.turn || this.currentTurn} (${turnData.events.length} eventos)`);
 
+        // ⭐ NUEVO: Aplicar boardState si está disponible
+        if (turnData.boardState && Array.isArray(turnData.boardState)) {
+            this.applyBoardState(turnData.boardState);
+        }
+
         // Procesar cada evento del turno
         if (turnData.events.length > 0) {
             for (const event of turnData.events) {
@@ -251,6 +225,24 @@ const ReplayRenderer = {
         }
 
         this.currentTurn++;
+    },
+
+    /**
+     * ⭐ NUEVO: Aplica el estado del tablero capturado
+     */
+    applyBoardState: function(boardState) {
+        if (!this.boardData || !boardState) return;
+        
+        // Aplicar cada hexágono del snapshot
+        for (const hexSnapshot of boardState) {
+            const hex = this.boardData[hexSnapshot.r]?.[hexSnapshot.c];
+            if (!hex) continue;
+            
+            hex.owner = hexSnapshot.o !== undefined ? hexSnapshot.o : null;
+            hex.structure = hexSnapshot.s || null;
+            hex.isCity = hexSnapshot.iC || false;
+            hex.isCapital = hexSnapshot.iCa || false;
+        }
     },
 
     /**
@@ -379,16 +371,34 @@ const ReplayRenderer = {
         this.ctx.fillText(name.substring(0, 1), x, y);
     },
 
+    /**
+     * ⭐ MEJORADO: Dibuja estructura usando STRUCTURE_TYPES del juego
+     */
     drawStructure: function(x, y, structureType) {
+        // Usar STRUCTURE_TYPES si está disponible
+        let icon = '🏛️'; // Default: edificio clásico
+        
+        if (typeof STRUCTURE_TYPES !== 'undefined' && STRUCTURE_TYPES[structureType]) {
+            const structData = STRUCTURE_TYPES[structureType];
+            icon = structData.sprite || icon;
+        } else {
+            // Fallback a íconos manuales si STRUCTURE_TYPES no está disponible
+            const iconMap = {
+                'Camino': '🞰',
+                'Fortaleza': '🏰',
+                'Fortaleza con Muralla': '🧱',
+                'Aldea': '🏡',
+                'Ciudad': '🏫️',
+                'Metrópoli': '🏙️',
+                'Atalaya': '🔭'
+            };
+            icon = iconMap[structureType] || icon;
+        }
+
         this.ctx.fillStyle = '#FFD700';
         this.ctx.font = 'bold 14px Arial';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
-
-        let icon = '🏛️';
-        if (structureType === 'Fortaleza') icon = '🏰';
-        else if (structureType === 'Camino') icon = '🛣️';
-
         this.ctx.fillText(icon, x, y);
     },
 

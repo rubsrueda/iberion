@@ -143,17 +143,53 @@ const ReplayEngine = {
     recordTurnEnd: function(turnNumber, currentPlayer) {
         if (!this.isEnabled) return;
         
+        // ⭐ NUEVO: Capturar snapshot del board al final de cada turno
+        const boardSnapshot = this._captureBoardSnapshot();
+        
         // Si hay eventos en el turno actual, guardarlos
         if (this.currentTurnEvents.length > 0 || turnNumber === 1) {
             this.timeline.push({
                 turn: turnNumber,
                 currentPlayer: currentPlayer,
                 events: [...this.currentTurnEvents],
+                boardState: boardSnapshot, // ⭐ NUEVO: Estado del tablero
                 timestamp: Date.now()
             });
             
             this.currentTurnEvents = [];
         }
+    },
+
+    /**
+     * ⭐ NUEVO: Captura el estado actual del tablero de forma compacta
+     * Solo guarda información esencial: owner, structure, isCity
+     */
+    _captureBoardSnapshot: function() {
+        if (typeof board === 'undefined' || !board || board.length === 0) {
+            return null;
+        }
+
+        const snapshot = [];
+        for (let r = 0; r < board.length; r++) {
+            for (let c = 0; c < board[r].length; c++) {
+                const hex = board[r][c];
+                if (!hex) continue;
+                
+                // Solo guardamos hexágonos con información relevante (optimización)
+                if (hex.owner !== null || hex.structure || hex.isCity) {
+                    snapshot.push({
+                        r: r,
+                        c: c,
+                        o: hex.owner,              // owner (compacto)
+                        s: hex.structure,          // structure
+                        iC: hex.isCity || false,   // isCity
+                        iCa: hex.isCapital || false // isCapital
+                    });
+                }
+            }
+        }
+        
+        return snapshot;
     },
 
     /**
@@ -167,13 +203,17 @@ const ReplayEngine = {
             return null;
         }
         
+        // ⭐ NUEVO: Capturar información de jugadores con colores
+        const playersData = this._capturePlayersInfo();
+        
         // Crear metadata ULTRA-MINIMALISTA para caber en VARCHAR(255)
         const metadataObj = {
             w: winner,                                          // winner_id (muy corto)
             t: totalTurns,                                      // total_turns
             d: new Date().toISOString().substring(0, 10),      // date (YYYY-MM-DD)
             m: Math.round((Date.now() - this.startTime) / 60000), // duration_minutes
-            b: this.boardInfo || { rows: 20, cols: 20, seed: null } // ⭐ NUEVO: boardInfo para reconstrucción
+            b: this.boardInfo || { rows: 20, cols: 20, seed: null }, // ⭐ boardInfo para reconstrucción
+            players: playersData                                // ⭐ NUEVO: Info de jugadores
         };
         
         // Serializar metadata a string
@@ -197,6 +237,54 @@ const ReplayEngine = {
         
         this.isEnabled = false;
         return replayData;
+    },
+
+    /**
+     * ⭐ NUEVO: Captura información de jugadores (nombre, color, civilización)
+     */
+    _capturePlayersInfo: function() {
+        if (typeof gameState === 'undefined' || !gameState) {
+            return [];
+        }
+
+        const playersInfo = [];
+        const numPlayers = gameState.numPlayers || 2;
+        
+        for (let i = 1; i <= numPlayers; i++) {
+            const civilizationKey = gameState.playerCivilizations?.[`player${i}`];
+            const civilization = typeof CIVILIZATIONS !== 'undefined' && civilizationKey
+                ? CIVILIZATIONS[civilizationKey]
+                : null;
+            
+            playersInfo.push({
+                id: i,
+                player_number: i,
+                name: `Jugador ${i}`,
+                civilization: civilizationKey || 'Unknown',
+                color: this._getPlayerColor(i) // Helper para obtener color
+            });
+        }
+        
+        return playersInfo;
+    },
+
+    /**
+     * ⭐ NUEVO: Obtiene el color de un jugador
+     */
+    _getPlayerColor: function(playerNumber) {
+        // Colores por defecto del juego
+        const defaultColors = {
+            1: '#ff6b6b',  // Rojo
+            2: '#4ecdc4',  // Cian
+            3: '#45b7d1',  // Azul
+            4: '#f9ca24',  // Amarillo
+            5: '#ff9ff3',  // Rosa
+            6: '#95e1d3',  // Verde agua
+            7: '#feca57',  // Naranja
+            8: '#a29bfe'   // Violeta
+        };
+        
+        return defaultColors[playerNumber] || '#ffffff';
     },
 
     /**

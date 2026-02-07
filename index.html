@@ -1943,6 +1943,9 @@
                         display: block;
                         background: #000;
                     "></canvas>
+                    
+                    <!-- ⭐ NUEVO: Panel de Leyenda -->
+                    <div id="replayLegend" style="display: none; position: absolute;"></div>
                 </div>
 
                 <!-- COLUMNA DERECHA: Controles -->
@@ -2066,6 +2069,18 @@
                         font-weight: bold;
                         width: 100%;
                     ">🔗 COPIAR ENLACE</button>
+
+                    <!-- ⭐ NUEVO: Botón de Leyenda -->
+                    <button onclick="ReplayUI.showLegend()" style="
+                        background: #3498db;
+                        color: white;
+                        border: none;
+                        padding: 10px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-weight: bold;
+                        width: 100%;
+                    ">📖 VER LEYENDA</button>
 
                     <!-- Info del replay -->
                     <div style="
