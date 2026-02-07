@@ -145,6 +145,7 @@ const GameHistoryManager = {
 
     /**
      * Elimina una partida del historial
+     * CORREGIDO: Ahora elimina correctamente de localStorage y Supabase
      */
     async deleteGame(gameIndex) {
         const game = this.getGameDetails(gameIndex);
@@ -155,14 +156,28 @@ const GameHistoryManager = {
         console.log('[GameHistoryManager] Eliminando partida:', game.matchId);
 
         try {
-            if (typeof ReplayStorage !== 'undefined') {
-                // Aquí habría una función de eliminar en ReplayStorage
-                // Por ahora solo lo removemos localmente
-                this.games.splice(gameIndex, 1);
-                return true;
+            if (typeof ReplayStorage !== 'undefined' && ReplayStorage.deleteReplay) {
+                // Usar la nueva función de eliminación
+                const success = await ReplayStorage.deleteReplay(game.matchId);
+                
+                if (success) {
+                    // Eliminar del array en memoria
+                    this.games.splice(gameIndex, 1);
+                    console.log('[GameHistoryManager] ✅ Partida eliminada exitosamente');
+                    return true;
+                } else {
+                    console.error('[GameHistoryManager] No se pudo eliminar la partida');
+                    alert('Error al eliminar la partida. Intenta de nuevo.');
+                    return false;
+                }
+            } else {
+                console.error('[GameHistoryManager] ReplayStorage.deleteReplay no disponible');
+                alert('Error: Sistema de eliminación no disponible.');
+                return false;
             }
         } catch (err) {
             console.error('[GameHistoryManager] Error eliminando:', err);
+            alert('Error al eliminar: ' + err.message);
             return false;
         }
     }

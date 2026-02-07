@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iberion - Limpiar Historial de Batallas</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 800px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .status-box {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .status-item:last-child {
+            border-bottom: none;
+        }
+
+        .status-label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .status-value {
+            font-weight: bold;
+            color: #667eea;
+            font-size: 1.2em;
+        }
+
+        .warning-box {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .warning-box h3 {
+            color: #856404;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .warning-box ul {
+            margin-left: 20px;
+            color: #856404;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(245, 87, 108, 0.4);
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .log-box {
+            background: #1e1e1e;
+            color: #00ff00;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            max-height: 400px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .log-box.visible {
+            display: block;
+        }
+
+        .log-line {
+            margin-bottom: 5px;
+            padding: 5px;
+        }
+
+        .log-error {
+            color: #ff5555;
+        }
+
+        .log-success {
+            color: #50fa7b;
+        }
+
+        .log-warning {
+            color: #ffb86c;
+        }
+
+        .log-info {
+            color: #8be9fd;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        .success-message {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .success-message.visible {
+            display: block;
+        }
+
+        .success-message h3 {
+            color: #155724;
+            margin-bottom: 10px;
+        }
+
+        .success-message p {
+            color: #155724;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗑️ Limpiar Historial de Batallas</h1>
+            <p>Borrón y cuenta nueva del sistema de guardado</p>
+        </div>
+
+        <div class="content">
+            <div class="status-box">
+                <h3 style="margin-bottom: 15px; color: #333;">📊 Estado Actual</h3>
+                <div class="status-item">
+                    <span class="status-label">Replays en localStorage:</span>
+                    <span class="status-value" id="localStorageCount">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Replays en Supabase:</span>
+                    <span class="status-value" id="supabaseCount">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Usuario autenticado:</span>
+                    <span class="status-value" id="authStatus">-</span>
+                </div>
+            </div>
+
+            <div class="warning-box">
+                <h3>⚠️ Advertencia Importante</h3>
+                <ul>
+                    <li>Esta operación es <strong>IRREVERSIBLE</strong></li>
+                    <li>Se eliminarán TODOS los replays de batalla guardados</li>
+                    <li>NO afecta a partidas guardadas ni progresión del jugador</li>
+                    <li>Es necesario para empezar con el nuevo sistema de guardado</li>
+                </ul>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-primary" id="btnVerify" onclick="verifyStatus()">
+                    🔍 Verificar Estado
+                </button>
+                <button class="btn btn-danger" id="btnClean" onclick="confirmClean()" disabled>
+                    🗑️ Limpiar Todo
+                </button>
+            </div>
+
+            <div class="log-box" id="logBox"></div>
+
+            <div class="success-message" id="successMessage">
+                <h3>🎉 ¡Limpieza Completada!</h3>
+                <p>El historial de batallas ha sido eliminado correctamente. El nuevo sistema de guardado está listo para funcionar.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script>
+        let logBox = document.getElementById('logBox');
+        let supabaseClient = null;
+
+        // Inicializar Supabase
+        try {
+            if (typeof supabaseUrl !== 'undefined' && typeof supabaseKey !== 'undefined') {
+                supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+                log('✅ Supabase inicializado', 'success');
+            } else {
+                log('⚠️ Config de Supabase no encontrada', 'warning');
+            }
+        } catch (err) {
+            log('❌ Error inicializando Supabase: ' + err.message, 'error');
+        }
+
+        function log(message, type = 'info') {
+            logBox.classList.add('visible');
+            const line = document.createElement('div');
+            line.className = `log-line log-${type}`;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logBox.appendChild(line);
+            logBox.scrollTop = logBox.scrollHeight;
+            console.log(message);
+        }
+
+        async function verifyStatus() {
+            log('🔍 Verificando estado actual...', 'info');
+            
+            const btnVerify = document.getElementById('btnVerify');
+            btnVerify.disabled = true;
+            btnVerify.innerHTML = '🔍 Verificando<span class="spinner"></span>';
+
+            let localCount = 0;
+            let supabaseCount = 0;
+            let authenticated = false;
+
+            // Verificar localStorage
+            try {
+                const localReplays = JSON.parse(localStorage.getItem('localReplays') || '[]');
+                localCount = localReplays.length;
+                document.getElementById('localStorageCount').textContent = localCount;
+                log(`📦 localStorage: ${localCount} replays`, 'info');
+            } catch (err) {
+                log('❌ Error leyendo localStorage: ' + err.message, 'error');
+                document.getElementById('localStorageCount').textContent = 'ERROR';
+            }
+
+            // Verificar Supabase
+            if (supabaseClient) {
+                try {
+                    const { data: { user } } = await supabaseClient.auth.getUser();
+                    
+                    if (user) {
+                        authenticated = true;
+                        document.getElementById('authStatus').textContent = user.email || user.id;
+                        log(`👤 Usuario: ${user.email || user.id}`, 'success');
+
+                        const { data: replays } = await supabaseClient
+                            .from('game_replays')
+                            .select('match_id', { count: 'exact', head: false })
+                            .eq('user_id', user.id);
+                        
+                        supabaseCount = replays?.length || 0;
+                        document.getElementById('supabaseCount').textContent = supabaseCount;
+                        log(`☁️ Supabase: ${supabaseCount} replays`, 'info');
+                    } else {
+                        document.getElementById('authStatus').textContent = 'No autenticado';
+                        document.getElementById('supabaseCount').textContent = 'N/A';
+                        log('⚠️ No hay usuario autenticado', 'warning');
+                    }
+                } catch (err) {
+                    log('❌ Error verificando Supabase: ' + err.message, 'error');
+                    document.getElementById('supabaseCount').textContent = 'ERROR';
+                }
+            } else {
+                document.getElementById('authStatus').textContent = 'Supabase no disponible';
+                document.getElementById('supabaseCount').textContent = 'N/A';
+            }
+
+            const total = localCount + supabaseCount;
+            log(`📊 Total a eliminar: ${total} replays`, total > 0 ? 'warning' : 'success');
+
+            // Habilitar botón de limpieza si hay algo que limpiar
+            if (total > 0) {
+                document.getElementById('btnClean').disabled = false;
+            }
+
+            btnVerify.disabled = false;
+            btnVerify.innerHTML = '🔍 Verificar Estado';
+        }
+
+        function confirmClean() {
+            const confirmed = confirm(
+                '⚠️ ¿ESTÁS SEGURO?\n\n' +
+                'Se eliminarán TODOS los replays de batalla.\n' +
+                'Esta operación NO se puede deshacer.\n\n' +
+                '¿Deseas continuar?'
+            );
+
+            if (confirmed) {
+                cleanAllHistory();
+            }
+        }
+
+        async function cleanAllHistory() {
+            log('🗑️ Iniciando limpieza completa...', 'warning');
+            
+            const btnClean = document.getElementById('btnClean');
+            btnClean.disabled = true;
+            btnClean.innerHTML = '🗑️ Limpiando<span class="spinner"></span>';
+
+            let success = true;
+
+            // Limpiar localStorage
+            try {
+                log('📦 Limpiando localStorage...', 'info');
+                const before = JSON.parse(localStorage.getItem('localReplays') || '[]').length;
+                localStorage.removeItem('localReplays');
+                log(`✅ ${before} replays eliminados de localStorage`, 'success');
+                document.getElementById('localStorageCount').textContent = '0';
+            } catch (err) {
+                log('❌ Error limpiando localStorage: ' + err.message, 'error');
+                success = false;
+            }
+
+            // Limpiar Supabase
+            if (supabaseClient) {
+                try {
+                    const { data: { user } } = await supabaseClient.auth.getUser();
+                    
+                    if (user) {
+                        log('☁️ Limpiando Supabase...', 'info');
+                        
+                        const { data: before } = await supabaseClient
+                            .from('game_replays')
+                            .select('match_id', { count: 'exact', head: false })
+                            .eq('user_id', user.id);
+
+                        const beforeCount = before?.length || 0;
+
+                        const { error: deleteError } = await supabaseClient
+                            .from('game_replays')
+                            .delete()
+                            .eq('user_id', user.id);
+
+                        if (deleteError) {
+                            throw deleteError;
+                        }
+
+                        log(`✅ ${beforeCount} replays eliminados de Supabase`, 'success');
+                        document.getElementById('supabaseCount').textContent = '0';
+                    } else {
+                        log('⚠️ No autenticado, solo se limpió localStorage', 'warning');
+                    }
+                } catch (err) {
+                    log('❌ Error limpiando Supabase: ' + err.message, 'error');
+                    success = false;
+                }
+            }
+
+            if (success) {
+                log('🎉 ¡Limpieza completada exitosamente!', 'success');
+                document.getElementById('successMessage').classList.add('visible');
+            } else {
+                log('⚠️ Limpieza completada con errores', 'warning');
+            }
+
+            btnClean.innerHTML = '✅ Limpieza Completada';
+        }
+
+        // Verificar automáticamente al cargar
+        window.addEventListener('load', () => {
+            setTimeout(verifyStatus, 500);
+        });
+    </script>
+</body>
+</html>

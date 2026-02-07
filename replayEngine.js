@@ -12,6 +12,7 @@ const ReplayEngine = {
     timeline: [], // Array de eventos por turno
     currentTurnEvents: [],
     startTime: null,
+    boardInfo: null, // NUEVO: Información básica del board para reconstrucción
 
     /**
      * Inicializa el motor de replay al comenzar una partida
@@ -35,6 +36,19 @@ const ReplayEngine = {
         this.currentTurnEvents = [];
         this.isEnabled = true;
         this.startTime = Date.now();
+        
+        // ⭐ NUEVO: Capturar información básica del board para poder reconstruirlo
+        if (typeof board !== 'undefined' && board && board.length > 0) {
+            this.boardInfo = {
+                rows: board.length,
+                cols: board[0]?.length || 0,
+                seed: mapSeed
+            };
+            console.log('[ReplayEngine] BoardInfo capturado:', this.boardInfo);
+        } else {
+            this.boardInfo = { rows: 20, cols: 20, seed: null }; // Defaults
+            console.warn('[ReplayEngine] Board no disponible, usando dimensiones por defecto');
+        }
         
         console.log(`[ReplayEngine] ✅ Inicializado. isEnabled=${this.isEnabled}, matchId=${safeMatchId}, players=${this.players.length}`);
     },
@@ -158,7 +172,8 @@ const ReplayEngine = {
             w: winner,                                          // winner_id (muy corto)
             t: totalTurns,                                      // total_turns
             d: new Date().toISOString().substring(0, 10),      // date (YYYY-MM-DD)
-            m: Math.round((Date.now() - this.startTime) / 60000) // duration_minutes
+            m: Math.round((Date.now() - this.startTime) / 60000), // duration_minutes
+            b: this.boardInfo || { rows: 20, cols: 20, seed: null } // ⭐ NUEVO: boardInfo para reconstrucción
         };
         
         // Serializar metadata a string

@@ -45,6 +45,12 @@ const ReplayUI = {
             return;
         }
 
+        // ⭐ NUEVO: Si no hay boardData, intentar reconstruir desde metadata
+        if (!boardData) {
+            console.log('[ReplayUI] boardData es null, intentando reconstruir desde metadata...');
+            boardData = this._reconstructBasicBoard(replayData);
+        }
+
         // Inicializar canvas y renderer
         const canvas = document.getElementById('replayCanvas');
         if (canvas) {
@@ -95,6 +101,64 @@ const ReplayUI = {
         }
 
         console.log('[ReplayUI] Modal abierto exitosamente');
+    },
+
+    /**
+     * ⭐ NUEVO: Reconstruye un board básico desde metadata para visualización
+     */
+    _reconstructBasicBoard: function(replayData) {
+        console.log('[ReplayUI] Reconstruyendo board básico desde metadata...');
+        
+        try {
+            // Parsear metadata si es string
+            let metadata = replayData.metadata;
+            if (typeof metadata === 'string') {
+                metadata = JSON.parse(metadata);
+            }
+            
+            // Obtener dimensiones del board (nuevo formato con boardInfo)
+            const boardInfo = metadata.b || { rows: 20, cols: 20 };
+            const rows = boardInfo.rows || 20;
+            const cols = boardInfo.cols || 20;
+            
+            console.log(`[ReplayUI] Creando board básico de ${rows}x${cols}`);
+            
+            // Crear array 2D básico
+            const basicBoard = [];
+            for (let r = 0; r < rows; r++) {
+                basicBoard[r] = [];
+                for (let c = 0; c < cols; c++) {
+                    basicBoard[r][c] = {
+                        r: r,
+                        c: c,
+                        terrain: 'plains', // Terreno por defecto
+                        owner: null,
+                        structure: null,
+                        isCity: false,
+                        isCapital: false
+                    };
+                }
+            }
+            
+            console.log('[ReplayUI] ✅ Board básico reconstruido exitosamente');
+            return basicBoard;
+            
+        } catch (err) {
+            console.error('[ReplayUI] Error reconstruyendo board:', err);
+            // Fallback: board 20x20
+            console.log('[ReplayUI] Usando board por defecto 20x20');
+            const defaultBoard = [];
+            for (let r = 0; r < 20; r++) {
+                defaultBoard[r] = [];
+                for (let c = 0; c < 20; c++) {
+                    defaultBoard[r][c] = {
+                        r: r, c: c, terrain: 'plains', owner: null,
+                        structure: null, isCity: false, isCapital: false
+                    };
+                }
+            }
+            return defaultBoard;
+        }
     },
 
     /**

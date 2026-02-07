@@ -227,22 +227,13 @@ const ReplayStorage = {
 
     /**
      * Obtiene lista de replays del usuario actual (BD + Local)
+     * CORREGIDO: Elimina duplicados por match_id
      */
     getUserReplays: async function() {
         let allReplays = [];
+        const seenMatchIds = new Set();
 
-        // 1. Cargar desde localStorage (fallback local)
-        try {
-            const localReplays = JSON.parse(localStorage.getItem('localReplays') || '[]');
-            if (localReplays.length > 0) {
-                console.log('[ReplayStorage] Cargados', localReplays.length, 'replays desde localStorage');
-                allReplays = allReplays.concat(localReplays);
-            }
-        } catch (err) {
-            console.warn('[ReplayStorage] Error cargando replays locales:', err);
-        }
-
-        // 2. Cargar desde Supabase si estamos autenticados
+        // 1. Cargar desde Supabase primero (prioridad)
         if (PlayerDataManager.currentPlayer && PlayerDataManager.currentPlayer.auth_id) {
             try {
                 const { data, error } = await supabaseClient
@@ -255,7 +246,12 @@ const ReplayStorage = {
                     console.error('[ReplayStorage] Error obteniendo replays de BD:', error);
                 } else if (data && data.length > 0) {
                     console.log('[ReplayStorage] Cargados', data.length, 'replays desde Supabase');
-                    allReplays = allReplays.concat(data);
+                    data.forEach(replay => {
+                        if (!seenMatchIds.has(replay.match_id)) {
+                            seenMatchIds.add(replay.match_id);
+                            allReplays.push(replay);
+                        }
+                    });
                 }
             } catch (err) {
                 console.error('[ReplayStorage] Excepción obteniendo replays:', err);
@@ -264,7 +260,108 @@ const ReplayStorage = {
             console.log('[ReplayStorage] No autenticado, usando solo replays locales');
         }
 
+        // 2. Cargar desde localStorage (fallback local, solo si no están ya en Supabase)
+        try {
+            const localReplays = JSON.parse(localStorage.getItem('localReplays') || '[]');
+            if (localReplays.length > 0) {
+                console.log('[ReplayStorage] Encontrados', localReplays.length, 'replays en localStorage');
+                let addedCount = 0;
+                localReplays.forEach(replay => {
+                    if (!seenMatchIds.has(replay.match_id)) {
+                        seenMatchIds.add(replay.match_id);
+                        allReplays.push(replay);
+                        addedCount++;
+                    }
+                });
+                console.log(`[ReplayStorage] Agregados ${addedCount} replays únicos desde localStorage`);
+            }
+        } catch (err) {
+            console.warn('[ReplayStorage] Error cargando replays locales:', err);
+        }
+
+        console.log(`[ReplayStorage] Total de replays únicos: ${allReplays.length}`);
         return allReplays || [];
+    },
+
+    /**
+     * Elimina un replay del usuario (localStorage + Supabase)
+     * NUEVA FUNCIÓN para arreglar el botón de borrar
+     */
+    deleteReplay: async function(matchId) {
+        console.log('[ReplayStorage] ============================================');
+        console.log('[ReplayStorage] Intentando eliminar replay:', matchId);
+        console.log('[ReplayStorage] Tipo de matchId:', typeof matchId);
+        
+        let deletedFromLocal = false;
+        let deletedFromSupabase = false;
+
+        // 1. Eliminar de localStorage
+        try {
+            const localReplays = JSON.parse(localStorage.getItem('localReplays') || '[]');
+            console.log('[ReplayStorage] Replays en localStorage antes:', localReplays.length);
+            console.log('[ReplayStorage] IDs en localStorage:', localReplays.map(r => r.match_id));
+            
+            const filtered = localReplays.filter(r => {
+                const matches = r.match_id !== matchId;
+                if (!matches) {
+                    console.log('[ReplayStorage] 🎯 Encontrado replay a eliminar:', r.match_id);
+                }
+                return matches;
+            });
+            
+            console.log('[ReplayStorage] Replays después del filtro:', filtered.length);
+            
+            if (filtered.length < localReplays.length) {
+                localStorage.setItem('localReplays', JSON.stringify(filtered));
+                deletedFromLocal = true;
+                console.log('[ReplayStorage] ✅ Eliminado de localStorage');
+            } else {
+                console.log('[ReplayStorage] ⚠️ No encontrado en localStorage (sin cambios)');
+            }
+        } catch (err) {
+            console.error('[ReplayStorage] ❌ Error eliminando de localStorage:', err);
+        }
+
+        // 2. Eliminar de Supabase
+        if (PlayerDataManager.currentPlayer && PlayerDataManager.currentPlayer.auth_id) {
+            try {
+                console.log('[ReplayStorage] Intentando eliminar de Supabase...');
+                console.log('[ReplayStorage] user_id:', PlayerDataManager.currentPlayer.auth_id);
+                
+                const { data, error } = await supabaseClient
+                    .from('game_replays')
+                    .delete()
+                    .eq('match_id', matchId)
+                    .eq('user_id', PlayerDataManager.currentPlayer.auth_id)
+                    .select(); // Agregar select() para ver qué se eliminó
+
+                if (error) {
+                    console.error('[ReplayStorage] ❌ Error eliminando de Supabase:', error);
+                    console.error('[ReplayStorage] Error detalles:', error.message, error.details);
+                } else {
+                    console.log('[ReplayStorage] Respuesta de Supabase:', data);
+                    if (data && data.length > 0) {
+                        deletedFromSupabase = true;
+                        console.log('[ReplayStorage] ✅ Eliminado de Supabase:', data.length, 'registro(s)');
+                    } else {
+                        console.log('[ReplayStorage] ⚠️ No se encontró el replay en Supabase (puede que no exista)');
+                    }
+                }
+            } catch (err) {
+                console.error('[ReplayStorage] ❌ Excepción eliminando de Supabase:', err);
+            }
+        } else {
+            console.log('[ReplayStorage] ⚠️ No autenticado, no se puede eliminar de Supabase');
+        }
+
+        const success = deletedFromLocal || deletedFromSupabase;
+        console.log('[ReplayStorage] ============================================');
+        console.log('[ReplayStorage] Resultado:', success ? '✅ ELIMINADO' : '❌ NO SE PUDO ELIMINAR');
+        console.log('[ReplayStorage] - localStorage:', deletedFromLocal ? '✅' : '❌');
+        console.log('[ReplayStorage] - Supabase:', deletedFromSupabase ? '✅' : '❌');
+        console.log('[ReplayStorage] ============================================');
+        
+        return success;
     },
 
     /**

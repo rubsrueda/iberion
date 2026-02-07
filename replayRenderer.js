@@ -71,13 +71,19 @@ const ReplayRenderer = {
 
     /**
      * Dibuja el terreno base (estático durante toda la partida)
+     * ⭐ MEJORADO: Completamente defensivo contra metadata undefined
      */
     drawTerrain: function() {
-        if (!this.boardData) return;
+        if (!this.boardData) {
+            console.warn('[ReplayRenderer] boardData es null, no se puede dibujar terreno');
+            return;
+        }
 
         for (let r = 0; r < this.boardData.length; r++) {
             for (let c = 0; c < this.boardData[r].length; c++) {
                 const hex = this.boardData[r][c];
+                if (!hex) continue;
+                
                 const pos = this.hexToPixel(r, c);
 
                 // Color según terreno
@@ -91,11 +97,43 @@ const ReplayRenderer = {
 
                 // Dibujar propietario (overlay ligero)
                 if (hex.owner && hex.owner !== null) {
-                    const player = this.replayData.metadata.players.find(p => p.id === hex.owner || p.player_number === hex.owner);
-                    if (player) {
-                        this.ctx.fillStyle = player.color + '40'; // Transparencia
-                        this.drawHexagon(pos.x, pos.y, player.color + '40');
+                    let playerColor = null;
+                    
+                    // ⭐ MEJORADO: Protección completa contra metadata undefined
+                    try {
+                        if (this.replayData && this.replayData.metadata) {
+                            let metadata = this.replayData.metadata;
+                            
+                            // Parsear si es string
+                            if (typeof metadata === 'string') {
+                                try {
+                                    metadata = JSON.parse(metadata);
+                                } catch (e) {
+                                    console.warn('[ReplayRenderer] No se pudo parsear metadata en drawTerrain');
+                                    metadata = null;
+                                }
+                            }
+                            
+                            // Verificar que metadata y players existan
+                            if (metadata && metadata.players && Array.isArray(metadata.players) && metadata.players.length > 0) {
+                                const player = metadata.players.find(p => p && (p.id === hex.owner || p.player_number === hex.owner));
+                                if (player && player.color) {
+                                    playerColor = player.color;
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        console.error('[ReplayRenderer] Error obteniendo color de metadata:', err);
                     }
+                    
+                    // Si no se encontró color, usar colores por defecto
+                    if (!playerColor) {
+                        const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24'];
+                        playerColor = colors[((hex.owner || 1) - 1) % colors.length];
+                    }
+                    
+                    this.ctx.fillStyle = playerColor + '40'; // Transparencia
+                    this.drawHexagon(pos.x, pos.y, playerColor + '40');
                 }
 
                 // Dibujar estructura si existe
@@ -108,6 +146,7 @@ const ReplayRenderer = {
 
     /**
      * Dibuja todas las unidades en sus posiciones actuales
+     * ⭐ MEJORADO: Completamente defensivo contra metadata undefined
      */
     drawUnits: function() {
         for (const unitId in this.unitsOnMap) {
@@ -115,11 +154,44 @@ const ReplayRenderer = {
             if (!unit || unit.isDead) continue;
 
             const pos = this.hexToPixel(unit.r, unit.c);
-            const player = this.replayData.metadata.players.find(p => p.id === unit.playerId || p.player_number === unit.playerId);
-
-            if (player) {
-                this.drawUnit(pos.x, pos.y, unit.name, player.color);
+            
+            // ⭐ MEJORADO: Obtener color con fallback robusto
+            let playerColor = null;
+            
+            // Intentar obtener color de metadata si existe
+            try {
+                if (this.replayData && this.replayData.metadata) {
+                    let metadata = this.replayData.metadata;
+                    
+                    // Parsear si es string
+                    if (typeof metadata === 'string') {
+                        try {
+                            metadata = JSON.parse(metadata);
+                        } catch (e) {
+                            console.warn('[ReplayRenderer] No se pudo parsear metadata en drawUnits');
+                            metadata = null;
+                        }
+                    }
+                    
+                    // Verificar que metadata y players existan
+                    if (metadata && metadata.players && Array.isArray(metadata.players) && metadata.players.length > 0) {
+                        const player = metadata.players.find(p => p && (p.id === unit.playerId || p.player_number === unit.playerId));
+                        if (player && player.color) {
+                            playerColor = player.color;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('[ReplayRenderer] Error obteniendo color de metadata:', err);
             }
+            
+            // Usar colores por defecto si no se pudo obtener de metadata
+            if (!playerColor) {
+                const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24'];
+                playerColor = colors[((unit.playerId || 1) - 1) % colors.length];
+            }
+
+            this.drawUnit(pos.x, pos.y, unit.name, playerColor);
         }
     },
 
