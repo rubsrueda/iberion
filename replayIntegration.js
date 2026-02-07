@@ -43,6 +43,21 @@ const ReplayIntegration = {
         }
     },
 
+    /**
+     * ⭐ NUEVO: Captura el estado inicial de la fase de despliegue
+     * Debe llamarse cuando la fase de deployment termina y pasa a 'play'
+     */
+    recordDeploymentPhaseEnd: function() {
+        console.log('[ReplayIntegration] recordDeploymentPhaseEnd llamado');
+        
+        if (typeof ReplayEngine !== 'undefined' && ReplayEngine.isEnabled) {
+            ReplayEngine.recordDeploymentSnapshot();
+            console.log('[ReplayIntegration] ✅ Snapshot de despliegue capturado');
+        } else {
+            console.warn('[ReplayIntegration] ReplayEngine no está habilitado');
+        }
+    },
+
     _normalizeMatchId: function(matchId) {
         if (!matchId) return `match_${crypto.randomUUID().substring(0, 8)}`;
         if (typeof matchId === 'string') return matchId;

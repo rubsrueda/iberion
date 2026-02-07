@@ -438,7 +438,7 @@ const ReplayUI = {
                 padding: 15px;
                 border-radius: 8px;
                 border: 2px solid #00f3ff;
-                max-width: 250px;
+                max-width: 350px;
                 position: absolute;
                 top: 10px;
                 right: 10px;
@@ -452,7 +452,31 @@ const ReplayUI = {
                     border-bottom: 1px solid #00f3ff;
                     padding-bottom: 8px;
                 ">📖 LEYENDA</h4>
-                <div style="display: grid; gap: 6px; font-size: 12px;">
+                
+                <!-- ⭐ NUEVO: Sección de Tipos de Terreno -->
+                <h5 style="color: #00f3ff; margin: 12px 0 6px 0; font-size: 12px; border-bottom: 1px solid #444; padding-bottom: 4px;">TIPOS DE TERRENO</h5>
+                <div style="display: grid; gap: 4px; font-size: 11px; margin-bottom: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px; color: #ddd;">
+                        <span style="font-size: 14px; width: 24px; text-align: center;">🌊</span>
+                        <span>Agua (Water)</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; color: #ddd;">
+                        <span style="font-size: 14px; width: 24px; text-align: center;">🌾</span>
+                        <span>Llanura (Plains)</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; color: #ddd;">
+                        <span style="font-size: 14px; width: 24px; text-align: center;">🌲</span>
+                        <span>Bosque (Forest) - +25% Def</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; color: #ddd;">
+                        <span style="font-size: 14px; width: 24px; text-align: center;">⛰️</span>
+                        <span>Colinas (Hills) - +50% Def</span>
+                    </div>
+                </div>
+                
+                <!-- Sección de Estructuras -->
+                <h5 style="color: #00f3ff; margin: 12px 0 6px 0; font-size: 12px; border-bottom: 1px solid #444; padding-bottom: 4px;">ESTRUCTURAS</h5>
+                <div style="display: grid; gap: 4px; font-size: 11px; margin-bottom: 8px;">
                     ${legendItems.map(item => `
                         <div style="
                             display: flex;
@@ -465,6 +489,20 @@ const ReplayUI = {
                         </div>
                     `).join('')}
                 </div>
+                
+                <!-- ⭐ NUEVO: Sección de Unidades -->
+                <h5 style="color: #00f3ff; margin: 12px 0 6px 0; font-size: 12px; border-bottom: 1px solid #444; padding-bottom: 4px;">UNIDADES</h5>
+                <div style="display: grid; gap: 4px; font-size: 11px; margin-bottom: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px; color: #ddd;">
+                        <span style="font-size: 14px; width: 24px; text-align: center;">⚪</span>
+                        <span>Círculo de color = Unidad</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; color: #ddd;">
+                        <span style="font-size: 14px; width: 24px; text-align: center; font-weight: bold;">XR</span>
+                        <span>Número de Regimientos</span>
+                    </div>
+                </div>
+                
                 <button onclick="ReplayUI.hideLegend()" style="
                     margin-top: 10px;
                     width: 100%;

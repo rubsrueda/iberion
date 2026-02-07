@@ -2029,6 +2029,12 @@ async function handleEndTurn(isHostProcessing = false) {
                 console.log('[GameFlow] ReplayEngine inicializado al comenzar la partida');
             }
             
+            // ⭐ NUEVO: Capturar snapshot de deployment al finalizar la fase
+            if (typeof ReplayIntegration !== 'undefined' && ReplayIntegration.recordDeploymentPhaseEnd) {
+                ReplayIntegration.recordDeploymentPhaseEnd();
+                console.log('[GameFlow] ✅ Snapshot de deployment capturado');
+            }
+            
             // Importante: Resetear unidades para el combate
             resetUnitsForNewTurn(1); 
             
