@@ -37,6 +37,23 @@ function showScreen(screenToShow) {
             s.style.display = 'none';
         }
     });
+
+    const isGameScreen = !!(screenToShow && (screenToShow === domElements.gameContainer || screenToShow.id === 'gameContainer' || screenToShow.classList.contains('game-container')));
+    if (!isGameScreen) {
+        const topBar = document.getElementById('top-bar-menu');
+        if (topBar) topBar.style.display = 'none';
+        if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'none';
+        if (domElements.floatingMenuPanel) domElements.floatingMenuPanel.style.display = 'none';
+        if (domElements.contextualInfoPanel) domElements.contextualInfoPanel.classList.remove('visible');
+        const reopenBtn = document.getElementById('reopenContextualPanelBtn');
+        if (reopenBtn) reopenBtn.style.display = 'none';
+        const rightMenuGroup = document.querySelector('.right-menu-group.is-open');
+        if (rightMenuGroup) rightMenuGroup.classList.remove('is-open');
+        if (domElements.toggleRightMenuBtn) domElements.toggleRightMenuBtn.textContent = '⚙️';
+        if (typeof UIManager !== 'undefined' && UIManager.hideAllActionButtons) {
+            UIManager.hideAllActionButtons();
+        }
+    }
     
     // CRÍTICO: También ocultar explícitamente el mainMenuScreen si se está mostrando gameContainer
     // Esto previene que el menú quede visible debajo del mapa (z-index issues)

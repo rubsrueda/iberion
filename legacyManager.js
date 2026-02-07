@@ -173,22 +173,60 @@ const LegacyManager = {
      * PESTAÑA 3: CRÓNICA NARRATIVA
      */
     _updateNarrative: function() {
-        const narrativeEvents = StatTracker.getNarrativeEvents();
-        const battles = StatTracker.getRecentBattles(15);
+        let narrativeEvents = (typeof StatTracker !== 'undefined' && StatTracker.getNarrativeEvents)
+            ? StatTracker.getNarrativeEvents()
+            : [];
+        let battles = (typeof StatTracker !== 'undefined' && StatTracker.getRecentBattles)
+            ? StatTracker.getRecentBattles(15)
+            : [];
+
+        if ((!narrativeEvents || narrativeEvents.length === 0) && typeof Chronicle !== 'undefined') {
+            const logs = Chronicle.getLogs ? Chronicle.getLogs() : (Chronicle.currentMatchLogs || []);
+            narrativeEvents = logs
+                .filter(log => log && log.message)
+                .map(log => ({
+                    type: log.type === 'battle_start' ? 'battle' : 'event',
+                    text: log.message,
+                    turn: log.turn || 0
+                }));
+            if (!battles || battles.length === 0) {
+                battles = this._buildCombatAnalysisFromChronicle(logs);
+            }
+        }
 
         // Combinar eventos y batallas en orden cronológico
+        const narrativeEventObjects = Array.isArray(narrativeEvents)
+            ? narrativeEvents.map(event => {
+                if (typeof event === 'string') {
+                    return { type: 'event', text: event, turn: 0 };
+                }
+                return event;
+            })
+            : [];
+
         const allEvents = [
-            ...narrativeEvents.map(text => ({ type: 'event', text, turn: 0 })),
-            ...battles.map(b => ({
-                type: 'battle',
-                text: `T${b.turn}: Batalla en (${b.location.r},${b.location.c}) - Ganador: Jugador ${b.winner}`,
-                turn: b.turn
-            }))
+            ...narrativeEventObjects,
+            ...battles.map(b => {
+                const locationText = typeof b.location === 'string'
+                    ? b.location
+                    : `(${b.location?.r ?? '?'},${b.location?.c ?? '?'})`;
+                const winnerName = b.winnerName || (typeof StatTracker !== 'undefined'
+                    ? (StatTracker.gameStats?.players?.[b.winner]?.civilization || (b.winner ? `Jugador ${b.winner}` : 'Desconocido'))
+                    : (b.winner ? `Jugador ${b.winner}` : 'Desconocido'));
+                return {
+                    type: 'battle',
+                    text: `T${b.turn}: Batalla en ${locationText} - Ganador: ${winnerName}`,
+                    turn: b.turn
+                };
+            })
         ].sort((a, b) => a.turn - b.turn);
 
+        const totalTurns = (typeof StatTracker !== 'undefined' && StatTracker.gameStats?.currentTurn)
+            ? StatTracker.gameStats.currentTurn
+            : (gameState.turnNumber || 1);
         const narrative = {
             events: allEvents,
-            totalTurns: StatTracker.gameStats.currentTurn
+            totalTurns: totalTurns
         };
 
         LegacyUI.displayNarrative(narrative);
@@ -198,24 +236,59 @@ const LegacyManager = {
      * PESTAÑA 4: ANÁLISIS DE COMBATE
      */
     _updateCombatLog: function() {
-        const battles = StatTracker.getRecentBattles(10);
+        let battles = (typeof StatTracker !== 'undefined' && StatTracker.getRecentBattles)
+            ? StatTracker.getRecentBattles(10)
+            : [];
+        let combatAnalysis = [];
 
-        const combatAnalysis = battles.map(b => ({
-            turn: b.turn,
-            attackerId: b.attackerId,
-            attackerName: StatTracker.gameStats.players[b.attackerId]?.civilization || `Jugador ${b.attackerId}`,
-            defenderId: b.defenderId,
-            defenderName: StatTracker.gameStats.players[b.defenderId]?.civilization || `Jugador ${b.defenderId}`,
-            location: `(${b.location.r}, ${b.location.c})`,
-            terrain: board[b.location.r]?.[b.location.c]?.terrain?.type || 'Llanura',
-            winner: b.winner,
-            winnerName: StatTracker.gameStats.players[b.winner]?.civilization || `Jugador ${b.winner}`,
-            attackerLosses: b.casualties?.attackerLosses || 0,
-            defenderLosses: b.casualties?.defenderLosses || 0,
-            terrainBonus: this._calculateTerrainBonus(board[b.location.r]?.[b.location.c]?.terrain?.type)
-        }));
+        if (battles && battles.length > 0) {
+            combatAnalysis = battles.map(b => ({
+                turn: b.turn,
+                attackerId: b.attackerId,
+                attackerName: StatTracker.gameStats.players[b.attackerId]?.civilization || `Jugador ${b.attackerId}`,
+                defenderId: b.defenderId,
+                defenderName: StatTracker.gameStats.players[b.defenderId]?.civilization || `Jugador ${b.defenderId}`,
+                location: `(${b.location.r}, ${b.location.c})`,
+                terrain: board[b.location.r]?.[b.location.c]?.terrain?.type || 'Llanura',
+                winner: b.winner,
+                winnerName: StatTracker.gameStats.players[b.winner]?.civilization || `Jugador ${b.winner}`,
+                attackerLosses: b.casualties?.attackerLosses || 0,
+                defenderLosses: b.casualties?.defenderLosses || 0,
+                terrainBonus: this._calculateTerrainBonus(board[b.location.r]?.[b.location.c]?.terrain?.type)
+            }));
+        } else if (typeof Chronicle !== 'undefined') {
+            const logs = Chronicle.getLogs ? Chronicle.getLogs() : (Chronicle.currentMatchLogs || []);
+            combatAnalysis = this._buildCombatAnalysisFromChronicle(logs).slice(0, 10);
+        }
 
         LegacyUI.displayCombatLog(combatAnalysis);
+    },
+
+    _buildCombatAnalysisFromChronicle: function(logs) {
+        if (!Array.isArray(logs)) return [];
+        return logs
+            .filter(log => log && log.type === 'battle_start')
+            .map(log => {
+                const attacker = log.data?.attacker || {};
+                const defender = log.data?.defender || {};
+                const location = { r: defender.r ?? log.data?.toR, c: defender.c ?? log.data?.toC };
+                const terrainType = board?.[location.r]?.[location.c]?.terrain?.type || board?.[location.r]?.[location.c]?.terrain || 'Desconocido';
+
+                return {
+                    turn: log.turn || 0,
+                    attackerId: attacker.player,
+                    attackerName: attacker.name || (attacker.player ? `Jugador ${attacker.player}` : 'Desconocido'),
+                    defenderId: defender.player,
+                    defenderName: defender.name || (defender.player ? `Jugador ${defender.player}` : 'Desconocido'),
+                    location: `(${location.r ?? '?'}, ${location.c ?? '?'})`,
+                    terrain: terrainType,
+                    winner: null,
+                    winnerName: 'Desconocido',
+                    attackerLosses: 0,
+                    defenderLosses: 0,
+                    terrainBonus: this._calculateTerrainBonus(terrainType)
+                };
+            });
     },
 
     /**

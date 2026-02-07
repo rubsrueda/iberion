@@ -301,7 +301,7 @@ const LegacyUI = {
 
         const hasEvents = events.length > 0;
         const html = `
-            <h3>📖 La Crónica (Estilo EU4)</h3>
+            <h3>📖 La Crónica de la Partida</h3>
             <p style="color: #aaa; font-size: 0.9em;">Reseña narrativa de los eventos más importantes (${narrative.totalTurns} turnos)</p>
             <div class="narrative-log" style="
                 max-height: 500px;

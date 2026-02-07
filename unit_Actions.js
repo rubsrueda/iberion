@@ -159,6 +159,20 @@ function placeFinalizedDivision(unitData, r, c) {
     if (!unitData) { console.error("[placeFinalizedDivision] Intento de colocar unidad con datos nulos."); return; }
     if (!unitData.id) unitData.id = `u${unitIdCounter++}`;
     unitData.r = r; unitData.c = c; unitData.element = null;
+    if (Array.isArray(unitData.regiments)) {
+        const maxRegs = Number.isFinite(MAX_REGIMENTS_PER_DIVISION) ? MAX_REGIMENTS_PER_DIVISION : 20;
+        if (unitData.regiments.length > maxRegs) {
+            console.warn(`[placeFinalizedDivision] ${unitData.name || unitData.id} excede el limite de ${maxRegs} regimientos. Recortando.`);
+            unitData.regiments = unitData.regiments.slice(0, maxRegs);
+        }
+        unitData.regiments.forEach(reg => {
+            if (!reg) return;
+            if (reg.health == null) {
+                const baseHealth = REGIMENT_TYPES?.[reg.type]?.health;
+                if (baseHealth != null) reg.health = baseHealth;
+            }
+        });
+    }
     const existingIndex = units.findIndex(u => u.id === unitData.id);
     if (existingIndex > -1) {
         if (typeof UnitGrid !== 'undefined') {
@@ -185,6 +199,18 @@ function placeFinalizedDivision(unitData, r, c) {
     }
     
     calculateRegimentStats(unitData);
+
+    if (Array.isArray(unitData.regiments) && unitData.regiments.length > 0) {
+        const healthFromRegs = unitData.regiments.reduce((sum, reg) => {
+            const baseHealth = REGIMENT_TYPES?.[reg.type]?.health || 0;
+            return sum + (reg?.health ?? baseHealth);
+        }, 0);
+        if (!Number.isFinite(unitData.currentHealth) || unitData.currentHealth > healthFromRegs) {
+            unitData.currentHealth = healthFromRegs;
+        }
+    } else if (!Number.isFinite(unitData.currentHealth)) {
+        unitData.currentHealth = unitData.maxHealth || 0;
+    }
     
     // <<== LÍNEA PROBLEMÁTICA ELIMINADA ==>>
     // Se eliminó la línea: if (!unitData.isSplit) { unitData.currentHealth = unitData.maxHealth; }

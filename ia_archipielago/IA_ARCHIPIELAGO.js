@@ -656,11 +656,10 @@ const IAArchipielago = {
     );
 
     for (const hex of hexesCercanos.slice(0, 2)) {
-      if (economia.oro < 200) break;
-
       console.log(`[IA_ARCHIPIELAGO] Construyendo camino en (${hex.r},${hex.c})`);
-      // Aquí se llamaría a requestBuildStructure si existe
-      economia.oro -= 200;
+      if (typeof handleConfirmBuildStructure === 'function') {
+        handleConfirmBuildStructure({ playerId: myPlayer, r: hex.r, c: hex.c, structureType: 'Camino' });
+      }
     }
 
     // PRIORIDAD 2: Construir fortalezas en puntos estratégicos
@@ -671,10 +670,10 @@ const IAArchipielago = {
     );
 
     for (const punto of puntosEstrategicos.slice(0, 1)) {
-      if (economia.oro < 1000) break;
-
       console.log(`[IA_ARCHIPIELAGO] Construyendo fortaleza estratégica en (${punto.r},${punto.c})`);
-      economia.oro -= 1000;
+      if (typeof handleConfirmBuildStructure === 'function') {
+        handleConfirmBuildStructure({ playerId: myPlayer, r: punto.r, c: punto.c, structureType: 'Fortaleza' });
+      }
     }
   },
 
