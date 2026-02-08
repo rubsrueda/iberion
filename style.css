@@ -6704,7 +6704,7 @@ input:checked + .slider:before {
 /* === PANEL FLOTANTE INFERIOR: HERRAMIENTAS === */
 .editor-tools-panel {
     position: fixed;
-    bottom: 0;
+    bottom: 60px; /* Por encima de la barra de configuración */
     left: 0;
     right: 0;
     background: rgba(10, 25, 41, 0.98);
@@ -6712,7 +6712,7 @@ input:checked + .slider:before {
     box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.7);
     z-index: 10503;
     padding: 15px 10px 20px 10px;
-    max-height: 60vh;
+    max-height: 50vh;
     overflow-y: auto;
     transition: transform 0.3s ease-in-out;
     pointer-events: auto;
@@ -6787,6 +6787,41 @@ input:checked + .slider:before {
 .tool-panel-mobile select option {
     background: #0a1929;
     color: #00f3ff;
+}
+
+/* === BARRA DE CONFIGURACIÓN (Siempre visible) === */
+.editor-config-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    gap: 8px;
+    padding: 10px;
+    background: rgba(10, 25, 41, 0.98);
+    border-top: 2px solid #00f3ff;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.5);
+    z-index: 10502;
+    pointer-events: auto;
+}
+
+.editor-config-bar button {
+    flex: 1;
+    padding: 12px 8px;
+    background: rgba(0, 243, 255, 0.2);
+    border: 1px solid #00f3ff;
+    border-radius: 5px;
+    color: #00f3ff;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.2s;
+    pointer-events: auto;
+}
+
+.editor-config-bar button:active {
+    background: #00f3ff;
+    color: #000;
+    transform: scale(0.95);
 }
 
 /* Cursor personalizado para herramientas */

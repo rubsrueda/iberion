@@ -394,8 +394,8 @@ const EditorSerializer = {
         EditorState.playerConfigs = scenarioJSON.playerConfig;
         
         // Re-renderizar
-        if (typeof renderBoardToDOM === 'function') {
-            renderBoardToDOM();
+        if (typeof renderFullBoardVisualState === 'function') {
+            renderFullBoardVisualState();
         }
         
         console.log('[EditorSerializer] Escenario importado correctamente');
@@ -508,8 +508,8 @@ const EditorActions = {
         units = JSON.parse(JSON.stringify(snapshot.units));
         
         // Re-renderizar
-        if (typeof renderBoardToDOM === 'function') {
-            renderBoardToDOM();
+        if (typeof renderFullBoardVisualState === 'function') {
+            renderFullBoardVisualState();
         }
     }
 };

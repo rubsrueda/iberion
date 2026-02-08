@@ -31,6 +31,8 @@ const EditorUI = {
         if (gameContainer) {
             gameContainer.style.display = 'flex';
             gameContainer.style.pointerEvents = 'auto';
+            gameContainer.style.paddingTop = '54px'; // Espacio para top bar
+            gameContainer.style.paddingBottom = '60px'; // Espacio para config bar
         }
         
         // Asegurar que gameBoard sea visible
@@ -127,11 +129,11 @@ const EditorUI = {
         console.log(`[EditorUI] ${hexCount} hexágonos creados`);
         
         // Renderizar tablero
-        if (typeof renderBoardToDOM === 'function') {
-            renderBoardToDOM();
+        if (typeof renderFullBoardVisualState === 'function') {
+            renderFullBoardVisualState();
             console.log('[EditorUI] Tablero renderizado');
         } else {
-            console.warn('[EditorUI] renderBoardToDOM no disponible');
+            console.warn('[EditorUI] renderFullBoardVisualState no disponible');
         }
         
         console.log(`[EditorUI] Tablero ${rows}x${cols} inicializado completamente`);
@@ -494,6 +496,8 @@ const EditorUI = {
         const gameContainer = document.querySelector('.game-container');
         if (gameContainer) {
             gameContainer.style.display = 'none';
+            gameContainer.style.paddingTop = '';
+            gameContainer.style.paddingBottom = '';
         }
         
         const mainMenu = document.getElementById('mainMenuScreen');
@@ -748,8 +752,8 @@ function handleEditorHexClick(r, c) {
     // Actualizar visualización del hexágono
     if (typeof updateHex === 'function') {
         updateHex(r, c);
-    } else if (typeof renderBoardToDOM === 'function') {
-        renderBoardToDOM();
+    } else if (typeof renderFullBoardVisualState === 'function') {
+        renderFullBoardVisualState();
     }
 }
 

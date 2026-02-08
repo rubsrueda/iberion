@@ -244,7 +244,7 @@
     
     <!-- versión -->
 <div class="version-watermark" id="version-display">V1.003</div>
-<div class="name-watermark" id="name-watermark">Adan</div>
+<div class="name-watermark" id="name-watermark">Bernardo</div>
     <!-- versión -->
 
     <!-- El resto de tus elementos como #combatPredictionPanel y los scripts van después -->
@@ -1811,6 +1811,14 @@
                 <label style="color: #fff; font-size: 0.9em;">Asignar a Jugador</label>
                 <select id="ownerPlayerSelector" onchange="EditorUI.updateToolSettings()"></select>
             </div>
+        </div>
+        
+        <!-- Botones de Configuración (Siempre Visibles) -->
+        <div class="editor-config-bar">
+            <button onclick="EditorUI.openMapSettings()">⚙️ Tamaño Mapa</button>
+            <button onclick="EditorUI.openPlayerSettings()">👥 Jugadores</button>
+            <button onclick="EditorUI.openVictoryConditions()">🏆 Victoria</button>
+            <button onclick="EditorUI.generateProcedural()">🎲 Generar</button>
         </div>
         
     </div>
