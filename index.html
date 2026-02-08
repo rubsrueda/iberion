@@ -1916,6 +1916,40 @@
     
     <!-- === LÓGICA PRINCIPAL DEL JUEGO (orden existente) === -->
     <script src="version.js"></script>
+    <script>
+        (function() {
+            const CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+            const VERSION_URL = 'version.js';
+            const VERSION_REGEX = /current:\s*["']([^"']+)["']/;
+            let lastKnownVersion = (window.VERSION_CONFIG && VERSION_CONFIG.get)
+                ? VERSION_CONFIG.get()
+                : null;
+
+            async function checkForUpdate() {
+                try {
+                    const response = await fetch(`${VERSION_URL}?_=${Date.now()}`, { cache: 'no-store' });
+                    const text = await response.text();
+                    const match = text.match(VERSION_REGEX);
+                    if (!match) return;
+
+                    const remoteVersion = match[1];
+                    if (lastKnownVersion && remoteVersion !== lastKnownVersion) {
+                        window.location.reload();
+                        return;
+                    }
+
+                    lastKnownVersion = remoteVersion;
+                } catch (err) {
+                    console.warn('Version check failed:', err);
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', () => {
+                checkForUpdate();
+                setInterval(checkForUpdate, CHECK_INTERVAL_MS);
+            });
+        })();
+    </script>
     <script src="adManager.js"></script>
     <script src="storeManager.js"></script>
     <script src="domElements.js"></script> 
