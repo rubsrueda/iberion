@@ -17,7 +17,6 @@ function onHexClick(r, c) {
     // === GUARDIÁN: MODO PAINT ACTIVO ===
     // Si el sistema de movimiento automático está en modo paint, no procesar clics
     if (typeof AutoMoveManager !== 'undefined' && AutoMoveManager.isPaintModeActive) {
-        console.log(`[Main] onHexClick bloqueado - Modo Paint activo`);
         return; // El AutoMoveManager manejará el clic
     }
 
@@ -128,7 +127,6 @@ function onHexClick(r, c) {
     
     // Obtenemos la unidad que pueda estar en ese hexágono.
     const clickedUnit = getUnitOnHex(r, c);
-    console.log(`[DIAGNÓSTICO getUnitOnHex] Para el clic en (${r},${c}), la función encontró:`, clickedUnit ? clickedUnit.name : 'ninguna unidad');
     
     // --- LÓGICA DE SELECCIÓN Y ACCIÓN ---
     // Este es el corazón de la interacción del jugador durante su turno.
@@ -159,7 +157,6 @@ function onHexClick(r, c) {
 }
 
 function showScreen(screenElement) {
-    console.log(`[showScreen] Intentando mostrar: ${screenElement ? screenElement.id : 'ninguna pantalla (ocultar todo)'}.`);
 
     // Oculta TODAS las pantallas EXCEPTO mainMenuScreen cuando sea necesario
     document.querySelectorAll('.modal, .modal-overlay').forEach(el => {
@@ -188,7 +185,6 @@ function showScreen(screenElement) {
     if (screenElement && screenElement.id !== 'gameContainer' && !screenElement.classList.contains('game-container')) {
         if (gameContainer) {
             gameContainer.style.setProperty('display', 'none', 'important');
-            console.log("[showScreen] Ocultando gameContainer para mostrar otra pantalla");
         }
     }
 
@@ -200,7 +196,6 @@ function showScreen(screenElement) {
             mainMenu.style.setProperty('display', 'none', 'important');
             mainMenu.style.setProperty('visibility', 'hidden', 'important');
             mainMenu.style.setProperty('pointer-events', 'none', 'important');
-            console.log("[showScreen] Ocultando EXPLÍCITAMENTE mainMenuScreen para mostrar gameContainer");
         }
     }
 
@@ -250,12 +245,10 @@ const showLoginScreen = () => {
     const loginEl = domElements.loginScreen || document.getElementById('loginScreen');
     const isLoginVisible = loginEl && window.getComputedStyle(loginEl).display !== 'none';
     if (window.loginScreenShown && isLoginVisible) {
-        console.log('⚠️  Login ya mostrado, ignorando llamada duplicada');
         return;
     }
     window.loginScreenShown = true;
     
-    console.log('🔑 Mostrando pantalla de login...');
     showScreen(domElements.loginScreen);
     const lastUser = localStorage.getItem('lastUser');
     
@@ -284,7 +277,6 @@ function initApp() {
     const replayToken = urlParams.get('replay');
     
     if (replayToken) {
-        console.log('[initApp] Deep link detectado para replay:', replayToken);
         // Guardar el token para procesarlo después de autenticación
         sessionStorage.setItem('pendingReplayToken', replayToken);
         // Limpiar la URL
@@ -318,7 +310,6 @@ function initApp() {
         
         newBtn.addEventListener('click', async (e) => {
             e.preventDefault(); // Prevenir comportamientos por defecto
-            console.log("🟢 BOTÓN 'JUGADOR NUEVO' PRESIONADO.");
 
             try {
                 // Ocultar Login inmediatamente
@@ -328,7 +319,6 @@ function initApp() {
                 // --- GESTIÓN DE JUGADOR ---
                 // Si no hay jugador logueado, crear invitado
                 if (!PlayerDataManager.currentPlayer) {
-                    console.log("Creando perfil temporal de invitado...");
                     PlayerDataManager.currentPlayer = PlayerDataManager.createNewPlayer("Recluta", "tutorial");
                     // ID especial para que no guarde en DB real
                     PlayerDataManager.currentPlayer.auth_id = "temp_guest_id";
@@ -336,7 +326,6 @@ function initApp() {
                 gameState.myPlayerNumber = 1; // Asignar jugador local
 
                 // --- RESET DE JUEGO ---
-                console.log("Reiniciando variables de juego...");
                 if (typeof resetGameStateVariables === 'function') {
                     resetGameStateVariables(2, Infinity, 'development');
                 } else {
@@ -348,7 +337,6 @@ function initApp() {
                 gameState.playerCivilizations[1] = 'Iberia';
 
                 // --- CARGA DE MAPA Y DATOS ---
-                console.log("Cargando escenario...");
                 if (!GAME_DATA_REGISTRY || !GAME_DATA_REGISTRY.scenarios) {
                     throw new Error("GAME_DATA_REGISTRY no está cargado.");
                 }
@@ -369,12 +357,10 @@ function initApp() {
                 gameState.currentPhase = "deployment";
                 
                 // Mostrar pantalla de juego
-                console.log("Mostrando tablero de juego...");
                 showScreen(domElements.gameContainer); // Asegura que domElements esté cargado
                 if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
 
                 // ARRANCAR SCRIPT
-                console.log("Lanzando Script Tutorial...");
                 TutorialManager.start(TUTORIAL_SCRIPTS.completo);
 
             } catch (err) {
@@ -518,7 +504,6 @@ function initApp() {
         }
     });
 
-    console.log("main.js: DOMContentLoaded -> initApp INICIADO (Versión CORREGIDA con Cuentas).");
     // ======================================================================
     // 0. CORTAFUEGOS DE ESTADO DEL TUTORIAL
     // ======================================================================
@@ -549,7 +534,6 @@ function initApp() {
     // === INICIALIZAR SISTEMA DE MOVIMIENTO AUTOMÁTICO ===
     if (typeof AutoMoveManager !== 'undefined' && AutoMoveManager.init) {
         AutoMoveManager.init();
-        console.log("[Main] Sistema de movimiento automático inicializado");
     } else {
         console.warn("[Main] AutoMoveManager no está disponible");
     }
@@ -557,7 +541,6 @@ function initApp() {
     // === INICIALIZAR SISTEMA DE INVESTIGACIÓN AUTOMÁTICA ===
     if (typeof AutoResearchManager !== 'undefined' && AutoResearchManager.init) {
         AutoResearchManager.init();
-        console.log("[Main] Sistema de investigación automática inicializado");
     } else {
         console.warn("[Main] AutoResearchManager no está disponible");
     }
@@ -565,7 +548,6 @@ function initApp() {
     // === INICIALIZAR SISTEMA DE RECOMPENSAS DE INVESTIGACIÓN ===
     if (typeof ResearchRewardsManager !== 'undefined' && ResearchRewardsManager.init) {
         ResearchRewardsManager.init();
-        console.log("[Main] Sistema de recompensas de investigación inicializado");
     } else {
         console.warn("[Main] ResearchRewardsManager no está disponible");
     }
@@ -680,7 +662,6 @@ function initApp() {
     // Listener del Buzón
     if (domElements.floatingInboxBtn) {
         domElements.floatingInboxBtn.addEventListener('click', (event) => {
-            console.log("hice click"); // <--- AÑADE ESTA LÍNEA AQUÍ
             
             event.stopPropagation();
 
@@ -872,7 +853,6 @@ function initApp() {
                 domElements.hostPlayerListEl.innerHTML = `<li>J1: Tú (Anfitrión)</li><li>J2: Cliente Conectado</li>`;
             }
             
-            console.log("[Red - Anfitrión] Cliente conectado. Iniciando partida...");
             
             // Recuperamos los settings que guardamos.
             const gameSettings = gameState.networkGameSettings;
@@ -894,7 +874,6 @@ function initApp() {
             }, 500);
 
         } else {
-            console.log(`[Red - Cliente] Conexión establecida. Esperando inicio de partida...`);
         }
     }
 
@@ -903,10 +882,8 @@ function initApp() {
         // ... Te la pongo aquí para que la tengas completa si la borraste.
         if (datos.type === 'actionRequest' && datos.action?.type === 'moveUnit') {
             const soyAnfitrion = NetworkManager.esAnfitrion;
-            console.log(`[NETWORK FLOW - PASO 3] ${soyAnfitrion ? 'Anfitrión' : 'Cliente'} ha recibido un paquete. Tipo: '${datos.type}', Acción solicitada: '${datos.action.type}'.`);
         }
         
-        console.log(`%c[PROCESS DATA] onDatosLANRecibidos procesando paquete tipo: ${datos.type}`, 'background: #DAA520; color: black;');
             // Lógica del Cliente (cuando NO es anfitrión)
         if (!NetworkManager.esAnfitrion) { // Lógica del Cliente
             switch (datos.type) {
@@ -917,7 +894,6 @@ function initApp() {
                 
                 case 'fullStateUpdate':
                 case 'initialGameSetup':
-                    console.log("%c[CLIENTE] ¡Paquete fullStateUpdate recibido del anfitrión!", "background: lime; color: black; font-size: 1.2em;");
                     reconstruirJuegoDesdeDatos(datos.payload);
                     break;
 
@@ -927,7 +903,6 @@ function initApp() {
             }
         } else {
             if (datos.type === 'actionRequest') {
-                console.log(`%c[HOST PROCESS] Anfitrión va a procesar acción solicitada: ${datos.action.type}`, 'background: #DC143C; color: white;', datos.action.payload);
                 processActionRequest(datos.action);
             } else {
                 console.warn(`[Anfitrión] Recibido paquete desconocido del cliente: '${datos.type}'.`);
@@ -1004,7 +979,6 @@ function initApp() {
                 return;
             }
             
-            console.log("[LAN Anfitrión] Botón 'Comenzar Partida' pulsado. Recopilando opciones...");
             
             // 1. Recopilar toda la configuración de la partida desde los elementos de la UI
             const gameSettings = {
@@ -1037,7 +1011,6 @@ function initApp() {
 
             // 3. Enviar la configuración al otro jugador
             NetworkManager.enviarDatos(dataPacket);
-            console.log("[LAN Anfitrión] Paquete de configuración enviado:", dataPacket);
             
             // 4. Iniciar la partida en nuestra propia máquina con la misma configuración
             iniciarPartidaLAN(gameSettings);
@@ -1051,7 +1024,6 @@ function initApp() {
         btnCrear.parentNode.replaceChild(nuevoBtn, btnCrear);
         
         nuevoBtn.addEventListener('click', async () => {
-            console.log("BOTÓN CREAR PULSADO (SUPABASE)");
             
             // VERIFICACIÓN CRÍTICA: El usuario DEBE estar autenticado para jugar en red
             if (!PlayerDataManager.currentPlayer || !PlayerDataManager.currentPlayer.auth_id) {
@@ -1152,7 +1124,6 @@ function initApp() {
         btnUnirse.parentNode.replaceChild(nuevoBtn, btnUnirse);
         
         nuevoBtn.addEventListener('click', async () => {
-            console.log("BOTÓN UNIRSE PULSADO (SUPABASE)");
             
             // VERIFICACIÓN CRÍTICA: El usuario DEBE estar autenticado para jugar en red
             if (!PlayerDataManager.currentPlayer || !PlayerDataManager.currentPlayer.auth_id) {
@@ -1190,7 +1161,6 @@ function initApp() {
         domElements.floatingAssignGeneralBtn.addEventListener('click', (event) => {
             event.stopPropagation();
             if (selectedUnit) {
-                console.log(`Abriendo Cuartel para asignar un Héroe a ${selectedUnit.name}.`);
                 if (typeof openBarracksModal === "function") {
                     openBarracksModal(true, selectedUnit);
                 }
@@ -1202,10 +1172,8 @@ function initApp() {
     if (domElements.floatingBuildBtn) {
         domElements.floatingBuildBtn.addEventListener('click', (event) => {
             event.stopPropagation();
-            console.log("[DEBUG Botón Construir] click detectado.");
             if (selectedUnit) {
                 hexToBuildOn = { r: selectedUnit.r, c: selectedUnit.c };
-                console.log(`Modo construcción iniciado por unidad seleccionada en (${hexToBuildOn.r}, ${hexToBuildOn.c}).`);
             }
             if (hexToBuildOn) {
                 if (typeof openBuildStructureModal === "function") { openBuildStructureModal(); } 
@@ -1262,7 +1230,6 @@ function initApp() {
         }
         
         domElements.startLocalGameBtn.addEventListener('click', () => { 
-            console.log("main.js: Botón 'Empezar Partida (Local)' clickeado. Iniciando validación...");
             
             //1.  Reutilizamos la configuración temporal guardada por el botón "Siguiente"
             const settings = gameState.setupTempSettings || {};
@@ -1274,7 +1241,6 @@ function initApp() {
             // 3. CAPTURAR MODO DE JUEGO ANTES DEL RESET
             const gameModeSelect = document.getElementById('gameModeSelect');
             const gameMode = gameModeSelect ? gameModeSelect.value : 'development';
-            console.log(`[SETUP] Modo de juego seleccionado: ${gameMode}`);
 
             // 4. Resetear el estado del juego (AHORA PASANDO GAME MODE COMO PARÁMETRO)
             if (typeof resetGameStateVariables === "function") {
@@ -1333,13 +1299,11 @@ function initApp() {
                 gameState.deploymentUnitLimitByPlayer = null;
             }
             gameState.victoryByPointsEnabled = settings.victoryByPoints ?? VICTORY_BY_POINTS_ENABLED_DEFAULT;
-            console.log(`[SETUP] Victoria por puntos: ${gameState.victoryByPointsEnabled ? 'ACTIVADA' : 'DESACTIVADA'}`);
             console.error(`DEBUGGING TIMER | PASO 3: Asignando gameState.turnDurationSeconds. Valor final: ${gameState.turnDurationSeconds}`);
             gameState.isCampaignBattle = false;
             
             // C. Asignar la duración del turno al gameState ya reseteado. ESTA ES LA CLAVE.
             gameState.turnDurationSeconds = turnDuration;
-            console.log(`TIMER DEBUG: gameState.turnDurationSeconds asignado a: ${gameState.turnDurationSeconds}`);
             
             // 6. Inicializar el tablero de juego.
             if (typeof initializeNewGameBoardDOMAndData === "function") { 
@@ -1363,37 +1327,31 @@ function initApp() {
                 }));
                 
                 ReplayIntegration.startGameRecording(matchId, mapSeed, playersInfo);
-                console.log('[Main] ReplayEngine inicializado con matchId:', matchId);
             }
 
             // <<== INICIALIZAR STAT TRACKER ==>>
             if (typeof StatTracker !== 'undefined') {
                 StatTracker.initialize(numPlayers);
-                console.log('[Main] StatTracker inicializado');
             }
 
             // <<== INICIALIZAR LEDGER UI ==>>
             if (typeof LedgerUI !== 'undefined') {
                 LedgerUI.initialize();
-                console.log('[Main] LedgerUI inicializado');
             }
 
             // <<== INICIALIZAR LEDGER INTEGRATION (Botón en UI) ==>>
             if (typeof LedgerIntegration !== 'undefined') {
                 LedgerIntegration.initialize();
-                console.log('[Main] LedgerIntegration inicializado');
             }
 
             // <<== INICIALIZAR LEGACY UI ==>>
             if (typeof LegacyUI !== 'undefined') {
                 LegacyUI.initialize();
-                console.log('[Main] LegacyUI inicializado');
             }
 
             // <<== INICIALIZAR GAME HISTORY UI ==>>
             if (typeof GameHistoryUI !== 'undefined') {
                 GameHistoryUI.initialize();
-                console.log('[Main] GameHistoryUI inicializado');
             }
 
                 // 5. Transición de Pantalla
@@ -1430,7 +1388,6 @@ function initApp() {
             if (gameState.currentPhase !== 'deployment' || (gameState.playerTypes && gameState.playerTypes['player1'] === 'human')) {
                 // Verificamos que sea un tiempo válido (no infinito y que sea un número)
                 if (typeof TurnTimerManager !== 'undefined' && turnDuration !== Infinity && !isNaN(turnDuration)) {
-                    console.log(`[main.js] Iniciando reloj inicial de: ${turnDuration}s`);
                     TurnTimerManager.start(turnDuration);
                 } else {
                     // Si es infinito, aseguramos que el reloj esté oculto
@@ -1455,7 +1412,6 @@ function initApp() {
     if (domElements.startIberiaMagnaBtn) {
         // La función del listener ahora es 'async' para poder usar 'await'.
         domElements.startIberiaMagnaBtn.addEventListener('click', async () => {
-            console.log("Iniciando modo de juego: Tronos de Iberia...");
             logMessage("Cargando el mapa de la península, por favor espera...");
 
             // 1. Prepara el estado del juego para 8 jugadores
@@ -1519,7 +1475,6 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
             const victoryByPointsVal = document.getElementById('victoryByPoints')?.value || 'enabled';
             const navalMapVal = boardSizeVal === 'large' && document.getElementById('navalMapCheckbox')?.checked;
 
-            console.log(`[SETUP] Guardando configuración temporal: Tiempo=${turnTimeVal}, Jugadores=${numPlayersVal}, Victoria por Puntos=${victoryByPointsVal}, Mapa Naval=${navalMapVal}`);
 
             // 2. Guardado en el estado temporal
             gameState.setupTempSettings = {
@@ -1621,12 +1576,10 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
             if (UIManager && UIManager._autoCloseTimeout) {
                 clearTimeout(UIManager._autoCloseTimeout);
                 UIManager._autoCloseTimeout = null;
-                console.log("[FIX] Temporizador de autocierre cancelado al abrir el modal de división.");
             }
             
             // --- INICIO DEL DIAGNÓSTICO ---
             // Este log nos dirá si el clic está siendo registrado.
-            console.log("[DEBUG] Clic en el botón de dividir detectado."); 
             
             // Verificamos el estado de selectedUnit EN EL MOMENTO del clic.
             if (!selectedUnit) {
@@ -1640,7 +1593,6 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
             // --- FIN DEL DIAGNÓSTICO ---
 
             // Si pasamos los diagnósticos, llamamos a la función.
-            console.log("[DEBUG] Condiciones cumplidas. Llamando a openAdvancedSplitUnitModal...");
             if (typeof openAdvancedSplitUnitModal === "function") {
                 openAdvancedSplitUnitModal(selectedUnit);
             } else {
@@ -1669,7 +1621,6 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
             // <<== GUARDIA DE SEGURIDAD PARA EL TUTORIAL ==>>
             if (gameState.isTutorialActive) {
                 if (confirm("¿Seguro que quieres salir del tutorial? Tu progreso se perderá.")) {
-                    console.log("Rendición durante tutorial: Finalizando y volviendo al menú.");
                     
                     // Secuencia de limpieza completa del tutorial
                     gameState.isTutorialActive = false;
@@ -1713,7 +1664,6 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
                 
                 // A. Limpieza específica del tutorial
                 if (gameState.isTutorialActive) {
-                    console.log("Saliendo del tutorial sin terminar. Reiniciando estado del tutorial.");
                     gameState.isTutorialActive = false;
                     window.TUTORIAL_MODE_ACTIVE = false; // Si sigues usando esta variable global
                     if (typeof UIManager !== 'undefined' && UIManager.restoreEndTurnButton) {
@@ -1762,7 +1712,6 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
         domElements.floatingCreateDivisionBtn = newBtn;
 
         domElements.floatingCreateDivisionBtn.addEventListener('click', () => {
-            console.log("[UI] Botón Crear División presionado.");
             
             // 1. Validaciones de seguridad
             if (!gameState || typeof gameState.deploymentUnitLimit === 'undefined') return;
@@ -1853,7 +1802,6 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
             
             // Intentar abrir inmediatamente
             if (!tryOpenTechTree()) {
-                console.log("main.js: openTechTreeScreen no disponible aún, esperando carga...");
                 // Si falla, esperar a que se cargue
                 let attempts = 0;
                 const checkCallback = () => {
@@ -1864,7 +1812,6 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
                         } else {
                             clearInterval(checkInterval);
                         }
-                        console.log("main.js: Árbol tecnológico abierto después de esperar");
                     } else if (attempts > 20) {
                         if (typeof window !== 'undefined' && window.intervalManager) {
                             window.intervalManager.clearInterval('techTree_check');
@@ -1895,7 +1842,6 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
     if (domElements.floatingUndoMoveBtn) {
         domElements.floatingUndoMoveBtn.addEventListener('click', (event) => {
             event.stopPropagation();
-            console.log("[DEBUG Botón Deshacer] click detectado");
 
             // Usamos la función de PETICIÓN, no la de ejecución directa
             if (typeof RequestUndoLastUnitMove === "function" && typeof selectedUnit !== 'undefined' && selectedUnit) {
@@ -1916,7 +1862,6 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
     if (domElements.floatingReinforceBtn) {
         domElements.floatingReinforceBtn.addEventListener('click', (event) => {
             event.stopPropagation();
-            console.log("[Botón 💪/👁️] Clic detectado.");
 
             // Obtenemos las coordenadas de la última unidad sobre la que se mostró el panel.
             // Esto es más fiable que depender de `selectedUnit`, que es solo para unidades controlables.
@@ -1927,7 +1872,6 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
                 const unitToShow = getUnitOnHex(unitR, unitC);
 
                 if (unitToShow) {
-                    console.log(`[Botón 💪/👁️] Abriendo modal para: ${unitToShow.name}`);
                     if (typeof openUnitDetailModal === "function") {
                         // La función openUnitDetailModal ya sabe cómo manejar
                         // una unidad propia vs. una unidad enemiga.
@@ -1971,7 +1915,6 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
     }
 /*
     if (typeof showWelcomeHelpModal === "function") {
-        console.log("main.js: Llamando a showWelcomeHelpModal().");
         showWelcomeHelpModal(); 
     } else {
         console.error("main.js: CRÍTICO: showWelcomeHelpModal no está definida (de modalLogic.js).");
@@ -2017,7 +1960,6 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
     if (domElements.setAsCapitalBtn) {
         domElements.setAsCapitalBtn.addEventListener('click', (event) => {
             event.stopPropagation();
-            console.log("[Botón Capital] Clic detectado.");
 
             // Usamos el estado global para saber qué hexágono está seleccionado.
             const selectedR = gameState.selectedHexR;
@@ -2052,7 +1994,6 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
             event.stopPropagation();
 
             const action = hotspot.dataset.action;
-            console.log("Hotspot presionado:", action);
 
             const requiresLoginActions = new Set([
                 'openProfile',
@@ -2219,7 +2160,6 @@ if (newTutorialBtn) {
         btnResume.parentNode.replaceChild(newBtn, btnResume);
         
         newBtn.addEventListener('click', () => {
-            console.log("Botón Cargar pulsado");
             
             // 1. Cerrar el menú de modos
             const modesModal = document.getElementById('gameModesModal');
@@ -2280,7 +2220,6 @@ if (newGeneralNameDisplay) {
     // 4. LÓGICA DE ARRANQUE
     // ======================================================================
     
-    console.log('🚀 Iniciando lógica de arranque...');
     
     // Resetear flags ANTES de inicializar auth listener
     window.loginScreenShown = false;
@@ -2292,7 +2231,6 @@ if (newGeneralNameDisplay) {
     // Verificar si hay sesión guardada en Supabase
     supabaseClient.auth.getSession().then(({ data: { session } }) => {
         if (session) {
-            console.log('✅ Sesión de Supabase detectada, esperando carga de perfil...');
             // El auth listener se encargará de cargar el perfil
             return;
         }
@@ -2301,26 +2239,21 @@ if (newGeneralNameDisplay) {
         const lastUser = localStorage.getItem('lastUser');
         
         if (lastUser && PlayerDataManager.autoLogin(lastUser)) {
-            console.log('✅ Auto-login local exitoso');
             showMainMenu();
         } else {
             // No hay usuario ni local ni en Supabase
-            console.log('⚠️  No hay sesión, mostrando landing page...');
             openLandingPage(false);
             
             // Dar tiempo para que Supabase termine de verificar sesión
             setTimeout(() => {
                 // NO mostrar login si estamos procesando OAuth callback
                 if (window.oauthCallbackDetected) {
-                    console.log('🔐 OAuth callback en proceso, esperando...');
                     return;
                 }
                 
                 if (!PlayerDataManager.currentPlayer && !PlayerDataManager.isProcessingAuth) {
-                    console.log('🔑 No hay sesión activa después de espera, mostrando login...');
                     showLoginScreen();
                 } else {
-                    console.log('⚡ Sesión detectada durante espera, cancelando login');
                 }
             }, 2000);
         }
@@ -2350,7 +2283,6 @@ if (newGeneralNameDisplay) {
                         if (data && data.profile_data) {
                             PlayerDataManager.currentPlayer = data.profile_data;
                             PlayerDataManager.currentPlayer.auth_id = user.id;
-                            console.log("🔄 Perfil refrescado desde la nube.");
                         }
                     });
             }
@@ -2382,7 +2314,6 @@ if (newGeneralNameDisplay) {
     // Llamar a la función de corrección
     ensureCorrectZIndex();
 
-    console.log("main.js: initApp() FINALIZADO.");
 
 }
 
@@ -2395,14 +2326,12 @@ function executeConfirmedAction(action) {
     // Cada vez que alguien hace algo, actualizamos la "hora oficial" del estado
     gameState.lastActionTimestamp = Date.now();
     
-    console.log(`%c[VIAJE-7] Cliente ${gameState.myPlayerNumber} ha recibido un 'actionBroadcast' y está dentro de executeConfirmedAction. Acción: ${action.type}`, 'color: #DAA520; font-weight: bold;', action.payload);
 
     if (NetworkManager.esAnfitrion && action.payload.playerId === gameState.myPlayerNumber && action.type !== 'syncGameState') {
          if (UIManager) UIManager.updateAllUIDisplays();
          return;
     }
     //console.log(`%c[VIAJE-7] Jugador ${gameState.myPlayerNumber} sincronizando acción retransmitida: ${action.type}`, 'color: #DAA520; font-weight: bold;', action.payload);
-    console.log(`[Red - Sincronizando] Ejecutando acción retransmitida por anfitrión: ${action.type}`);
     const payload = action.payload;
     
     switch (action.type) {
@@ -2448,7 +2377,6 @@ function executeConfirmedAction(action) {
 
         case 'moveUnit': 
 
-            console.log(`%c[VIAJE-8] Cliente dentro del 'case moveUnit'. Intentando encontrar la unidad con ID: ${payload.unitId}`, 'color: #DAA520; font-weight: bold;');
             const unitToMove = units.find(u => u.id === payload.unitId); 
             if (unitToMove) _executeMoveUnit(unitToMove, payload.toR, payload.toC);
             break;
@@ -2537,10 +2465,8 @@ function iniciarPartidaLAN(settings) {
     
     // El anfitrión es J1, el cliente es J2
     gameState.myPlayerNumber = NetworkManager.esAnfitrion ? 1 : 2;
-    console.log(`[iniciarPartidaLAN] Lógica de red iniciada. Soy Jugador: ${gameState.myPlayerNumber}`);
 
     if (NetworkManager.esAnfitrion) {
-        console.log("[Anfitrión] Generando el mapa y el estado inicial...");
         initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize, settings.navalMap || false, settings.gameMode || 'development');
         
         // El anfitrión crea una "fotografía" del estado del juego
@@ -2572,7 +2498,6 @@ function iniciarPartidaLAN(settings) {
 }
 
 // ========== VERSIÓN DE CÓDIGO: v3.1 - DEDUPLICACIÓN ACTIVA ==========
-console.log("%c[SISTEMA] main.js v3.1 CARGADO - Sistema de deduplicación activo", "background: #00FF00; color: #000; font-weight: bold; padding: 4px;");
 
 // Cache de deduplicación de acciones (para evitar procesar la misma acción múltiples veces)
 const _processedActions = new Map(); // actionId -> timestamp
@@ -2596,7 +2521,6 @@ if (typeof window !== 'undefined' && window.intervalManager) {
 
 async function processActionRequest(action) { 
     // DIAGNÓSTICO: Log explícito de la acción recibida
-    console.log(`%c[processActionRequest] Acción recibida: ${action.type}`, 'background: #4169E1; color: white; font-weight: bold;');
     
     // DEDUPLICACIÓN: Verificar si esta acción ya fue procesada
     if (action.actionId) {
@@ -2607,7 +2531,6 @@ async function processActionRequest(action) {
         _processedActions.set(action.actionId, Date.now());
     }
     
-    console.log(`%c[Anfitrión] Procesando petición de acción: ${action.type}`, 'color: #FF69B4; font-weight: bold;', action.payload);
     
     // Si la acción no es del anfitrión, la ignora para evitar que procese sus propias retransmisiones
     if (action.payload.playerId !== NetworkManager.miId && NetworkManager.esAnfitrion && action.payload.playerId !== gameState.currentPlayer) {
@@ -2788,12 +2711,9 @@ async function processActionRequest(action) {
             const unitToRaze = getUnitById(payload.unitId);
             const hexToRaze = board[payload.r]?.[payload.c];
 
-            console.log(`- ¿Se encontró la unidad? (${payload.unitId}):`, !!unitToRaze, unitToRaze);
-            console.log(`- ¿Se encontró el hexágono? (${payload.r}, ${payload.c}):`, !!hexToRaze, hexToRaze);
             
             // CORRECCIÓN: Solo verificamos !hasAttacked. Permitimos si hasMoved es true.
             if (unitToRaze && hexToRaze && !unitToRaze.hasAttacked && hexToRaze.structure) {
-                console.log("%c -> CONDICIÓN CUMPLIDA. Ejecutando _executeRazeStructure...", "color: green;");
                 _executeRazeStructure(payload);
                 actionExecuted = true;
             } else {
@@ -2836,7 +2756,6 @@ async function processActionRequest(action) {
             const targetPlayerRes = gameState.playerResources[payload.playerId];
             if (targetPlayerRes) {
                 targetPlayerRes[payload.resource] = (targetPlayerRes[payload.resource] || 0) + payload.amount;
-                console.log(`[Host] Truco recibido: J${payload.playerId} recibe ${payload.amount} de ${payload.resource}`);
                 actionExecuted = true; // Esto disparará el broadcastFullState automáticamente
             }
             break;
@@ -2851,7 +2770,6 @@ async function processActionRequest(action) {
         // Esto le dice al mundo: "Este estado es NUEVO y OFICIAL"
         gameState.lastActionTimestamp = Date.now();
 
-        console.log(`%c[HOST BROADCAST] Acción '${action.type}' ejecutada. Retransmitiendo y GUARDANDO.`, 'background: blue; color: white;');
         
         // Actualizar visualmente al Anfitrión
         if (typeof renderFullBoardVisualState === 'function') {
@@ -2876,7 +2794,6 @@ async function processActionRequest(action) {
 
 function reconstruirJuegoDesdeDatos(datos) {
     try {
-        console.log("%c[Sincronización] Aplicando datos...", "color: #00FF00;");
         
         // 1. Guardamos nuestra identidad local
         const miIdentidadLocal = gameState.myPlayerNumber;
@@ -2945,7 +2862,6 @@ function reconstruirJuegoDesdeDatos(datos) {
         if (typeof initializeBoardPanning === "function") initializeBoardPanning();
         if (typeof updateFogOfWar === "function") updateFogOfWar();
         if (UIManager) {
-            console.log("Forzando actualización completa de UI...");
             UIManager.updatePlayerAndPhaseInfo(); 
             UIManager.updateAllUIDisplays();
             UIManager.refreshActionButtons();
@@ -2993,7 +2909,6 @@ function reconstruirJuegoDesdeDatos(datos) {
         // ================================================================
 
         // CRÍTICO: FORZAR VISIBILIDAD DEL JUEGO DESPUÉS DE CARGAR
-        console.log('[Reconstruir] Forzando visibilidad del game-container...');
         const gameContainer = document.querySelector('.game-container');
         const mainMenu = document.getElementById('mainMenuScreen');
         const setupScreen = document.getElementById('setupScreen');
@@ -3002,25 +2917,21 @@ function reconstruirJuegoDesdeDatos(datos) {
             gameContainer.style.setProperty('display', 'flex', 'important');
             gameContainer.style.setProperty('visibility', 'visible', 'important');
             gameContainer.style.setProperty('z-index', '1200', 'important');
-            console.log('[Reconstruir] ✓ game-container mostrado');
         }
         
         if (mainMenu) {
             mainMenu.style.setProperty('display', 'none', 'important');
             mainMenu.style.setProperty('visibility', 'hidden', 'important');
             mainMenu.style.setProperty('pointer-events', 'none', 'important');
-            console.log('[Reconstruir] ✓ mainMenuScreen ocultado');
         }
         
         if (setupScreen) {
             setupScreen.style.setProperty('display', 'none', 'important');
-            console.log('[Reconstruir] ✓ setupScreen ocultado');
         }
         
         const tacticalUI = document.getElementById('tactical-ui-container');
         if (tacticalUI) {
             tacticalUI.style.setProperty('display', 'block', 'important');
-            console.log('[Reconstruir] ✓ tactical-ui-container mostrada');
         }
 
         logMessage(`Sincronizado. Turno: J${gameState.currentPlayer}`);
@@ -3029,7 +2940,6 @@ function reconstruirJuegoDesdeDatos(datos) {
         // Esto es necesario después de cargar una partida contra IA
         const currentPlayerType = gameState.playerTypes && gameState.playerTypes[gameState.currentPlayer];
         if (currentPlayerType === 'ai' && gameState.currentPhase === 'play') {
-            console.log(`[Reconstruir] Turno actual es de IA (J${gameState.currentPlayer}). Ejecutando turno automáticamente...`);
             
             // Delay breve para asegurar que la UI está completamente renderizada
             setTimeout(() => {
@@ -3040,7 +2950,6 @@ function reconstruirJuegoDesdeDatos(datos) {
                 }
             }, 500); // 500ms para asegurar que todo el render está completo
         } else {
-            console.log(`[Reconstruir] Turno es de jugador humano (J${gameState.currentPlayer}) o no está en fase play. No ejecutando IA.`);
         }
 
     } catch (error) { 
@@ -3053,7 +2962,6 @@ document.addEventListener('DOMContentLoaded', initApp);
 
 // En main.js (Al final del archivo, fuera de cualquier función)
 
-console.log("main.js: Archivo cargado y listo.");
 
 
 

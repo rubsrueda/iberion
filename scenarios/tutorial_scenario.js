@@ -199,9 +199,7 @@ const TUTORIAL_SCENARIO_DATA = {
 // Registrar el mapa y el escenario del tutorial en GAME_DATA_REGISTRY
 if (typeof GAME_DATA_REGISTRY !== 'undefined') {
     GAME_DATA_REGISTRY.maps[TUTORIAL_MAP_DATA.mapId] = TUTORIAL_MAP_DATA;
-    console.log(`TUTORIAL_MAP_DATA registrado en GAME_DATA_REGISTRY.maps con clave "${TUTORIAL_MAP_DATA.mapId}"`);
     GAME_DATA_REGISTRY.scenarios[TUTORIAL_SCENARIO_DATA.scenarioId] = TUTORIAL_SCENARIO_DATA;
-    console.log(`TUTORIAL_SCENARIO_DATA registrado en GAME_DATA_REGISTRY.scenarios con clave "${TUTORIAL_SCENARIO_DATA.scenarioId}"`);
 } else {
     console.error("ERROR: GAME_DATA_REGISTRY no está definido. No se pudo registrar el escenario del tutorial.");
 }

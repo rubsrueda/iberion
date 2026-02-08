@@ -2,9 +2,6 @@
 // Funciones de utilidad para pruebas y debugging
 // Ejecutar desde la consola del navegador (F12)
 
-console.log("%c=== DEBUG FUNCTIONS CARGADAS ===", 'background: #6600ff; color: #fff; font-weight: bold; padding: 10px;');
-console.log("Usa 'DebugTools.' para acceder a las funciones");
-
 const DebugTools = {
     // ===== MONEDAS =====
     

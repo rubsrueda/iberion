@@ -86,11 +86,7 @@ if (typeof GAME_DATA_REGISTRY !== 'undefined' && GAME_DATA_REGISTRY.maps) {
     // La CLAVE en el registro sigue siendo "BRITAIN_COAST_MAP"
     // El VALOR ahora es la constante BRITAIN_COAST_MAP
     GAME_DATA_REGISTRY.maps["BRITAIN_COAST_MAP"] = BRITAIN_COAST_MAP; // <<<< CAMBIO AQUÍ
-    console.log('BRITAIN_COAST_MAP registrado en GAME_DATA_REGISTRY.maps con clave "BRITAIN_COAST_MAP"');
-    console.log('REGISTRO OK: BRITAIN_COAST_MAP se ha registrado en GAME_DATA_REGISTRY.maps');
 
 } else {
     console.error("Error en tactical_britain_coast_map.js: GAME_DATA_REGISTRY o GAME_DATA_REGISTRY.maps no está definido al intentar registrar.");
 }
-
-console.log("DEFINICIÓN LOCAL: BRITAIN_COAST_MAP (constante) definido:", typeof BRITAIN_COAST_MAP);

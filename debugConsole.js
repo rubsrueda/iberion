@@ -28,8 +28,6 @@ function initDebugConsole() {
         return;
     }
 
-    console.log("DEBUG CONSOLE: Iniciando initDebugConsole() (Versión Clásica)."); 
-
     // NO NECESITAMOS ENCONTRAR gameContainer para inyectar el botón si ya está en HTML
     // const gameContainer = document.querySelector('.game-container');
     // if (!gameContainer) {
@@ -47,7 +45,6 @@ function initDebugConsole() {
         // Si el botón no existe, no podemos añadirle listeners, etc.
         return;
     }
-    console.log("DEBUG CONSOLE: Botón estático con ID 'floatingConsoleBtn' encontrado."); 
 
 
     // --- ¡ELIMINAMOS O COMENTAMOS ESTAS LÍNEAS QUE CREABAN Y ESTILIZABAN EL BOTÓN DINÁMICAMENTE! ---
@@ -92,7 +89,6 @@ function initDebugConsole() {
         console.error("DEBUG CONSOLE: CRÍTICO: Los elementos internos de la consola (output/input/contenedor) no fueron encontrados. La consola no funcionará.");
         return; // Salir si los elementos internos no se encuentran
     }
-    console.log("DEBUG CONSOLE: Elementos internos de la consola encontrados."); 
 
     // Listener para el botón de la consola (ahora usando el botón estático encontrado)
     // Asegurarse de que floatingConsoleBtn fue encontrado antes de añadir el listener

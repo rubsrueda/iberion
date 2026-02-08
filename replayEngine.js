@@ -36,8 +36,6 @@ const ReplayEngine = {
      * Inicializa el motor de replay al comenzar una partida
      */
     initialize: function(matchId, mapSeed, playersInfo) {
-        console.log('[ReplayEngine] initialize() llamado con matchId:', matchId);
-        
         let safeMatchId = matchId;
         if (!safeMatchId || typeof safeMatchId !== 'string') {
             try {
@@ -62,13 +60,10 @@ const ReplayEngine = {
                 cols: board[0]?.length || 0,
                 seed: mapSeed
             };
-            console.log('[ReplayEngine] BoardInfo capturado:', this.boardInfo);
         } else {
             this.boardInfo = { rows: 20, cols: 20, seed: null }; // Defaults
             console.warn('[ReplayEngine] Board no disponible, usando dimensiones por defecto');
         }
-        
-        console.log(`[ReplayEngine] ✅ Inicializado. isEnabled=${this.isEnabled}, matchId=${safeMatchId}, players=${this.players.length}`);
     },
 
     /**
@@ -77,8 +72,6 @@ const ReplayEngine = {
      */
     recordDeploymentSnapshot: function() {
         if (!this.isEnabled) return;
-        
-        console.log('[ReplayEngine] Capturando snapshot de despliegue...');
         
         const boardSnapshot = this._captureBoardSnapshot();
         const unitsSnapshot = this._captureUnitsSnapshot();
@@ -98,7 +91,6 @@ const ReplayEngine = {
             timestamp: Date.now()
         });
         
-        console.log('[ReplayEngine] ✅ Snapshot de despliegue capturado (completo)');
     },
 
     /**
@@ -329,7 +321,6 @@ const ReplayEngine = {
             }
         }
         
-        console.log(`[ReplayEngine] Board delta: ${delta.length}/${currentSnapshot.length} hexágonos cambiaron`);
         return delta;
     },
 
@@ -386,7 +377,6 @@ const ReplayEngine = {
             }
         }
         
-        console.log(`[ReplayEngine] Units delta: +${delta.added.length} ~${delta.modified.length} -${delta.removed.length}`);
         return delta;
     },
 
@@ -394,8 +384,6 @@ const ReplayEngine = {
      * Finaliza el registro al terminar la partida
      */
     finalize: function(winner, totalTurns) {
-        console.log('[ReplayEngine] finalize() llamado con:', { winner, totalTurns, isEnabled: this.isEnabled });
-        
         if (!this.isEnabled) {
             console.warn('[ReplayEngine] ReplayEngine NO ESTÁ HABILITADO');
             return null;
@@ -417,9 +405,6 @@ const ReplayEngine = {
         // Serializar metadata a string
         const metadataStr = JSON.stringify(metadataObj);
         
-        console.log(`[ReplayEngine] Tamaño de metadata: ${metadataStr.length} bytes`);
-        console.log(`[ReplayEngine] matchId: ${this.matchId}, timeline.length: ${this.timeline.length}`);
-        
         // Incluir logs de la crónica si están disponibles
         const chronicleLogs = (typeof Chronicle !== 'undefined' && Chronicle.getLogs) ? Chronicle.getLogs() : [];
         
@@ -429,9 +414,6 @@ const ReplayEngine = {
             timeline: this.timeline,
             chronicle_logs: chronicleLogs  // Incluir crónica para referencia
         };
-        
-        console.log(`[ReplayEngine] ✅ Replay finalizado: ${this.timeline.length} turnos registrados, ${chronicleLogs.length} eventos en crónica`);
-        console.log('[ReplayEngine] replayData completo:', replayData);
         
         this.isEnabled = false;
         return replayData;

@@ -6,7 +6,6 @@ const IASentidos = {
   // Identidad
   getPlayerIds(myPlayer) {
     const enemyPlayer = myPlayer === 1 ? 2 : 1;
-    console.log(`[IA_SENTIDOS] getPlayerIds: myPlayer=${myPlayer}, enemyPlayer=${enemyPlayer}`);
     return { myPlayer, enemyPlayer };
   },
 
@@ -18,7 +17,6 @@ const IASentidos = {
       currentPhase: gameState.currentPhase,
       gameMode: gameState.gameMode
     };
-    console.log(`[IA_SENTIDOS] getTurnInfo:`, info);
     return info;
   },
 
@@ -36,14 +34,12 @@ const IASentidos = {
     board.forEach(row => row.forEach(hex => {
       if (hex.owner === player) owned.push(hex);
     }));
-    console.log(`[IA_SENTIDOS] getOwnedHexes(${player}): ${owned.length} hexes`);
     return owned;
   },
 
   // Ciudades
   getCities(player) {
     const cities = gameState.cities.filter(c => c.owner === player);
-    console.log(`[IA_SENTIDOS] getCities(${player}): ${cities.length} ciudades`, cities.map(c => `(${c.r},${c.c})`));
     return cities;
   },
 
@@ -54,21 +50,18 @@ const IASentidos = {
   // Recursos
   getResources(player) {
     const res = gameState.playerResources[player] || {};
-    console.log(`[IA_SENTIDOS] getResources(${player}): oro=${res.oro}, comida=${res.comida}, madera=${res.madera}`);
     return res;
   },
 
   // Unidades
   getUnits(player) {
     const myUnits = units.filter(u => u.player === player && u.currentHealth > 0);
-    console.log(`[IA_SENTIDOS] getUnits(${player}): ${myUnits.length} unidades vivas`);
     return myUnits;
   },
 
   getEnemyUnits(player) {
     const enemy = player === 1 ? 2 : 1;
     const enemyUnits = units.filter(u => u.player === enemy && u.currentHealth > 0);
-    console.log(`[IA_SENTIDOS] getEnemyUnits(${player}): ${enemyUnits.length} unidades enemigas detectadas`);
     return enemyUnits;
   },
 

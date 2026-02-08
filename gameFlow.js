@@ -254,17 +254,14 @@ function handleUnitUpkeep(playerNum) {
                             
                             if (skillDef.effect.stat === 'morale') {
                                 maxMoraleBonus += bonusValue;
-                                console.log(`   [HABILIDAD] Comandante ${heroInstance.id} da +${bonusValue} a Moral Máxima por "${skillDef.name}".`);
                             } else if (skillDef.effect.stat === 'upkeep') {
                                 upkeepReductionPercent += bonusValue;
-                                console.log(`   [HABILIDAD] Comandante ${heroInstance.id} da +${bonusValue}% de Reducción de Consumo por "${skillDef.name}".`);
                             }
                         }
                     }
                 });
             }
         } else {
-            console.log("   [INFO] Sin comandante.");
         }
 
         // --- 2. LÓGICA DE MORAL Y SUMINISTRO ---
@@ -274,7 +271,6 @@ function handleUnitUpkeep(playerNum) {
         // Aplicamos bonus de comandante a la moral actual
         unit.morale = Math.max(0, unit.morale + maxMoraleBonus);
         
-        console.log(`   [MORAL] Moral al inicio del upkeep: ${unit.morale || 50}/${finalMaxMorale}.`);
 
         // Comprobación de Suministro (Regla 2: Incomunicación)
         const isSupplied = isHexSupplied(unit.r, unit.c, unit.player);
@@ -288,7 +284,6 @@ function handleUnitUpkeep(playerNum) {
             if (inFriendlyTerritory) {
                 const moraleGain = 10; // Subimos un poco la recuperación si está en casa
                 unit.morale = Math.min(finalMaxMorale, (unit.morale || 50) + moraleGain);
-                console.log(`   [MORAL] En territorio amigo y suministrado. Recupera ${moraleGain}.`);
 
                 // Si recupera suficiente moral, deja de estar desorganizada
                 if (unit.isDisorganized && unit.morale > 30) {
@@ -344,23 +339,18 @@ function handleUnitUpkeep(playerNum) {
         let unitUpkeep = 0;
         (unit.regiments || []).forEach(regiment => { unitUpkeep += REGIMENT_TYPES[regiment.type]?.cost?.upkeep || 0; });
          // Aplicar la reducción de consumo
-        console.log(`   [CONSUMO] Coste base de la división: ${unitUpkeep} oro.`);
         if (upkeepReductionPercent >= 100) {
             unitUpkeep = 0;
-            console.log(`   [CONSUMO] Reducción >= 100%. Coste final: 0 oro.`);
         } else if (upkeepReductionPercent > 0) {
             const reductionAmount = unitUpkeep * (upkeepReductionPercent / 100);
             unitUpkeep -= reductionAmount;
-            console.log(`   [CONSUMO] Reducción de ${upkeepReductionPercent}% (${reductionAmount.toFixed(2)} oro). Coste final: ${Math.max(0, unitUpkeep).toFixed(2)} oro.`);
         }
         const finalUnitUpkeep = Math.round(Math.max(0, unitUpkeep));
         totalGoldUpkeep += finalUnitUpkeep;
-        console.log(`   [CONSUMO] Coste final redondeado de esta división a sumar al total: ${finalUnitUpkeep} oro.`);
         console.groupEnd();
     });
 
     // --- 4. LÓGICA DE PAGO  ---
-    console.log(`[Upkeep] Coste TOTAL de mantenimiento para Jugador ${playerNum}: ${totalGoldUpkeep} oro.`);
     if (playerRes.oro < totalGoldUpkeep) {
         logMessage(`¡Jugador ${playerNum} no puede pagar el mantenimiento (${totalGoldUpkeep})! ¡Las tropas se desmoralizan!`, "error");
         playerUnits.forEach(unit => {
@@ -441,7 +431,6 @@ async function handleBrokenUnits(playerNum) {
 }
 
 function resetUnitsForNewTurn(playerNumber) { 
-    console.log(`%c[TurnStart] Reseteando unidades para Jugador ${playerNumber}`, "color: blue; font-weight: bold;");
     if (!units || !Array.isArray(units)) {
         console.error("[TurnStart] El array 'units' no está disponible o no es un array.");
         return;
@@ -450,7 +439,6 @@ function resetUnitsForNewTurn(playerNumber) {
     // === PROCESAR MOVIMIENTOS AUTOMÁTICOS AL INICIO DEL TURNO ===
     if (typeof AutoMoveManager !== 'undefined') {
         AutoMoveManager.processAutoMovesForCurrentPlayer().then(() => {
-            console.log("[AutoMove] Movimientos automáticos procesados");
         }).catch(err => {
             console.error("[AutoMove] Error al procesar movimientos automáticos:", err);
         });
@@ -504,7 +492,6 @@ function resetUnitsForNewTurn(playerNumber) {
                                     unit.currentMovement += bonusValue;
                                     
                                     // Log para depuración
-                                    console.log(`[Habilidad Movimiento] ${unit.name} gana +${bonusValue} de movimiento por la habilidad "${skillDef.name}". Mov. Total: ${unit.currentMovement}`);
                                 }
                             }
                         });
@@ -532,7 +519,6 @@ function handleHealingPhase(playerNum) {
     );
 
     if (divisionsWithHealers.length === 0) {
-        console.log("No se encontraron divisiones con Hospitales de Campaña.");
         console.groupEnd();
         return;
     }
@@ -540,12 +526,9 @@ function handleHealingPhase(playerNum) {
     //console.log(`[DEBUG CURACIÓN] Se encontraron ${divisionsWithHealers.length} divisiones con sanadores.`);
 
     divisionsWithHealers.forEach(healerUnit => {
-       console.log(`--- Analizando División: ${healerUnit.name} (HP Total: ${healerUnit.currentHealth}/${healerUnit.maxHealth}) ---`);
-        console.log("Estado de sus regimientos ANTES de intentar curar:");
 
         healerUnit.regiments.forEach((reg, index) => {
             const regInfo = REGIMENT_TYPES[reg.type];
-            console.log(`- Regimiento #${index}: ${reg.type} | Salud: ${reg.health} / ${regInfo.health} | ¿Dañado?: ${reg.health < regInfo.health}`);
         });
 
         const hospitalRegs = healerUnit.regiments.filter(r => REGIMENT_TYPES[r.type]?.is_healer);
@@ -555,7 +538,6 @@ function handleHealingPhase(playerNum) {
         }
 
         const totalHealPower = hospitalRegs.reduce((sum, r) => sum + (REGIMENT_TYPES[r.type]?.heal_power || 0), 0);
-        console.log(`- Contiene ${hospitalCount} hospital(es), poder de curación: ${totalHealPower}.`);
         
         const damagedRegiments = healerUnit.regiments.filter(reg => {
             const maxHealth = REGIMENT_TYPES[reg.type]?.health;
@@ -563,23 +545,19 @@ function handleHealingPhase(playerNum) {
         });
 
         if (damagedRegiments.length === 0) {
-            console.log("- No se encontraron regimientos dañados en esta división.");
             console.groupEnd();
             return;
         }
 
         if (damagedRegiments.length > 0) {
-            console.log(`%cÉXITO: Se encontraron ${damagedRegiments.length} regimientos dañados para curar.`, 'color: lightgreen;');
             // Aquí iría tu lógica de curación, que por ahora podemos omitir para centrarnos en el bug.
         } else {
             console.error(`%cFALLO: NO se encontraron regimientos dañados. La condición 'reg.health < maxHealth' falló para todos.`, 'color: red;');
         }
 
-        console.log(`- Se encontraron ${damagedRegiments.length} regimientos dañados.`);
 
         const maxTargets = hospitalCount * 2;
         const targetsToHealCount = Math.min(damagedRegiments.length, maxTargets);
-        console.log(`- Máximo objetivos: ${maxTargets}. Se curarán: ${targetsToHealCount}.`);
         
         damagedRegiments.sort((a,b) => (a.health / REGIMENT_TYPES[a.type].health) - (b.health / REGIMENT_TYPES[b.type].health));
 
@@ -592,13 +570,11 @@ function handleHealingPhase(playerNum) {
             const healthRestored = regimentToHeal.health - previousHealth;
 
             if (healthRestored > 0) {
-                console.log(`  - ¡ÉXITO! Curados ${healthRestored} HP a ${regimentToHeal.type}. Nueva salud: ${regimentToHeal.health}/${maxHealth}.`);
                 logMessage(`${healerUnit.name} cura ${healthRestored} HP al regimiento de ${regimentToHeal.type}.`);
             }
         }
         
         recalculateUnitHealth(healerUnit);
-        console.log(`- Salud total de ${healerUnit.name} actualizada a: ${healerUnit.currentHealth}.`);
         
         console.groupEnd();
     });
@@ -668,7 +644,6 @@ function collectPlayerResources(playerNum) {
             } else {
                 incomeFromHex.oro = GOLD_INCOME.PER_HEX;
             }
-            console.log(`  - Ingreso base de oro: ${incomeFromHex.oro}`);
 
             if (hex.resourceNode && RESOURCE_NODES_DATA[hex.resourceNode]) {
                 const nodeInfo = RESOURCE_NODES_DATA[hex.resourceNode];
@@ -676,7 +651,6 @@ function collectPlayerResources(playerNum) {
                 
                 if (resourceType !== 'oro') {
                     incomeFromHex[resourceType] += nodeInfo.income || 0;
-                    console.log(`  - Ingreso por nodo de '${resourceType}': +${nodeInfo.income || 0}`);
                 }
             }
 
@@ -686,21 +660,16 @@ function collectPlayerResources(playerNum) {
             if (incomeFromHex.piedra > 0 && playerTechs.includes('MASONRY')) { incomeFromHex.piedra += 1; techBonusLog += "MASONRY, "; }
             if (incomeFromHex.madera > 0 && playerTechs.includes('FORESTRY')) { incomeFromHex.madera += 1; techBonusLog += "FORESTRY, "; }
             if (incomeFromHex.comida > 0 && playerTechs.includes('SELECTIVE_BREEDING')) { incomeFromHex.comida += 1; techBonusLog += "SELECTIVE_BREEDING, "; }
-            if (techBonusLog) console.log(`  - Ingresos tras bonus de Tech (${techBonusLog}): Oro=${incomeFromHex.oro}, Hierro=${incomeFromHex.hierro}, ...`);
 
 
-            console.log("  - Aplicando multiplicadores de Estabilidad y Nacionalidad...");
             for (const res in incomeFromHex) {
                 const baseIncome = incomeFromHex[res];
                 const finalIncome = baseIncome * stabilityMultiplier * nationalityMultiplier;
-                if(finalIncome > 0) console.log(`    - Recurso '${res}': ${baseIncome.toFixed(2)} * ${stabilityMultiplier.toFixed(2)} * ${nationalityMultiplier.toFixed(2)} = ${finalIncome.toFixed(2)}`);
                 totalIncome[res] = (totalIncome[res] || 0) + finalIncome;
             }
         }); 
     });
 
-    console.log("--- Resumen de Ingresos Totales (antes de redondear) ---");
-    console.log(JSON.stringify(totalIncome, null, 2));
 
     for (const resType in totalIncome) {
         if (totalIncome[resType] > 0) {
@@ -718,7 +687,6 @@ function collectPlayerResources(playerNum) {
         logMessage(`Jugador ${playerNum} no generó ingresos este turno.`);
     }
 
-    console.log(`[RECURSOS] Fin de recolección para Jugador ${playerNum}. Recursos finales: ${JSON.stringify(playerRes)}`);
     console.groupEnd();
 }
 
@@ -863,7 +831,6 @@ function updateFogOfWar() {
 function checkVictory() {
 
     // PUNTO DE CONTROL A: Entrada al árbitro
-    console.log("%c[AUDITORÍA] checkVictory() ejecutándose...", "color: #00f3ff; font-weight: bold;");
 
     // --- PUENTE DE COMPATIBILIDAD ESCARAMUZA/CAMPAÑA ---
     // Buscamos la capital de J1
@@ -878,20 +845,15 @@ function checkVictory() {
     const eCapC = eCap?.c;
     
     if (pCap && board[pCap.r] && board[pCap.r][pCap.c]) {
-        console.log(`[OJO-CAPITAL] J1 Capital en (${pCap.r},${pCap.c}) | Dueño real: ${board[pCap.r][pCap.c].owner}`);
     } else {
-        console.log("[OJO-CAPITAL] J1 Capital: No definida en MapData");
     }
 
     if (eCap && board[eCap.r] && board[eCap.r][eCap.c]) {
-        console.log(`[OJO-CAPITAL] J2 Capital en (${eCap.r},${eCap.c}) | Dueño real: ${board[eCap.r][eCap.c].owner}`);
     } else {
-        console.log("[OJO-CAPITAL] J2 Capital: No definida en MapData");
     }
 
     const p1Units = units.filter(u => u.player === 1 && u.currentHealth > 0).length;
     const p2Units = units.filter(u => u.player === 2 && u.currentHealth > 0).length;
-    console.log(`[OJO-UNIDADES] Vivas -> J1: ${p1Units}, J2: ${p2Units}`);
     // --- FIN DEL BLOQUE DE OJO DE DATOS ---
 
    if (gameState.isTutorialActive) {
@@ -906,10 +868,8 @@ function checkVictory() {
     // 1. Verificación por Capital (Usando las coordenadas del log)
     if (eCapR !== undefined && eCapC !== undefined) {
         if (board[eCapR][eCapC].owner === 1) {
-            console.log("[VEREDICTO] Victoria J1: Capital enemiga capturada.");
             winner = 1;
         } else if (board[pCapR][pCapC].owner === 2) {
-            console.log("[VEREDICTO] Victoria J2: Capital aliada perdida.");
             winner = 2;
         }
     }
@@ -917,10 +877,8 @@ function checkVictory() {
     // 2. Verificación por Eliminación (Si no hay ganador por capital aún)
     if (!winner) {
         if (p1Units > 0 && p2Units === 0) {
-            console.log("[VEREDICTO] Victoria J1: Enemigo aniquilado.");
             winner = 1;
         } else if (p2Units > 0 && p1Units === 0) {
-            console.log("[VEREDICTO] Victoria J2: Ejercito aliado destruido.");
             winner = 2;
         }
     }
@@ -949,7 +907,6 @@ function checkVictory() {
         if (winner) { // Si ya ganó el jugador
 
             // PUNTO DE CONTROL B1: Victoria detectada por Capital o Eliminación
-            console.log(`%c[AUDITORÍA] ¡GANADOR DETECTADO! J${winner}. Procediendo a llamar endTacticalBattle.`, "color: #2ecc71; font-weight: bold;");
             endTacticalBattle(winner);
             return true;
         }
@@ -1048,7 +1005,6 @@ async function endTacticalBattle(winningPlayerNumber) {
     }
 
     // PUNTO DE CONTROL C: Inicio del cierre
-    console.log(`%c[AUDITORÍA] >>> ENTRANDO EN endTacticalBattle con ganador: J${winningPlayerNumber}`, "background: #fff; color: #000; font-weight: bold;");
 
     // --- PROGRESO ---
     PlayerDataManager.processEndGameProgression(winningPlayerNumber);
@@ -1062,7 +1018,6 @@ async function endTacticalBattle(winningPlayerNumber) {
     // --- LIMPIEZA DE PARTIDA ONLINE (CORRECCIÓN ZOMBIS) ---
     // Si la partida tiene ID de red, la borramos de la lista de activas al terminar
     if (typeof NetworkManager !== 'undefined' && NetworkManager.miId) {
-        console.log(`[Fin Partida] Eliminando partida ${NetworkManager.miId} de la lista de activas...`);
         // Usamos replace para quitar el prefijo si lo tiene y limpiar la DB
         const cleanId = NetworkManager.miId.replace('hge-', ''); 
         const { error } = await supabaseClient
@@ -1071,7 +1026,6 @@ async function endTacticalBattle(winningPlayerNumber) {
             .eq('match_id', cleanId);
             
         if(error) console.error("Error al limpiar partida de la nube:", error);
-        else console.log("Partida limpiada de la nube correctamente.");
     }
     // -----------------------------------------------------
 
@@ -1153,7 +1107,6 @@ async function endTacticalBattle(winningPlayerNumber) {
         // PASO CLAVE: Asegurar que los datos del pase están cargados antes de sumar
         // Si no hacemos esto, userProgress es null y la XP se pierde.
         if (!BattlePassManager.userProgress) {
-            console.log("[XP Fix] Cargando datos del Pase de Batalla en segundo plano...");
             // Nota: loadAllData es async, pero no podemos detener endTacticalBattle demasiado tiempo.
             // Usamos .then() para procesar la recompensa cuando los datos lleguen.
             BattlePassManager.loadAllData().then(() => {
@@ -1173,7 +1126,6 @@ async function endTacticalBattle(winningPlayerNumber) {
     let replayData = null;
     if (typeof ReplayIntegration !== 'undefined') {
         replayData = await ReplayIntegration.finishGameRecording(winningPlayerNumber, gameState.turnNumber);
-        console.log('[endTacticalBattle] Replay guardado:', replayData ? 'exitoso' : 'fallido');
         
         // Mostrar notificación con link al replay
         if (replayData && typeof ChronicleIntegration !== 'undefined') {
@@ -1185,13 +1137,11 @@ async function endTacticalBattle(winningPlayerNumber) {
     // <<== FINALIZAR ESTADÍSTICAS ==>>
     if (typeof StatTracker !== 'undefined') {
         const gameStats = StatTracker.finalize(gameState.winner);
-        console.log('[endTacticalBattle] Estadísticas finalizadas:', gameStats ? 'exitoso' : 'fallido');
         // La crónica se abrirá DESPUÉS que el usuario cierre el modal de resultados
         // (desde showPostMatchSummary en uiUpdates.js)
     }
     
     if (PlayerDataManager.currentPlayer && typeof saveGameUnified === 'function') {
-        console.log("[GameFlow] Guardando partida (sistema unificado)...");
         
         // El autosave toma un nombre genérico - UPSERT lo sobrescribe si existe
         // Así no se acumulan autosaves, solo se guarda el más reciente
@@ -1200,7 +1150,6 @@ async function endTacticalBattle(winningPlayerNumber) {
         saveGameUnified(autoSaveName, true)
             .then(success => {
                 if (success) {
-                    console.log("[GameFlow] Partida guardada exitosamente (unificado)");
                 } else {
                     console.warn("[GameFlow] Error al guardar partida en autosave unificado");
                 }
@@ -1210,7 +1159,6 @@ async function endTacticalBattle(winningPlayerNumber) {
     
     // Sincronización con la nube al terminar
     if (PlayerDataManager.currentPlayer) {
-        console.log("Sincronizando progreso post-batalla...");
         PlayerDataManager.saveCurrentPlayer();
     }
 
@@ -1233,7 +1181,6 @@ function _processBattlePassRewards(isWinner) {
     // Bonus: +5 por kill
     battlePassXp += (myKills * 5);
 
-    console.log(`[BP Reward] Otorgando ${battlePassXp} XP al Pase (Winner: ${isWinner}, Kills: ${myKills})`);
 
     // 2. Sumar XP
     BattlePassManager.addMatchXp(battlePassXp).then(res => {
@@ -1249,7 +1196,6 @@ function _processBattlePassRewards(isWinner) {
                 }
                 showToast(msg, res.levelsGained > 0 ? "success" : "warning", 4000); 
             }
-            console.log(`[BP] XP aplicado correctamente. Nivel actual: ${res.currentLevel}, XP ganado: ${res.xpAdded}`);
         } else {
             console.warn(`[BP] Error al aplicar XP:`, res?.error || 'Unknown');
         }
@@ -1269,12 +1215,10 @@ function _processBattlePassRewards(isWinner) {
  */
 function simpleAiDeploymentTurn() {
     const aiPlayerNumber = gameState.currentPlayer;
-    console.log(`[simpleAiDeploymentTurn] INICIO para Jugador IA ${aiPlayerNumber}.`);
 
     const useArchipelagoDeployment = gameState.gameMode === 'invasion' || !!gameState.setupTempSettings?.navalMap;
 
     if (useArchipelagoDeployment && typeof IAArchipielago !== 'undefined' && typeof IAArchipielago.deployUnitsAI === 'function') {
-        console.log(`[simpleAiDeploymentTurn] Usando IA_ARCHIPIELAGO para despliegue (gameMode=${gameState.gameMode}, navalMap=${gameState.setupTempSettings?.navalMap})`);
         IAArchipielago.deployUnitsAI(aiPlayerNumber);
         return;
     }
@@ -1289,9 +1233,6 @@ function simpleAiDeploymentTurn() {
 }
 
 function simpleAiTurn() {
-    console.log(`[simpleAiTurn] INICIO para Jugador IA ${gameState.currentPlayer}.`);
-    console.log(`[simpleAiTurn] DEBUG - setupTempSettings:`, gameState.setupTempSettings);
-    console.log(`[simpleAiTurn] DEBUG - navalMap:`, gameState.setupTempSettings?.navalMap);
     const aiPlayerIdString = `player${gameState.currentPlayer}`;
     const aiActualPlayerNumber = gameState.currentPlayer;
     const aiLevel = gameState.playerAiLevels?.[aiPlayerIdString] || 'normal';
@@ -1315,7 +1256,6 @@ function simpleAiTurn() {
     const isArchipelago = !!gameState.setupTempSettings?.navalMap;
     if (isArchipelago && typeof IAArchipielago !== 'undefined' && typeof IAArchipielago.ejecutarTurno === 'function') {
         logMessage(`IA (Jugador ${aiActualPlayerNumber}) inicia su turno en Archipiélago... (IAArchipielago)`);
-        console.log(`[simpleAiTurn] Detectado mapa Archipiélago (navalMap=${gameState.setupTempSettings.navalMap}), usando IAArchipielago`);
         IAArchipielago.ejecutarTurno(aiActualPlayerNumber);
         return;
     }
@@ -1423,7 +1363,6 @@ function moveToNextTutorialStep() {
 
     if (currentTutorialStepIndex < steps.length) {
         const currentStep = steps[currentTutorialStepIndex];
-        console.log(`%c[Tutorial] Nuevo paso: ${currentStep.id}`, "color: blue; font-weight: bold;");
 
         // Reiniciar la variable de la última unidad movida para la validación del siguiente paso.
         if (gameState.tutorial) gameState.tutorial.lastMovedUnitId = null;
@@ -1489,7 +1428,6 @@ function moveToNextTutorialStep() {
 }
 
 function updateTerritoryMetrics(playerEndingTurn) {
-    console.log(`%c[Metrics v11] INICIO para turno que finaliza J${playerEndingTurn}`, "color: #00BFFF; font-weight: bold;");
 
     for (let r = 0; r < board.length; r++) {
         for (let c = 0; c < board[r].length; c++) {
@@ -1511,7 +1449,6 @@ function updateTerritoryMetrics(playerEndingTurn) {
 
                         // Si la nacionalidad llega a 0, se produce la conquista.
                         if (hex.nacionalidad[originalOwner] === 0) {
-                            console.log(`%cHex (${r},${c}): ¡CONQUISTADO por J${unitOnHex.player}!`, 'color: orange; font-weight:bold;');
                             hex.owner = unitOnHex.player;
                             hex.nacionalidad[unitOnHex.player] = 1;
 
@@ -1532,7 +1469,6 @@ function updateTerritoryMetrics(playerEndingTurn) {
                         }
                     }
                 } else {
-                     console.log(`Hex (${r},${c}): Ocupado por enemigo, pero Estabilidad (${hex.estabilidad}) es muy baja para afectar la nacionalidad.`);
                 }
             }
 
@@ -1563,7 +1499,6 @@ function updateTerritoryMetrics(playerEndingTurn) {
             }
         }
     }
-    console.log(`%c[Metrics v11] FIN`, "color: #00BFFF; font-weight: bold;");
 }
 
 function calculateTradeIncome(playerNum) {
@@ -1744,7 +1679,6 @@ function requestChangeCapital(r, c) {
 
     // --- ACCIÓN DE RED (si aplica) ---
     if (isNetworkGame()) { // Asumiendo que isNetworkGame() es una función útil de networkManager.js
-        console.log(`[Capital Change - Network] Solicitando cambio de capital a (${r},${c}) para J${currentPlayer}.`);
         const action = {
             type: 'changeCapital',
             payload: {
@@ -1761,7 +1695,6 @@ function requestChangeCapital(r, c) {
         }
     } else {
         // --- ACCIÓN LOCAL ---
-        console.log(`[Capital Change - Local] Ejecutando cambio de capital a (${r},${c}) para J${currentPlayer}.`);
         handleChangeCapital(r, c);
     }
     
@@ -1796,7 +1729,6 @@ function handleChangeCapital(r, c) {
         if (oldCapitalData) {
             oldCapitalData.isCapital = false;
         }
-        console.log(`[Capital Change] Capital antigua en (${oldR},${oldC}) desmarcada.`);
         if (typeof renderSingleHexVisuals === "function") renderSingleHexVisuals(oldR, oldC);
     }
     // Si no la encontramos en gameState.cities, como fallback, la buscamos en el tablero (tu código anterior).
@@ -1806,7 +1738,6 @@ function handleChangeCapital(r, c) {
                 if (hex && hex.owner === currentPlayer && hex.isCapital) {
                     oldCapitalData = hex;
                     oldCapitalData.isCapital = false;
-                    console.log(`[Capital Change] Capital antigua en (${hex.r},${hex.c}) desmarcada (encontrada por fallback).`);
                     if (typeof renderSingleHexVisuals === "function") renderSingleHexVisuals(hex.r, hex.c);
                     break;
                 }
@@ -1836,7 +1767,6 @@ function handleChangeCapital(r, c) {
             name: targetHexData.structure || 'Nueva Ciudad',
             isCapital: true 
         });
-        console.log(`[Capital Change] La nueva capital (${r},${c}) fue añadida a gameState.cities.`);
     }
 
     if (gameState.capitalCityId) {
@@ -2026,13 +1956,11 @@ async function handleEndTurn(isHostProcessing = false) {
                 const boardCopy = board.map(row => [...row]);
                 const unitsCopy = units.map(u => ({...u}));
                 ReplayEngine.initialize(gameState, boardCopy, unitsCopy);
-                console.log('[GameFlow] ReplayEngine inicializado al comenzar la partida');
             }
             
             // ⭐ NUEVO: Capturar snapshot de deployment al finalizar la fase
             if (typeof ReplayIntegration !== 'undefined' && ReplayIntegration.recordDeploymentPhaseEnd) {
                 ReplayIntegration.recordDeploymentPhaseEnd();
-                console.log('[GameFlow] ✅ Snapshot de deployment capturado');
             }
             
             // Importante: Resetear unidades para el combate
@@ -2163,7 +2091,6 @@ async function handleEndTurn(isHostProcessing = false) {
 
     // 1. GUARDADO EN NUBE (Si tenemos un ID de partida activo)
     if (typeof NetworkManager !== 'undefined' && NetworkManager.miId) {
-        console.log("[Turno] Guardando estado en la nube...");
         await NetworkManager.subirTurnoANube(); 
     }
 
@@ -2197,7 +2124,6 @@ async function handleEndTurn(isHostProcessing = false) {
         const gameName = `Partida Completada ${new Date().toLocaleDateString('es-ES')}`;
         saveGameUnified(gameName, false)
             .then(() => {
-                console.log("[GameFlow] Partida guardada tras finalizar");
                 // Mostrar opción de replay
                 if (typeof GameHistoryManager !== 'undefined' && GameHistoryManager.open) {
                     setTimeout(() => {
@@ -2212,7 +2138,6 @@ async function handleEndTurn(isHostProcessing = false) {
     
     if (isNextPlayerAI && gameState.currentPhase !== "gameOver") {
         // --- TURNO DE IA ---
-        console.log(`[handleEndTurn] Turno de IA detectado. Jugador: ${gameState.currentPlayer}, Fase: ${gameState.currentPhase}`);
         if (checkVictory && checkVictory()) return;
         
         const turnBlocker = document.getElementById('turnBlocker');
@@ -2222,7 +2147,6 @@ async function handleEndTurn(isHostProcessing = false) {
         }
         setTimeout(async () => {
             const playerNumberForAI = gameState.currentPlayer;
-            console.log(`[handleEndTurn.setTimeout] Ejecutando IA para jugador ${playerNumberForAI}`);
             if (gameState.currentPhase === 'deployment') await simpleAiDeploymentTurn(playerNumberForAI);
             else await simpleAiTurn(playerNumberForAI); 
         }, 700);
@@ -2235,7 +2159,6 @@ async function handleEndTurn(isHostProcessing = false) {
                 
                 // Validación estricta para evitar NaN o errores
                 if (duration && duration !== Infinity && typeof duration === 'number') {
-                    console.log(`[Timer] Iniciando nuevo turno: ${duration}s`);
                     if(typeof TurnTimerManager !== 'undefined') TurnTimerManager.start(duration);
                 } else {
                     // Si es infinito, aseguramos que se pare cualquier reloj previo
@@ -2392,7 +2315,6 @@ function updateTradeRoutes(playerNum) {
             if (finalCoords) {
                 unit.r = finalCoords.r;
                 unit.c = finalCoords.c;
-                console.log(`[TradeRoute] ${unit.name} movida de (${oldR},${oldC}) a (${unit.r},${unit.c}), position=${unit.tradeRoute.position}/${unit.tradeRoute.path.length}`);
             } else {
                 console.warn(`[TradeRoute] ADVERTENCIA: finalCoords es undefined para ${unit.name} en position ${unit.tradeRoute.position}`);
                 // Restaurar posición original si no hay coordenadas válidas
@@ -2527,7 +2449,6 @@ function calculateVictoryPoints() {
         players.forEach(p => {
             const pKey = `player${p}`;
             const currentScore = vp[pKey] || 0;
-            console.log(`[AUDITORÍA] Puntos de J${p}: ${currentScore} / Objetivo: ${victoryThreshold}`);
             
             if (currentScore >= victoryThreshold) {
                 console.log(`%c[AUDITORÍA] ¡Victoria por ${victoryThreshold} puntos alcanzada por J${p}! Llamando a endTacticalBattle.`, "color: #f1c40f; font-weight: bold;");

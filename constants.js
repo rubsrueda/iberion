@@ -501,12 +501,12 @@ const INVASION_MODE_CONFIG = {
         madera: 800,
         piedra: 400,
         hierro: 300,
-        researchPoints: 50
+        researchPoints: 100
     },
     
     // Ciudades iniciales
     ATTACKER_CITIES: 1,     // Solo ciudad base (punto de invasión)
-    DEFENDER_CITIES: 6,     // Múltiples ciudades en territorio
+    DEFENDER_CITIES: 3,     // Múltiples ciudades en territorio
     
     // Restricciones de deployment
     DEPLOYMENT_RADIUS: 1,   // Radio de despliegue desde ciudad base (atacante)

@@ -3,7 +3,6 @@
 
 const IATactica = {
   detectarFrente(myPlayer, contactRange = 2) {
-    console.log(`[IA_TACTICA] detectarFrente(${myPlayer}, contactRange=${contactRange}) INICIO`);
     const enemyPlayer = myPlayer === 1 ? 2 : 1;
     const misUnidades = IASentidos.getUnits(myPlayer);
     const unidadesEnemigas = IASentidos.getUnits(enemyPlayer);
@@ -16,26 +15,23 @@ const IATactica = {
         }
       }
     }
-    console.log(`[IA_TACTICA] Frente detectado: ${frente.length} puntos de contacto`);
     return frente;
   },
 
   detectarAmenazasSobreObjetivos(myPlayer, objetivos, threatRange = 3) {
-    console.log(`[IA_TACTICA] detectarAmenazasSobreObjetivos(${myPlayer}, ${objetivos.length} objetivos, threatRange=${threatRange})`);
     const enemyPlayer = myPlayer === 1 ? 2 : 1;
     const amenazas = units.filter(u =>
       u.player === enemyPlayer &&
       u.currentHealth > 0 &&
       objetivos.some(o => hexDistance(u.r, u.c, o.r, o.c) <= threatRange)
     );
-    console.log(`[IA_TACTICA] Amenazas detectadas: ${amenazas.length} unidades enemigas cerca de objetivos`);
     return amenazas;
   },
 
   evaluarDefensaHex(r, c) {
     const hex = board[r]?.[c];
     if (!hex) {
-      console.log(`[IA_TACTICA] evaluarDefensaHex(${r},${c}): hex no existe`);
+      console.warn(`[IA_TACTICA] evaluarDefensaHex(${r},${c}): hex no existe`);
       return 0;
     }
     let score = 1.0;
@@ -47,7 +43,6 @@ const IATactica = {
     if (hex.structure === 'Campamento') score += 1.0;
     if (hex.isCity) score += 1.5;
     if (hex.isCapital) score += 2.0;
-    console.log(`[IA_TACTICA] evaluarDefensaHex(${r},${c}): score=${score.toFixed(1)}, terrain=${hex.terrain}, structure=${hex.structure}`);
     return score;
   },
 
@@ -56,11 +51,8 @@ const IATactica = {
    */
   organizarFrente(myPlayer, unidades, frente) {
     if (frente.length === 0) {
-      console.log(`[IA_TACTICA] organizarFrente: No hay frente que organizar`);
       return;
     }
-
-    console.log(`[IA_TACTICA] organizarFrente: Organizando ${frente.length} puntos de frente`);
     
     for (const pf of frente) {
       // Buscar punto de defensa cercano (colinas, bosque)
@@ -68,8 +60,6 @@ const IATactica = {
       
       if (defendersNearby.length > 0) {
         const mejorDefensor = defendersNearby[0];
-        console.log(`[IA_TACTICA] Posicionando defensor en frente (${pf.r},${pf.c})`);
-        
         // Mover hacia el punto de frente
         if (typeof _executeMoveUnit === 'function') {
           _executeMoveUnit(mejorDefensor, pf.r, pf.c, true);
@@ -91,7 +81,6 @@ const IATactica = {
       }
     }
     
-    console.log(`[IA_TACTICA] identificarPuntosDebiles: ${puntosDebiles.length} puntos débiles detectados`);
     return puntosDebiles;
   }
 };

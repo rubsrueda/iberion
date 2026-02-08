@@ -47,7 +47,6 @@ const ReplayUI = {
 
         // ⭐ NUEVO: Si no hay boardData, intentar reconstruir desde metadata
         if (!boardData) {
-            console.log('[ReplayUI] boardData es null, intentando reconstruir desde metadata...');
             boardData = this._reconstructBasicBoard(replayData);
         }
 
@@ -67,7 +66,6 @@ const ReplayUI = {
                 
                 if (this.renderer && typeof this.renderer.initialize === 'function') {
                     this.renderer.initialize(canvas, replayData, boardData);
-                    console.log('[ReplayUI] Renderer inicializado correctamente con', replayData.timeline?.length || 0, 'turnos');
                 } else {
                     console.error('[ReplayUI] ReplayRenderer no tiene método initialize');
                     alert('Error: El renderizador no está configurado correctamente.');
@@ -93,7 +91,6 @@ const ReplayUI = {
         // Configurar controles
         try {
             this.setupControls();
-            console.log('[ReplayUI] Controles configurados exitosamente');
         } catch (err) {
             console.error('[ReplayUI] Error al configurar controles:', err);
             alert('Error al configurar controles: ' + err.message);
@@ -105,15 +102,12 @@ const ReplayUI = {
             this.showLegend();
         }, 500);
 
-        console.log('[ReplayUI] Modal abierto exitosamente');
     },
 
     /**
      * ⭐ NUEVO: Reconstruye un board básico desde metadata para visualización
      */
     _reconstructBasicBoard: function(replayData) {
-        console.log('[ReplayUI] Reconstruyendo board básico desde metadata...');
-        
         try {
             // Parsear metadata si es string
             let metadata = replayData.metadata;
@@ -125,8 +119,6 @@ const ReplayUI = {
             const boardInfo = metadata.b || { rows: 20, cols: 20 };
             const rows = boardInfo.rows || 20;
             const cols = boardInfo.cols || 20;
-            
-            console.log(`[ReplayUI] Creando board básico de ${rows}x${cols}`);
             
             // Crear array 2D básico
             const basicBoard = [];
@@ -145,13 +137,11 @@ const ReplayUI = {
                 }
             }
             
-            console.log('[ReplayUI] ✅ Board básico reconstruido exitosamente');
             return basicBoard;
             
         } catch (err) {
             console.error('[ReplayUI] Error reconstruyendo board:', err);
             // Fallback: board 20x20
-            console.log('[ReplayUI] Usando board por defecto 20x20');
             const defaultBoard = [];
             for (let r = 0; r < 20; r++) {
                 defaultBoard[r] = [];
@@ -248,7 +238,6 @@ const ReplayUI = {
             });
         }
 
-        console.log('[ReplayUI.setupControls] Controles configurados correctamente');
     },
 
     /**

@@ -1,10 +1,7 @@
 // gachaManager.js
-console.log("gachaManager.js CARGADO - Motor del sistema de Deseos listo.");
-
 const GachaManager = {
 
     init: function() {
-        console.log("GachaManager: Inicializando pools de héroes...");
         const pools = {
             COMUN: [],
             RARO: [],
@@ -23,7 +20,6 @@ const GachaManager = {
             }
         }
         GACHA_CONFIG.HERO_POOLS_BY_RARITY = pools;
-        console.log("Gacha Hero Pools inicializados con éxito.", GACHA_CONFIG.HERO_POOLS_BY_RARITY);
     },
 
     executeWish: function(bannerId, pullCount) {
@@ -41,13 +37,11 @@ const GachaManager = {
             let result;
 
             if (player.gacha_state.pulls_since_last_legendary >= GACHA_CONFIG.PITY_LEGENDARY) {
-                console.log("%c[PITY SYSTEM] ¡Legendario garantizado!", "color: gold; font-weight: bold;");
                 result = this._getReward('LEGENDARIO', bannerId);
                 player.gacha_state.pulls_since_last_legendary = 0;
                 player.gacha_state.pulls_since_last_epic = 0;
             } 
             else if (pullCount === 10 && player.gacha_state.pulls_since_last_epic >= GACHA_CONFIG.PITY_EPIC) {
-                console.log("%c[PITY SYSTEM] ¡Épico garantizado en tirada de 10!", "color: mediumpurple; font-weight: bold;");
                 result = this._rollOnBanner(bannerId, true); 
                 if (result.rarity === 'LEGENDARIO') {
                     player.gacha_state.pulls_since_last_legendary = 0;
@@ -84,8 +78,6 @@ const GachaManager = {
     _rollOnBanner: function(bannerId, forceAtLeastEpic = false) {
         const odds = GACHA_CONFIG.COMMON_BANNER_ODDS;
         const roll = Math.random() * 100;
-
-        console.log(`[Gacha Roll] Tirada: ${roll.toFixed(2)} | Odds: L=${odds.LEGENDARIO}, E=${odds.EPICO}, R=${odds.RARO}, C=${odds.COMUN}`);
         
         let rarity;
 
@@ -114,7 +106,6 @@ const GachaManager = {
     // Ahora 'cleanRarity' será siempre: COMUN, RARO, EPICO o LEGENDARIO
 
     const typeRoll = Math.random() * 100;
-    console.log(`[GACHA] Roll: ${typeRoll.toFixed(1)} para Rareza: ${cleanRarity}`);
 
     // 40% de probabilidad de dar fragmentos de FORJA (Equipo)
     if (typeRoll < 40) {
@@ -130,7 +121,6 @@ const GachaManager = {
             else if (cleanRarity === "EPICO") qty = Math.floor(Math.random() * 2) + 1;
 
             PlayerDataManager.addEquipmentFragments(item.id, qty);
-            console.log(`🎁 EQUIPO: ${qty} frags de ${item.name}`);
             return { type: 'equipment_fragments', item: item, rarity: rarity, fragments: qty };
         }
     }
@@ -141,7 +131,6 @@ const GachaManager = {
     const fragments = GACHA_CONFIG.FRAGMENTS_PER_PULL[cleanRarity] ? GACHA_CONFIG.FRAGMENTS_PER_PULL[cleanRarity][0] : 10;
 
     PlayerDataManager.addFragmentsToHero(randomHeroId, fragments);
-    console.log(`👤 HÉROE: ${fragments} frags de ${randomHeroId}`);
     return { type: 'fragments', heroId: randomHeroId, rarity: rarity, fragments: fragments };
 }
 };

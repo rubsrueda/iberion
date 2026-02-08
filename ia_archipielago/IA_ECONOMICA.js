@@ -3,7 +3,6 @@
 
 const IAEconomica = {
   evaluarEconomia(myPlayer) {
-    console.log(`[IA_ECONOMICA] evaluarEconomia(${myPlayer}) INICIO`);
     const recursos = IASentidos.getResources(myPlayer);
     const economia = {
       oro: recursos.oro || 0,
@@ -14,12 +13,10 @@ const IAEconomica = {
       researchPoints: recursos.researchPoints || 0,
       puntosReclutamiento: recursos.puntosReclutamiento || 0
     };
-    console.log(`[IA_ECONOMICA] Economía evaluada:`, economia);
     return economia;
   },
 
   contarRecursosEnMapa(myPlayer) {
-    console.log(`[IA_ECONOMICA] contarRecursosEnMapa(${myPlayer}) INICIO`);
     const owned = IASentidos.getOwnedHexes(myPlayer);
     const nodes = owned.filter(h => h.resourceNode);
     const byType = {};
@@ -27,12 +24,10 @@ const IAEconomica = {
       byType[n.resourceNode] = (byType[n.resourceNode] || 0) + 1;
     });
     const result = { total: nodes.length, byType };
-    console.log(`[IA_ECONOMICA] Recursos en mapa:`, result);
     return result;
   },
 
   detectarRecursosVulnerables(enemyPlayer, maxGuards = 1, guardRange = 4) {
-    console.log(`[IA_ECONOMICA] detectarRecursosVulnerables(${enemyPlayer}, maxGuards=${maxGuards}, guardRange=${guardRange})`);
     const vulnerables = [];
     board.forEach(row => row.forEach(hex => {
       if (!hex.resourceNode || hex.owner !== enemyPlayer) return;
@@ -41,7 +36,6 @@ const IAEconomica = {
         vulnerables.push({ r: hex.r, c: hex.c, resourceNode: hex.resourceNode, guards: guards.length });
       }
     }));
-    console.log(`[IA_ECONOMICA] Recursos vulnerables encontrados: ${vulnerables.length}`, vulnerables);
     return vulnerables;
   }
 };

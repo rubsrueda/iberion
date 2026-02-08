@@ -26,8 +26,6 @@ const Chronicle = {
             if (typeof logToConsole === 'function') {
                 logToConsole(message, 'chronicle');
             }
-            // También lo mandamos a la consola del navegador para un registro persistente.
-            console.log(`[CRÓNICA] ${message}`);
         }
     },
 

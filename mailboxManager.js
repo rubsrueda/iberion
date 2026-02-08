@@ -1,6 +1,4 @@
 // mailboxManager.js
-console.log("mailboxManager.js CARGADO - Sistema de Buzón del General listo.");
-
 // Base de datos de ejemplo. En un juego real, esto vendría de un servidor.
 const INBOX_DATA = {
     missions: [

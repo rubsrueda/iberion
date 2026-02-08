@@ -29,9 +29,6 @@ const PlayerDataManager = {
             redirectUrl = window.location.origin + '/iberion/';
         }
         
-        console.log('🔐 Iniciando login con Google...');
-        console.log('📍 Hostname:', window.location.hostname);
-        console.log('📍 Redirect URL configurada:', redirectUrl);
 
         const { data, error } = await supabaseClient.auth.signInWithOAuth({
             provider: 'google',
@@ -44,15 +41,12 @@ const PlayerDataManager = {
         if (error) {
             console.error('❌ Error OAuth:', error);
             logMessage("Error al conectar con Google: " + error.message, "error");
-        } else {
-            console.log('✅ Redirigiendo a Google para autenticación...');
         }
     },
 
     // respuesta de Google y manejo de OAuth callback
     initAuthListener: function() {
         if (this.authInitialized) {
-            console.log('⚠️  Auth listener ya inicializado, ignorando...');
             return;
         }
         this.authInitialized = true;
@@ -62,7 +56,6 @@ const PlayerDataManager = {
         const accessToken = hashParams.get('access_token');
         
         if (accessToken) {
-            console.log('🔑 Token OAuth detectado en URL, procesando callback...');
             window.oauthCallbackDetected = true; // Flag global para main.js
             // Limpiar el hash de la URL después de procesar
             setTimeout(() => {
@@ -71,8 +64,6 @@ const PlayerDataManager = {
         }
         
         supabaseClient.auth.onAuthStateChange(async (event, session) => {
-            console.log("🔔 Evento Supabase:", event, "| Processing:", this.isProcessingAuth);
-
             // Manejar cierre de sesión
             if (event === 'SIGNED_OUT') {
                 console.log('🚪 Usuario desconectado');
@@ -89,12 +80,10 @@ const PlayerDataManager = {
             if (session && session.user && !this.isProcessingAuth) {
                 this.isProcessingAuth = true;
                 const userId = session.user.id;
-                console.log('👤 Usuario autenticado:', session.user.email);
 
                 // 🛡️ ESCUDO: Si ya tenemos el jugador cargado y es el mismo ID,
                 // NO descargues nada de la nube. Deja que el flujo local mande.
                 if (this.currentPlayer && this.currentPlayer.auth_id === userId) {
-                    console.log("⚡ Usuario ya cargado en memoria, usando datos locales.");
                     this.isProcessingAuth = false;
                     if (typeof showMainMenu === 'function') {
                         showMainMenu();
@@ -103,7 +92,6 @@ const PlayerDataManager = {
                 }
 
                 // Solo entramos aquí si es la PRIMERA vez que carga o si no hay datos en memoria
-                console.log("Carga inicial o cambio de usuario. Buscando perfil...");
                 const { data: profile } = await supabaseClient
                     .from('profiles')
                     .select('profile_data')
@@ -113,7 +101,6 @@ const PlayerDataManager = {
                 if (profile && profile.profile_data) {
                     this.currentPlayer = profile.profile_data;
                     this.currentPlayer.auth_id = userId;
-                    console.log("✅ Perfil recuperado de la nube correctamente.");
                     
                     // Verificar recompensas pendientes de raids
                     if (typeof RaidManager !== 'undefined' && RaidManager.checkPendingRewards) {
@@ -124,15 +111,11 @@ const PlayerDataManager = {
                         }, 2000); // Esperar 2s para que todo se cargue
                     }
                 } else {
-                    console.log("Creando nuevo perfil de General...");
                     const username = session.user.email.split('@')[0];
                     this.currentPlayer = this.createNewPlayer(username, "google-auth");
                     this.currentPlayer.auth_id = userId;
                     await this.saveCurrentPlayer();
-                    console.log("✅ Nuevo perfil creado en la nube.");
                 }
-
-                console.log('✅ Autenticación completada, cerrando login y mostrando menú...');
                 
                 // Ocultar pantalla de login si está visible
                 if (typeof domElements !== 'undefined' && domElements.loginScreen) {
@@ -150,7 +133,6 @@ const PlayerDataManager = {
                 // Si hay un replay pendiente para ver (compartido por otro jugador)
                 const pendingReplayToken = sessionStorage.getItem('pendingReplayToken');
                 if (pendingReplayToken) {
-                    console.log('[PlayerDataManager] Procesando deep link para replay:', pendingReplayToken);
                     sessionStorage.removeItem('pendingReplayToken');
                     
                     // Esperar un poco para que el menú esté listo
@@ -160,7 +142,6 @@ const PlayerDataManager = {
                             if (typeof ReplayStorage !== 'undefined' && ReplayStorage.loadSharedReplay) {
                                 const replayData = await ReplayStorage.loadSharedReplay(pendingReplayToken);
                                 if (replayData) {
-                                    console.log('[PlayerDataManager] Replay cargado exitosamente:', replayData.match_id);
                                     // Abrir el visor de replay
                                     if (typeof ReplayUI !== 'undefined' && ReplayUI.openReplayModal) {
                                         ReplayUI.openReplayModal(replayData, null);
@@ -181,7 +162,6 @@ const PlayerDataManager = {
                 }
             } else if (!session && event === 'INITIAL_SESSION') {
                 // No hay sesión inicial
-                console.log('⚠️  No hay sesión guardada');
                 this.isProcessingAuth = false;
             }
         });
@@ -255,7 +235,6 @@ const PlayerDataManager = {
         await supabaseClient.auth.signOut();
         this.currentPlayer = null;
         localStorage.removeItem('lastUser');
-        console.log("Sesión cerrada.");
     },
 
     createNewPlayer: function(username, password) {
@@ -322,7 +301,6 @@ const PlayerDataManager = {
         
         // Si el jugador no tiene al héroe en absoluto (ni siquiera como "fantasma")
         if (!heroInstance) {
-            console.log(`Creando nueva entrada "fantasma" para ${heroId}`);
             heroInstance = {
                 id: heroId,
                 level: 0,
@@ -493,7 +471,6 @@ const PlayerDataManager = {
             const uid = p.auth_id;
 
             // DIAGNÓSTICO
-            console.log(`[Cloud Save] Guardando ID: ${uid} | Alianza: ${p.alliance_id}`);
 
             // Preparamos el paquete forzando tipos y columnas externas
             const cleanPayload = {
@@ -554,8 +531,6 @@ const PlayerDataManager = {
                 console.error("❌ ERROR CRÍTICO GUARDANDO EN NUBE:", error);
                 console.error("Detalle:", error.details, error.message);
                 logMessage("Error de sincronización con la nube.", "error");
-            } else {
-                console.log(`✅ Perfil guardado. Alianza vinculada: ${cleanPayload.alliance_id}`);
             }
 
         } catch (err) {
@@ -853,7 +828,6 @@ const PlayerDataManager = {
 
         // 6. Se omite el modal de resultados para evitar pantallas redundantes.
         
-        console.log("Progreso de carrera aplicado con éxito.");
     },
 
     analyzeMatchEmotion: function() {

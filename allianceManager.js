@@ -446,8 +446,6 @@ function toggleChatWidget() {
  */
 AllianceManager.deployImperialCaravan = async function(allianceId) {
     try {
-        console.log(`[Alliance] Desplegando Caravana Imperial para alianza ${allianceId}...`);
-        
         if (!gameState || !board || !units) {
             console.error("[Alliance] No se puede desplegar: gameState no inicializado.");
             return false;
@@ -517,7 +515,6 @@ AllianceManager.deployImperialCaravan = async function(allianceId) {
         }
 
         logMessage(`¡La Caravana Imperial ha sido desplegada en (${deploySpot.r},${deploySpot.c})!`, "success");
-        console.log("[Alliance] Caravana Imperial desplegada exitosamente.");
         return true;
 
     } catch (error) {

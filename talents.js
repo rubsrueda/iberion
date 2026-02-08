@@ -1,7 +1,5 @@
 // talents.js (Versión 100% Completa, Trébol Compacto)
 
-console.log("talents.js CARGADO - Estructura final de 8x18 nodos para móvil.");
-
 const TALENT_DEFINITIONS = {
     // === 18 Talentos de INFANTERÍA ===
     'inf_1': { name: "Hacha Afilada", maxLevels: 5, description: "Aumenta el Ataque de la Infantería en {X}%.", values: [2, 4, 6, 8, 10], effect: { stat: 'attack', is_percentage: true, scope: 'combat', filters: { category: ['light_infantry', 'heavy_infantry'] } } },

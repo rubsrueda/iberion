@@ -104,8 +104,4 @@ Use code with caution.
 if (typeof GAME_DATA_REGISTRY !== 'undefined' && GAME_DATA_REGISTRY.maps) {
 // La CLAVE en el registro debe ser el ID del mapa
 GAME_DATA_REGISTRY.maps[IBERIA_MAP.mapId] = IBERIA_MAP; // <<<< USAR mapId como clave
-console.log(Mapa "${IBERIA_MAP.displayName}" (${IBERIA_MAP.mapId}) registrado.);
-} else {
-console.error(Error en ${IBERIA_MAP.mapId}.js: GAME_DATA_REGISTRY o GAME_DATA_REGISTRY.maps no está definido al intentar registrar.);
 }
-console.log(DEFINICIÓN LOCAL: IBERIA_MAP (constante) definido:, typeof IBERIA_MAP);

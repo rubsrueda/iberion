@@ -201,5 +201,3 @@ const EQUIPMENT_DEFINITIONS = {
         ]
     }
 };
-
-console.log("equipment.js CARGADO - Catálogo de equipo con fragmentos listo.");

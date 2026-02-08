@@ -71,8 +71,6 @@ const pointsOfInterestLayer = [
  * Función que el juego llamará para construir el mapa "Tronos de Iberia".
  */
 async function initializeIberiaMagnaData() {
-    console.log(`Cargando silueta desde: ${IBERIA_MAP_CONFIG.csvPath}`);
-    
     // 1. Carga y parsea TU archivo CSV para crear la capa base de tierra y agua.
     const silhouetteLayer = await loadAndParseMapFromCSV(IBERIA_MAP_CONFIG.csvPath, IBERIA_MAP_CONFIG.legend);
 
@@ -86,5 +84,4 @@ async function initializeIberiaMagnaData() {
         ]
     };
     
-    console.log("Mapa 'IBERIA_MAGNA' cargado desde tu CSV y poblado con ciudades.");
 }

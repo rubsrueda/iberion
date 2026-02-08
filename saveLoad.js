@@ -30,7 +30,6 @@ const SaveGameDebounce = {
         const key = `${isAutoSave}_${saveName}`;
         
         if (this.isProcessing) {
-            console.log(`[SaveGame] Guardado ya en progreso. Pendiente: ${key}`);
             this.pendingRequests.set(key, { saveName, isAutoSave });
             return false;
         }
@@ -275,7 +274,6 @@ async function saveGameUnifiedInternal(saveName, isAutoSave = false) {
             
             if (existing) {
                 // Actualizar la partida existente
-                console.log(`[SaveGame] Actualizando partida existente: ${existing.id}`);
                 const result = await supabaseClient
                     .from('game_saves')
                     .update({
@@ -287,7 +285,6 @@ async function saveGameUnifiedInternal(saveName, isAutoSave = false) {
                 error = result.error;
             } else {
                 // Insertar nueva partida
-                console.log(`[SaveGame] Insertando nueva partida: ${saveData.save_name}`);
                 const result = await supabaseClient
                     .from('game_saves')
                     .insert([saveData]);
@@ -304,7 +301,6 @@ async function saveGameUnifiedInternal(saveName, isAutoSave = false) {
                 }
                 return true;
             } else {
-                console.log(`[SaveGame] '${saveName}' guardada exitosamente (${gameType})`);
                 if (!isAutoSave) {
                     logMessage(`¡Partida '${saveName}' guardada con éxito!`, "success");
                 }
@@ -340,7 +336,6 @@ async function handleSaveGame() {
 }
 
 function showGameContainerFromLoad() {
-    console.log('[showGameContainerFromLoad] Iniciando proceso de mostrar juego después de cargar...');
     
     // 1. Obtener referencias a elementos críticos
     const gameContainer = document.querySelector('.game-container') || domElements.gameContainer;
@@ -349,10 +344,6 @@ function showGameContainerFromLoad() {
     const gameContainer2 = document.getElementById('gameContainer');
     
     // 2. Debug: Mostrar qué encontramos
-    console.log('[showGameContainerFromLoad] gameContainer (querySelector):', gameContainer ? '✓ encontrado' : '✗ NO encontrado');
-    console.log('[showGameContainerFromLoad] domElements.gameContainer:', domElements.gameContainer ? '✓ encontrado' : '✗ NO encontrado');
-    console.log('[showGameContainerFromLoad] gameContainer2 (byId):', gameContainer2 ? '✓ encontrado' : '✗ NO encontrado');
-    console.log('[showGameContainerFromLoad] mainMenu:', mainMenu ? '✓ encontrado' : '✗ NO encontrado');
     
     // 3. OCULTAR EXPLÍCITAMENTE POR ID
     if (mainMenu) {
@@ -360,12 +351,10 @@ function showGameContainerFromLoad() {
         mainMenu.style.setProperty('visibility', 'hidden', 'important');
         mainMenu.style.setProperty('pointer-events', 'none', 'important');
         mainMenu.style.setProperty('z-index', '0', 'important');
-        console.log('[showGameContainerFromLoad] mainMenuScreen ocultado con force !important');
     }
     
     if (setupScreen) {
         setupScreen.style.setProperty('display', 'none', 'important');
-        console.log('[showGameContainerFromLoad] setupScreen ocultado');
     }
     
     // 4. MOSTRAR EL JUEGO DE MÚLTIPLES FORMAS PARA ASEGURAR
@@ -373,28 +362,24 @@ function showGameContainerFromLoad() {
         gameContainer.style.setProperty('display', 'flex', 'important');
         gameContainer.style.setProperty('visibility', 'visible', 'important');
         gameContainer.style.setProperty('z-index', '1200', 'important');
-        console.log('[showGameContainerFromLoad] .game-container mostrado con force !important y z-index:1200');
     }
     
     if (gameContainer2) {
         gameContainer2.style.setProperty('display', 'flex', 'important');
         gameContainer2.style.setProperty('visibility', 'visible', 'important');
         gameContainer2.style.setProperty('z-index', '1200', 'important');
-        console.log('[showGameContainerFromLoad] #gameContainer mostrado con force !important y z-index:1200');
     }
     
     // 5. Intentar usar showScreen() si está disponible
     if (typeof showScreen === 'function' && (gameContainer || gameContainer2)) {
         const containerToShow = gameContainer || gameContainer2;
         showScreen(containerToShow);
-        console.log('[showGameContainerFromLoad] showScreen() llamado exitosamente');
     }
     
     // 6. Refrescar la UI táctica si existe
     const tacticalUI = document.getElementById('tactical-ui-container') || domElements.tacticalUiContainer;
     if (tacticalUI) {
         tacticalUI.style.setProperty('display', 'block', 'important');
-        console.log('[showGameContainerFromLoad] tactical-ui-container mostrada');
     }
     
     // 7. Verificación final: Asegurar que ya no hay ningún overlay modal visible
@@ -404,7 +389,6 @@ function showGameContainerFromLoad() {
         }
     });
     
-    console.log('[showGameContainerFromLoad] ✓ Proceso completado. El juego debería ser visible ahora.');
 }
 
 async function handleLoadGame() {

@@ -121,7 +121,6 @@ function isHexSupplied(startR, startC, playerId) {
     
     // === CASO 1: La unidad YA ESTÁ en una fuente de suministro propia ===
     if (startHexData.owner === playerId && (startHexData.isCapital || startHexData.structure === "Fortaleza")) {
-        console.log(`%c[isHexSupplied] (${startR},${startC}) está directamente en una fuente de suministro propia (Capital/Fortaleza). SÍ SUMINISTRADA.`, "color: lightgreen;");
         return true;
     }
 
@@ -178,9 +177,6 @@ function isHexSuppliedForReinforce(r, c, playerId) {
     const hexData = board[r]?.[c];
     if (!hexData) return false;
 
-    // LOG: Muestra la info de la casilla donde está la unidad
-    console.log(`[Reinforce Check] Unidad en (${r},${c}), J${playerId}.`);
-
     // Caso 1: La unidad está DIRECTAMENTE en una Capital o Fortaleza propia.
     if (hexData.owner === playerId && (hexData.isCapital || hexData.structure === "Fortaleza")) {
         //console.log(`%c[DEBUG Reforzar] OK: Unidad en fuente de refuerzo directa. (owner:${hexData.owner}, isCapital:${hexData.isCapital}, structure:${hexData.structure})`, "color: green;");
@@ -189,21 +185,14 @@ function isHexSuppliedForReinforce(r, c, playerId) {
 
     // Caso 2: La unidad está ADYACENTE a una Capital o Fortaleza propia.
     const neighbors = getHexNeighbors(r, c);
-    console.log(`[Reinforce Check] Buscando en ${neighbors.length} vecinos...`);
     for (const neighbor of neighbors) {
         const neighborHexData = board[neighbor.r]?.[neighbor.c];
         if (neighborHexData) {
-            // LOG: Muestra la info de cada vecino
-            console.log(`  - Vecino en (${neighbor.r},${neighbor.c}): owner=${neighborHexData.owner}, isCapital=${neighborHexData.isCapital}, structure=${neighborHexData.structure}`);
-            
             if (neighborHexData.owner === playerId && (neighborHexData.isCapital || neighborHexData.structure === "Fortaleza")) {
-                console.log(`%c[DEBUG Reforzar] OK: Adyacente a fuente de refuerzo en (${neighbor.r},${neighbor.c}).`, "color: green;");
                 return true;
             }
         }
     }
-
-    console.log(`%c[DEBUG Reforzar] FALLO: No se encontró fuente de refuerzo para (${r},${c}).`, "color: red;");
     return false;
 }
 
@@ -563,9 +552,7 @@ function renderEquipIcon(iconValue, className = "item-icon") {
                 const requestWakeLock = async () => {
                     try {
                         wakeLock = await navigator.wakeLock.request('screen');
-                        console.log('💡 Wake Lock activo: Pantalla no se apagará.');
                     } catch (err) {
-                        console.log(`Error Wake Lock: ${err.name}, ${err.message}`);
                     }
                 };
                 requestWakeLock();
@@ -581,5 +568,3 @@ function renderEquipIcon(iconValue, className = "item-icon") {
             }
         }
     }
-
-console.log("utils.js se ha cargado.");

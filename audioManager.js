@@ -27,13 +27,11 @@ const AudioManager = {
      * Se debe llamar al iniciar la aplicación.
      */
     preload: function() {
-        console.log("[AudioManager] Pre-cargando todos los sonidos...");
         for (const key in this._audioSources) {
             const audio = new Audio();
             audio.src = this._audioSources[key];
             this.sounds[key] = audio;
         }
-        console.log("[AudioManager] Pre-carga completada.");
     },
 
     /**
@@ -98,6 +96,5 @@ const AudioManager = {
         if (this.currentMusic) {
             this.currentMusic.volume = this.musicVolume;
         }
-        console.log(`[AudioManager] Volumen ajustado: Música=${this.musicVolume}, SFX=${this.sfxVolume}`);
     }
 };

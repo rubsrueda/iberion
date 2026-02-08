@@ -21,7 +21,6 @@ function isEnemyScouted(enemyUnit) {
         const distance = hexDistance(scoutUnit.r, scoutUnit.c, enemyUnit.r, enemyUnit.c);
         const scoutRange = scoutUnit.visionRange || 2; // Rango de visión del explorador
         if (distance <= scoutRange) {
-            console.log(`[Scout Check] Unidad enemiga ${enemyUnit.name} está en rango del explorador ${scoutUnit.name}.`);
             return true;
         }
     }
@@ -735,7 +734,6 @@ const UIManager = {
     renderAllUnitsFromData: function() {
         if (!this._domElements.gameBoard) return;
 
-        console.log(`[RENDER ALL] Iniciando re-dibujado completo de ${units.length} unidades.`);
 
         // Paso 1: Eliminar todos los divs de unidades existentes.
         this._domElements.gameBoard.querySelectorAll('.unit').forEach(el => el.remove());
@@ -848,7 +846,6 @@ const UIManager = {
                 positionUnitElement(unit);
             }
         }
-        console.log("[RENDER ALL] Re-dibujado completo finalizado.");
     },
 
     showRewardToast: function(message, icon = '🏆') {
@@ -901,7 +898,6 @@ const UIManager = {
         
         // --- Inicia el temporizador de autocierre ---
         const autocloseUnitPanel = () => {
-            console.log("Autocerrando panel contextual de unidad...");
             this._domElements.contextualInfoPanel.classList.remove('visible');
                 // Usa this._reopenBtn para mostrar el botón
             if (this._reopenBtn) this._reopenBtn.style.display = 'block';
@@ -1077,7 +1073,6 @@ const UIManager = {
         
         // --- Inicia el temporizador de autocierre ---
         const autocloseHexPanel = () => {
-            console.log("Autocerrando panel contextual de hexágono...");
             this._domElements.contextualInfoPanel.classList.remove('visible');
                 // Usa this._reopenBtn para mostrar el botón
             if (this._reopenBtn) this._reopenBtn.style.display = 'block'; 
@@ -1370,7 +1365,6 @@ const UIManager = {
         const autoclosePanel = () => {
             const infoPanel = document.getElementById('contextualInfoPanel');
             if (infoPanel && infoPanel.classList.contains('visible')) {
-                console.log("Cerrando panel contextual automáticamente...");
                 infoPanel.classList.remove('visible');
 
                 // También mostramos el botón de reabrir
@@ -1395,7 +1389,6 @@ const UIManager = {
     },
 
     updateVictoryPointsDisplay: function() {
-        console.log("%c[UI] Se ha llamado a updateVictoryPointsDisplay.", "color: lime; font-weight: bold;"); // <-- AÑADE ESTO
 
         const tracker = document.getElementById('victory-points-tracker');
         if (!tracker) {
@@ -1408,7 +1401,6 @@ const UIManager = {
             return;
         }
 
-        console.log("[UI] Mostrando tracker. Asignando 'display: flex'."); // <-- AÑADE ESTO
         tracker.style.display = 'flex';
 
         const summaryEl = document.getElementById('victory-points-summary');
