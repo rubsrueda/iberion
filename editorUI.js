@@ -22,30 +22,20 @@ const EditorUI = {
         const mainMenu = document.getElementById('mainMenuScreen');
         if (mainMenu) mainMenu.style.display = 'none';
         
-        // Ocultar todos los modales del juego
+        // Ocultar otros modales
         const modals = document.querySelectorAll('.modal');
         modals.forEach(modal => modal.style.display = 'none');
-        
-        // Ocultar elementos de UI del juego
-        const topBarActions = document.getElementById('top-bar-actions');
-        if (topBarActions) topBarActions.style.display = 'none';
-        
-        const topBarMenu = document.getElementById('top-bar-menu');
-        if (topBarMenu) topBarMenu.style.display = 'none';
-        
-        const tacticalUI = document.getElementById('tactical-ui-container');
-        if (tacticalUI) tacticalUI.style.display = 'none';
-        
-        const versionWatermark = document.getElementById('version-display');
-        if (versionWatermark) versionWatermark.style.display = 'none';
-        
-        const nameWatermark = document.getElementById('name-watermark');
-        if (nameWatermark) nameWatermark.style.display = 'none';
         
         // IMPORTANTE: Mostrar el contenedor del juego para que gameBoard sea visible
         const gameContainer = document.querySelector('.game-container');
         if (gameContainer) {
             gameContainer.style.display = 'flex';
+            // Ajustar posición para dejar espacio a los paneles del editor
+            gameContainer.style.marginTop = '60px';
+            gameContainer.style.marginLeft = '250px';
+            gameContainer.style.marginBottom = '80px';
+            gameContainer.style.width = 'calc(100vw - 250px)';
+            gameContainer.style.height = 'calc(100vh - 140px)';
         }
         
         // Asegurar que gameBoard sea visible
@@ -53,6 +43,7 @@ const EditorUI = {
         if (gameBoard) {
             gameBoard.style.display = 'grid';
             gameBoard.style.zIndex = '1';
+            gameBoard.style.position = 'relative';
         }
         
         // Mostrar UI del editor
@@ -420,28 +411,19 @@ const EditorUI = {
         const editorContainer = document.getElementById('scenarioEditorContainer');
         if (editorContainer) editorContainer.style.display = 'none';
         
-        // Restaurar elementos de UI del juego
-        const topBarActions = document.getElementById('top-bar-actions');
-        if (topBarActions) topBarActions.style.display = '';
-        
-        const topBarMenu = document.getElementById('top-bar-menu');
-        if (topBarMenu) topBarMenu.style.display = '';
-        
-        const tacticalUI = document.getElementById('tactical-ui-container');
-        if (tacticalUI) tacticalUI.style.display = '';
-        
-        const versionWatermark = document.getElementById('version-display');
-        if (versionWatermark) versionWatermark.style.display = '';
-        
-        const nameWatermark = document.getElementById('name-watermark');
-        if (nameWatermark) nameWatermark.style.display = '';
-        
         // Iniciar juego
         gameState.currentPhase = scenarioData.settings.startingPhase || 'deployment';
         
-        // Mostrar contenedor del juego (ya está visible del editor)
+        // Mostrar contenedor del juego y restaurar estilos normales
         const gameContainer = document.querySelector('.game-container');
-        if (gameContainer) gameContainer.style.display = 'flex';
+        if (gameContainer) {
+            gameContainer.style.display = 'flex';
+            gameContainer.style.marginTop = '';
+            gameContainer.style.marginLeft = '';
+            gameContainer.style.marginBottom = '';
+            gameContainer.style.width = '';
+            gameContainer.style.height = '';
+        }
         
         // Actualizar UI
         if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
@@ -516,25 +498,16 @@ const EditorUI = {
         const editorContainer = document.getElementById('scenarioEditorContainer');
         if (editorContainer) editorContainer.style.display = 'none';
         
-        // Ocultar el contenedor del juego
+        // Ocultar el contenedor del juego y restaurar estilos
         const gameContainer = document.querySelector('.game-container');
-        if (gameContainer) gameContainer.style.display = 'none';
-        
-        // Restaurar elementos de UI del juego
-        const topBarActions = document.getElementById('top-bar-actions');
-        if (topBarActions) topBarActions.style.display = '';
-        
-        const topBarMenu = document.getElementById('top-bar-menu');
-        if (topBarMenu) topBarMenu.style.display = '';
-        
-        const tacticalUI = document.getElementById('tactical-ui-container');
-        if (tacticalUI) tacticalUI.style.display = '';
-        
-        const versionWatermark = document.getElementById('version-display');
-        if (versionWatermark) versionWatermark.style.display = '';
-        
-        const nameWatermark = document.getElementById('name-watermark');
-        if (nameWatermark) nameWatermark.style.display = '';
+        if (gameContainer) {
+            gameContainer.style.display = 'none';
+            gameContainer.style.marginTop = '';
+            gameContainer.style.marginLeft = '';
+            gameContainer.style.marginBottom = '';
+            gameContainer.style.width = '';
+            gameContainer.style.height = '';
+        }
         
         const mainMenu = document.getElementById('mainMenuScreen');
         if (mainMenu) mainMenu.style.display = 'flex';
