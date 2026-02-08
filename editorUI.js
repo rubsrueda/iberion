@@ -22,9 +22,25 @@ const EditorUI = {
         const mainMenu = document.getElementById('mainMenuScreen');
         if (mainMenu) mainMenu.style.display = 'none';
         
-        // Ocultar otros modales
+        // Ocultar todos los modales del juego
         const modals = document.querySelectorAll('.modal');
         modals.forEach(modal => modal.style.display = 'none');
+        
+        // Ocultar elementos de UI del juego
+        const topBarActions = document.getElementById('top-bar-actions');
+        if (topBarActions) topBarActions.style.display = 'none';
+        
+        const topBarMenu = document.getElementById('top-bar-menu');
+        if (topBarMenu) topBarMenu.style.display = 'none';
+        
+        const tacticalUI = document.getElementById('tactical-ui-container');
+        if (tacticalUI) tacticalUI.style.display = 'none';
+        
+        const versionWatermark = document.getElementById('version-display');
+        if (versionWatermark) versionWatermark.style.display = 'none';
+        
+        const nameWatermark = document.getElementById('name-watermark');
+        if (nameWatermark) nameWatermark.style.display = 'none';
         
         // IMPORTANTE: Mostrar el contenedor del juego para que gameBoard sea visible
         const gameContainer = document.querySelector('.game-container');
@@ -404,6 +420,22 @@ const EditorUI = {
         const editorContainer = document.getElementById('scenarioEditorContainer');
         if (editorContainer) editorContainer.style.display = 'none';
         
+        // Restaurar elementos de UI del juego
+        const topBarActions = document.getElementById('top-bar-actions');
+        if (topBarActions) topBarActions.style.display = '';
+        
+        const topBarMenu = document.getElementById('top-bar-menu');
+        if (topBarMenu) topBarMenu.style.display = '';
+        
+        const tacticalUI = document.getElementById('tactical-ui-container');
+        if (tacticalUI) tacticalUI.style.display = '';
+        
+        const versionWatermark = document.getElementById('version-display');
+        if (versionWatermark) versionWatermark.style.display = '';
+        
+        const nameWatermark = document.getElementById('name-watermark');
+        if (nameWatermark) nameWatermark.style.display = '';
+        
         // Iniciar juego
         gameState.currentPhase = scenarioData.settings.startingPhase || 'deployment';
         
@@ -487,6 +519,23 @@ const EditorUI = {
         // Ocultar el contenedor del juego
         const gameContainer = document.querySelector('.game-container');
         if (gameContainer) gameContainer.style.display = 'none';
+        
+        // Restaurar elementos de UI del juego
+        const topBarActions = document.getElementById('top-bar-actions');
+        if (topBarActions) topBarActions.style.display = '';
+                const topBarMenu = document.getElementById('top-bar-menu');
+        if (topBarMenu) topBarMenu.style.display = 'none';
+                const topBarMenu = document.getElementById('top-bar-menu');
+        if (topBarMenu) topBarMenu.style.display = '';
+        
+        const tacticalUI = document.getElementById('tactical-ui-container');
+        if (tacticalUI) tacticalUI.style.display = '';
+        
+        const versionWatermark = document.getElementById('version-display');
+        if (versionWatermark) versionWatermark.style.display = '';
+        
+        const nameWatermark = document.getElementById('name-watermark');
+        if (nameWatermark) nameWatermark.style.display = '';
         
         const mainMenu = document.getElementById('mainMenuScreen');
         if (mainMenu) mainMenu.style.display = 'flex';
