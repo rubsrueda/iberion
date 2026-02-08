@@ -626,14 +626,24 @@ const AiGameplayManager = {
     },
 
     produceUnit: function(playerNumber, compositionTypes, role, name, specificSpot = null) {
-            // El 'spot' que se pasa es el CENTRO de producción (la capital, la fortaleza, etc.)
-        let productionCenter = specificSpot;
-        
-        // Si no se especifica un punto (como una fortaleza), se usa la capital.
+        // El 'spot' es el CENTRO de producción (capital/ciudad/fortaleza), no el lugar final.
+        const isValidProductionCenter = (spot) => {
+            if (!spot) return false;
+            const hex = board[spot.r]?.[spot.c];
+            if (!hex || hex.owner !== playerNumber) return false;
+            if (hex.isCapital || hex.isCity) return true;
+            return ['Aldea', 'Ciudad', 'Metrópoli', 'Fortaleza', 'Fortaleza con Muralla'].includes(hex.structure);
+        };
+
+        let productionCenter = isValidProductionCenter(specificSpot) ? specificSpot : null;
+
+        // Si no hay centro válido, usar capital o ciudad/fortaleza propia.
         if (!productionCenter) {
-            productionCenter = gameState.cities.find(c => c.isCapital && c.owner === playerNumber);
+            productionCenter = gameState.cities.find(c => c.isCapital && c.owner === playerNumber)
+                || gameState.cities.find(c => c.owner === playerNumber)
+                || board.flat().find(h => h && h.owner === playerNumber && ['Fortaleza', 'Fortaleza con Muralla'].includes(h.structure));
             if (!productionCenter) {
-                console.warn("[IA Produce] No se encontró un centro de producción (Capital).");
+                console.warn("[IA Produce] No se encontró un centro de producción valido (ciudad/fortaleza)." );
                 return null;
             }
         }

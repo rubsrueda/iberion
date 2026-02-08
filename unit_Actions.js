@@ -157,6 +157,11 @@ function checkAndApplyLevelUp(unit) {
 
 function placeFinalizedDivision(unitData, r, c) {
     if (!unitData) { console.error("[placeFinalizedDivision] Intento de colocar unidad con datos nulos."); return; }
+    const targetHexData = board[r]?.[c];
+    if (targetHexData?.unit && targetHexData.unit.id !== unitData.id) {
+        console.error(`[placeFinalizedDivision] Hex (${r},${c}) ya ocupado por ${targetHexData.unit.name || targetHexData.unit.id}. Abortando colocacion.`);
+        return;
+    }
     if (!unitData.id) unitData.id = `u${unitIdCounter++}`;
     unitData.r = r; unitData.c = c; unitData.element = null;
     if (Array.isArray(unitData.regiments)) {
@@ -187,7 +192,6 @@ function placeFinalizedDivision(unitData, r, c) {
         UnitGrid.index(unitData);
     }
 
-    const targetHexData = board[r]?.[c];
     if (targetHexData) {
         targetHexData.unit = unitData;
         if (targetHexData.owner === null) {
@@ -3448,6 +3452,22 @@ function handleConfirmBuildStructure(actionData) {
 
     const data = STRUCTURE_TYPES[structureType];
     const playerRes = gameState.playerResources[playerId];
+    const hexData = board[r]?.[c];
+
+    if (!hexData || !data) {
+        console.error(`   -> DIAGNÓSTICO: FALLO. Hex o estructura inválida. Saliendo.`);
+        return;
+    }
+
+    if (Array.isArray(data.buildableOn) && data.buildableOn.length > 0) {
+        if (!data.buildableOn.includes(hexData.terrain)) {
+            if (isPlayerAction) {
+                logMessage(`No puedes construir ${data.name} en ${TERRAIN_TYPES[hexData.terrain]?.name || 'este terreno'}.`, "error");
+            }
+            console.warn(`[handleConfirmBuildStructure] Terreno inválido para ${structureType} en (${r},${c}).`);
+            return;
+        }
+    }
 
     // --- 1. Validación de Costes (sin cambios) ---
     for (const res in data.cost) {

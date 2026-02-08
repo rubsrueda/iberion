@@ -529,7 +529,7 @@ const STRUCTURE_TYPES = {
     "Fortaleza": { 
         name: "Fortaleza", cost: { piedra: 1000, hierro: 400, oro: 600 }, sprite: '🏰', defenseBonus: 3, 
         movementCost: 1.0, // <<== AÑADIDO: Anula penalizaciones de terreno, coste estándar
-        allowsRecruitment: true, integrity: 100,  upkeep: { comida: 40, oro: 20 },  buildableOn: [],
+        allowsRecruitment: true, integrity: 100,  upkeep: { comida: 40, oro: 20 },  buildableOn: ['plains', 'hills'],
         requiredTech: "FORTIFICATIONS", isFortification: true,
         canBeUpgraded: true,
         nextUpgrade: "Fortaleza con Muralla",
@@ -539,7 +539,7 @@ const STRUCTURE_TYPES = {
      "Fortaleza con Muralla": {
         name: "Fortaleza con Muralla", cost: { piedra: 2000, oro: 1000 }, sprite: '🧱', defenseBonus: 5,
         movementCost: 1.0, // <<== AÑADIDO: Anula penalizaciones de terreno, coste estándar
-        allowsRecruitment: true, integrity: 150, defenseBonus: 1, upkeep: { oro: 40 }, buildableOn: [],
+          allowsRecruitment: true, integrity: 150, defenseBonus: 1, upkeep: { oro: 40 }, buildableOn: ['plains', 'hills'],
         requiredTech: "SIEGE_CRAFT", isFortification: true, unlocksArtillery: true,
         canBeUpgraded: true, 
         nextUpgrade: "Aldea",

@@ -665,27 +665,29 @@ const IAArchipielago = {
 
     console.log(`[IA_ARCHIPIELAGO] CONSTRUCCIÓN: Oro disponible: ${economia.oro}`);
 
-    // PRIORIDAD 1: Construir caminos hacia recursos
-    const hexesCercanos = getHexNeighbors(capital.r, capital.c).filter(n => 
-      board[n.r]?.[n.c] && 
-      board[n.r][n.c].owner === myPlayer && 
-      !board[n.r][n.c].structure &&
-      board[n.r][n.c].terrain !== 'water'
-    );
+    // PRIORIDAD 1: Construir caminos útiles entre ciudades propias
+    const roadBuildable = STRUCTURE_TYPES['Camino']?.buildableOn || [];
+    const ciudades = gameState.cities.filter(c => c.owner === myPlayer);
+    const candidate = this._findBestTradeCityPair(ciudades, myPlayer);
+    const nextHex = candidate && !candidate.infraPath ? candidate.missingOwnedSegments[0] : null;
 
-    for (const hex of hexesCercanos.slice(0, 2)) {
-      console.log(`[IA_ARCHIPIELAGO] Construyendo camino en (${hex.r},${hex.c})`);
-      if (typeof handleConfirmBuildStructure === 'function') {
-        handleConfirmBuildStructure({ playerId: myPlayer, r: hex.r, c: hex.c, structureType: 'Camino' });
+    if (nextHex) {
+      const nextHexData = board[nextHex.r]?.[nextHex.c];
+      const terrainOk = !roadBuildable.length || roadBuildable.includes(nextHexData?.terrain);
+      if (terrainOk && typeof handleConfirmBuildStructure === 'function') {
+        console.log(`[IA_ARCHIPIELAGO] Construyendo camino en (${nextHex.r},${nextHex.c})`);
+        handleConfirmBuildStructure({ playerId: myPlayer, r: nextHex.r, c: nextHex.c, structureType: 'Camino' });
       }
     }
 
     // PRIORIDAD 2: Construir fortalezas en puntos estratégicos
-    const puntosEstrategicos = hexesPropios.filter(h => 
-      (h.terrain === 'hills' || h.terrain === 'forest') && 
-      !h.structure &&
-      hexDistance(h.r, h.c, capital.r, capital.c) <= 4
-    );
+    const fortBuildable = STRUCTURE_TYPES['Fortaleza']?.buildableOn || [];
+    const puntosEstrategicos = hexesPropios.filter(h => {
+      if (h.structure) return false;
+      if (hexDistance(h.r, h.c, capital.r, capital.c) > 4) return false;
+      if (fortBuildable.length > 0 && !fortBuildable.includes(h.terrain)) return false;
+      return true;
+    });
 
     for (const punto of puntosEstrategicos.slice(0, 1)) {
       console.log(`[IA_ARCHIPIELAGO] Construyendo fortaleza estratégica en (${punto.r},${punto.c})`);
@@ -707,18 +709,7 @@ const IAArchipielago = {
 
     console.log(`[IA_ARCHIPIELAGO] CARAVANAS: ${ciudades.length} ciudades disponibles`);
 
-    // Crear caravana terrestre entre dos ciudades
-    const ciudad1 = ciudades[0];
-    const ciudad2 = ciudades[Math.min(1, ciudades.length - 1)];
-
-    if (ciudad1 && ciudad2) {
-      console.log(`[IA_ARCHIPIELAGO] Creando caravana terrestre: (${ciudad1.r},${ciudad1.c}) -> (${ciudad2.r},${ciudad2.c})`);
-      
-      // Aquí se llamaría a BankManager.createCaravan si existe
-      if (typeof BankManager !== 'undefined' && BankManager.createCaravan) {
-        // BankManager.createCaravan(...);
-      }
-    }
+    this._ejecutarRutaLarga({ myPlayer, ciudades });
   }
   ,
 
@@ -880,7 +871,9 @@ const IAArchipielago = {
   _findClosestUnitToTarget(myPlayer, target) {
     const myUnits = IASentidos.getUnits(myPlayer);
     if (!myUnits.length) return null;
-    return myUnits.reduce((best, curr) => {
+    const movable = myUnits.filter(u => u.currentHealth > 0 && (u.currentMovement || 0) > 0 && !u.hasMoved);
+    const pool = movable.length ? movable : myUnits;
+    return pool.reduce((best, curr) => {
       const bestDist = hexDistance(best.r, best.c, target.r, target.c);
       const currDist = hexDistance(curr.r, curr.c, target.r, target.c);
       return currDist < bestDist ? curr : best;
@@ -1455,6 +1448,7 @@ const IAArchipielago = {
   _findBestTradeCityPair(ciudades, myPlayer) {
     let best = null;
     const dummyUnit = { player: myPlayer, regiments: [{ type: 'Infantería Ligera' }] };
+    const roadBuildable = STRUCTURE_TYPES['Camino']?.buildableOn || [];
 
     for (let i = 0; i < ciudades.length; i++) {
       for (let j = i + 1; j < ciudades.length; j++) {
@@ -1463,11 +1457,21 @@ const IAArchipielago = {
         const landPath = findPath_A_Star(dummyUnit, { r: cityA.r, c: cityA.c }, { r: cityB.r, c: cityB.c });
         if (!landPath) continue;
 
+        const pathIsOwned = landPath.every(step => {
+          const hex = board[step.r]?.[step.c];
+          if (!hex) return false;
+          if (hex.isCity) return true;
+          return hex.owner === myPlayer && hex.terrain !== 'water';
+        });
+        if (!pathIsOwned) continue;
+
         const infraPath = findInfrastructurePath(cityA, cityB);
         const missingOwnedSegments = landPath.filter(step => {
           const hex = board[step.r]?.[step.c];
           if (!hex || hex.isCity || hex.structure || hex.terrain === 'water') return false;
-          return hex.owner === myPlayer;
+          if (hex.owner !== myPlayer) return false;
+          if (roadBuildable.length > 0 && !roadBuildable.includes(hex.terrain)) return false;
+          return true;
         });
 
         const missingCount = missingOwnedSegments.length;
