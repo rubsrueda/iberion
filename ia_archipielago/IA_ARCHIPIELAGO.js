@@ -23,6 +23,8 @@ const IAArchipielago = {
       console.warn(`[IA_ARCHIPIELAGO] ⚠️ IA sin unidades tras despliegue. Creando unidad de emergencia...`);
       this.crearUnidadInicialDeEmergencia(myPlayer);
     }
+
+    console.log(`[IA_ARCHIPIELAGO] Despliegue IA finalizado. Las rutas se procesan en fase 'play'.`);
   },
 
   ejecutarTurno(myPlayer) {
@@ -376,27 +378,32 @@ const IAArchipielago = {
 
       // PRIORIDAD 1: Defender si hay amenaza cercana
       if (amenazas.length > 0) {
-        const amenazaMasCercana = amenazas.reduce((prev, curr) => 
-          hexDistance(unit.r, unit.c, prev.r, prev.c) < hexDistance(unit.r, unit.c, curr.r, curr.c) ? prev : curr
-        );
-        objetivo = amenazaMasCercana;
-        console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Objetivo defensivo en (${objetivo.r},${objetivo.c})`);
+        objetivo = this._pickObjective(amenazas, unit, myPlayer);
+        if (objetivo) {
+          console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Objetivo defensivo en (${objetivo.r},${objetivo.c})`);
+        }
       }
       // PRIORIDAD 2: Atacar recurso vulnerable
       else if (situacion.recursosVulnerables.length > 0) {
-        objetivo = situacion.recursosVulnerables[0];
-        console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Objetivo ofensivo (recurso vulnerable) en (${objetivo.r},${objetivo.c})`);
+        objetivo = this._pickObjective(situacion.recursosVulnerables, unit, myPlayer);
+        if (objetivo) {
+          console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Objetivo ofensivo (recurso vulnerable) en (${objetivo.r},${objetivo.c})`);
+        }
       }
       // PRIORIDAD 3: Expandir hacia recursos propios descubiertos
       else if (recursosEnHexes.length > 0) {
-        objetivo = recursosEnHexes[0];
-        console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Objetivo exploratorio en (${objetivo.r},${objetivo.c})`);
+        objetivo = this._pickObjective(recursosEnHexes, unit, myPlayer);
+        if (objetivo) {
+          console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Objetivo exploratorio en (${objetivo.r},${objetivo.c})`);
+        }
       }
 
-      if (objetivo) {
+      if (this._isValidTarget(objetivo)) {
         if (typeof _executeMoveUnit === 'function') {
           _executeMoveUnit(unit, objetivo.r, objetivo.c, true);
         }
+      } else if (objetivo) {
+        console.warn(`[IA_ARCHIPIELAGO] ${unit.name}: Objetivo invalido. Movimiento omitido.`);
       }
     }
   },
@@ -715,6 +722,436 @@ const IAArchipielago = {
   }
   ,
 
+  _isValidTarget(target) {
+    return !!(target && Number.isInteger(target.r) && Number.isInteger(target.c) && board[target.r]?.[target.c]);
+  },
+
+  _pickObjective(list, unit, myPlayer) {
+    if (!Array.isArray(list) || list.length === 0) return null;
+    const valid = list.filter(item => this._isValidTarget(item));
+    if (!valid.length) return null;
+
+    const candidates = valid.filter(item => {
+      const hex = board[item.r]?.[item.c];
+      return !(hex?.unit && hex.unit.player === myPlayer);
+    });
+
+    const pool = candidates.length ? candidates : valid;
+    if (!unit) return pool[0];
+
+    return pool.reduce((best, curr) => {
+      const bestDist = hexDistance(unit.r, unit.c, best.r, best.c);
+      const currDist = hexDistance(unit.r, unit.c, curr.r, curr.c);
+      return currDist < bestDist ? curr : best;
+    });
+  },
+
+  _getPlayerTechs(myPlayer) {
+    return gameState.playerResources?.[myPlayer]?.researchedTechnologies || [];
+  },
+
+  _hasTech(myPlayer, techId) {
+    return this._getPlayerTechs(myPlayer).includes(techId);
+  },
+
+  _canAffordTech(myPlayer, techId) {
+    const tech = TECHNOLOGY_TREE_DATA?.[techId];
+    const res = gameState.playerResources?.[myPlayer];
+    if (!tech || !res) return false;
+    return Object.keys(tech.cost || {}).every(key => (res[key] || 0) >= tech.cost[key]);
+  },
+
+  _requestResearchTech(myPlayer, techId) {
+    if (!TECHNOLOGY_TREE_DATA?.[techId]) return false;
+
+    if (typeof isNetworkGame === 'function' && isNetworkGame()) {
+      const action = {
+        type: 'researchTech',
+        actionId: `research_${myPlayer}_${techId}_${Date.now()}`,
+        payload: { playerId: myPlayer, techId }
+      };
+      if (typeof NetworkManager !== 'undefined' && NetworkManager.esAnfitrion && typeof processActionRequest === 'function') {
+        processActionRequest(action);
+        return true;
+      }
+      if (typeof NetworkManager !== 'undefined' && NetworkManager.enviarDatos) {
+        NetworkManager.enviarDatos({ type: 'actionRequest', action });
+        return true;
+      }
+      return false;
+    }
+
+    if (typeof _executeResearch === 'function') {
+      return _executeResearch(techId, myPlayer);
+    }
+
+    return false;
+  },
+
+  _ensureTech(myPlayer, techId) {
+    if (this._hasTech(myPlayer, techId)) return true;
+    if (this._canAffordTech(myPlayer, techId)) {
+      return this._requestResearchTech(myPlayer, techId);
+    }
+    if (typeof AutoResearchManager !== 'undefined' && AutoResearchManager.activateResearchPlan) {
+      AutoResearchManager.activateResearchPlan(myPlayer, techId);
+    }
+    return false;
+  },
+
+  _investResearch(myPlayer, preferredTechs, maxCount = 3) {
+    let researched = 0;
+    const techs = this._getPlayerTechs(myPlayer);
+
+    const tryTech = (techId) => {
+      if (researched >= maxCount) return false;
+      if (techs.includes(techId)) return false;
+      if (typeof hasPrerequisites === 'function' && !hasPrerequisites(techs, techId)) return false;
+      if (!this._canAffordTech(myPlayer, techId)) return false;
+      if (this._requestResearchTech(myPlayer, techId)) {
+        researched += 1;
+        return true;
+      }
+      return false;
+    };
+
+    if (Array.isArray(preferredTechs)) {
+      preferredTechs.forEach(techId => tryTech(techId));
+    }
+
+    if (researched >= maxCount) return researched;
+
+    const fallback = Object.keys(TECHNOLOGY_TREE_DATA || {})
+      .filter(techId => !techs.includes(techId))
+      .filter(techId => (typeof hasPrerequisites !== 'function' || hasPrerequisites(techs, techId)))
+      .filter(techId => this._canAffordTech(myPlayer, techId))
+      .sort((a, b) => (TECHNOLOGY_TREE_DATA[b].cost?.researchPoints || 0) - (TECHNOLOGY_TREE_DATA[a].cost?.researchPoints || 0));
+
+    for (const techId of fallback) {
+      if (researched >= maxCount) break;
+      tryTech(techId);
+    }
+
+    return researched;
+  },
+
+  _ensureActiveCommanders(myPlayer) {
+    if (!gameState.activeCommanders) gameState.activeCommanders = {};
+    if (!gameState.activeCommanders[myPlayer]) gameState.activeCommanders[myPlayer] = [];
+  },
+
+  _selectCommanderId(myPlayer) {
+    this._ensureActiveCommanders(myPlayer);
+    const active = gameState.activeCommanders[myPlayer];
+    const commanderIds = Object.keys(COMMANDERS || {});
+    for (const commanderId of commanderIds) {
+      if (!active.includes(commanderId)) return commanderId;
+    }
+    return null;
+  },
+
+  _getArmyComposition(myPlayer, regimentsPerDivision = 3) {
+    const techs = this._getPlayerTechs(myPlayer);
+    const hasHeavy = techs.includes('DRILL_TACTICS') && REGIMENT_TYPES['Infantería Pesada'];
+    const hasArchers = techs.includes('FLETCHING') && REGIMENT_TYPES['Arqueros'];
+    const hasCavalry = techs.includes('ANIMAL_HUSBANDRY') && REGIMENT_TYPES['Caballería Ligera'];
+    const base = hasHeavy ? 'Infantería Pesada' : 'Infantería Ligera';
+
+    const composition = Array(regimentsPerDivision).fill(base);
+    if (hasArchers && composition.length >= 3) composition[composition.length - 1] = 'Arqueros';
+    if (hasCavalry && composition.length >= 3) composition[0] = 'Caballería Ligera';
+    return composition;
+  },
+
+  _producirDivisiones(myPlayer, targetDivisions = 5, regimentsPerDivision = 3) {
+    if (typeof AiGameplayManager === 'undefined' || !AiGameplayManager.produceUnit) return 0;
+    let created = 0;
+    const composition = this._getArmyComposition(myPlayer, regimentsPerDivision);
+
+    for (let i = 0; i < targetDivisions; i++) {
+      const newUnit = AiGameplayManager.produceUnit(myPlayer, composition, 'attacker', `Cuerpo-${i + 1}`);
+      if (!newUnit) break;
+      created += 1;
+    }
+
+    return created;
+  },
+
+  _findClosestUnitToTarget(myPlayer, target) {
+    const myUnits = IASentidos.getUnits(myPlayer);
+    if (!myUnits.length) return null;
+    return myUnits.reduce((best, curr) => {
+      const bestDist = hexDistance(best.r, best.c, target.r, target.c);
+      const currDist = hexDistance(curr.r, curr.c, target.r, target.c);
+      return currDist < bestDist ? curr : best;
+    });
+  },
+
+  _findNearestCityTarget(myPlayer) {
+    const cities = gameState.cities || [];
+    const neutral = cities.filter(c => c.owner === null || c.isBarbarianCity);
+    if (neutral.length) return neutral[0];
+    const enemyPlayer = myPlayer === 1 ? 2 : 1;
+    const enemyCities = cities.filter(c => c.owner === enemyPlayer);
+    return enemyCities[0] || null;
+  },
+
+  _ejecutarRutaMasRiqueza(situacion) {
+    const { myPlayer, hexesPropios, economia, ciudades } = situacion;
+    this._ejecutarRutaLarga(situacion);
+    if (economia?.oro >= 500) {
+      this.construirInfraestructura(myPlayer, hexesPropios, economia);
+    }
+    if (economia?.oro >= 1000 && ciudades?.length >= 2) {
+      this.crearCaravanas(myPlayer, ciudades);
+    }
+    return { action: 'economia_expandida', executed: true };
+  },
+
+  _ejecutarRutaEjercitoGrande(situacion) {
+    const { myPlayer } = situacion;
+    const created = this._producirDivisiones(myPlayer, 5, 3);
+    if (created > 0) {
+      return { action: 'produccion_ejercito', executed: true, note: `divisiones=${created}` };
+    }
+    return { action: 'produccion_ejercito', executed: false, reason: 'sin_recursos_o_espacio' };
+  },
+
+  _ejecutarRutaMasAvances(situacion) {
+    const { myPlayer } = situacion;
+    const preferred = ['LEADERSHIP', 'DRILL_TACTICS', 'ENGINEERING', 'RECONNAISSANCE', 'NAVIGATION', 'FORTIFICATIONS'];
+    const researched = this._investResearch(myPlayer, preferred, 3);
+    if (researched > 0) {
+      return { action: 'investigar', executed: true, note: `tecnologias=${researched}` };
+    }
+    return { action: 'investigar', executed: false, reason: 'sin_puntos_o_prerrequisitos' };
+  },
+
+  _ejecutarRutaMasCiudades(situacion) {
+    const { myPlayer } = situacion;
+    this.conquistarCiudadesBarbaras(myPlayer, IASentidos.getUnits(myPlayer));
+    const targetCity = this._findNearestCityTarget(myPlayer);
+    if (!targetCity) {
+      return { action: 'expandir_ciudades', executed: false, reason: 'sin_objetivos' };
+    }
+    const unit = this._findClosestUnitToTarget(myPlayer, targetCity);
+    if (unit && typeof _executeMoveUnit === 'function') {
+      _executeMoveUnit(unit, targetCity.r, targetCity.c, true);
+      return { action: 'expandir_ciudades', executed: true, note: `objetivo=${targetCity.name}` };
+    }
+    return { action: 'expandir_ciudades', executed: false, reason: 'sin_unidades' };
+  },
+
+  _ejecutarRutaMasVictorias(situacion) {
+    return this._ejecutarPresionMilitar(situacion, 'buscar_batallas');
+  },
+
+  _ejecutarRutaMasHeroes(situacion) {
+    const { myPlayer } = situacion;
+    const hasLeadership = this._ensureTech(myPlayer, 'LEADERSHIP');
+    const hasDrill = this._ensureTech(myPlayer, 'DRILL_TACTICS');
+
+    if (!hasLeadership || !hasDrill) {
+      return { action: 'heroes', executed: false, reason: 'faltan_tecnologias' };
+    }
+
+    const unitWithHQ = units.find(u => u.player === myPlayer && u.regiments?.some(r => r.type === 'Cuartel General'));
+    let hqUnit = unitWithHQ;
+
+    if (!hqUnit && typeof AiGameplayManager !== 'undefined' && AiGameplayManager.produceUnit) {
+      const composition = ['Cuartel General', 'Infantería Pesada', 'Infantería Ligera'].filter(type => REGIMENT_TYPES[type]);
+      hqUnit = AiGameplayManager.produceUnit(myPlayer, composition, 'leader', 'Cuartel General');
+    }
+
+    if (!hqUnit) {
+      return { action: 'heroes', executed: false, reason: 'sin_cuartel_general' };
+    }
+
+    const commanderId = this._selectCommanderId(myPlayer);
+    if (!commanderId || typeof assignHeroToUnit !== 'function') {
+      return { action: 'heroes', executed: false, reason: 'sin_comandante_disponible' };
+    }
+
+    const assigned = assignHeroToUnit(hqUnit, commanderId);
+    return { action: 'heroes', executed: !!assigned, note: commanderId };
+  },
+
+  _ejecutarRutaMasComercios(situacion) {
+    const candidate = this._findBestTradeCityPair(situacion.ciudades || [], situacion.myPlayer);
+    if (!candidate) {
+      return { action: 'comercios', executed: false, reason: 'sin_ruta' };
+    }
+    this._ejecutarRutaLarga(situacion);
+    return { action: 'comercios', executed: true };
+  },
+
+  _ejecutarRutaGranArqueologo(situacion) {
+    const { myPlayer } = situacion;
+    if (!this._ensureTech(myPlayer, 'RECONNAISSANCE')) {
+      return { action: 'explorar_ruinas', executed: false, reason: 'sin_tecnologia' };
+    }
+
+    let explorerUnit = units.find(u => u.player === myPlayer && u.regiments?.some(r => r.type === 'Explorador'));
+    if (!explorerUnit && typeof AiGameplayManager !== 'undefined' && AiGameplayManager.produceUnit) {
+      explorerUnit = AiGameplayManager.produceUnit(myPlayer, ['Explorador'], 'scout', 'Explorador');
+    }
+
+    if (!explorerUnit) {
+      return { action: 'explorar_ruinas', executed: false, reason: 'sin_explorador' };
+    }
+
+    const ruins = [];
+    board.forEach(row => row.forEach(hex => {
+      if (hex?.feature === 'ruins' && !hex.looted) ruins.push(hex);
+    }));
+
+    const target = this._pickObjective(ruins, explorerUnit, myPlayer);
+    if (!target) {
+      return { action: 'explorar_ruinas', executed: false, reason: 'sin_ruinas' };
+    }
+
+    if (explorerUnit.r === target.r && explorerUnit.c === target.c && typeof _executeExploreRuins === 'function') {
+      _executeExploreRuins({ playerId: myPlayer, unitId: explorerUnit.id, r: target.r, c: target.c });
+      return { action: 'explorar_ruinas', executed: true, note: 'ruina_explorada' };
+    }
+
+    if (typeof _executeMoveUnit === 'function') {
+      _executeMoveUnit(explorerUnit, target.r, target.c, true);
+      return { action: 'explorar_ruinas', executed: true, note: 'moviendo_explorador' };
+    }
+
+    return { action: 'explorar_ruinas', executed: false, reason: 'sin_movimiento' };
+  },
+
+  _ejecutarRutaConquistadorBarbaro(situacion) {
+    const { myPlayer } = situacion;
+    this.conquistarCiudadesBarbaras(myPlayer, IASentidos.getUnits(myPlayer));
+    const targetCity = this._findNearestCityTarget(myPlayer);
+    if (!targetCity) {
+      return { action: 'conquista_barbara', executed: false, reason: 'sin_objetivos' };
+    }
+    const unit = this._findClosestUnitToTarget(myPlayer, targetCity);
+    if (unit && typeof _executeMoveUnit === 'function') {
+      _executeMoveUnit(unit, targetCity.r, targetCity.c, true);
+      return { action: 'conquista_barbara', executed: true };
+    }
+    return { action: 'conquista_barbara', executed: false, reason: 'sin_unidades' };
+  },
+
+  _ejecutarRutaAlmiranteSupremo(situacion) {
+    const { myPlayer } = situacion;
+    const hasNavigation = this._ensureTech(myPlayer, 'NAVIGATION');
+    if (!hasNavigation) {
+      return { action: 'naval', executed: false, reason: 'sin_tecnologia' };
+    }
+
+    const navalUnits = units.filter(u => u.player === myPlayer && u.regiments?.some(r => REGIMENT_TYPES[r.type]?.is_naval));
+    if (navalUnits.length === 0) {
+      const created = this._crearUnidadNaval(myPlayer, 'Patache');
+      return created ? { action: 'naval', executed: true, note: 'unidad_naval_creada' } : { action: 'naval', executed: false, reason: 'sin_spawn_naval' };
+    }
+
+    const enemyPlayer = myPlayer === 1 ? 2 : 1;
+    const enemyUnits = units.filter(u => u.player === enemyPlayer && u.regiments?.some(r => REGIMENT_TYPES[r.type]?.is_naval));
+    let target = enemyUnits[0] || this._findNearestCityTarget(myPlayer);
+    if (target && board[target.r]?.[target.c]?.terrain !== 'water') {
+      const waterNeighbor = getHexNeighbors(target.r, target.c).find(n => board[n.r]?.[n.c]?.terrain === 'water' && !board[n.r][n.c].unit);
+      if (waterNeighbor) target = waterNeighbor;
+    }
+    if (this._isValidTarget(target) && typeof _executeMoveUnit === 'function') {
+      _executeMoveUnit(navalUnits[0], target.r, target.c, true);
+      return { action: 'naval', executed: true, note: 'moviendo_flotas' };
+    }
+
+    return { action: 'naval', executed: false, reason: 'sin_objetivos' };
+  },
+
+  _ejecutarRutaCapital(situacion) {
+    const { myPlayer } = situacion;
+    const enemyPlayer = myPlayer === 1 ? 2 : 1;
+    const enemyCapital = gameState.cities.find(c => c.isCapital && c.owner === enemyPlayer);
+    if (!enemyCapital) {
+      return { action: 'evaluar_capital', executed: false, reason: 'sin_capital_enemiga' };
+    }
+    const unit = this._findClosestUnitToTarget(myPlayer, enemyCapital);
+    if (unit && typeof _executeMoveUnit === 'function') {
+      _executeMoveUnit(unit, enemyCapital.r, enemyCapital.c, true);
+      return { action: 'evaluar_capital', executed: true };
+    }
+    return { action: 'evaluar_capital', executed: false, reason: 'sin_unidades' };
+  },
+
+  _ejecutarRutaAniquilacion(situacion) {
+    return this._ejecutarPresionMilitar(situacion, 'aniquilacion');
+  },
+
+  _ejecutarRutaGloria(situacion) {
+    const combat = this._ejecutarPresionMilitar(situacion, 'gloria');
+    const ruins = this._ejecutarRutaGranArqueologo(situacion);
+    return { action: 'victoria_por_puntos', executed: combat.executed || ruins.executed };
+  },
+
+  _ejecutarPresionMilitar(situacion, reason) {
+    const { myPlayer } = situacion;
+    const enemyPlayer = myPlayer === 1 ? 2 : 1;
+    const enemyUnits = IASentidos.getUnits(enemyPlayer).slice().sort((a, b) => (a.regiments?.length || 0) - (b.regiments?.length || 0));
+    if (!enemyUnits.length) {
+      return { action: 'presion_militar', executed: false, reason: 'sin_enemigos' };
+    }
+
+    const target = enemyUnits[0];
+    const attacker = this._findClosestUnitToTarget(myPlayer, target);
+    if (!attacker || typeof _executeMoveUnit !== 'function') {
+      return { action: 'presion_militar', executed: false, reason: 'sin_unidades' };
+    }
+
+    const myPower = attacker.regiments?.length || 0;
+    const enemyPower = target.regiments?.length || 0;
+    if (myPower < Math.max(1, enemyPower * 0.8)) {
+      return { action: 'presion_militar', executed: false, reason: 'poder_bajo' };
+    }
+
+    _executeMoveUnit(attacker, target.r, target.c, true);
+    return { action: 'presion_militar', executed: true, note: reason };
+  },
+
+  _crearUnidadNaval(myPlayer, unitType) {
+    if (!REGIMENT_TYPES?.[unitType]) return null;
+    if (typeof AiGameplayManager === 'undefined' || !AiGameplayManager.createUnitObject) return null;
+
+    const coastalCities = (gameState.cities || []).filter(c => c.owner === myPlayer);
+    let spawn = null;
+    for (const city of coastalCities) {
+      const waterNeighbor = getHexNeighbors(city.r, city.c).find(n => {
+        const hex = board[n.r]?.[n.c];
+        return hex && hex.terrain === 'water' && !hex.unit;
+      });
+      if (waterNeighbor) {
+        spawn = waterNeighbor;
+        break;
+      }
+    }
+
+    if (!spawn) return null;
+
+    const reg = { ...REGIMENT_TYPES[unitType], type: unitType };
+    const cost = reg.cost || {};
+    const res = gameState.playerResources?.[myPlayer];
+    if (!res) return null;
+    if ((res.oro || 0) < (cost.oro || 0) || (res.madera || 0) < (cost.madera || 0) || (res.puntosReclutamiento || 0) < (cost.puntosReclutamiento || 0)) {
+      return null;
+    }
+
+    res.oro -= cost.oro || 0;
+    res.madera -= cost.madera || 0;
+    res.puntosReclutamiento -= cost.puntosReclutamiento || 0;
+
+    const unitDef = { regiments: [reg], name: unitType };
+    const newUnit = AiGameplayManager.createUnitObject(unitDef, myPlayer, spawn);
+    placeFinalizedDivision(newUnit, spawn.r, spawn.c);
+    return newUnit;
+  },
+
   _evaluarRutasDeVictoria(situacion) {
     const { myPlayer, ciudades } = situacion;
     const enemyPlayer = myPlayer === 1 ? 2 : 1;
@@ -933,11 +1370,31 @@ const IAArchipielago = {
         this.conquistarCiudadesBarbaras(myPlayer, IASentidos.getUnits(myPlayer));
         return { action: 'conquistar_ciudades_barbaras', executed: true, note: 'ver logs de conquista' };
       case 'ruta_capital':
-        return { action: 'evaluar_capital', executed: false, reason: 'sin_accion_impl' };
+        return this._ejecutarRutaCapital(situacion);
       case 'ruta_aniquilacion':
-        return { action: 'presion_militar', executed: false, reason: 'sin_accion_impl' };
+        return this._ejecutarRutaAniquilacion(situacion);
       case 'ruta_gloria':
-        return { action: 'victoria_por_puntos', executed: false, reason: 'sin_accion_impl' };
+        return this._ejecutarRutaGloria(situacion);
+      case 'ruta_mas_riqueza':
+        return this._ejecutarRutaMasRiqueza(situacion);
+      case 'ruta_ejercito_grande':
+        return this._ejecutarRutaEjercitoGrande(situacion);
+      case 'ruta_mas_avances':
+        return this._ejecutarRutaMasAvances(situacion);
+      case 'ruta_mas_ciudades':
+        return this._ejecutarRutaMasCiudades(situacion);
+      case 'ruta_mas_victorias':
+        return this._ejecutarRutaMasVictorias(situacion);
+      case 'ruta_mas_heroes':
+        return this._ejecutarRutaMasHeroes(situacion);
+      case 'ruta_mas_comercios':
+        return this._ejecutarRutaMasComercios(situacion);
+      case 'ruta_gran_arqueologo':
+        return this._ejecutarRutaGranArqueologo(situacion);
+      case 'ruta_conquistador_barbaro':
+        return this._ejecutarRutaConquistadorBarbaro(situacion);
+      case 'ruta_almirante_supremo':
+        return this._ejecutarRutaAlmiranteSupremo(situacion);
       default:
         return { action: 'sin_accion_directa', executed: false, reason: 'sin_handler_ruta' };
     }

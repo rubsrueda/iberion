@@ -1236,10 +1236,11 @@ function simpleAiTurn() {
     const aiPlayerIdString = `player${gameState.currentPlayer}`;
     const aiActualPlayerNumber = gameState.currentPlayer;
     const aiLevel = gameState.playerAiLevels?.[aiPlayerIdString] || 'normal';
+    const aiPlayerType = gameState.playerTypes?.[aiPlayerIdString];
 
     // Verificación robusta: Solo procede si realmente es el turno de la IA.
-    if (gameState.currentPhase !== 'play' || !gameState.playerTypes[aiPlayerIdString]?.startsWith('ai_')) {
-        console.warn(`[simpleAiTurn] Se intentó ejecutar el turno de la IA en una fase o para un jugador incorrecto.`);
+    if (gameState.currentPhase !== 'play' || !aiPlayerType?.startsWith('ai_')) {
+        console.warn(`[simpleAiTurn] Bloqueado | fase=${gameState.currentPhase} | jugador=${aiActualPlayerNumber} | tipo=${aiPlayerType || 'undefined'}`);
         return;
     }
 

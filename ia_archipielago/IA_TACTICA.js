@@ -7,11 +7,30 @@ const IATactica = {
     const misUnidades = IASentidos.getUnits(myPlayer);
     const unidadesEnemigas = IASentidos.getUnits(enemyPlayer);
     const frente = [];
+    const seen = new Set();
 
     for (const mi of misUnidades) {
       for (const en of unidadesEnemigas) {
         if (hexDistance(mi.r, mi.c, en.r, en.c) <= contactRange) {
-          frente.push({ r: mi.r, c: mi.c, enemigo: { r: en.r, c: en.c } });
+          const key = `${mi.r},${mi.c}->${en.r},${en.c}`;
+          if (!seen.has(key)) {
+            frente.push({ r: mi.r, c: mi.c, enemigo: { r: en.r, c: en.c } });
+            seen.add(key);
+          }
+        }
+      }
+    }
+
+    // Tambien considerar enemigos que ya estan dentro o cerca de nuestro territorio.
+    for (const en of unidadesEnemigas) {
+      const hex = board[en.r]?.[en.c];
+      const inTerritory = hex?.owner === myPlayer;
+      const nearTerritory = getHexNeighbors(en.r, en.c).some(n => board[n.r]?.[n.c]?.owner === myPlayer);
+      if (inTerritory || nearTerritory) {
+        const key = `intrusion:${en.r},${en.c}`;
+        if (!seen.has(key)) {
+          frente.push({ r: en.r, c: en.c, enemigo: { r: en.r, c: en.c } });
+          seen.add(key);
         }
       }
     }
