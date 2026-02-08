@@ -265,6 +265,21 @@ const ReplayEngine = {
         for (const unit of units) {
             if (!unit || unit.currentHealth <= 0) continue;
             
+            // ⭐ NUEVO: Determinar el tipo de regimiento dominante para mostrar el ícono correcto
+            let regimentType = 'Infantería Ligera'; // Default
+            let sprite = '🚶'; // Default
+            
+            if (unit.regiments && unit.regiments.length > 0) {
+                // Usar el tipo del primer regimiento (como hace el juego)
+                const firstRegiment = unit.regiments[0];
+                regimentType = firstRegiment.type || 'Infantería Ligera';
+                
+                // Obtener sprite desde REGIMENT_TYPES si está disponible
+                if (typeof REGIMENT_TYPES !== 'undefined' && REGIMENT_TYPES[regimentType]) {
+                    sprite = REGIMENT_TYPES[regimentType].sprite || '🚶';
+                }
+            }
+            
             unitsSnapshot.push({
                 id: unit.id,
                 n: unit.name || 'Unidad',                          // name
@@ -272,6 +287,8 @@ const ReplayEngine = {
                 r: unit.r,
                 c: unit.c,
                 reg: unit.regiments ? unit.regiments.length : 0,   // ⭐ número de regimientos
+                rt: regimentType,                                  // ⭐ NUEVO: regiment type
+                spr: sprite,                                       // ⭐ NUEVO: sprite/ícono
                 h: unit.currentHealth || 0,                        // health actual
                 mh: unit.maxHealth || 0,                           // max health
                 m: unit.morale || 100                              // morale

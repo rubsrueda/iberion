@@ -1,3 +1,5 @@
+ sistema de Edicion de Campaña y Escenarios.md
+
 Documento de Alcance: Sistema de Edición de Escenarios y Campañas (IBERION)
 
 Fecha: 06 de Febrero, 2026

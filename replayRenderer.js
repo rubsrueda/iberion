@@ -112,6 +112,8 @@ const ReplayRenderer = {
                 r: unit.r,
                 c: unit.c,
                 regiments: unit.reg,
+                regimentType: unit.rt || 'Infantería Ligera',      // ⭐ NUEVO: tipo de regimiento
+                sprite: unit.spr || '🚶',                         // ⭐ NUEVO: ícono
                 health: unit.h,
                 maxHealth: unit.mh,
                 morale: unit.m,
@@ -253,8 +255,8 @@ const ReplayRenderer = {
             const pos = this.hexToPixel(unit.r, unit.c);
             const playerColor = this.getPlayerColor(unit.playerId);
 
-            // ⭐ MEJORADO: Pasar número de regimientos
-            this.drawUnit(pos.x, pos.y, unit.name, playerColor, unit.regiments);
+            // ⭐ MEJORADO: Pasar sprite de la unidad en lugar del nombre
+            this.drawUnit(pos.x, pos.y, unit.sprite || '🚶', playerColor, unit.regiments, unit.regimentType);
         }
     },
 
@@ -388,6 +390,8 @@ const ReplayRenderer = {
                     r: unit.r,
                     c: unit.c,
                     regiments: unit.reg,
+                    regimentType: unit.rt || 'Infantería Ligera',      // ⭐ NUEVO
+                    sprite: unit.spr || '🚶',                         // ⭐ NUEVO
                     health: unit.h,
                     maxHealth: unit.mh,
                     morale: unit.m,
@@ -399,13 +403,30 @@ const ReplayRenderer = {
         if (unitsDelta.modified) {
             for (const unit of unitsDelta.modified) {
                 if (this.currentUnitsState[unit.id]) {
-                    Object.assign(this.currentUnitsState[unit.id], {
+                    // Actualizar solo los campos que cambiaron
+                    this.currentUnitsState[unit.id].r = unit.r;
+                    this.currentUnitsState[unit.id].c = unit.c;
+                    this.currentUnitsState[unit.id].regiments = unit.reg;
+                    this.currentUnitsState[unit.id].regimentType = unit.rt || this.currentUnitsState[unit.id].regimentType;
+                    this.currentUnitsState[unit.id].sprite = unit.spr || this.currentUnitsState[unit.id].sprite;
+                    this.currentUnitsState[unit.id].health = unit.h;
+                    this.currentUnitsState[unit.id].morale = unit.m;
+                } else {
+                    // Si no existe, crearla (fallback)
+                    this.currentUnitsState[unit.id] = {
+                        unitId: unit.id,
+                        name: unit.n,
+                        playerId: unit.p,
                         r: unit.r,
                         c: unit.c,
                         regiments: unit.reg,
+                        regimentType: unit.rt || 'Infantería Ligera',
+                        sprite: unit.spr || '🚶',
                         health: unit.h,
-                        morale: unit.m
-                    });
+                        maxHealth: unit.mh,
+                        morale: unit.m,
+                        isDead: false
+                    };
                 }
             }
         }
@@ -563,13 +584,13 @@ const ReplayRenderer = {
     },
 
     /**
-     * ⭐ MEJORADO: Dibuja una unidad con su color y número de regimientos
+     * ⭐ MEJORADO: Dibuja una unidad con su ícono del juego y número de regimientos
      */
-    drawUnit: function(x, y, name, color, regiments) {
-        // Círculo con inicial
-        this.ctx.fillStyle = color;
+    drawUnit: function(x, y, sprite, color, regiments, regimentType) {
+        // Círculo de fondo con color del jugador
+        this.ctx.fillStyle = color + '99'; // Semi-transparente
         this.ctx.beginPath();
-        this.ctx.arc(x, y, 12, 0, Math.PI * 2);
+        this.ctx.arc(x, y, 14, 0, Math.PI * 2);
         this.ctx.fill();
 
         // Borde blanco
@@ -577,16 +598,43 @@ const ReplayRenderer = {
         this.ctx.lineWidth = 2;
         this.ctx.stroke();
 
-        // Texto (primera letra)
+        // ⭐ NUEVO: Mostrar ícono del tipo de regimiento
+        // Si el sprite es una imagen, mostrar emoji genérico basado en el tipo
+        let displayIcon = sprite;
+        
+        // Si es una ruta de imagen, usar emoji basado en el tipo
+        if (typeof sprite === 'string' && sprite.includes('images/')) {
+            // Mapeo de tipos a emojis
+            const typeToEmoji = {
+                'Infantería Ligera': '🚶',
+                'Infantería Pesada': '🛡️',
+                'Caballería Ligera': '🐎',
+                'Caballería Pesada': '🏇',
+                'Arqueros a Caballo': '🏹',
+                'Arqueros': '🏹',
+                'Arcabuceros': '🔫',
+                'Artillería': '🎯',
+                'Cuartel General': '⭐',
+                'Ingenieros': '👷',
+                'Hospital de Campaña': '⚕️',
+                'Columna de Suministro': '📦',
+                'Patache': '⛵',
+                'Barco de Guerra': '🚢',
+                'Colono': '🏘️',
+                'Explorador': '🔭',
+                'Pueblo': '🏡'
+            };
+            displayIcon = typeToEmoji[regimentType] || '⚔️';
+        }
+        
         this.ctx.fillStyle = '#fff';
-        this.ctx.font = 'bold 10px Arial';
+        this.ctx.font = 'bold 16px Arial';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
-        this.ctx.fillText(name.substring(0, 1), x, y);
+        this.ctx.fillText(displayIcon, x, y);
         
-        // ⭐ NUEVO: Mostrar número de regimientos debajo de la unidad
+        // ⭐ Mostrar número de regimientos debajo de la unidad
         if (regiments !== undefined && regiments > 0) {
-            this.ctx.fillStyle = color;
             this.ctx.font = 'bold 10px Arial';
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'top';
@@ -594,12 +642,12 @@ const ReplayRenderer = {
             // Fondo oscuro para mejor legibilidad
             const text = `${regiments}R`;
             const textWidth = this.ctx.measureText(text).width;
-            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            this.ctx.fillRect(x - textWidth/2 - 2, y + 14, textWidth + 4, 12);
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            this.ctx.fillRect(x - textWidth/2 - 2, y + 16, textWidth + 4, 12);
             
             // Texto del número de regimientos
-            this.ctx.fillStyle = color;
-            this.ctx.fillText(text, x, y + 15);
+            this.ctx.fillStyle = '#00f3ff'; // Color cyan brillante
+            this.ctx.fillText(text, x, y + 17);
         }
     },
 
