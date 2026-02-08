@@ -346,7 +346,8 @@ function initializeDomElements() {
     domElements.cancelUnitManagementBtn = document.getElementById('cancelUnitManagementBtn');
     domElements.finalizeUnitManagementBtn = document.getElementById('finalizeUnitManagementBtn');
     console.log("--- LOG INIT --- domElements.js: floatingEndTurnBtn inicializado:", domElements.floatingEndTurnBtn);
-    domElements.floatingMenuPanel = document.getElementById('floatingMenuPanel');
+    domElements.floatingMenuPanel = document.getElementById('floatingMenuPanel')
+        || document.getElementById('top-bar-menu');
     domElements.contextualInfoPanel = document.getElementById('contextualInfoPanel');
     domElements.closeContextualPanelBtn = document.getElementById('closeContextualPanelBtn');
     domElements.gameMessagesMobile = document.getElementById('gameMessagesMobile');

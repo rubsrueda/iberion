@@ -38,13 +38,13 @@
   ],
   "screenshots": [
     {
-      "src": "images/screenshots/screenshot-1.png",
-      "sizes": "540x720",
-      "form_factor": "narrow",
+      "src": "images/screenshots/inicio.png",
+      "sizes": "1280x720",
+      "form_factor": "wide",
       "type": "image/png"
     },
     {
-      "src": "images/screenshots/screenshot-2.png",
+      "src": "images/screenshots/tecnologia.png",
       "sizes": "1280x720",
       "form_factor": "wide",
       "type": "image/png"

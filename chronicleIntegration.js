@@ -223,8 +223,6 @@ const ChronicleIntegration = {
             logMessage('Error al copiar el link. Inténtalo de nuevo.', 'error');
         }
     }
-        // Notificación deshabilitada
-    }
 };
 
 // Exportar globalmente

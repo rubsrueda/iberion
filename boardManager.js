@@ -97,16 +97,28 @@ if (!isNavalMap) {
             board[defenderCapitalR][defenderCapitalC].owner = 2;
         }
         
-        // Ciudades adicionales para el defensor (distribuidas por el mapa)
+        // Ciudades adicionales para el defensor (distribuidas y alejadas)
         const additionalCities = INVASION_MODE_CONFIG.DEFENDER_CITIES - 1;
+        const minCityDistance = 6;
         for (let i = 0; i < additionalCities; i++) {
-            const cityR = Math.floor(B_ROWS * 0.3 + Math.random() * B_ROWS * 0.5);
-            const cityC = Math.floor(B_COLS * 0.3 + Math.random() * B_COLS * 0.5);
-            if (board[cityR]?.[cityC] && !board[cityR][cityC].isCity) {
-                addCityToBoardData(cityR, cityC, 2, `Ciudad ${i+1}`, false);
-                if (board[cityR]?.[cityC]) {
-                    board[cityR][cityC].structure = i === 0 ? 'Ciudad' : 'Aldea';
-                    board[cityR][cityC].owner = 2;
+            const cityPos = findDistributedLandPosition({
+                minR: Math.floor(B_ROWS * 0.3),
+                maxR: Math.floor(B_ROWS * 0.8),
+                minC: Math.floor(B_COLS * 0.3),
+                maxC: Math.floor(B_COLS * 0.8),
+                minDistanceFrom: [
+                    { r: defenderCapitalR, c: defenderCapitalC, min: minCityDistance },
+                    { r: attackerBaseR, c: attackerBaseC, min: minCityDistance }
+                ],
+                minDistanceFromCities: minCityDistance,
+                maxAttempts: 500
+            });
+
+            if (cityPos) {
+                addCityToBoardData(cityPos.r, cityPos.c, 2, `Ciudad ${i + 1}`, false);
+                if (board[cityPos.r]?.[cityPos.c]) {
+                    board[cityPos.r][cityPos.c].structure = i === 0 ? 'Ciudad' : 'Aldea';
+                    board[cityPos.r][cityPos.c].owner = 2;
                 }
             }
         }
@@ -390,8 +402,18 @@ function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel, gameMode = '
     // 7.5. MODO INVASIÓN: Ciudades adicionales para el defensor en el archipiélago grande
     if (isInvasionMode) {
         const additionalCities = Math.max(0, (INVASION_MODE_CONFIG?.DEFENDER_CITIES || 1) - 1);
+        const minCityDistance = 6;
         for (let i = 0; i < additionalCities; i++) {
-            const cityPos = findSafeLandPosition(arch2CenterR, arch2CenterC, 8, B_ROWS, B_COLS);
+            const cityPos = findDistributedLandPosition({
+                minR: arch2CenterR - 10,
+                maxR: arch2CenterR + 10,
+                minC: arch2CenterC - 10,
+                maxC: arch2CenterC + 10,
+                minDistanceFrom: cap2Pos ? [{ r: cap2Pos.r, c: cap2Pos.c, min: minCityDistance }] : [],
+                minDistanceFromCities: minCityDistance,
+                maxAttempts: 400
+            }) || findSafeLandPosition(arch2CenterR, arch2CenterC, 8, B_ROWS, B_COLS);
+
             if (cityPos && !board[cityPos.r]?.[cityPos.c]?.isCity) {
                 addCityToBoardData(cityPos.r, cityPos.c, 2, `Ciudad ${i + 1}`, false);
                 if (board[cityPos.r]?.[cityPos.c]) {
@@ -519,6 +541,52 @@ function findSafeLandPosition(centerR, centerC, radius, maxR, maxC) {
             }
         }
     }
+    return null;
+}
+
+function findDistributedLandPosition({
+    minR,
+    maxR,
+    minC,
+    maxC,
+    minDistanceFrom = [],
+    minDistanceFromCities = 0,
+    maxAttempts = 300
+}) {
+    const clampedMinR = Math.max(0, minR);
+    const clampedMaxR = Math.min(maxR, board.length - 1);
+    const clampedMinC = Math.max(0, minC);
+    const clampedMaxC = Math.min(maxC, board[0].length - 1);
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const r = Math.floor(clampedMinR + Math.random() * (clampedMaxR - clampedMinR + 1));
+        const c = Math.floor(clampedMinC + Math.random() * (clampedMaxC - clampedMinC + 1));
+        const hex = board[r]?.[c];
+        if (!hex || hex.terrain === 'water' || hex.isCity || hex.structure) continue;
+
+        let tooClose = false;
+        for (const ref of minDistanceFrom) {
+            if (!ref) continue;
+            if (hexDistance(r, c, ref.r, ref.c) < ref.min) {
+                tooClose = true;
+                break;
+            }
+        }
+        if (tooClose) continue;
+
+        if (minDistanceFromCities > 0) {
+            for (const city of (gameState.cities || [])) {
+                if (hexDistance(r, c, city.r, city.c) < minDistanceFromCities) {
+                    tooClose = true;
+                    break;
+                }
+            }
+        }
+        if (tooClose) continue;
+
+        return { r, c };
+    }
+
     return null;
 }
 

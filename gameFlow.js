@@ -1253,15 +1253,15 @@ function simpleAiTurn() {
     }
     */
    
-    const isArchipelago = !!gameState.setupTempSettings?.navalMap;
-    if (isArchipelago && typeof IAArchipielago !== 'undefined' && typeof IAArchipielago.ejecutarTurno === 'function') {
+    const useArchipelagoAI = gameState.gameMode === 'invasion' || !!gameState.setupTempSettings?.navalMap;
+    if (useArchipelagoAI && typeof IAArchipielago !== 'undefined' && typeof IAArchipielago.ejecutarTurno === 'function') {
         logMessage(`IA (Jugador ${aiActualPlayerNumber}) inicia su turno en Archipiélago... (IAArchipielago)`);
         IAArchipielago.ejecutarTurno(aiActualPlayerNumber);
         return;
     }
     
-    if (isArchipelago) {
-        console.warn(`[simpleAiTurn] Mapa Archipiélago detectado pero IAArchipielago NO disponible`);
+    if (useArchipelagoAI) {
+        console.warn(`[simpleAiTurn] Modo Archipiélago/Invasión detectado pero IAArchipielago NO disponible`);
         console.warn(`  - IAArchipielago definido: ${typeof IAArchipielago !== 'undefined'}`);
         console.warn(`  - Método ejecutarTurno disponible: ${typeof IAArchipielago?.ejecutarTurno === 'function'}`);
     }

@@ -205,6 +205,13 @@ async function saveGameUnifiedInternal(saveName, isAutoSave = false) {
         }
     }
 
+    if (isAutoSave && PlayerDataManager.currentPlayer?.auth_id) {
+        const userSuffix = PlayerDataManager.currentPlayer.auth_id.slice(0, 8);
+        if (!saveName.includes(userSuffix)) {
+            saveName = `${saveName}_${userSuffix}`;
+        }
+    }
+
     try {
         // Preparar datos de forma unificada
         const { boardState, unitsState } = _prepareGameDataForSave();
@@ -289,6 +296,18 @@ async function saveGameUnifiedInternal(saveName, isAutoSave = false) {
                     .from('game_saves')
                     .insert([saveData]);
                 error = result.error;
+
+                if (error && error.code === '23505') {
+                    const uniqueSuffix = new Date().toISOString().replace(/[:.]/g, '-');
+                    const uniqueName = `${saveData.save_name} (${uniqueSuffix})`;
+                    const retryResult = await supabaseClient
+                        .from('game_saves')
+                        .insert([{ ...saveData, save_name: uniqueName }]);
+                    error = retryResult.error;
+                    if (!error && !isAutoSave) {
+                        logMessage(`Nombre duplicado. Guardado como '${uniqueName}'.`, "warning");
+                    }
+                }
             }
 
             if (error) {

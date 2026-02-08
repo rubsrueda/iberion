@@ -3,6 +3,7 @@
 // EJECUTA ACCIONES REALES: Movimiento, fusión, división, conquista, construcción, caravanas
 
 const IAArchipielago = {
+  ARCHI_LOG_VERBOSE: true,
   deployUnitsAI(myPlayer) {
     console.log(`[IA_ARCHIPIELAGO] Despliegue IA iniciado para Jugador ${myPlayer}.`);
     if (gameState.currentPhase !== 'deployment') {
@@ -114,6 +115,7 @@ const IAArchipielago = {
     const rutas = this._evaluarRutasDeVictoria(situacion);
     situacion.rutas = rutas;
     this._logRutasDeVictoria(rutas);
+    this._procesarRutasDeVictoria(situacion);
 
     // <<==== IMPLEMENTACIÓN DE ACCIONES DE IA ====>>
     console.log(`[IA_ARCHIPIELAGO] ========= EJECUTANDO PLAN DE ACCIÓN =========`);
@@ -889,18 +891,93 @@ const IAArchipielago = {
     if (!rutas || rutas.length === 0) return;
 
     console.log(`[IA_ARCHIPIELAGO] ========= RUTAS DE VICTORIA =========`);
-    const top = rutas.slice(0, 5);
-    top.forEach((ruta, idx) => {
+    rutas.forEach((ruta, idx) => {
       const metaText = ruta.meta ? JSON.stringify(ruta.meta) : '';
       console.log(`[IA_ARCHIPIELAGO] #${idx + 1} ${ruta.label} | peso=${ruta.weight.toFixed(1)} | ejecutar=${!!ruta.canExecute} ${metaText}`);
     });
-
-    console.groupCollapsed('[IA_ARCHIPIELAGO] Rutas completas (debug)');
-    rutas.forEach(ruta => {
-      console.log(`${ruta.label} | peso=${ruta.weight.toFixed(1)} | ejecutar=${!!ruta.canExecute}`, ruta.meta || {});
-    });
-    console.groupEnd();
     console.log(`========================================\n`);
+  },
+
+  _procesarRutasDeVictoria(situacion) {
+    const rutas = situacion.rutas || [];
+    if (!rutas.length) return;
+
+    console.log(`[IA_ARCHIPIELAGO] ========= PROCESO RUTAS (DETALLE) =========`);
+    rutas.forEach((ruta, idx) => {
+      const metaText = ruta.meta ? JSON.stringify(ruta.meta) : '';
+      console.log(`[IA_ARCHIPIELAGO] [Ruta ${idx + 1}] ${ruta.id} | peso=${ruta.weight.toFixed(1)} | ejecutar=${!!ruta.canExecute} ${metaText}`);
+
+      if (!ruta.canExecute) {
+        const reason = this._diagnosticarRutaNoEjecutable(ruta, situacion);
+        const reasonText = reason ? ` (razon: ${reason})` : '';
+        console.log(`[IA_ARCHIPIELAGO] [Ruta ${idx + 1}] ${ruta.id} -> omitida${reasonText}`);
+        return;
+      }
+
+      const action = this._ejecutarAccionPorRuta(ruta, situacion);
+      const resultText = action?.executed ? 'ejecutada' : 'no ejecutada';
+      const reasonText = action?.reason ? ` (razon: ${action.reason})` : '';
+      const noteText = action?.note ? ` (nota: ${action.note})` : '';
+      console.log(`[IA_ARCHIPIELAGO] [Ruta ${idx + 1}] ${ruta.id} -> accion: ${action?.action || 'desconocida'} | ${resultText}${reasonText}${noteText}`);
+    });
+    console.log(`========================================\n`);
+  },
+
+  _ejecutarAccionPorRuta(ruta, situacion) {
+    const { myPlayer } = situacion;
+    switch (ruta.id) {
+      case 'ruta_larga':
+        this._ejecutarRutaLarga(situacion);
+        return { action: 'ruta_larga', executed: true, note: 'ver logs de Ruta Larga para resultado' };
+      case 'ruta_emperador':
+        this.conquistarCiudadesBarbaras(myPlayer, IASentidos.getUnits(myPlayer));
+        return { action: 'conquistar_ciudades_barbaras', executed: true, note: 'ver logs de conquista' };
+      case 'ruta_capital':
+        return { action: 'evaluar_capital', executed: false, reason: 'sin_accion_impl' };
+      case 'ruta_aniquilacion':
+        return { action: 'presion_militar', executed: false, reason: 'sin_accion_impl' };
+      case 'ruta_gloria':
+        return { action: 'victoria_por_puntos', executed: false, reason: 'sin_accion_impl' };
+      default:
+        return { action: 'sin_accion_directa', executed: false, reason: 'sin_handler_ruta' };
+    }
+  },
+
+  _diagnosticarRutaNoEjecutable(ruta, situacion) {
+    const meta = ruta.meta || {};
+    switch (ruta.id) {
+      case 'ruta_larga':
+        if (meta.reason) return meta.reason;
+        return 'condiciones_no_cumplidas';
+      case 'ruta_capital': {
+        const ratio = meta.powerRatio;
+        const dist = meta.nearestDist;
+        if (typeof ratio === 'number' && ratio < 0.9) return `powerRatio_bajo:${ratio}`;
+        if (typeof dist === 'number' && dist > 10) return `distancia_alta:${dist}`;
+        return 'condiciones_no_cumplidas';
+      }
+      case 'ruta_aniquilacion': {
+        const ratio = meta.powerRatio;
+        if (typeof ratio === 'number' && ratio < 1.1) return `powerRatio_bajo:${ratio}`;
+        return 'condiciones_no_cumplidas';
+      }
+      case 'ruta_emperador': {
+        if (typeof meta.remainingCities === 'number' && meta.remainingCities <= 0) {
+          return `objetivo_cumplido:remainingCities=${meta.remainingCities}`;
+        }
+        return 'condiciones_no_cumplidas';
+      }
+      case 'ruta_gloria': {
+        const victoryPointsEnabled = gameState.victoryByPointsEnabled ?? VICTORY_BY_POINTS_ENABLED_DEFAULT;
+        if (!victoryPointsEnabled) return 'victoria_por_puntos_desactivada';
+        if (typeof meta.remainingPoints === 'number' && meta.remainingPoints <= 0) {
+          return `objetivo_cumplido:remainingPoints=${meta.remainingPoints}`;
+        }
+        return 'condiciones_no_cumplidas';
+      }
+      default:
+        return meta.reason || 'condiciones_no_cumplidas';
+    }
   },
 
   _minUnitDistance(myPlayer, target) {
