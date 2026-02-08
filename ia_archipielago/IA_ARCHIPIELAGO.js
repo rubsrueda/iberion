@@ -111,6 +111,10 @@ const IAArchipielago = {
       infraestructura: infraestructura
     };
 
+    const rutas = this._evaluarRutasDeVictoria(situacion);
+    situacion.rutas = rutas;
+    this._logRutasDeVictoria(rutas);
+
     // <<==== IMPLEMENTACIÓN DE ACCIONES DE IA ====>>
     console.log(`[IA_ARCHIPIELAGO] ========= EJECUTANDO PLAN DE ACCIÓN =========`);
     this.ejecutarPlanDeAccion(situacion);
@@ -142,6 +146,11 @@ const IAArchipielago = {
     const misUnidades = IASentidos.getUnits(myPlayer);
     
     console.log(`[IA_ARCHIPIELAGO] PLAN: Ejecutando con ${misUnidades.length} unidades disponibles`);
+
+    const rutaPrioritaria = situacion.rutas?.[0];
+    if (rutaPrioritaria?.id === 'ruta_larga') {
+      this._ejecutarRutaLarga(situacion);
+    }
 
     // FASE 1: FUSIÓN DEFENSIVA (El latido del corazón)
     if (amenazas.length > 0 || frente.length > 0) {
@@ -700,6 +709,336 @@ const IAArchipielago = {
       if (typeof BankManager !== 'undefined' && BankManager.createCaravan) {
         // BankManager.createCaravan(...);
       }
+    }
+  }
+  ,
+
+  _evaluarRutasDeVictoria(situacion) {
+    const { myPlayer, ciudades } = situacion;
+    const enemyPlayer = myPlayer === 1 ? 2 : 1;
+    const myMetrics = this._collectVictoryMetrics(myPlayer);
+    const enemyMetrics = this._collectVictoryMetrics(enemyPlayer);
+    const holders = gameState.victoryPoints?.holders || {};
+    const myKey = `player${myPlayer}`;
+    const enemyKey = `player${enemyPlayer}`;
+    const rutas = [];
+
+    const pushTitleRoute = (id, label, metricKey, holderKey, baseWeight = 120) => {
+      const myVal = myMetrics[metricKey] || 0;
+      const enemyVal = enemyMetrics[metricKey] || 0;
+      const holder = holders[holderKey] || null;
+      const delta = enemyVal - myVal;
+      let weight = baseWeight + Math.max(0, delta) * 8;
+
+      if (holder === myKey) weight *= 0.4;
+      if (holder === enemyKey) weight *= 1.3;
+
+      rutas.push({
+        id,
+        label,
+        weight,
+        canExecute: true,
+        meta: { myVal, enemyVal, holder }
+      });
+    };
+
+    const enemyCapital = gameState.cities.find(c => c.isCapital && c.owner === enemyPlayer);
+    if (enemyCapital) {
+      const powerRatio = this._estimateLocalPowerRatio(myPlayer, enemyCapital, 5);
+      const nearestDist = this._minUnitDistance(myPlayer, enemyCapital);
+      const canExecute = powerRatio >= 0.9 && nearestDist <= 10;
+      const weight = 220 + Math.max(0, 10 - Math.min(nearestDist, 10)) * 12 + powerRatio * 40;
+
+      rutas.push({
+        id: 'ruta_capital',
+        label: 'Conquistar Capital',
+        weight,
+        canExecute,
+        meta: { nearestDist, powerRatio: Number(powerRatio.toFixed(2)) }
+      });
+    }
+
+    const totalEnemyUnits = enemyMetrics.unitCount || 0;
+    const totalMyUnits = myMetrics.unitCount || 0;
+    if (totalEnemyUnits > 0) {
+      const powerRatio = (myMetrics.totalRegiments + 1) / (enemyMetrics.totalRegiments + 1);
+      const weight = 200 + Math.max(0, powerRatio - 1) * 120;
+      rutas.push({
+        id: 'ruta_aniquilacion',
+        label: 'Eliminar Jugador',
+        weight,
+        canExecute: powerRatio >= 1.1,
+        meta: { powerRatio: Number(powerRatio.toFixed(2)), totalMyUnits, totalEnemyUnits }
+      });
+    }
+
+    const totalCities = gameState.cities?.length || 0;
+    const targetCities = Math.max(6, Math.ceil(totalCities * 0.5));
+    const remainingCities = Math.max(0, targetCities - (myMetrics.cities || 0));
+    rutas.push({
+      id: 'ruta_emperador',
+      label: 'Control de Ciudades',
+      weight: 160 + remainingCities * 60,
+      canExecute: remainingCities > 0,
+      meta: { targetCities, remainingCities }
+    });
+
+    const victoryPointsEnabled = gameState.victoryByPointsEnabled ?? VICTORY_BY_POINTS_ENABLED_DEFAULT;
+    const currentPoints = gameState.victoryPoints?.[myKey] || 0;
+    const remainingPoints = Math.max(0, VICTORY_POINTS_TO_WIN - currentPoints);
+    rutas.push({
+      id: 'ruta_gloria',
+      label: 'Puntos de Victoria',
+      weight: victoryPointsEnabled ? 150 + remainingPoints * 35 : 0,
+      canExecute: victoryPointsEnabled && remainingPoints > 0,
+      meta: { currentPoints, remainingPoints }
+    });
+
+    rutas.push(this._evaluarRutaLarga(situacion, myMetrics, enemyMetrics, holders));
+
+    pushTitleRoute('ruta_mas_ciudades', 'Mas Ciudades', 'cities', 'mostCities');
+    pushTitleRoute('ruta_ejercito_grande', 'Ejercito Grande', 'armySize', 'largestArmy');
+    pushTitleRoute('ruta_mas_victorias', 'Mas Victorias', 'kills', 'mostKills');
+    pushTitleRoute('ruta_mas_avances', 'Mas Avances', 'techs', 'mostTechs');
+    pushTitleRoute('ruta_mas_heroes', 'Mas Heroes', 'heroes', 'mostHeroes');
+    pushTitleRoute('ruta_mas_riqueza', 'Mas Riqueza', 'wealthSum', 'mostResources');
+    pushTitleRoute('ruta_mas_comercios', 'Mas Comercios', 'trades', 'mostTrades');
+    pushTitleRoute('ruta_gran_arqueologo', 'Gran Arqueologo', 'ruinsCount', 'mostRuins');
+    pushTitleRoute('ruta_conquistador_barbaro', 'Conquistador Barbaro', 'barbaraCities', 'mostBarbaraCities');
+    pushTitleRoute('ruta_almirante_supremo', 'Almirante Supremo', 'navalVictories', 'mostNavalVictories');
+
+    rutas.sort((a, b) => b.weight - a.weight);
+    return rutas;
+  },
+
+  _evaluarRutaLarga(situacion, myMetrics, enemyMetrics, holders) {
+    const { myPlayer, ciudades } = situacion;
+    const enemyPlayer = myPlayer === 1 ? 2 : 1;
+    const myKey = `player${myPlayer}`;
+    const enemyKey = `player${enemyPlayer}`;
+
+    if (!ciudades || ciudades.length < 2) {
+      return {
+        id: 'ruta_larga',
+        label: 'Ruta Larga',
+        weight: 0,
+        canExecute: false,
+        meta: { reason: 'sin_ciudades' }
+      };
+    }
+
+    const candidate = this._findBestTradeCityPair(ciudades, myPlayer);
+    if (!candidate) {
+      return {
+        id: 'ruta_larga',
+        label: 'Ruta Larga',
+        weight: 0,
+        canExecute: false,
+        meta: { reason: 'sin_ruta' }
+      };
+    }
+
+    const { cityA, cityB, infraPath, missingOwnedSegments } = candidate;
+    const hasInfra = !!infraPath;
+    const missingCount = missingOwnedSegments.length;
+    let weight = 170 + (hasInfra ? 90 : 0) + Math.max(0, 3 - missingCount) * 25;
+
+    if (holders.mostRoutes === myKey) weight *= 0.5;
+    if (holders.mostRoutes === enemyKey) weight *= 1.4;
+
+    return {
+      id: 'ruta_larga',
+      label: 'Ruta Larga',
+      weight,
+      canExecute: true,
+      meta: {
+        cityA: cityA?.name,
+        cityB: cityB?.name,
+        hasInfra,
+        missingCount
+      }
+    };
+  },
+
+  _collectVictoryMetrics(playerNumber) {
+    const pKey = `player${playerNumber}`;
+    const res = gameState.playerResources[playerNumber] || {};
+    const playerUnits = units.filter(u => u.player === playerNumber && u.currentHealth > 0);
+    const barbaraCitiesConquered = gameState.cities.filter(c => {
+      return c.owner === playerNumber && (c.isBarbaric === true || (c.owner === 9 && board[c.r]?.[c.c]?.owner === playerNumber));
+    }).length;
+
+    return {
+      unitCount: playerUnits.length,
+      totalRegiments: playerUnits.reduce((sum, u) => sum + (u.regiments?.length || 0), 0),
+      routesCount: playerUnits.filter(u => u.tradeRoute).length,
+      wealthSum: (res.oro || 0) + (res.hierro || 0) + (res.piedra || 0) + (res.madera || 0) + (res.comida || 0),
+      cities: board.flat().filter(h => h && h.owner === playerNumber && (h.isCity || h.structure === 'Aldea')).length,
+      armySize: playerUnits.reduce((sum, u) => sum + (u.maxHealth || 0), 0),
+      kills: gameState.playerStats?.unitsDestroyed?.[pKey] || 0,
+      techs: (res.researchedTechnologies || []).length,
+      heroes: playerUnits.filter(u => u.commander).length,
+      trades: gameState.playerStats?.sealTrades?.[pKey] || 0,
+      ruinsCount: gameState.playerStats?.ruinsExplored?.[pKey] || 0,
+      barbaraCities: barbaraCitiesConquered,
+      navalVictories: gameState.playerStats?.navalVictories?.[pKey] || 0
+    };
+  },
+
+  _logRutasDeVictoria(rutas) {
+    if (!rutas || rutas.length === 0) return;
+
+    console.log(`[IA_ARCHIPIELAGO] ========= RUTAS DE VICTORIA =========`);
+    const top = rutas.slice(0, 5);
+    top.forEach((ruta, idx) => {
+      const metaText = ruta.meta ? JSON.stringify(ruta.meta) : '';
+      console.log(`[IA_ARCHIPIELAGO] #${idx + 1} ${ruta.label} | peso=${ruta.weight.toFixed(1)} | ejecutar=${!!ruta.canExecute} ${metaText}`);
+    });
+
+    console.groupCollapsed('[IA_ARCHIPIELAGO] Rutas completas (debug)');
+    rutas.forEach(ruta => {
+      console.log(`${ruta.label} | peso=${ruta.weight.toFixed(1)} | ejecutar=${!!ruta.canExecute}`, ruta.meta || {});
+    });
+    console.groupEnd();
+    console.log(`========================================\n`);
+  },
+
+  _minUnitDistance(myPlayer, target) {
+    const myUnits = IASentidos.getUnits(myPlayer);
+    if (!myUnits.length) return 99;
+    return myUnits.reduce((min, unit) => Math.min(min, hexDistance(unit.r, unit.c, target.r, target.c)), 99);
+  },
+
+  _estimateLocalPowerRatio(myPlayer, target, radius = 5) {
+    const enemyPlayer = myPlayer === 1 ? 2 : 1;
+    const myUnits = IASentidos.getUnits(myPlayer).filter(u => hexDistance(u.r, u.c, target.r, target.c) <= radius);
+    const enemyUnits = IASentidos.getUnits(enemyPlayer).filter(u => hexDistance(u.r, u.c, target.r, target.c) <= radius);
+    const myRegs = myUnits.reduce((sum, u) => sum + (u.regiments?.length || 0), 0);
+    const enemyRegs = enemyUnits.reduce((sum, u) => sum + (u.regiments?.length || 0), 0);
+    return (myRegs + 1) / (enemyRegs + 1);
+  },
+
+  _findBestTradeCityPair(ciudades, myPlayer) {
+    let best = null;
+    const dummyUnit = { player: myPlayer, regiments: [{ type: 'Infantería Ligera' }] };
+
+    for (let i = 0; i < ciudades.length; i++) {
+      for (let j = i + 1; j < ciudades.length; j++) {
+        const cityA = ciudades[i];
+        const cityB = ciudades[j];
+        const landPath = findPath_A_Star(dummyUnit, { r: cityA.r, c: cityA.c }, { r: cityB.r, c: cityB.c });
+        if (!landPath) continue;
+
+        const infraPath = findInfrastructurePath(cityA, cityB);
+        const missingOwnedSegments = landPath.filter(step => {
+          const hex = board[step.r]?.[step.c];
+          if (!hex || hex.isCity || hex.structure || hex.terrain === 'water') return false;
+          return hex.owner === myPlayer;
+        });
+
+        const missingCount = missingOwnedSegments.length;
+        const score = (missingCount * 10) + landPath.length;
+        if (!best || score < best.score) {
+          best = { cityA, cityB, landPath, infraPath, missingOwnedSegments, score };
+        }
+      }
+    }
+
+    return best;
+  },
+
+  _ejecutarRutaLarga(situacion) {
+    const { myPlayer, ciudades } = situacion;
+    if (!ciudades || ciudades.length < 2) {
+      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No hay suficientes ciudades.');
+      return;
+    }
+
+    const candidate = this._findBestTradeCityPair(ciudades, myPlayer);
+    if (!candidate) {
+      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No se encontro ruta terrestre valida entre ciudades.');
+      return;
+    }
+
+    const { cityA, cityB, infraPath, landPath, missingOwnedSegments } = candidate;
+    console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] Ciudades: ${cityA.name} -> ${cityB.name} | Infra=${!!infraPath} | Faltantes=${missingOwnedSegments.length}`);
+
+    if (!infraPath) {
+      const roadCost = STRUCTURE_TYPES['Camino']?.cost || {};
+      const playerRes = gameState.playerResources[myPlayer] || {};
+      const canAfford = (playerRes.piedra || 0) >= (roadCost.piedra || 0) && (playerRes.madera || 0) >= (roadCost.madera || 0);
+      const nextHex = missingOwnedSegments[0];
+
+      if (!nextHex) {
+        console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No hay segmentos propios disponibles para construir camino.');
+        return;
+      }
+
+      if (!canAfford) {
+        console.log('[IA_ARCHIPIELAGO] [Ruta Larga] Recursos insuficientes para construir camino.');
+        return;
+      }
+
+      if (typeof handleConfirmBuildStructure === 'function') {
+        console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] Construyendo camino en (${nextHex.r},${nextHex.c})`);
+        handleConfirmBuildStructure({ playerId: myPlayer, r: nextHex.r, c: nextHex.c, structureType: 'Camino' });
+      }
+      return;
+    }
+
+    const existingRouteKeys = new Set();
+    units.forEach(u => {
+      if (u.player === myPlayer && u.tradeRoute?.origin && u.tradeRoute?.destination) {
+        const key = [u.tradeRoute.origin.name, u.tradeRoute.destination.name].sort().join('-');
+        existingRouteKeys.add(key);
+      }
+    });
+
+    const routeKey = [cityA.name, cityB.name].sort().join('-');
+    if (existingRouteKeys.has(routeKey)) {
+      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] Ya existe una ruta comercial activa entre estas ciudades.');
+      return;
+    }
+
+    let supplyUnit = units.find(u => u.player === myPlayer && !u.tradeRoute && u.regiments?.some(reg => (REGIMENT_TYPES[reg.type].abilities || []).includes('provide_supply')));
+
+    if (!supplyUnit && typeof AiGameplayManager !== 'undefined' && AiGameplayManager.produceUnit) {
+      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] Creando Columna de Suministro...');
+      supplyUnit = AiGameplayManager.produceUnit(myPlayer, ['Columna de Suministro'], 'trader', 'Columna de Suministro');
+    }
+
+    if (!supplyUnit) {
+      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No se pudo crear o encontrar Columna de Suministro.');
+      return;
+    }
+
+    let origin = cityA;
+    let destination = cityB;
+    const originHex = board[origin.r]?.[origin.c];
+    const destHex = board[destination.r]?.[destination.c];
+    const originBlocked = originHex?.unit && originHex.unit.id !== supplyUnit.id;
+    const destBlocked = destHex?.unit && destHex.unit.id !== supplyUnit.id;
+
+    if (originBlocked && !destBlocked) {
+      origin = cityB;
+      destination = cityA;
+    } else if (originBlocked && destBlocked) {
+      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] Ambas ciudades estan ocupadas.');
+      return;
+    }
+
+    if (supplyUnit.r !== origin.r || supplyUnit.c !== origin.c) {
+      if (typeof _executeMoveUnit === 'function') {
+        console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] Moviendo columna a ciudad origen (${origin.r},${origin.c})`);
+        _executeMoveUnit(supplyUnit, origin.r, origin.c, true);
+      }
+    }
+
+    if (typeof _executeEstablishTradeRoute === 'function') {
+      console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] Estableciendo ruta: ${origin.name} -> ${destination.name}`);
+      _executeEstablishTradeRoute({ unitId: supplyUnit.id, origin, destination, path: infraPath });
+    } else {
+      console.warn('[IA_ARCHIPIELAGO] [Ruta Larga] _executeEstablishTradeRoute no disponible.');
     }
   }
 };

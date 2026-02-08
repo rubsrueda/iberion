@@ -229,8 +229,9 @@ async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaign
         victoryPoints: {
             player1: 0, player2: 0, player3: 0, player4: 0, player5: 0, player6: 0, player7: 0, player8: 0,
             holders: {
-                mostCities: null, largestArmy: null, longestRoute: null, mostKills: null,
-                mostTechs: null, mostHeroes: null, mostResources: null, mostTrades: [],
+                mostCities: null, largestArmy: null, mostRoutes: null, mostKills: null,
+                mostTechs: null, mostHeroes: null, mostResources: null, mostTrades: null,
+                mostRuins: null, mostBarbaraCities: null, mostNavalVictories: null,
             },
             ruins: {
                 player1: 0, player2: 0, player3: 0, player4: 0, player5: 0, player6: 0, player7: 0, player8: 0,
