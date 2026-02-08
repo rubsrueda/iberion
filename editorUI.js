@@ -523,9 +523,8 @@ const EditorUI = {
         // Restaurar elementos de UI del juego
         const topBarActions = document.getElementById('top-bar-actions');
         if (topBarActions) topBarActions.style.display = '';
-                const topBarMenu = document.getElementById('top-bar-menu');
-        if (topBarMenu) topBarMenu.style.display = 'none';
-                const topBarMenu = document.getElementById('top-bar-menu');
+        
+        const topBarMenu = document.getElementById('top-bar-menu');
         if (topBarMenu) topBarMenu.style.display = '';
         
         const tacticalUI = document.getElementById('tactical-ui-container');
