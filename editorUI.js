@@ -26,6 +26,19 @@ const EditorUI = {
         const modals = document.querySelectorAll('.modal');
         modals.forEach(modal => modal.style.display = 'none');
         
+        // IMPORTANTE: Mostrar el contenedor del juego para que gameBoard sea visible
+        const gameContainer = document.querySelector('.game-container');
+        if (gameContainer) {
+            gameContainer.style.display = 'flex';
+        }
+        
+        // Asegurar que gameBoard sea visible
+        const gameBoard = document.getElementById('gameBoard');
+        if (gameBoard) {
+            gameBoard.style.display = 'grid';
+            gameBoard.style.zIndex = '1';
+        }
+        
         // Mostrar UI del editor
         const editorContainer = document.getElementById('scenarioEditorContainer');
         if (editorContainer) {
@@ -83,8 +96,12 @@ const EditorUI = {
         }
         
         gameBoard.innerHTML = '';
+        gameBoard.style.display = 'grid';
+        
+        console.log(`[EditorUI] Creando ${rows * cols} hexágonos...`);
         
         // Crear hexágonos DOM
+        let hexCount = 0;
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 const hexElement = this.createEditorHexElement(r, c);
@@ -100,15 +117,21 @@ const EditorUI = {
                     hasRoad: false,
                     visibility: {}
                 };
+                hexCount++;
             }
         }
+        
+        console.log(`[EditorUI] ${hexCount} hexágonos creados`);
         
         // Renderizar tablero
         if (typeof renderBoardToDOM === 'function') {
             renderBoardToDOM();
+            console.log('[EditorUI] Tablero renderizado');
+        } else {
+            console.warn('[EditorUI] renderBoardToDOM no disponible');
         }
         
-        console.log(`[EditorUI] Tablero ${rows}x${cols} inicializado`);
+        console.log(`[EditorUI] Tablero ${rows}x${cols} inicializado completamente`);
     },
     
     /**
@@ -384,9 +407,9 @@ const EditorUI = {
         // Iniciar juego
         gameState.currentPhase = scenarioData.settings.startingPhase || 'deployment';
         
-        // Mostrar pantalla de juego
-        const battleScreen = document.getElementById('battleScreen');
-        if (battleScreen) battleScreen.style.display = 'block';
+        // Mostrar contenedor del juego (ya está visible del editor)
+        const gameContainer = document.querySelector('.game-container');
+        if (gameContainer) gameContainer.style.display = 'flex';
         
         // Actualizar UI
         if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
@@ -460,6 +483,10 @@ const EditorUI = {
         
         const editorContainer = document.getElementById('scenarioEditorContainer');
         if (editorContainer) editorContainer.style.display = 'none';
+        
+        // Ocultar el contenedor del juego
+        const gameContainer = document.querySelector('.game-container');
+        if (gameContainer) gameContainer.style.display = 'none';
         
         const mainMenu = document.getElementById('mainMenuScreen');
         if (mainMenu) mainMenu.style.display = 'flex';

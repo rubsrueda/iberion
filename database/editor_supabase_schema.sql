@@ -12,8 +12,9 @@
 --
 -- ===================================================================
 
--- Habilitar extensión UUID (si no está habilitada)
+-- Habilitar extensiones necesarias
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS pg_trgm;  -- Para búsquedas de texto con similitud
 
 -- ===================================================================
 -- TABLA: scenarios
@@ -22,7 +23,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE IF NOT EXISTS public.scenarios (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    author_id TEXT REFERENCES auth.users(id) ON DELETE CASCADE,
+    author_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     description TEXT,
     scenario_data JSONB NOT NULL,  -- El JSON completo del escenario
@@ -58,7 +59,7 @@ CREATE INDEX IF NOT EXISTS idx_scenarios_data ON public.scenarios USING gin(scen
 
 CREATE TABLE IF NOT EXISTS public.campaigns (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    author_id TEXT REFERENCES auth.users(id) ON DELETE CASCADE,
+    author_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     description TEXT,
     campaign_data JSONB NOT NULL,  -- Array de escenarios
@@ -93,7 +94,7 @@ CREATE INDEX IF NOT EXISTS idx_campaigns_data ON public.campaigns USING gin(camp
 CREATE TABLE IF NOT EXISTS public.scenario_ratings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     scenario_id UUID REFERENCES public.scenarios(id) ON DELETE CASCADE,
-    user_id TEXT REFERENCES auth.users(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
     comment TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -113,7 +114,7 @@ CREATE INDEX IF NOT EXISTS idx_scenario_ratings_user ON public.scenario_ratings(
 CREATE TABLE IF NOT EXISTS public.campaign_ratings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     campaign_id UUID REFERENCES public.campaigns(id) ON DELETE CASCADE,
-    user_id TEXT REFERENCES auth.users(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
     comment TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -269,22 +270,22 @@ CREATE POLICY "Escenarios públicos son visibles para todos"
 -- Los usuarios pueden ver sus propios escenarios (públicos o privados)
 CREATE POLICY "Usuarios pueden ver sus propios escenarios"
     ON public.scenarios FOR SELECT
-    USING (auth.uid()::text = author_id);
+    USING (auth.uid() = author_id);
 
 -- Los usuarios pueden insertar sus propios escenarios
 CREATE POLICY "Usuarios pueden crear escenarios"
     ON public.scenarios FOR INSERT
-    WITH CHECK (auth.uid()::text = author_id);
+    WITH CHECK (auth.uid() = author_id);
 
 -- Los usuarios pueden actualizar sus propios escenarios
 CREATE POLICY "Usuarios pueden editar sus propios escenarios"
     ON public.scenarios FOR UPDATE
-    USING (auth.uid()::text = author_id);
+    USING (auth.uid() = author_id);
 
 -- Los usuarios pueden eliminar sus propios escenarios
 CREATE POLICY "Usuarios pueden eliminar sus propios escenarios"
     ON public.scenarios FOR DELETE
-    USING (auth.uid()::text = author_id);
+    USING (auth.uid() = author_id);
 
 -- Políticas para campaigns (similares a scenarios)
 CREATE POLICY "Campañas públicas son visibles para todos"
@@ -293,24 +294,24 @@ CREATE POLICY "Campañas públicas son visibles para todos"
 
 CREATE POLICY "Usuarios pueden ver sus propias campañas"
     ON public.campaigns FOR SELECT
-    USING (auth.uid()::text = author_id);
+    USING (auth.uid() = author_id);
 
 CREATE POLICY "Usuarios pueden crear campañas"
     ON public.campaigns FOR INSERT
-    WITH CHECK (auth.uid()::text = author_id);
+    WITH CHECK (auth.uid() = author_id);
 
 CREATE POLICY "Usuarios pueden editar sus propias campañas"
     ON public.campaigns FOR UPDATE
-    USING (auth.uid()::text = author_id);
+    USING (auth.uid() = author_id);
 
 CREATE POLICY "Usuarios pueden eliminar sus propias campañas"
     ON public.campaigns FOR DELETE
-    USING (auth.uid()::text = author_id);
+    USING (auth.uid() = author_id);
 
 -- Políticas para ratings
 CREATE POLICY "Usuarios pueden crear valoraciones"
     ON public.scenario_ratings FOR INSERT
-    WITH CHECK (auth.uid()::text = user_id);
+    WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Usuarios pueden ver todas las valoraciones"
     ON public.scenario_ratings FOR SELECT
@@ -318,11 +319,11 @@ CREATE POLICY "Usuarios pueden ver todas las valoraciones"
 
 CREATE POLICY "Usuarios pueden editar sus propias valoraciones"
     ON public.scenario_ratings FOR UPDATE
-    USING (auth.uid()::text = user_id);
+    USING (auth.uid() = user_id);
 
 CREATE POLICY "Usuarios pueden crear valoraciones de campañas"
     ON public.campaign_ratings FOR INSERT
-    WITH CHECK (auth.uid()::text = user_id);
+    WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Usuarios pueden ver todas las valoraciones de campañas"
     ON public.campaign_ratings FOR SELECT
@@ -330,7 +331,7 @@ CREATE POLICY "Usuarios pueden ver todas las valoraciones de campañas"
 
 CREATE POLICY "Usuarios pueden editar sus propias valoraciones de campañas"
     ON public.campaign_ratings FOR UPDATE
-    USING (auth.uid()::text = user_id);
+    USING (auth.uid() = user_id);
 
 -- ===================================================================
 -- COMENTARIOS Y DOCUMENTACIÓN
