@@ -3,6 +3,17 @@
 
 function onHexClick(r, c) {
 
+    // === BIFURCACIÓN: MODO EDITOR ===
+    // Si estamos en modo editor, delegar al manejador del editor y salir temprano
+    if (typeof EditorState !== 'undefined' && EditorState.isEditorMode) {
+        if (typeof handleEditorHexClick === 'function') {
+            handleEditorHexClick(r, c);
+        } else {
+            console.error('[Main] handleEditorHexClick no está definido');
+        }
+        return; // Salir - no ejecutar lógica de juego
+    }
+
     // === GUARDIÁN: MODO PAINT ACTIVO ===
     // Si el sistema de movimiento automático está en modo paint, no procesar clics
     if (typeof AutoMoveManager !== 'undefined' && AutoMoveManager.isPaintModeActive) {

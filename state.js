@@ -347,3 +347,84 @@ function resetGameStateForIberiaMagna() {
     
     console.log("state.js: gameState reseteado para Tronos de Iberia.", JSON.parse(JSON.stringify(gameState)));
 }
+
+// ===================================================================
+// ==================== EDITOR DE ESCENARIOS =========================
+// ===================================================================
+
+/**
+ * EditorState: Estado global del sistema de edición de escenarios
+ * Este objeto controla todo el comportamiento del modo editor
+ */
+const EditorState = {
+    isEditorMode: false,           // Flag principal - bifurca onHexClick()
+    currentTool: null,             // 'terrain' | 'unit' | 'structure' | 'eraser' | 'player_owner'
+    selectedTerrain: 'plains',     // Para pincel de terreno
+    selectedUnitType: null,        // Para colocación de unidades
+    selectedPlayer: 1,             // Jugador activo en edición
+    selectedStructure: null,       // Para colocación de estructuras
+    isPainting: false,             // Para arrastrar y pintar
+    
+    // Metadata del escenario actual
+    scenarioMeta: {
+        name: 'Sin título',
+        author: null,
+        description: '',
+        created_at: null,
+        modified_at: null,
+        version: '1.0'
+    },
+    
+    // Configuración del escenario
+    scenarioSettings: {
+        dimensions: { rows: 12, cols: 15 },
+        maxPlayers: 2,
+        startingPhase: 'deployment',  // 'deployment' | 'play'
+        turnLimit: null,
+        victoryConditions: ['eliminate_enemy'], // Array de condiciones
+        mapType: 'custom' // 'custom' | 'procedural'
+    },
+    
+    // Configuración de jugadores (hasta 8 jugadores)
+    playerConfigs: {
+        1: {
+            civilization: null,      // null = "elegir al jugar"
+            controllerType: 'human', // 'human' | 'ai'
+            aiDifficulty: 'medium',
+            resources: {
+                oro: 1000,
+                comida: 500,
+                madera: 200,
+                piedra: 0,
+                hierro: 0,
+                puntosInvestigacion: 0,
+                puntosReclutamiento: 300
+            }
+        },
+        2: {
+            civilization: null,
+            controllerType: 'ai',
+            aiDifficulty: 'medium',
+            resources: {
+                oro: 1000,
+                comida: 500,
+                madera: 200,
+                piedra: 0,
+                hierro: 0,
+                puntosInvestigacion: 0,
+                puntosReclutamiento: 300
+            }
+        }
+    },
+    
+    // Historia de acciones (para Undo/Redo)
+    history: [],
+    historyIndex: -1,
+    maxHistorySize: 50,
+    
+    // Estado temporal para edición
+    clipboardUnit: null, // Para copiar/pegar unidades
+    lastSaveTime: null
+};
+
+console.log("state.js: EditorState inicializado");

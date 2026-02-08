@@ -244,7 +244,7 @@
     
     <!-- versión -->
 <div class="version-watermark" id="version-display">V1.003</div>
-<div class="name-watermark" id="name-watermark">Piloto</div>
+<div class="name-watermark" id="name-watermark">Violeta</div>
     <!-- versión -->
 
     <!-- El resto de tus elementos como #combatPredictionPanel y los scripts van después -->
@@ -431,6 +431,16 @@
                 <button id="startSkirmishBtn_new" style="display: block; width: 90%; margin: 20px auto; padding: 15px; font-size: 1.1em;">Partida Rápida (Escaramuza)</button>
                 <button id="startTutorialBtn_new" style="display: block; width: 90%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #28a745;">Iniciar Tutorial (5 min)</button>
                 <button id="joinNetworkGameBtn_new" style="display: block; width: 90%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #ffc107; color: black;">Unirse a Partida en Red</button>
+                
+                <!-- BOTONES DEL EDITOR -->
+                <hr style="margin: 30px 0; border-color: #444;">
+                <h3 style="color: #00f3ff; margin-bottom: 15px;">🛠️ Modo Creador</h3>
+                <button onclick="EditorUI.openScenarioEditor()" style="display: block; width: 90%; margin: 15px auto; padding: 15px; font-size: 1.1em; background-color: #667eea; color: white;">
+                    📝 Editor de Escenarios
+                </button>
+                <button onclick="CampaignUI.openCampaignEditor()" style="display: block; width: 90%; margin: 15px auto; padding: 15px; font-size: 1.1em; background-color: #764ba2; color: white;">
+                    📚 Editor de Campañas
+                </button>
             </div>
         </div>
     </div>
@@ -1747,6 +1757,125 @@
     </div>
 
     <!-- ====================================================================== -->
+    <!-- ============== EDITOR DE ESCENARIOS Y CAMPAÑAS ======================= -->
+    <!-- ====================================================================== -->
+
+    <!-- EDITOR DE ESCENARIOS -->
+    <div id="scenarioEditorContainer" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10500; background: rgba(0,0,0,0.95);">
+        
+        <!-- Menú Superior -->
+        <div class="editor-top-bar">
+            <button onclick="EditorUI.saveScenario()" title="Guardar escenario">💾 Guardar</button>
+            <button onclick="EditorUI.testScenario()" title="Probar escenario en el juego">▶️ Probar</button>
+            <button onclick="EditorUI.exportScenario()" title="Exportar como archivo JSON">📤 Exportar</button>
+            <button onclick="EditorUI.importScenario()" title="Importar desde archivo JSON">📥 Importar</button>
+            <button onclick="EditorUI.undo()" title="Deshacer">↶</button>
+            <button onclick="EditorUI.redo()" title="Rehacer">↷</button>
+            
+            <span id="editorScenarioName" style="flex: 1; text-align: center; color: #00f3ff; font-size: 1.2em; font-weight: bold;">Sin título</span>
+            
+            <button onclick="EditorUI.closeEditor()" title="Cerrar editor">❌ Salir</button>
+        </div>
+        
+        <!-- Panel Lateral: Herramientas -->
+        <div class="editor-sidebar">
+            <h3 style="color: #00f3ff; margin-bottom: 15px;">🛠️ Herramientas</h3>
+            
+            <!-- Selector de Herramienta -->
+            <div class="tool-selector">
+                <button class="tool-btn" data-tool="terrain" onclick="EditorUI.selectTool('terrain')" title="Pintar terreno">🗺️ Terreno</button>
+                <button class="tool-btn" data-tool="unit" onclick="EditorUI.selectTool('unit')" title="Colocar unidades">🎖️ Unidades</button>
+                <button class="tool-btn" data-tool="structure" onclick="EditorUI.selectTool('structure')" title="Colocar estructuras">🏰 Estructuras</button>
+                <button class="tool-btn" data-tool="player_owner" onclick="EditorUI.selectTool('player_owner')" title="Asignar propietario">👤 Propietario</button>
+                <button class="tool-btn" data-tool="eraser" onclick="EditorUI.selectTool('eraser')" title="Borrar">🗑️ Borrador</button>
+            </div>
+            
+            <!-- Panel de Terreno -->
+            <div id="toolPanel_terrain" class="tool-panel" style="display: none;">
+                <h4>Tipo de Terreno</h4>
+                <select id="terrainTypeSelector" onchange="EditorUI.updateToolSettings()">
+                    <!-- Poblado dinámicamente -->
+                </select>
+                <p style="font-size: 0.8em; color: #888;">Haz clic o arrastra para pintar</p>
+            </div>
+            
+            <!-- Panel de Unidades -->
+            <div id="toolPanel_unit" class="tool-panel" style="display: none;">
+                <h4>Jugador</h4>
+                <select id="unitPlayerSelector" onchange="EditorUI.updateToolSettings()">
+                    <!-- Poblado dinámicamente -->
+                </select>
+                
+                <h4>Tipo de Unidad</h4>
+                <select id="unitTypeSelector" onchange="EditorUI.updateToolSettings()">
+                    <!-- Poblado dinámicamente -->
+                </select>
+            </div>
+            
+            <!-- Panel de Estructuras -->
+            <div id="toolPanel_structure" class="tool-panel" style="display: none;">
+                <h4>Jugador</h4>
+                <select id="structurePlayerSelector" onchange="EditorUI.updateToolSettings()">
+                    <!-- Usa el mismo que unitPlayerSelector -->
+                </select>
+                
+                <h4>Tipo de Estructura</h4>
+                <select id="structureTypeSelector" onchange="EditorUI.updateToolSettings()">
+                    <!-- Poblado dinámicamente -->
+                </select>
+            </div>
+            
+            <!-- Panel de Propietario -->
+            <div id="toolPanel_player_owner" class="tool-panel" style="display: none;">
+                <h4>Asignar a Jugador</h4>
+                <select id="ownerPlayerSelector" onchange="EditorUI.updateToolSettings()">
+                    <!-- Usa el mismo que unitPlayerSelector -->
+                </select>
+                <p style="font-size: 0.8em; color: #888;">Establece el propietario del hexágono</p>
+            </div>
+        </div>
+        
+        <!-- Panel Inferior: Configuración -->
+        <div class="editor-bottom-bar">
+            <button onclick="EditorUI.openMapSettings()">⚙️ Tamaño del Mapa</button>
+            <button onclick="EditorUI.openPlayerSettings()">👥 Jugadores</button>
+            <button onclick="EditorUI.openVictoryConditions()">🏆 Condiciones</button>
+            <button onclick="EditorUI.generateProcedural()">🎲 Generar Mapa</button>
+        </div>
+        
+    </div>
+
+    <!-- EDITOR DE CAMPAÑAS -->
+    <div id="campaignEditorContainer" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10500; background: rgba(0,0,0,0.95);">
+        
+        <!-- Menú Superior -->
+        <div class="editor-top-bar">
+            <button onclick="CampaignUI.saveCampaign()">💾 Guardar Campaña</button>
+            <button onclick="CampaignUI.exportCampaign()">📤 Exportar</button>
+            
+            <span id="campaignTitleDisplay" style="flex: 1; text-align: center; color: #00f3ff; font-size: 1.2em; font-weight: bold;">Sin título</span>
+            
+            <button onclick="CampaignUI.closeCampaignEditor()">❌ Salir</button>
+        </div>
+        
+        <!-- Contenedor Central -->
+        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 50px;">
+            <div style="width: 800px; max-width: 90%; background: #1a252f; border: 2px solid #00f3ff; border-radius: 8px; padding: 30px;">
+                <h2 style="color: #00f3ff; margin-bottom: 20px;">Escenarios de la Campaña</h2>
+                
+                <div id="campaignScenarioList" style="max-height: 400px; overflow-y: auto; margin-bottom: 20px;">
+                    <!-- Poblado dinámicamente por CampaignUI.renderScenarioList() -->
+                </div>
+                
+                <button onclick="CampaignUI.addScenario()" style="width: 100%; padding: 15px; background: #28a745; color: white; border: none; border-radius: 5px; font-size: 1.1em; cursor: pointer;">
+                    ➕ Añadir Escenario
+                </button>
+            </div>
+        </div>
+        
+    </div>
+
+    <!-- ====================================================================== -->
     <!-- ===================== CARGA DE SCRIPTS ===================== -->
     <!-- ====================================================================== -->
     
@@ -1841,6 +1970,13 @@
     <script src="saveLoad.js"></script>
     <script src="campaignManager.js"></script>
     <script src="inventoryLogic.js"></script>
+    
+    <!-- SISTEMA DE EDITOR DE ESCENARIOS Y CAMPAÑAS -->
+    <script src="scenarioEditor.js"></script>
+    <script src="editorUI.js"></script>
+    <script src="scenarioStorage.js"></script>
+    <script src="campaignEditor.js"></script>
+    <script src="campaignStorage.js"></script>
     
     <!-- NUEVOS SCRIPTS: SISTEMA DE REPLAY/CRÓNICAS -->
     <script src="replayEngine.js"></script>
