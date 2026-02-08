@@ -30,12 +30,7 @@ const EditorUI = {
         const gameContainer = document.querySelector('.game-container');
         if (gameContainer) {
             gameContainer.style.display = 'flex';
-            // Ajustar posición para dejar espacio a los paneles del editor
-            gameContainer.style.marginTop = '60px';
-            gameContainer.style.marginLeft = '250px';
-            gameContainer.style.marginBottom = '80px';
-            gameContainer.style.width = 'calc(100vw - 250px)';
-            gameContainer.style.height = 'calc(100vh - 140px)';
+            gameContainer.style.pointerEvents = 'auto';
         }
         
         // Asegurar que gameBoard sea visible
@@ -44,6 +39,7 @@ const EditorUI = {
             gameBoard.style.display = 'grid';
             gameBoard.style.zIndex = '1';
             gameBoard.style.position = 'relative';
+            gameBoard.style.pointerEvents = 'auto';
         }
         
         // Mostrar UI del editor
@@ -159,6 +155,7 @@ const EditorUI = {
         
         hexDiv.style.left = `${xOffset}px`;
         hexDiv.style.top = `${yOffset}px`;
+        hexDiv.style.pointerEvents = 'auto';
         
         // Listener de clic modificado para editor
         hexDiv.addEventListener('click', () => {
@@ -307,8 +304,8 @@ const EditorUI = {
         
         console.log(`[EditorUI] Herramienta seleccionada: ${toolName}`);
         
-        // Resaltar botón activo
-        document.querySelectorAll('.tool-btn').forEach(btn => {
+        // Resaltar botón activo (móvil)
+        document.querySelectorAll('.tool-btn-mobile').forEach(btn => {
             btn.classList.remove('editor-tool-active');
         });
         
@@ -318,13 +315,13 @@ const EditorUI = {
         }
         
         // Mostrar panel correspondiente
-        document.querySelectorAll('.tool-panel').forEach(panel => {
+        document.querySelectorAll('.tool-panel-mobile').forEach(panel => {
             panel.style.display = 'none';
         });
         
         const activePanel = document.getElementById(`toolPanel_${toolName}`);
         if (activePanel) {
-            activePanel.style.display = 'block';
+            activePanel.style.display = 'flex';
         }
         
         // Actualizar valores seleccionados según selectores
@@ -418,11 +415,6 @@ const EditorUI = {
         const gameContainer = document.querySelector('.game-container');
         if (gameContainer) {
             gameContainer.style.display = 'flex';
-            gameContainer.style.marginTop = '';
-            gameContainer.style.marginLeft = '';
-            gameContainer.style.marginBottom = '';
-            gameContainer.style.width = '';
-            gameContainer.style.height = '';
         }
         
         // Actualizar UI
@@ -502,11 +494,6 @@ const EditorUI = {
         const gameContainer = document.querySelector('.game-container');
         if (gameContainer) {
             gameContainer.style.display = 'none';
-            gameContainer.style.marginTop = '';
-            gameContainer.style.marginLeft = '';
-            gameContainer.style.marginBottom = '';
-            gameContainer.style.width = '';
-            gameContainer.style.height = '';
         }
         
         const mainMenu = document.getElementById('mainMenuScreen');
@@ -567,6 +554,78 @@ const EditorUI = {
                 this.initializeEmptyBoard(numRows, numCols);
             }
         }
+    },
+    
+    /**
+     * Toggle del panel de herramientas móvil
+     */
+    toggleToolPanel() {
+        const panel = document.getElementById('editorToolsPanel');
+        if (!panel) return;
+        
+        const isHidden = panel.style.display === 'none';
+        panel.style.display = isHidden ? 'block' : 'none';
+        
+        const toggleBtn = document.getElementById('toolsPanelToggle');
+        if (toggleBtn) {
+            toggleBtn.style.background = isHidden ? '#00f3ff' : 'rgba(0, 243, 255, 0.2)';
+            toggleBtn.style.color = isHidden ? '#000' : '#00f3ff';
+        }
+    },
+    
+    /**
+     * Abre menú de opciones avanzadas del editor
+     */
+    openEditorMenu() {
+        const options = [
+            '📤 Exportar JSON',
+            '📥 Importar JSON',
+            '↶ Deshacer',
+            '↷ Rehacer',
+            '⚙️ Tamaño del Mapa',
+            '👥 Jugadores',
+            '🏆 Condiciones Victoria',
+            '🎲 Generar Mapa Aleatorio'
+        ];
+        
+        // Crear menú simple con botones
+        const menu = document.createElement('div');
+        menu.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10,25,41,0.98); border: 2px solid #00f3ff; border-radius: 10px; padding: 20px; z-index: 10505; max-width: 90%; min-width: 250px; pointer-events: auto;';
+        
+        const title = document.createElement('h3');
+        title.textContent = 'Opciones del Editor';
+        title.style.cssText = 'color: #00f3ff; margin: 0 0 15px 0; text-align: center;';
+        menu.appendChild(title);
+        
+        options.forEach((opt, index) => {
+            const btn = document.createElement('button');
+            btn.textContent = opt;
+            btn.style.cssText = 'display: block; width: 100%; padding: 12px; margin-bottom: 8px; background: rgba(0,243,255,0.1); border: 1px solid #00f3ff; border-radius: 5px; color: #00f3ff; font-size: 1em; cursor: pointer; pointer-events: auto;';
+            
+            btn.onclick = () => {
+                document.body.removeChild(menu);
+                switch(index) {
+                    case 0: this.exportScenario(); break;
+                    case 1: this.importScenario(); break;
+                    case 2: this.undo(); break;
+                    case 3: this.redo(); break;
+                    case 4: this.openMapSettings(); break;
+                    case 5: this.openPlayerSettings(); break;
+                    case 6: this.openVictoryConditions(); break;
+                    case 7: this.generateProcedural(); break;
+                }
+            };
+            
+            menu.appendChild(btn);
+        });
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = 'Cerrar';
+        closeBtn.style.cssText = 'display: block; width: 100%; padding: 12px; background: #dc3545; border: none; border-radius: 5px; color: white; font-size: 1em; cursor: pointer; margin-top: 10px; pointer-events: auto;';
+        closeBtn.onclick = () => document.body.removeChild(menu);
+        menu.appendChild(closeBtn);
+        
+        document.body.appendChild(menu);
     },
     
     /**

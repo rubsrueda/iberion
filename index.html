@@ -244,7 +244,7 @@
     
     <!-- versión -->
 <div class="version-watermark" id="version-display">V1.003</div>
-<div class="name-watermark" id="name-watermark">Eva</div>
+<div class="name-watermark" id="name-watermark">Adan</div>
     <!-- versión -->
 
     <!-- El resto de tus elementos como #combatPredictionPanel y los scripts van después -->
@@ -1763,84 +1763,54 @@
     <!-- EDITOR DE ESCENARIOS -->
     <div id="scenarioEditorContainer" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10500; background: transparent; pointer-events: none;">
         
-        <!-- Menú Superior -->
-        <div class="editor-top-bar">
-            <button onclick="EditorUI.saveScenario()" title="Guardar escenario">💾 Guardar</button>
-            <button onclick="EditorUI.testScenario()" title="Probar escenario en el juego">▶️ Probar</button>
-            <button onclick="EditorUI.exportScenario()" title="Exportar como archivo JSON">📤 Exportar</button>
-            <button onclick="EditorUI.importScenario()" title="Importar desde archivo JSON">📥 Importar</button>
-            <button onclick="EditorUI.undo()" title="Deshacer">↶</button>
-            <button onclick="EditorUI.redo()" title="Rehacer">↷</button>
-            
-            <span id="editorScenarioName" style="flex: 1; text-align: center; color: #00f3ff; font-size: 1.2em; font-weight: bold;">Sin título</span>
-            
-            <button onclick="EditorUI.closeEditor()" title="Cerrar editor">❌ Salir</button>
+        <!-- Menú Superior Móvil -->
+        <div class="editor-top-bar-mobile">
+            <button onclick="EditorUI.saveScenario()" title="Guardar">💾</button>
+            <button onclick="EditorUI.testScenario()" title="Probar">▶️</button>
+            <button onclick="EditorUI.toggleToolPanel()" title="Herramientas" id="toolsPanelToggle">🛠️</button>
+            <span id="editorScenarioName" style="flex: 1; text-align: center; color: #fff; font-size: 0.9em; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Sin título</span>
+            <button onclick="EditorUI.openEditorMenu()" title="Menú">⋮</button>
+            <button onclick="EditorUI.closeEditor()" title="Salir">✕</button>
         </div>
         
-        <!-- Panel Lateral: Herramientas -->
-        <div class="editor-sidebar">
-            <h3 style="color: #00f3ff; margin-bottom: 15px;">🛠️ Herramientas</h3>
-            
+        <!-- Panel Flotante Inferior: Herramientas -->
+        <div class="editor-tools-panel" id="editorToolsPanel" style="display: none;">
             <!-- Selector de Herramienta -->
-            <div class="tool-selector">
-                <button class="tool-btn" data-tool="terrain" onclick="EditorUI.selectTool('terrain')" title="Pintar terreno">🗺️ Terreno</button>
-                <button class="tool-btn" data-tool="unit" onclick="EditorUI.selectTool('unit')" title="Colocar unidades">🎖️ Unidades</button>
-                <button class="tool-btn" data-tool="structure" onclick="EditorUI.selectTool('structure')" title="Colocar estructuras">🏰 Estructuras</button>
-                <button class="tool-btn" data-tool="player_owner" onclick="EditorUI.selectTool('player_owner')" title="Asignar propietario">👤 Propietario</button>
-                <button class="tool-btn" data-tool="eraser" onclick="EditorUI.selectTool('eraser')" title="Borrar">🗑️ Borrador</button>
+            <div class="tool-selector-mobile">
+                <button class="tool-btn-mobile" data-tool="terrain" onclick="EditorUI.selectTool('terrain')">🗺️<br><span>Terreno</span></button>
+                <button class="tool-btn-mobile" data-tool="unit" onclick="EditorUI.selectTool('unit')">🎖️<br><span>Unidad</span></button>
+                <button class="tool-btn-mobile" data-tool="structure" onclick="EditorUI.selectTool('structure')">🏰<br><span>Edificio</span></button>
+                <button class="tool-btn-mobile" data-tool="player_owner" onclick="EditorUI.selectTool('player_owner')">👤<br><span>Dueño</span></button>
+                <button class="tool-btn-mobile" data-tool="eraser" onclick="EditorUI.selectTool('eraser')">🗑️<br><span>Borrar</span></button>
             </div>
             
-            <!-- Panel de Terreno -->
-            <div id="toolPanel_terrain" class="tool-panel" style="display: none;">
-                <h4>Tipo de Terreno</h4>
+            
+            <!-- Paneles de Configuración Móvil -->
+            <div id="toolPanel_terrain" class="tool-panel-mobile" style="display: none;">
+                <label style="color: #fff; font-size: 0.9em;">Tipo de Terreno</label>
                 <select id="terrainTypeSelector" onchange="EditorUI.updateToolSettings()">
                     <!-- Poblado dinámicamente -->
                 </select>
-                <p style="font-size: 0.8em; color: #888;">Haz clic o arrastra para pintar</p>
             </div>
             
-            <!-- Panel de Unidades -->
-            <div id="toolPanel_unit" class="tool-panel" style="display: none;">
-                <h4>Jugador</h4>
-                <select id="unitPlayerSelector" onchange="EditorUI.updateToolSettings()">
-                    <!-- Poblado dinámicamente -->
-                </select>
-                
-                <h4>Tipo de Unidad</h4>
-                <select id="unitTypeSelector" onchange="EditorUI.updateToolSettings()">
-                    <!-- Poblado dinámicamente -->
-                </select>
+            <div id="toolPanel_unit" class="tool-panel-mobile" style="display: none;">
+                <label style="color: #fff; font-size: 0.9em;">Jugador</label>
+                <select id="unitPlayerSelector" onchange="EditorUI.updateToolSettings()"></select>
+                <label style="color: #fff; font-size: 0.9em; margin-top: 8px;">Tipo de Unidad</label>
+                <select id="unitTypeSelector" onchange="EditorUI.updateToolSettings()"></select>
             </div>
             
-            <!-- Panel de Estructuras -->
-            <div id="toolPanel_structure" class="tool-panel" style="display: none;">
-                <h4>Jugador</h4>
-                <select id="structurePlayerSelector" onchange="EditorUI.updateToolSettings()">
-                    <!-- Usa el mismo que unitPlayerSelector -->
-                </select>
-                
-                <h4>Tipo de Estructura</h4>
-                <select id="structureTypeSelector" onchange="EditorUI.updateToolSettings()">
-                    <!-- Poblado dinámicamente -->
-                </select>
+            <div id="toolPanel_structure" class="tool-panel-mobile" style="display: none;">
+                <label style="color: #fff; font-size: 0.9em;">Jugador</label>
+                <select id="structurePlayerSelector" onchange="EditorUI.updateToolSettings()"></select>
+                <label style="color: #fff; font-size: 0.9em; margin-top: 8px;">Tipo de Estructura</label>
+                <select id="structureTypeSelector" onchange="EditorUI.updateToolSettings()"></select>
             </div>
             
-            <!-- Panel de Propietario -->
-            <div id="toolPanel_player_owner" class="tool-panel" style="display: none;">
-                <h4>Asignar a Jugador</h4>
-                <select id="ownerPlayerSelector" onchange="EditorUI.updateToolSettings()">
-                    <!-- Usa el mismo que unitPlayerSelector -->
-                </select>
-                <p style="font-size: 0.8em; color: #888;">Establece el propietario del hexágono</p>
+            <div id="toolPanel_player_owner" class="tool-panel-mobile" style="display: none;">
+                <label style="color: #fff; font-size: 0.9em;">Asignar a Jugador</label>
+                <select id="ownerPlayerSelector" onchange="EditorUI.updateToolSettings()"></select>
             </div>
-        </div>
-        
-        <!-- Panel Inferior: Configuración -->
-        <div class="editor-bottom-bar">
-            <button onclick="EditorUI.openMapSettings()">⚙️ Tamaño del Mapa</button>
-            <button onclick="EditorUI.openPlayerSettings()">👥 Jugadores</button>
-            <button onclick="EditorUI.openVictoryConditions()">🏆 Condiciones</button>
-            <button onclick="EditorUI.generateProcedural()">🎲 Generar Mapa</button>
         </div>
         
     </div>

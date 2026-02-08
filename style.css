@@ -6634,7 +6634,7 @@ input:checked + .slider:before {
 }
 
 /* ========================================================================== */
-/* ESTILOS DEL EDITOR DE ESCENARIOS Y CAMPAÑAS
+/* ESTILOS DEL EDITOR DE ESCENARIOS Y CAMPAÑAS (MOBILE-FIRST)
 /* ========================================================================== */
 
 /* Contenedores principales del editor */
@@ -6647,8 +6647,8 @@ input:checked + .slider:before {
     height: 100%;
     display: flex;
     flex-direction: column;
-    pointer-events: none; /* Permite que el fondo sea clickeable */
-    z-index: 10502; /* Por encima de todos los modales del juego */
+    pointer-events: none;
+    z-index: 10502;
 }
 
 /* Los paneles del editor sí deben capturar eventos */
@@ -6664,216 +6664,129 @@ input:checked + .slider:before {
     z-index: 1 !important;
 }
 
-/* Barra superior del editor */
-.editor-top-bar {
+/* === BARRA SUPERIOR MÓVIL === */
+.editor-top-bar-mobile {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 15px 20px;
-    background: linear-gradient(90deg, #0a1929, #1a3a4a);
-    border-bottom: 2px solid #00f3ff;
-    box-shadow: 0 2px 10px rgba(0, 243, 255, 0.3);
-    z-index: 10503;
-}
-
-.editor-top-bar button {
-    padding: 8px 16px;
-    background: rgba(0, 243, 255, 0.2);
-    border: 1px solid #00f3ff;
-    border-radius: 5px;
-    color: #00f3ff;
-    cursor: pointer;
-    font-size: 0.9em;
-    transition: all 0.2s;
-}
-
-.editor-top-bar button:hover {
-    background: #00f3ff;
-    color: #000;
-}
-
-/* Panel lateral de herramientas */
-.editor-sidebar {
-    position: fixed;
-    left: 0;
-    top: 60px;
-    width: 250px;
-    max-height: calc(100vh - 180px);
+    gap: 5px;
+    padding: 8px 10px;
     background: rgba(10, 25, 41, 0.95);
-    border-right: 2px solid #00f3ff;
-    padding: 20px;
-    overflow-y: auto;
+    border-bottom: 2px solid #00f3ff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
     z-index: 10503;
-    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5);
+    height: 44px;
+    pointer-events: auto;
 }
 
-.tool-selector {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 20px;
-}
-
-.tool-btn {
-    padding: 12px 15px;
-    background: rgba(0, 243, 255, 0.1);
+.editor-top-bar-mobile button {
+    padding: 8px 12px;
+    background: rgba(0, 243, 255, 0.2);
     border: 1px solid #00f3ff;
     border-radius: 5px;
     color: #00f3ff;
     cursor: pointer;
-    font-size: 0.95em;
-    text-align: left;
+    font-size: 1.2em;
     transition: all 0.2s;
+    min-width: 40px;
+    pointer-events: auto;
 }
 
-.tool-btn:hover {
-    background: rgba(0, 243, 255, 0.2);
-}
-
-.tool-btn.editor-tool-active {
+.editor-top-bar-mobile button:hover,
+.editor-top-bar-mobile button:active {
     background: #00f3ff;
     color: #000;
-    font-weight: bold;
-    box-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
 }
 
-.tool-panel {
-    padding: 15px 0;
-    border-top: 1px solid #333;
-}
-
-.tool-panel h4 {
-    color: #00f3ff;
-    margin: 10px 0 5px 0;
-    font-size: 0.9em;
-}
-
-.tool-panel select {
-    width: 100%;
-    padding: 8px;
-    background: rgba(0, 243, 255, 0.1);
-    border: 1px solid #00f3ff;
-    border-radius: 5px;
-    color: #00f3ff;
-    font-size: 0.9em;
-    margin-bottom: 10px;
-}
-
-.tool-panel select option {
-    background: #0a1929;
-    color: #00f3ff;
-}
-
-/* Panel inferior de configuración */
-.editor-bottom-bar {
+/* === PANEL FLOTANTE INFERIOR: HERRAMIENTAS === */
+.editor-tools-panel {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 15px;
-    padding: 15px 20px;
-    background: linear-gradient(90deg, #0a1929, #1a3a4a);
+    background: rgba(10, 25, 41, 0.98);
     border-top: 2px solid #00f3ff;
-    box-shadow: 0 -2px 10px rgba(0, 243, 255, 0.3);
+    box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.7);
     z-index: 10503;
+    padding: 15px 10px 20px 10px;
+    max-height: 60vh;
+    overflow-y: auto;
+    transition: transform 0.3s ease-in-out;
+    pointer-events: auto;
 }
 
-.editor-bottom-bar button {
-    padding: 10px 20px;
-    background: rgba(0, 243, 255, 0.2);
+.editor-tools-panel.hidden {
+    transform: translateY(100%);
+}
+
+/* Selector de Herramienta Móvil */
+.tool-selector-mobile {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 15px;
+    overflow-x: auto;
+    padding-bottom: 5px;
+}
+
+.tool-btn-mobile {
+    flex: 1;
+    min-width: 65px;
+    padding: 12px 8px;
+    background: rgba(0, 243, 255, 0.1);
     border: 1px solid #00f3ff;
-    border-radius: 5px;
+    border-radius: 8px;
     color: #00f3ff;
     cursor: pointer;
-    font-size: 0.95em;
+    font-size: 1.5em;
+    text-align: center;
     transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
 }
 
-.editor-bottom-bar button:hover {
+.tool-btn-mobile span {
+    font-size: 0.4em;
+    margin-top: 4px;
+    display: block;
+}
+
+.tool-btn-mobile:active,
+.tool-btn-mobile.editor-tool-active {
     background: #00f3ff;
     color: #000;
+    transform: scale(0.95);
 }
 
-/* Estilos para items de escenario en campaña */
-.campaign-scenario-item {
+/* Paneles de Configuración Móvil */
+.tool-panel-mobile {
     display: flex;
-    align-items: center;
-    gap: 15px;
-    padding: 15px;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+}
+
+.tool-panel-mobile select {
+    width: 100%;
+    padding: 10px;
     background: rgba(0, 243, 255, 0.1);
     border: 1px solid #00f3ff;
     border-radius: 5px;
-    margin-bottom: 10px;
-    transition: all 0.2s;
-}
-
-.campaign-scenario-item:hover {
-    background: rgba(0, 243, 255, 0.2);
-}
-
-.scenario-order {
-    width: 40px;
-    height: 40px;
-    background: #00f3ff;
-    color: #000;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    font-size: 1.2em;
-    flex-shrink: 0;
-}
-
-.scenario-info {
-    flex: 1;
-    color: #fff;
-}
-
-.scenario-info strong {
     color: #00f3ff;
-    font-size: 1.1em;
-    display: block;
-    margin-bottom: 5px;
+    font-size: 1em;
+    pointer-events: auto;
 }
 
-.scenario-info small {
-    color: #888;
-    font-size: 0.85em;
-}
-
-.scenario-actions {
-    display: flex;
-    gap: 5px;
-}
-
-.scenario-actions button {
-    padding: 8px 12px;
-    background: rgba(0, 243, 255, 0.2);
-    border: 1px solid #00f3ff;
-    border-radius: 3px;
+.tool-panel-mobile select option {
+    background: #0a1929;
     color: #00f3ff;
-    cursor: pointer;
-    font-size: 0.9em;
-    transition: all 0.2s;
-}
-
-.scenario-actions button:hover {
-    background: #00f3ff;
-    color: #000;
-}
-
-/* Resaltado de hexágonos en modo editor */
-.hex.editor-highlight {
-    box-shadow: 0 0 15px rgba(0, 243, 255, 0.7) !important;
-    border: 2px solid #00f3ff !important;
 }
 
 /* Cursor personalizado para herramientas */
@@ -6881,11 +6794,8 @@ input:checked + .slider:before {
     cursor: crosshair;
 }
 
-/* NOTA: Los ajustes del gameBoard en modo editor se aplican via JavaScript en editorUI.js
-   porque #scenarioEditorContainer y main no son hermanos en el DOM */
-
 /* Scrollbar personalizado para paneles del editor */
-.editor-sidebar::-webkit-scrollbar,
+.editor-tools-panel::-webkit-scrollbar,
 #campaignScenarioList::-webkit-scrollbar {
     width: 8px;
 }
