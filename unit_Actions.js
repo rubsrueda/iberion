@@ -4346,6 +4346,27 @@ function _executeEstablishTradeRoute(payload) {
     const unit = getUnitById(unitId);
     if (!unit) return false;
 
+    const getTradePairKey = (a, b) => {
+        if (!a || !b) return null;
+        const aKey = Number.isInteger(a.r) && Number.isInteger(a.c) ? `${a.r},${a.c}` : a.name;
+        const bKey = Number.isInteger(b.r) && Number.isInteger(b.c) ? `${b.r},${b.c}` : b.name;
+        if (!aKey || !bKey) return null;
+        return [aKey, bKey].sort().join('|');
+    };
+
+    const pairKey = getTradePairKey(origin, destination);
+    if (pairKey) {
+        const hasRoute = units.some(u => {
+            if (!u.tradeRoute?.origin || !u.tradeRoute?.destination) return false;
+            const existingKey = getTradePairKey(u.tradeRoute.origin, u.tradeRoute.destination);
+            return existingKey === pairKey;
+        });
+        if (hasRoute) {
+            logMessage("Ya existe una ruta comercial activa entre estas ciudades.", "warning");
+            return false;
+        }
+    }
+
     const isNaval = unit.regiments.some(r => REGIMENT_TYPES[r.type].is_naval);
 
     const cargoCapacity = unit.regiments.reduce((sum, reg) => {

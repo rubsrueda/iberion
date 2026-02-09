@@ -700,24 +700,7 @@ function initApp() {
     }
 
     // Listener de información
-    if (domElements.floatingMenuBtn) { 
-        domElements.floatingMenuBtn.addEventListener('click', () => { 
-            const topBar = document.getElementById('top-bar-menu'); // Buscamos la nueva barra
-            if (!topBar) return;
-            
-            const isVisible = topBar.style.display !== 'none';
-
-            if (isVisible) {
-                topBar.style.display = 'none';
-            } else {
-                topBar.style.display = 'flex';
-                // Al abrir, pedimos a UIManager que refresque la info
-                if (typeof UIManager !== 'undefined' && UIManager.updateTopBarInfo) {
-                    UIManager.updateTopBarInfo();
-                }
-            }
-        }); 
-    }
+    // (Se gestiona más abajo junto al resto de botones para evitar duplicados)
 
     // Guardar Partida (Nuevo botón)
     const saveGameBtnTop = document.getElementById('saveGameBtn_top');
@@ -1546,10 +1529,13 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
     }
 
     
-    if (domElements.floatingMenuBtn && domElements.floatingMenuPanel) { 
+    if (domElements.floatingMenuBtn) { 
         domElements.floatingMenuBtn.addEventListener('click', () => { 
-            const isVisible = domElements.floatingMenuPanel.style.display === 'block' || domElements.floatingMenuPanel.style.display === 'flex'; 
-            domElements.floatingMenuPanel.style.display = isVisible ? 'none' : 'block'; 
+            const topBar = domElements.floatingMenuPanel || document.getElementById('top-bar-menu');
+            if (!topBar) return;
+
+            const isVisible = topBar.style.display === 'block' || topBar.style.display === 'flex';
+            topBar.style.display = isVisible ? 'none' : 'flex';
 
             // Notifica al tutorial de forma limpia
             if (gameState.isTutorialActive) {
@@ -1560,14 +1546,18 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
                 }
             }
             
-            if (!isVisible && typeof UIManager !== 'undefined' && typeof UIManager.updatePlayerAndPhaseInfo === "function") { 
-                 UIManager.updatePlayerAndPhaseInfo(); 
+            if (!isVisible) {
+                if (typeof UIManager !== 'undefined' && typeof UIManager.updateTopBarInfo === "function") {
+                    UIManager.updateTopBarInfo();
+                }
+                if (typeof UIManager !== 'undefined' && typeof UIManager.updatePlayerAndPhaseInfo === "function") { 
+                    UIManager.updatePlayerAndPhaseInfo(); 
+                }
+            } else if (typeof UIManager !== 'undefined' && typeof UIManager.hideContextualPanel === "function") {
+                UIManager.hideContextualPanel();
             }
-            if (isVisible && typeof UIManager !== 'undefined' && typeof UIManager.hideContextualPanel === "function") {
-                 UIManager.hideContextualPanel();
-    }
         }); 
-    } else { console.warn("main.js: floatingMenuBtn o floatingMenuPanel no encontrado."); }
+    } else { console.warn("main.js: floatingMenuBtn no encontrado."); }
 
     if (domElements.floatingSplitBtn) {
         domElements.floatingSplitBtn.addEventListener('click', (event) => {
