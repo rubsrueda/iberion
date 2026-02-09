@@ -211,21 +211,65 @@ const AiDeploymentManager = {
             }
         }
         
-        const fullRegiments = compositionTypes.map(type => ({...REGIMENT_TYPES[type], type}));
-        const cost = fullRegiments.reduce((sum, reg) => sum + (reg.cost?.oro || 0), 0);
-        
-        // VALIDACIÓN: Si aún no podemos pagar, intentar con Pueblo
-        if (cost > playerResources.oro && playerResources.oro >= 80) {
-            console.warn(`[IA DEPLOY] No se puede pagar ${cost} oro. Downgrade a Pueblo (80 oro).`);
-            return {
-                regiments: [{...REGIMENT_TYPES['Pueblo'], type: 'Pueblo'}],
-                cost: 80,
-                role: 'defender',
-                name: 'Asentamiento de Emergencia'
-            };
+        const preferredFallbacks = isContested
+            ? ['Infantería Ligera', 'Arqueros', 'Pueblo']
+            : ['Ingenieros', 'Columna de Suministro', 'Explorador', 'Pueblo'];
+
+        const budgetFit = this.fitCompositionToBudget(compositionTypes, playerResources.oro, preferredFallbacks);
+        if (!budgetFit) {
+            console.warn(`[IA DEPLOY] No hay oro suficiente para ninguna unidad. Oro actual: ${playerResources.oro}.`);
+            return null;
         }
-        
-        return { regiments: fullRegiments, cost, role, name };
+
+        compositionTypes = budgetFit.compositionTypes;
+        if (budgetFit.downgraded) {
+            console.warn(`[IA DEPLOY] Presupuesto ${playerResources.oro} oro. Ajustando composición a ${compositionTypes.join(', ')} (coste ${budgetFit.cost}).`);
+        }
+
+        if (compositionTypes.length === 1) {
+            const loneType = compositionTypes[0];
+            if (loneType === 'Ingenieros') { role = 'builder'; name = 'Ingenieros'; }
+            if (loneType === 'Columna de Suministro') { role = 'support'; name = 'Columna de Suministro'; }
+            if (loneType === 'Explorador') { role = 'explorer'; name = 'Explorador'; }
+            if (loneType === 'Pueblo') { role = 'defender'; name = 'Asentamiento'; }
+        }
+
+        const fullRegiments = compositionTypes.map(type => ({...REGIMENT_TYPES[type], type}));
+        return { regiments: fullRegiments, cost: budgetFit.cost, role, name };
+    },
+
+    fitCompositionToBudget: function(compositionTypes, budgetOro, preferredFallbacks = []) {
+        const costOf = (type) => REGIMENT_TYPES[type]?.cost?.oro ?? Infinity;
+        const sumCost = (types) => types.reduce((sum, type) => sum + costOf(type), 0);
+
+        let current = compositionTypes.filter(type => REGIMENT_TYPES[type]);
+        let currentCost = sumCost(current);
+
+        if (currentCost <= budgetOro) {
+            return { compositionTypes: current, cost: currentCost, downgraded: false };
+        }
+
+        const preferredAffordable = preferredFallbacks.find(type => costOf(type) <= budgetOro);
+        if (preferredAffordable) {
+            return { compositionTypes: [preferredAffordable], cost: costOf(preferredAffordable), downgraded: true };
+        }
+
+        current = [...current].sort((a, b) => costOf(b) - costOf(a));
+        while (current.length > 1 && sumCost(current) > budgetOro) {
+            current.shift();
+        }
+
+        currentCost = sumCost(current);
+        if (currentCost <= budgetOro) {
+            return { compositionTypes: current, cost: currentCost, downgraded: true };
+        }
+
+        const affordableTypes = Object.keys(REGIMENT_TYPES)
+            .filter(type => costOf(type) <= budgetOro)
+            .sort((a, b) => costOf(a) - costOf(b));
+
+        if (affordableTypes.length === 0) return null;
+        return { compositionTypes: [affordableTypes[0]], cost: costOf(affordableTypes[0]), downgraded: true };
     },
 
     findBestSpotForMission: function(mission, availableSpots, unitDefinition, playerNumber, isFirstUnit = false, humanThreats = []) {

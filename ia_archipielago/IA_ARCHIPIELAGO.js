@@ -1908,6 +1908,7 @@ const IAArchipielago = {
     }
 
     const routeKey = this._getTradePairKey(cityA, cityB);
+    const existingRouteKeys = this._getExistingTradeRouteKeys();
     if (routeKey && existingRouteKeys.has(routeKey)) {
       console.log('[IA_ARCHIPIELAGO] [Ruta Larga] Ya existe una ruta comercial activa entre estas ciudades.');
       return;
