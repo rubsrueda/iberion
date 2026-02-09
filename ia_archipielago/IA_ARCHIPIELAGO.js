@@ -628,6 +628,73 @@ const IAArchipielago = {
     return unit.regiments.some(reg => !REGIMENT_TYPES?.[reg.type]?.is_naval);
   },
 
+  _isTerrainPassableForUnit(unit, terrain) {
+    if (!unit?.regiments?.length || !terrain) return false;
+    const isNaval = unit.regiments.some(reg => REGIMENT_TYPES?.[reg.type]?.is_naval);
+    if (isNaval) return terrain === 'water';
+
+    const unitCategory = REGIMENT_TYPES[unit.regiments[0]?.type]?.category;
+    if (!unitCategory) return false;
+    if (TERRAIN_TYPES[terrain]?.isImpassableForLand) return false;
+    if (IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY.all_land?.includes(terrain)) return false;
+    if ((IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[unitCategory] || []).includes(terrain)) return false;
+    return true;
+  },
+
+  _findPathForUnit(unit, targetR, targetC) {
+    if (!unit || typeof targetR === 'undefined' || typeof targetC === 'undefined') return null;
+    if (unit.r === targetR && unit.c === targetC) return [{ r: unit.r, c: unit.c }];
+
+    const queue = [{ r: unit.r, c: unit.c, path: [{ r: unit.r, c: unit.c }], f: hexDistance(unit.r, unit.c, targetR, targetC) }];
+    const visited = new Set([`${unit.r},${unit.c}`]);
+
+    while (queue.length > 0) {
+      queue.sort((a, b) => a.f - b.f);
+      const current = queue.shift();
+
+      for (const neighbor of getHexNeighbors(current.r, current.c)) {
+        const key = `${neighbor.r},${neighbor.c}`;
+        if (visited.has(key)) continue;
+
+        const hex = board[neighbor.r]?.[neighbor.c];
+        if (!hex || !this._isTerrainPassableForUnit(unit, hex.terrain)) continue;
+
+        const unitOnNeighbor = hex.unit;
+        const isTarget = neighbor.r === targetR && neighbor.c === targetC;
+        if (unitOnNeighbor && !isTarget) continue;
+
+        visited.add(key);
+        const newPath = [...current.path, neighbor];
+        if (isTarget) return newPath;
+
+        const g = current.path.length;
+        const h = hexDistance(neighbor.r, neighbor.c, targetR, targetC);
+        queue.push({ ...neighbor, path: newPath, f: g + h });
+      }
+    }
+    return null;
+  },
+
+  _getMoveStepTowards(unit, targetR, targetC) {
+    const movement = unit?.currentMovement || unit?.movement || 0;
+    if (!unit || movement <= 0) return null;
+
+    const path = this._findPathForUnit(unit, targetR, targetC);
+    if (!path || path.length <= 1) return null;
+
+    let bestStep = null;
+    for (let i = 1; i < path.length; i++) {
+      const step = path[i];
+      if (getUnitOnHex(step.r, step.c)) break;
+      const cost = getMovementCost(unit, unit.r, unit.c, step.r, step.c);
+      if (cost !== Infinity && cost <= movement) {
+        bestStep = step;
+      }
+    }
+
+    return bestStep;
+  },
+
   _pickBarbarianTarget(myPlayer, ciudadesBarbaras) {
     if (!ciudadesBarbaras.length) return null;
     const ownCities = (gameState.cities || []).filter(c => c.owner === myPlayer);
@@ -646,6 +713,7 @@ const IAArchipielago = {
   _selectExpeditionUnits(myPlayer, targetCity, minPower) {
     const myUnits = IASentidos.getUnits(myPlayer)
       .filter(u => u.currentHealth > 0 && this._isLandUnit(u))
+      .filter(u => !!this._findPathForUnit(u, targetCity.r, targetCity.c))
       .sort((a, b) => hexDistance(a.r, a.c, targetCity.r, targetCity.c) - hexDistance(b.r, b.c, targetCity.r, targetCity.c));
 
     const selected = [];
@@ -720,7 +788,7 @@ const IAArchipielago = {
       const regimentsPerDivision = 3;
       const neededDivisions = Math.min(3, Math.ceil((requiredPower - totalPower) / regimentsPerDivision));
       if (neededDivisions > 0) {
-        const created = this._producirDivisiones(myPlayer, neededDivisions, regimentsPerDivision);
+        const created = this._producirDivisiones(myPlayer, neededDivisions, regimentsPerDivision, targetCity);
         if (created > 0) {
           expeditionUnits = this._selectExpeditionUnits(myPlayer, targetCity, requiredPower);
           totalPower = this._sumUnitPower(expeditionUnits);
@@ -844,6 +912,8 @@ const IAArchipielago = {
       RequestAttackUnit(unit, targetUnit);
       return true;
     }
+    const step = this._getMoveStepTowards(unit, r, c);
+    if (step) return this._requestMoveUnit(unit, step.r, step.c);
     return this._requestMoveUnit(unit, r, c);
   },
 
@@ -1211,23 +1281,25 @@ const IAArchipielago = {
     return null;
   },
 
-  _getArmyComposition(myPlayer, regimentsPerDivision = 3) {
+  _getArmyComposition(myPlayer, regimentsPerDivision = 3, targetCity = null) {
     const techs = this._getPlayerTechs(myPlayer);
     const hasHeavy = techs.includes('DRILL_TACTICS') && REGIMENT_TYPES['Infantería Pesada'];
     const hasArchers = techs.includes('FLETCHING') && REGIMENT_TYPES['Arqueros'];
     const hasCavalry = techs.includes('ANIMAL_HUSBANDRY') && REGIMENT_TYPES['Caballería Ligera'];
-    const base = hasHeavy ? 'Infantería Pesada' : 'Infantería Ligera';
+    const targetTerrain = targetCity ? board[targetCity.r]?.[targetCity.c]?.terrain : null;
+    const roughTerrain = ['hills', 'forest', 'mountain', 'mountains'].includes(targetTerrain);
+    const base = (hasHeavy && !roughTerrain) ? 'Infantería Pesada' : 'Infantería Ligera';
 
     const composition = Array(regimentsPerDivision).fill(base);
     if (hasArchers && composition.length >= 3) composition[composition.length - 1] = 'Arqueros';
-    if (hasCavalry && composition.length >= 3) composition[0] = 'Caballería Ligera';
+    if (hasCavalry && composition.length >= 3 && !roughTerrain) composition[0] = 'Caballería Ligera';
     return composition;
   },
 
-  _producirDivisiones(myPlayer, targetDivisions = 5, regimentsPerDivision = 3) {
+  _producirDivisiones(myPlayer, targetDivisions = 5, regimentsPerDivision = 3, targetCity = null) {
     if (typeof AiGameplayManager === 'undefined' || !AiGameplayManager.produceUnit) return 0;
     let created = 0;
-    const composition = this._getArmyComposition(myPlayer, regimentsPerDivision);
+    const composition = this._getArmyComposition(myPlayer, regimentsPerDivision, targetCity);
 
     for (let i = 0; i < targetDivisions; i++) {
       const newUnit = AiGameplayManager.produceUnit(myPlayer, composition, 'attacker', `Cuerpo-${i + 1}`);
@@ -1243,7 +1315,9 @@ const IAArchipielago = {
     if (!myUnits.length) return null;
     const movable = myUnits.filter(u => u.currentHealth > 0 && (u.currentMovement || 0) > 0 && !u.hasMoved);
     const pool = movable.length ? movable : myUnits;
-    return pool.reduce((best, curr) => {
+    const reachable = pool.filter(u => !!this._findPathForUnit(u, target.r, target.c));
+    const candidates = reachable.length ? reachable : pool;
+    return candidates.reduce((best, curr) => {
       const bestDist = hexDistance(best.r, best.c, target.r, target.c);
       const currDist = hexDistance(curr.r, curr.c, target.r, target.c);
       return currDist < bestDist ? curr : best;
