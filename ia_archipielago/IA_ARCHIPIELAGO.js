@@ -153,6 +153,7 @@ const IAArchipielago = {
   ejecutarPlanDeAccion(situacion) {
     const { myPlayer, amenazas, frente, economia, ciudades, hexesPropios, enemyProfile } = situacion;
     const misUnidades = IASentidos.getUnits(myPlayer);
+    const isNavalMap = !!gameState.setupTempSettings?.navalMap;
     
     console.log(`[IA_ARCHIPIELAGO] PLAN: Ejecutando con ${misUnidades.length} unidades disponibles`);
 
@@ -177,6 +178,11 @@ const IAArchipielago = {
     // FASE 2: DIVISIÓN ESTRATÉGICA (Para expandir presencia)
     console.log(`[IA_ARCHIPIELAGO] FASE 2: Evaluando divisiones estratégicas...`);
     this.ejecutarDivisionesEstrategicas(myPlayer, misUnidades, hexesPropios);
+
+    // FASE 2.5: PRESENCIA NAVAL EN ARCHIPIÉLAGO
+    if (isNavalMap) {
+      this._ensureNavalPresence(myPlayer, economia);
+    }
 
     // FASE 3: CONQUISTA DE CIUDADES BÁRBARAS (prioridad)
     console.log(`[IA_ARCHIPIELAGO] FASE 3: Buscando ciudades bárbaras para conquistar...`);
@@ -376,6 +382,8 @@ const IAArchipielago = {
     const enemyPlayer = myPlayer === 1 ? 2 : 1;
     const unidadesEnemigas = IASentidos.getUnits(enemyPlayer);
     const enemyProfile = situacion.enemyProfile;
+    const ruins = this._getUnexploredRuins();
+    const canExploreRuins = ruins.length > 0 && this._ensureTech(myPlayer, 'RECONNAISSANCE');
 
     console.log(`[IA_ARCHIPIELAGO] MOVIMIENTOS TÁCTICOS: ${misUnidades.length} unidades`);
 
@@ -385,35 +393,56 @@ const IAArchipielago = {
 
       let objetivo = null;
 
-      // PRIORIDAD 0: Cazar divisiones ligeras si el enemigo se expande en regimientos sueltos
+      // PRIORIDAD 0: Explorar ruinas con exploradores
+      const hasExplorer = unit.regiments?.some(reg => reg.type === 'Explorador');
+      if (hasExplorer && canExploreRuins) {
+        const ruinTarget = this._pickObjective(ruins, unit, myPlayer);
+        if (ruinTarget) {
+          if (unit.r === ruinTarget.r && unit.c === ruinTarget.c) {
+            this._requestExploreRuins(unit);
+            continue;
+          }
+          objetivo = ruinTarget;
+          console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Ruina objetivo en (${objetivo.r},${objetivo.c})`);
+        }
+      }
+
+      // PRIORIDAD 1: Cazar divisiones ligeras si el enemigo se expande en regimientos sueltos
       if (enemyProfile?.mode === 'spread_small' && unidadesEnemigas.length > 0) {
         const huntMax = enemyProfile.huntMaxReg || 1;
         const objetivosDebiles = unidadesEnemigas.filter(u => (u.regiments?.length || 0) <= huntMax);
-        objetivo = this._pickObjective(objetivosDebiles, unit, myPlayer);
+        if (!objetivo) objetivo = this._pickObjective(objetivosDebiles, unit, myPlayer);
         if (objetivo) {
           console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Cazando unidad débil en (${objetivo.r},${objetivo.c})`);
         }
       }
 
-      // PRIORIDAD 1: Defender si hay amenaza cercana
+      // PRIORIDAD 2: Defender si hay amenaza cercana
       if (amenazas.length > 0) {
-        objetivo = this._pickObjective(amenazas, unit, myPlayer);
+        if (!objetivo) objetivo = this._pickObjective(amenazas, unit, myPlayer);
         if (objetivo) {
           console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Objetivo defensivo en (${objetivo.r},${objetivo.c})`);
         }
       }
-      // PRIORIDAD 2: Atacar recurso vulnerable
+      // PRIORIDAD 3: Atacar recurso vulnerable
       else if (situacion.recursosVulnerables.length > 0) {
-        objetivo = this._pickObjective(situacion.recursosVulnerables, unit, myPlayer);
+        if (!objetivo) objetivo = this._pickObjective(situacion.recursosVulnerables, unit, myPlayer);
         if (objetivo) {
           console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Objetivo ofensivo (recurso vulnerable) en (${objetivo.r},${objetivo.c})`);
         }
       }
-      // PRIORIDAD 3: Expandir hacia recursos propios descubiertos
+      // PRIORIDAD 4: Expandir hacia recursos propios descubiertos
       else if (recursosEnHexes.length > 0) {
-        objetivo = this._pickObjective(recursosEnHexes, unit, myPlayer);
+        if (!objetivo) objetivo = this._pickObjective(recursosEnHexes, unit, myPlayer);
         if (objetivo) {
           console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Objetivo exploratorio en (${objetivo.r},${objetivo.c})`);
+        }
+      }
+      // PRIORIDAD 5: Presión directa al enemigo
+      else if (unidadesEnemigas.length > 0) {
+        objetivo = this._pickObjective(unidadesEnemigas, unit, myPlayer);
+        if (objetivo) {
+          console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Presionando enemigo en (${objetivo.r},${objetivo.c})`);
         }
       }
 
@@ -446,7 +475,7 @@ const IAArchipielago = {
     }
 
     // EVALUAR CIUDADES BÁRBARAS
-    const ciudadesBarbaras = gameState.cities.filter(c => c.owner === null || c.isBarbarianCity);
+    const ciudadesBarbaras = this._getBarbarianCities();
     for (const ciudad of ciudadesBarbaras) {
       this._evaluarConquistaDeCity(myPlayer, misUnidades, ciudad);
     }
@@ -612,7 +641,13 @@ const IAArchipielago = {
   },
 
   _getBarbarianCities() {
-    return (gameState.cities || []).filter(c => c && (c.owner === null || c.isBarbarianCity));
+    const barbarianId = (typeof BARBARIAN_PLAYER_ID !== 'undefined') ? BARBARIAN_PLAYER_ID : 9;
+    return (gameState.cities || []).filter(c => c && (
+      c.owner === null ||
+      c.isBarbarianCity ||
+      c.isBarbaric ||
+      c.owner === barbarianId
+    ));
   },
 
   _getCityGarrisonStrength(ciudad) {
@@ -700,7 +735,12 @@ const IAArchipielago = {
     const ownCities = (gameState.cities || []).filter(c => c.owner === myPlayer);
     const anchor = ownCities.find(c => c.isCapital) || ownCities[0];
 
-    return ciudadesBarbaras
+    const reachable = ciudadesBarbaras.filter(ciudad => {
+      return IASentidos.getUnits(myPlayer).some(u => this._isLandUnit(u) && this._findPathForUnit(u, ciudad.r, ciudad.c));
+    });
+    const candidates = reachable.length ? reachable : ciudadesBarbaras;
+
+    return candidates
       .map(ciudad => {
         const dist = anchor ? hexDistance(anchor.r, anchor.c, ciudad.r, ciudad.c) : 10;
         const garrison = this._getCityGarrisonStrength(ciudad);
@@ -914,7 +954,25 @@ const IAArchipielago = {
     }
     const step = this._getMoveStepTowards(unit, r, c);
     if (step) return this._requestMoveUnit(unit, step.r, step.c);
-    return this._requestMoveUnit(unit, r, c);
+    return false;
+  },
+
+  _getUnexploredRuins() {
+    const ruins = this._getUnexploredRuins();
+    return ruins;
+  },
+
+  _ensureNavalPresence(myPlayer, economia) {
+    const hasNavigation = this._ensureTech(myPlayer, 'NAVIGATION');
+    if (!hasNavigation) return false;
+
+    const navalUnits = units.filter(u => u.player === myPlayer && u.regiments?.some(r => REGIMENT_TYPES[r.type]?.is_naval));
+    if (navalUnits.length > 0) return false;
+
+    const navalType = REGIMENT_TYPES['Patache'] ? 'Patache' : Object.keys(REGIMENT_TYPES || {}).find(t => REGIMENT_TYPES[t]?.is_naval);
+    if (!navalType) return false;
+
+    return !!this._crearUnidadNaval(myPlayer, navalType);
   },
 
   _requestMergeUnits(mergingUnit, targetUnit) {
@@ -1170,7 +1228,10 @@ const IAArchipielago = {
     const pool = candidates.length ? candidates : valid;
     if (!unit) return pool[0];
 
-    return pool.reduce((best, curr) => {
+    const reachable = pool.filter(item => this._findPathForUnit(unit, item.r, item.c));
+    const pickFrom = reachable.length ? reachable : pool;
+
+    return pickFrom.reduce((best, curr) => {
       const bestDist = hexDistance(unit.r, unit.c, best.r, best.c);
       const currDist = hexDistance(unit.r, unit.c, curr.r, curr.c);
       return currDist < bestDist ? curr : best;
