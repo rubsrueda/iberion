@@ -2936,7 +2936,7 @@ async function RequestAttackUnit(attacker, defender) {
 
 let _isMergingUnits = false;
 
-async function RequestMergeUnits(mergingUnit, targetUnit) {
+async function RequestMergeUnits(mergingUnit, targetUnit, skipConfirm = false) {
     // PROTECCIÓN: Prevenir múltiples llamadas simultáneas
     if (_isMergingUnits) {
         logMessage("Ya hay una fusión en proceso.", "warning");
@@ -2948,10 +2948,12 @@ async function RequestMergeUnits(mergingUnit, targetUnit) {
     try {
         // La confirmación debe ocurrir ANTES de enviar la acción al anfitrión
         // para que el modal aparezca en el cliente que inicia la fusión
-        const confirmation = window.confirm(`¿Fusionar "${mergingUnit.name}" con "${targetUnit.name}"?`);
-        if (!confirmation) {
-            logMessage("Fusión cancelada.", "info");
-            return;
+        if (!skipConfirm) {
+            const confirmation = window.confirm(`¿Fusionar "${mergingUnit.name}" con "${targetUnit.name}"?`);
+            if (!confirmation) {
+                logMessage("Fusión cancelada.", "info");
+                return;
+            }
         }
 
         // ¡ACTUALIZAMOS EL RELOJ! Esto es lo que permitirá sincronizar al volver de la llamada
@@ -3459,6 +3461,39 @@ function handleConfirmBuildStructure(actionData) {
         return;
     }
 
+    const unitOnHex = getUnitOnHex(r, c);
+    const requiresSettler = !!data.cost?.Colono;
+
+    const isOwner = hexData.owner === playerId;
+
+    if (!isOwner) {
+        if (isPlayerAction) logMessage("No puedes construir fuera de tu territorio.", "error");
+        console.warn(`[handleConfirmBuildStructure] Territorio no propio en (${r},${c}).`);
+        return;
+    }
+
+
+    if (unitOnHex && unitOnHex.player !== playerId) {
+        if (isPlayerAction) logMessage("No puedes construir sobre una unidad enemiga.", "error");
+        console.warn(`[handleConfirmBuildStructure] Unidad enemiga en (${r},${c}).`);
+        return;
+    }
+
+    if (!requiresSettler && unitOnHex) {
+        if (isPlayerAction) logMessage("No puedes construir sobre una unidad.", "error");
+        console.warn(`[handleConfirmBuildStructure] Casilla ocupada en (${r},${c}).`);
+        return;
+    }
+
+    if (hexData.structure) {
+        const nextUpgrade = STRUCTURE_TYPES[hexData.structure]?.nextUpgrade;
+        if (nextUpgrade !== structureType) {
+            if (isPlayerAction) logMessage("No puedes construir esta estructura aqui.", "error");
+            console.warn(`[handleConfirmBuildStructure] Mejora invalida ${hexData.structure} -> ${structureType} en (${r},${c}).`);
+            return;
+        }
+    }
+
     if (Array.isArray(data.buildableOn) && data.buildableOn.length > 0) {
         if (!data.buildableOn.includes(hexData.terrain)) {
             if (isPlayerAction) {
@@ -3467,6 +3502,13 @@ function handleConfirmBuildStructure(actionData) {
             console.warn(`[handleConfirmBuildStructure] Terreno inválido para ${structureType} en (${r},${c}).`);
             return;
         }
+    }
+
+    const playerTechs = playerRes?.researchedTechnologies || [];
+    if (data.requiredTech && !playerTechs.includes(data.requiredTech)) {
+        if (isPlayerAction) logMessage("No tienes la tecnologia requerida.", "error");
+        console.warn(`[handleConfirmBuildStructure] Tecnologia requerida faltante (${data.requiredTech}).`);
+        return;
     }
 
     // --- 1. Validación de Costes (sin cambios) ---

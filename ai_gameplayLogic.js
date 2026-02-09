@@ -626,7 +626,7 @@ const AiGameplayManager = {
     },
 
     produceUnit: function(playerNumber, compositionTypes, role, name, specificSpot = null) {
-        // El 'spot' es el CENTRO de producción (capital/ciudad/fortaleza), no el lugar final.
+        // El 'spot' es el CENTRO de producción (capital/ciudad/fortaleza), y tambien el lugar final.
         const isValidProductionCenter = (spot) => {
             if (!spot) return false;
             const hex = board[spot.r]?.[spot.c];
@@ -635,35 +635,28 @@ const AiGameplayManager = {
             return ['Aldea', 'Ciudad', 'Metrópoli', 'Fortaleza', 'Fortaleza con Muralla'].includes(hex.structure);
         };
 
-        let productionCenter = isValidProductionCenter(specificSpot) ? specificSpot : null;
+        const isEmptyCenter = (spot) => {
+            if (!spot) return false;
+            return !getUnitOnHex(spot.r, spot.c);
+        };
 
-        // Si no hay centro válido, usar capital o ciudad/fortaleza propia.
+        let productionCenter = (isValidProductionCenter(specificSpot) && isEmptyCenter(specificSpot)) ? specificSpot : null;
+
+        // Si no hay centro valido y vacio, usar cualquier ciudad/fortaleza propia vacia.
         if (!productionCenter) {
-            productionCenter = gameState.cities.find(c => c.isCapital && c.owner === playerNumber)
-                || gameState.cities.find(c => c.owner === playerNumber)
-                || board.flat().find(h => h && h.owner === playerNumber && ['Fortaleza', 'Fortaleza con Muralla'].includes(h.structure));
+            const cityCenters = (gameState.cities || []).filter(c => c.owner === playerNumber);
+            const structureCenters = board.flat().filter(h => h && h.owner === playerNumber && ['Aldea', 'Ciudad', 'Metrópoli', 'Fortaleza', 'Fortaleza con Muralla'].includes(h.structure));
+            const candidates = [...cityCenters, ...structureCenters];
+            productionCenter = candidates.find(c => isValidProductionCenter(c) && isEmptyCenter(c));
             if (!productionCenter) {
-                console.warn("[IA Produce] No se encontró un centro de producción valido (ciudad/fortaleza)." );
+                console.warn("[IA Produce] BLOQUEADO: No hay ciudad/fortaleza propia vacia para reclutar.");
                 return null;
             }
         }
 
-        // <<== ¡LA SOLUCIÓN DEFINITIVA ESTÁ AQUÍ! ==>>
-        // No importa qué 'spot' nos pasen, SIEMPRE buscamos una casilla adyacente que esté
-        // VACÍA Y QUE NO SEA AGUA (o cualquier terreno intransitable).
-        const placementSpot = getHexNeighbors(productionCenter.r, productionCenter.c).find(n => {
-            const hexData = board[n.r]?.[n.c];
-            // Condiciones: el hexágono debe existir, no debe tener una unidad y el terreno debe ser transitable.
-            return hexData && !getUnitOnHex(n.r, n.c) && !TERRAIN_TYPES[hexData.terrain]?.isImpassableForLand;
-        });
+        const placementSpot = productionCenter;
 
-            // Si no se encuentra ninguna casilla vacía alrededor, la producción falla.
-        if (!placementSpot) {
-            console.warn(`[IA Produce] BLOQUEADO: No hay espacio libre y transitable alrededor de (${productionCenter.r}, ${productionCenter.c}).`);
-            return null;
-        }
-
-            // El resto de la función original se mantiene, pero ahora usa 'placementSpot' en lugar de 'spot'.
+        // El resto de la funcion original se mantiene, pero ahora usa 'placementSpot' en lugar de 'spot'.
         const playerRes = gameState.playerResources[playerNumber];
         const fullRegiments = compositionTypes.map(type => ({...REGIMENT_TYPES[type], type}));
         const totalCost = { oro: 0, puntosReclutamiento: 0 };
