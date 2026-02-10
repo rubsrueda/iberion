@@ -8,6 +8,8 @@ const IAArchipielago = {
   BARBARIAN_CONQUEST_RATIO: 2.0,
   INVADER_FORTRESS_MIN_DISTANCE: 6,
   HUNT_SMALL_DIVISIONS_TARGET: 3,
+  BIG_ENEMY_DIVISION_THRESHOLD: 12,
+  HEAVY_DIVISION_TARGET: 20,
   deployUnitsAI(myPlayer) {
     console.log(`[IA_ARCHIPIELAGO] Despliegue IA iniciado para Jugador ${myPlayer}.`);
     if (gameState.currentPhase !== 'deployment') {
@@ -154,7 +156,7 @@ const IAArchipielago = {
    */
   ejecutarPlanDeAccion(situacion) {
     const { myPlayer, amenazas, frente, economia, ciudades, hexesPropios, enemyProfile } = situacion;
-    const misUnidades = IASentidos.getUnits(myPlayer);
+    let misUnidades = IASentidos.getUnits(myPlayer);
     const isNavalMap = !!gameState.setupTempSettings?.navalMap;
     
     console.log(`[IA_ARCHIPIELAGO] PLAN: Ejecutando con ${misUnidades.length} unidades disponibles`);
@@ -173,19 +175,25 @@ const IAArchipielago = {
       }
     }
 
+    if (enemyProfile?.mode === 'stack_large') {
+      this._ensureHeavyDivisions(myPlayer, enemyProfile.maxRegiments);
+    }
+
     // FASE 1: FUSIÓN DEFENSIVA (El latido del corazón)
     if (amenazas.length > 0 || frente.length > 0) {
       console.log(`[IA_ARCHIPIELAGO] FASE 1: Detectado peligro. Buscando fusiones defensivas...`);
-      this.ejecutarFusionesDefensivas(myPlayer, misUnidades, amenazas, frente);
+      this.ejecutarFusionesDefensivas(myPlayer, misUnidades, amenazas, frente, enemyProfile);
     }
 
     // FASE 2: DIVISIÓN ESTRATÉGICA (Para expandir presencia)
     console.log(`[IA_ARCHIPIELAGO] FASE 2: Evaluando divisiones estratégicas...`);
-    this.ejecutarDivisionesEstrategicas(myPlayer, misUnidades, hexesPropios);
+    this.ejecutarDivisionesEstrategicas(myPlayer, misUnidades, hexesPropios, enemyProfile);
+    misUnidades = IASentidos.getUnits(myPlayer);
 
     // FASE 2.5: PRESENCIA NAVAL EN ARCHIPIÉLAGO
     if (isNavalMap) {
       this._ensureNavalPresence(myPlayer, economia);
+      this._pressEnemyHomeIsland(myPlayer);
     }
 
     // FASE 3: CONQUISTA DE CIUDADES BÁRBARAS (prioridad)
@@ -297,7 +305,7 @@ const IAArchipielago = {
    * FASE 1: FUSIÓN DEFENSIVA
    * Fusiona unidades cuando hay amenaza para formar "cuerpos de ejército"
    */
-  ejecutarFusionesDefensivas(myPlayer, misUnidades, amenazas, frente) {
+  ejecutarFusionesDefensivas(myPlayer, misUnidades, amenazas, frente, enemyProfile) {
     if (misUnidades.length < 2) return;
 
     console.log(`[IA_ARCHIPIELAGO] FUSIÓN DEFENSIVA: ${amenazas.length} amenazas, ${frente.length} puntos de frente`);
@@ -307,8 +315,11 @@ const IAArchipielago = {
       const unit1 = misUnidades[i];
       const regimentosActuales = unit1.regiments?.length || 0;
 
-      // Si la unidad ya está fuerte, no fusionar
-      if (regimentosActuales > 12) continue;
+      const targetSize = Math.min(
+        MAX_REGIMENTS_PER_DIVISION,
+        Math.max(12, enemyProfile?.maxRegiments || 0)
+      );
+      if (regimentosActuales >= targetSize) continue;
 
       // Buscar otra unidad cercana para fusionar
       for (let j = i + 1; j < misUnidades.length; j++) {
@@ -342,8 +353,13 @@ const IAArchipielago = {
    * Divide unidades grandes para ocupar más territorio
    * COMO LOS LATIDOS DEL CORAZÓN: Continuo y automático
    */
-  ejecutarDivisionesEstrategicas(myPlayer, misUnidades, hexesPropios) {
+  ejecutarDivisionesEstrategicas(myPlayer, misUnidades, hexesPropios, enemyProfile) {
     console.log(`[IA_ARCHIPIELAGO] DIVISIÓN ESTRATÉGICA: ${misUnidades.length} unidades`);
+
+    if (this._isHumanOpponent(myPlayer) && (enemyProfile?.maxRegiments || 0) > 0) {
+      console.log('[IA_ARCHIPIELAGO] DIVISIÓN ESTRATÉGICA: omitida por presencia humana.');
+      return;
+    }
 
     for (const unit of misUnidades) {
       const regimientosActuales = unit.regiments?.length || 0;
@@ -391,9 +407,14 @@ const IAArchipielago = {
 
     console.log(`[IA_ARCHIPIELAGO] MOVIMIENTOS TÁCTICOS: ${misUnidades.length} unidades`);
 
+    const huntAssignments = enemyProfile?.mode === 'spread_small'
+      ? this._planHuntSmallDivisions(myPlayer, misUnidades, unidadesEnemigas)
+      : new Set();
+
     for (const unit of misUnidades) {
       if (!unit.currentMovement || unit.currentMovement <= 0) continue;
       if (unit.iaExpeditionTarget) continue;
+      if (huntAssignments.has(unit.id)) continue;
 
       let objetivo = null;
 
@@ -456,6 +477,78 @@ const IAArchipielago = {
         console.warn(`[IA_ARCHIPIELAGO] ${unit.name}: Objetivo invalido. Movimiento omitido.`);
       }
     }
+
+    if (huntAssignments.size > 0) {
+      this._mergeHuntersIntoReserve(myPlayer, misUnidades, huntAssignments);
+    }
+  },
+
+  _planHuntSmallDivisions(myPlayer, misUnidades, unidadesEnemigas) {
+    const used = new Set();
+    const prey = unidadesEnemigas
+      .filter(u => (u.regiments?.length || 0) <= 2)
+      .sort((a, b) => (a.regiments?.length || 0) - (b.regiments?.length || 0));
+
+    if (!prey.length) return used;
+
+    const available = misUnidades
+      .filter(u => u.currentHealth > 0)
+      .filter(u => !u.iaExpeditionTarget);
+
+    for (const target of prey) {
+      const attackers = available
+        .filter(u => !used.has(u.id))
+        .sort((a, b) => hexDistance(a.r, a.c, target.r, target.c) - hexDistance(b.r, b.c, target.r, target.c))
+        .slice(0, 2);
+
+      if (!attackers.length) break;
+
+      for (const unit of attackers) {
+        if (this._requestMoveOrAttack(unit, target.r, target.c)) {
+          used.add(unit.id);
+        }
+      }
+    }
+
+    return used;
+  },
+
+  _mergeHuntersIntoReserve(myPlayer, misUnidades, usedSet) {
+    const reserve = misUnidades
+      .filter(u => !usedSet.has(u.id))
+      .sort((a, b) => (b.regiments?.length || 0) - (a.regiments?.length || 0))[0];
+    if (!reserve) return false;
+
+    let total = reserve.regiments?.length || 0;
+    const hunters = misUnidades
+      .filter(u => usedSet.has(u.id))
+      .sort((a, b) => hexDistance(reserve.r, reserve.c, a.r, a.c) - hexDistance(reserve.r, reserve.c, b.r, b.c));
+
+    for (const unit of hunters) {
+      const regCount = unit.regiments?.length || 0;
+      if (total + regCount > MAX_REGIMENTS_PER_DIVISION) continue;
+      const dist = hexDistance(reserve.r, reserve.c, unit.r, unit.c);
+      if (dist > 2) continue;
+      if (dist > 1) {
+        const moveTarget = getHexNeighbors(reserve.r, reserve.c).find(n => !board[n.r]?.[n.c]?.unit);
+        if (moveTarget) {
+          this._requestMoveUnit(unit, moveTarget.r, moveTarget.c);
+        }
+      }
+      if (this._requestMergeUnits(unit, reserve)) {
+        total += regCount;
+      }
+    }
+
+    return true;
+  },
+
+  _canAffordStructure(playerId, structureType) {
+    const data = STRUCTURE_TYPES?.[structureType];
+    const res = gameState.playerResources?.[playerId];
+    if (!data || !res) return false;
+    const cost = data.cost || {};
+    return Object.keys(cost).every(key => key === 'Colono' || (res[key] || 0) >= cost[key]);
   },
 
   /**
@@ -864,12 +957,21 @@ const IAArchipielago = {
 
     const invaderFortSpot = this._findInvaderIslandFortressSpot(myPlayer, hexesPropios);
     if (invaderFortSpot) {
+      if (!this._ensureTech(myPlayer, 'FORTIFICATIONS')) {
+        console.log('[IA_ARCHIPIELAGO] CONSTRUCCIÓN: falta FORTIFICATIONS para fortaleza invasora.');
+        return;
+      }
+      if (!this._canAffordStructure(myPlayer, 'Fortaleza')) {
+        console.log('[IA_ARCHIPIELAGO] CONSTRUCCIÓN: recursos insuficientes para fortaleza invasora.');
+        return;
+      }
       console.log(`[IA_ARCHIPIELAGO] Construyendo fortaleza (Camino 16) en (${invaderFortSpot.r},${invaderFortSpot.c})`);
       this._requestBuildStructure(myPlayer, invaderFortSpot.r, invaderFortSpot.c, 'Fortaleza');
       return;
     }
 
     // PRIORIDAD 1: Construir caminos útiles entre ciudades
+    this._ensureTech(myPlayer, 'ENGINEERING');
     const roadBuildable = STRUCTURE_TYPES['Camino']?.buildableOn || [];
     const ciudades = this._getTradeCityCandidates(myPlayer);
     const existingRouteKeys = this._getExistingTradeRouteKeys();
@@ -880,12 +982,19 @@ const IAArchipielago = {
       const nextHexData = board[nextHex.r]?.[nextHex.c];
       const terrainOk = !roadBuildable.length || roadBuildable.includes(nextHexData?.terrain);
       if (terrainOk) {
+        if (!this._canAffordStructure(myPlayer, 'Camino')) {
+          return;
+        }
         console.log(`[IA_ARCHIPIELAGO] Construyendo camino en (${nextHex.r},${nextHex.c})`);
         this._requestBuildStructure(myPlayer, nextHex.r, nextHex.c, 'Camino');
       }
     }
 
     // PRIORIDAD 2: Construir fortalezas en puntos estratégicos
+    if (!this._ensureTech(myPlayer, 'FORTIFICATIONS')) {
+      console.log('[IA_ARCHIPIELAGO] CONSTRUCCIÓN: falta FORTIFICATIONS para fortaleza estratégica.');
+      return;
+    }
     const fortBuildable = STRUCTURE_TYPES['Fortaleza']?.buildableOn || [];
     const landPath = candidate?.landPath || [];
     const puntosEstrategicos = hexesPropios.filter(h => {
@@ -910,6 +1019,9 @@ const IAArchipielago = {
 
     if (bestFort && bestFort.score > 0) {
       const punto = bestFort.h;
+      if (!this._canAffordStructure(myPlayer, 'Fortaleza')) {
+        return;
+      }
       console.log(`[IA_ARCHIPIELAGO] Construyendo fortaleza estratégica en (${punto.r},${punto.c})`);
       this._requestBuildStructure(myPlayer, punto.r, punto.c, 'Fortaleza');
     }
@@ -1183,6 +1295,8 @@ const IAArchipielago = {
 
   _findInvaderIslandFortressSpot(myPlayer, hexesPropios) {
     const enemyPlayer = this._getEnemyPlayerId(myPlayer);
+    const enemyType = gameState.playerTypes?.[`player${enemyPlayer}`];
+    const isHumanEnemy = enemyType === 'human';
     const enemyCapital = (gameState.cities || []).find(c => c.owner === enemyPlayer && c.isCapital);
     if (!enemyCapital) return null;
 
@@ -1190,7 +1304,10 @@ const IAArchipielago = {
     if (!enemyLandmass.size) return null;
 
     const fortBuildable = STRUCTURE_TYPES['Fortaleza']?.buildableOn || [];
-    const minDist = this.INVADER_FORTRESS_MIN_DISTANCE;
+    let minDist = this.INVADER_FORTRESS_MIN_DISTANCE;
+    if (isHumanEnemy) {
+      minDist = Math.min(3, minDist);
+    }
 
     const alreadyBuilt = hexesPropios.some(h => {
       if (!h.structure) return false;
@@ -1200,7 +1317,7 @@ const IAArchipielago = {
 
     if (alreadyBuilt) return null;
 
-    const candidates = hexesPropios.filter(h => {
+    let candidates = hexesPropios.filter(h => {
       if (h.structure || h.unit) return false;
       if (!enemyLandmass.has(`${h.r},${h.c}`)) return false;
       if (fortBuildable.length > 0 && !fortBuildable.includes(h.terrain)) return false;
@@ -1208,11 +1325,21 @@ const IAArchipielago = {
       return dist >= minDist;
     });
 
+    if (!candidates.length && minDist > 2) {
+      candidates = hexesPropios.filter(h => {
+        if (h.structure || h.unit) return false;
+        if (!enemyLandmass.has(`${h.r},${h.c}`)) return false;
+        if (fortBuildable.length > 0 && !fortBuildable.includes(h.terrain)) return false;
+        const dist = hexDistance(h.r, h.c, enemyCapital.r, enemyCapital.c);
+        return dist >= 2;
+      });
+    }
+
     if (!candidates.length) return null;
 
     const scoreFortressSpot = (hex) => {
       const dist = hexDistance(hex.r, hex.c, enemyCapital.r, enemyCapital.c);
-      let score = dist;
+      let score = isHumanEnemy ? Math.max(0, 20 - dist) : dist;
       if (hex.terrain === 'mountain' || hex.terrain === 'mountains') score += 1000;
       else if (hex.terrain === 'hills') score += 300;
       return score;
@@ -1230,7 +1357,7 @@ const IAArchipielago = {
     const enemyUnits = IASentidos.getUnits(enemyPlayer) || [];
     const landUnits = enemyUnits.filter(u => this._isLandUnit(u));
     if (!landUnits.length) {
-      return { mode: 'unknown', targetRegiments: 3, huntMaxReg: 1 };
+      return { mode: 'unknown', targetRegiments: 3, huntMaxReg: 1, minRegiments: 0, maxRegiments: 0 };
     }
 
     const smallUnits = landUnits.filter(u => (u.regiments?.length || 0) <= 2);
@@ -1238,10 +1365,13 @@ const IAArchipielago = {
 
     const smallRatio = smallUnits.length / landUnits.length;
     const largeRatio = largeUnits.length / landUnits.length;
+    const minRegiments = landUnits.reduce((min, u) => Math.min(min, u.regiments?.length || 0), Infinity);
+    const maxRegiments = landUnits.reduce((max, u) => Math.max(max, u.regiments?.length || 0), 0);
 
     let mode = 'mixed';
-    if (smallRatio >= 0.6 && landUnits.length >= 3) mode = 'spread_small';
-    if (largeRatio >= 0.5 && landUnits.length <= 3) mode = 'slow_large';
+    if (maxRegiments >= this.BIG_ENEMY_DIVISION_THRESHOLD) mode = 'stack_large';
+    else if (smallRatio >= 0.5 || maxRegiments <= 2) mode = 'spread_small';
+    else if (largeRatio >= 0.5 && landUnits.length <= 3) mode = 'slow_large';
 
     const maxSmallReg = smallUnits.reduce((max, u) => Math.max(max, u.regiments?.length || 0), 1);
     const desired = Math.max(3, maxSmallReg * 2);
@@ -1250,8 +1380,58 @@ const IAArchipielago = {
     return {
       mode,
       targetRegiments,
-      huntMaxReg: Math.max(1, Math.min(2, maxSmallReg))
+      huntMaxReg: Math.max(1, Math.min(2, maxSmallReg)),
+      minRegiments,
+      maxRegiments
     };
+  },
+
+  _isHumanOpponent(myPlayer) {
+    const enemyPlayer = this._getEnemyPlayerId(myPlayer);
+    return gameState.playerTypes?.[`player${enemyPlayer}`] === 'human';
+  },
+
+  _ensureHeavyDivisions(myPlayer, targetRegiments) {
+    const desired = Math.min(
+      MAX_REGIMENTS_PER_DIVISION,
+      Math.max(6, Math.min(this.HEAVY_DIVISION_TARGET, targetRegiments || this.HEAVY_DIVISION_TARGET))
+    );
+
+    const myUnits = IASentidos.getUnits(myPlayer).filter(u => this._isLandUnit(u));
+    if (!myUnits.length) return false;
+
+    const existing = myUnits.find(u => (u.regiments?.length || 0) >= desired);
+    if (existing) return false;
+
+    const anchor = myUnits
+      .slice()
+      .sort((a, b) => (b.regiments?.length || 0) - (a.regiments?.length || 0))[0];
+    if (!anchor) return false;
+
+    let total = anchor.regiments?.length || 0;
+    const candidates = myUnits
+      .filter(u => u.id !== anchor.id)
+      .sort((a, b) => hexDistance(anchor.r, anchor.c, a.r, a.c) - hexDistance(anchor.r, anchor.c, b.r, b.c));
+
+    for (const unit of candidates) {
+      const regCount = unit.regiments?.length || 0;
+      if (total + regCount > desired) continue;
+      const dist = hexDistance(anchor.r, anchor.c, unit.r, unit.c);
+      if (dist > 4) continue;
+      if (dist > 1) {
+        const moveTarget = getHexNeighbors(anchor.r, anchor.c).find(n => !board[n.r]?.[n.c]?.unit);
+        if (moveTarget) {
+          this._requestMoveUnit(unit, moveTarget.r, moveTarget.c);
+        }
+      }
+      if (this._requestMergeUnits(unit, anchor)) {
+        total += regCount;
+        console.log(`[IA_ARCHIPIELAGO] + Refuerzo pesado: ${unit.name} →${anchor.name}`);
+      }
+      if (total >= desired) break;
+    }
+
+    return total >= desired;
   },
 
   _ensureHunterDivisions(myPlayer, targetRegiments) {
@@ -1265,6 +1445,158 @@ const IAArchipielago = {
 
     const createCount = Math.min(2, missing);
     return this._producirDivisiones(myPlayer, createCount, regimentsPerDivision);
+  },
+
+  _pressEnemyHomeIsland(myPlayer) {
+    if (!gameState.setupTempSettings?.navalMap) return false;
+
+    const enemyPlayer = this._getEnemyPlayerId(myPlayer);
+    const enemyType = gameState.playerTypes?.[`player${enemyPlayer}`];
+    if (enemyType !== 'human') return false;
+
+    const enemyCapital = (gameState.cities || []).find(c => c.owner === enemyPlayer && c.isCapital);
+    if (!enemyCapital) return false;
+
+    const enemyLandmass = this._getLandmassFromHex(enemyCapital.r, enemyCapital.c);
+    if (!enemyLandmass.size) return false;
+
+    const ownsEnemyIsland = board.some(row => row.some(h => h && h.owner === myPlayer && enemyLandmass.has(`${h.r},${h.c}`)));
+    if (ownsEnemyIsland) {
+      return this._buildPressureFortressOnEnemyIsland(myPlayer, enemyLandmass, enemyCapital);
+    }
+
+    const landing = this._findEnemyLandingTarget(enemyLandmass, enemyCapital);
+    if (!landing) return false;
+
+    let transport = this._findTransportShip(myPlayer);
+    if (!transport) {
+      transport = this._createTransportShip(myPlayer);
+      if (!transport) return false;
+      console.log('[IA_ARCHIPIELAGO] Armada creada para invasion.');
+      return true;
+    }
+
+    const hasLandRegs = transport.regiments?.some(r => !REGIMENT_TYPES?.[r.type]?.is_naval);
+    const hasNavalRegs = transport.regiments?.some(r => REGIMENT_TYPES?.[r.type]?.is_naval);
+    if (!hasNavalRegs) return false;
+
+    if (!hasLandRegs) {
+      const embarkUnit = this._selectEmbarkUnit(myPlayer, transport);
+      if (!embarkUnit) return false;
+      console.log(`[IA_ARCHIPIELAGO] Embarcando tropas en ${transport.name || transport.id}.`);
+      return this._requestMergeUnits(embarkUnit, transport);
+    }
+
+    if (transport.r === landing.water.r && transport.c === landing.water.c) {
+      return this._requestDisembark(transport, landing.land);
+    }
+
+    return this._requestMoveUnit(transport, landing.water.r, landing.water.c);
+  },
+
+  _buildPressureFortressOnEnemyIsland(myPlayer, enemyLandmass, enemyCapital) {
+    const hexesPropios = IASentidos?.getOwnedHexes ? IASentidos.getOwnedHexes(myPlayer) : [];
+    if (!hexesPropios.length) return false;
+
+    const turn = gameState.turnNumber || 1;
+    if (turn < 2) return false;
+
+    const spot = this._findInvaderIslandFortressSpot(myPlayer, hexesPropios);
+    if (!spot) return false;
+
+    if (!this._ensureTech(myPlayer, 'FORTIFICATIONS')) {
+      return false;
+    }
+
+    if (!this._canAffordStructure(myPlayer, 'Fortaleza')) {
+      return false;
+    }
+
+    console.log(`[IA_ARCHIPIELAGO] Fortaleza de presion en isla enemiga (${spot.r},${spot.c}).`);
+    return this._requestBuildStructure(myPlayer, spot.r, spot.c, 'Fortaleza');
+  },
+
+  _findEnemyLandingTarget(enemyLandmass, enemyCapital) {
+    let best = null;
+
+    for (const row of board) {
+      for (const hex of row) {
+        if (!hex || hex.terrain === 'water') continue;
+        if (!enemyLandmass.has(`${hex.r},${hex.c}`)) continue;
+        if (hex.unit) continue;
+
+        const waterNeighbor = getHexNeighbors(hex.r, hex.c).find(n => {
+          const wHex = board[n.r]?.[n.c];
+          return wHex && wHex.terrain === 'water' && !wHex.unit;
+        });
+        if (!waterNeighbor) continue;
+
+        const dist = hexDistance(hex.r, hex.c, enemyCapital.r, enemyCapital.c);
+        if (!best || dist < best.dist) {
+          best = { land: hex, water: waterNeighbor, dist };
+        }
+      }
+    }
+
+    if (!best) return null;
+    return { land: best.land, water: best.water };
+  },
+
+  _getTransportCapacity(unit) {
+    if (!unit?.regiments?.length) return 0;
+    return unit.regiments.reduce((max, reg) => {
+      const cap = REGIMENT_TYPES?.[reg.type]?.transportCapacity || 0;
+      return Math.max(max, cap);
+    }, 0);
+  },
+
+  _findTransportShip(myPlayer) {
+    return units.find(u => u.player === myPlayer && u.regiments?.some(r => REGIMENT_TYPES?.[r.type]?.is_naval) && this._getTransportCapacity(u) > 0) || null;
+  },
+
+  _createTransportShip(myPlayer) {
+    const preferred = REGIMENT_TYPES['Barco de Guerra'] ? 'Barco de Guerra' : null;
+    if (preferred) return this._crearUnidadNaval(myPlayer, preferred);
+
+    const fallback = Object.keys(REGIMENT_TYPES || {}).find(t => {
+      const data = REGIMENT_TYPES[t];
+      return data?.is_naval && (data.transportCapacity || 0) > 0;
+    });
+    if (!fallback) return null;
+    return this._crearUnidadNaval(myPlayer, fallback);
+  },
+
+  _selectEmbarkUnit(myPlayer, transport) {
+    const maxRegs = Number.isFinite(MAX_REGIMENTS_PER_DIVISION) ? MAX_REGIMENTS_PER_DIVISION : 20;
+    const transportRegs = transport?.regiments?.length || 0;
+    const capacityLeft = Math.max(0, maxRegs - transportRegs);
+    if (capacityLeft <= 0) return null;
+
+    const candidates = IASentidos.getUnits(myPlayer)
+      .filter(u => this._isLandUnit(u))
+      .filter(u => (u.regiments?.length || 0) <= capacityLeft)
+      .sort((a, b) => (a.regiments?.length || 0) - (b.regiments?.length || 0));
+
+    return candidates[0] || null;
+  },
+
+  _requestDisembark(transport, landHex) {
+    if (!transport || !landHex) return false;
+    if (landHex.terrain === 'water' || landHex.unit) return false;
+
+    const landRegs = transport.regiments.filter(r => !REGIMENT_TYPES?.[r.type]?.is_naval);
+    const navalRegs = transport.regiments.filter(r => REGIMENT_TYPES?.[r.type]?.is_naval);
+    if (!landRegs.length || !navalRegs.length) return false;
+
+    gameState.preparingAction = {
+      type: 'split_unit',
+      unitId: transport.id,
+      newUnitRegiments: landRegs,
+      remainingOriginalRegiments: navalRegs
+    };
+
+    console.log(`[IA_ARCHIPIELAGO] Desembarcando en (${landHex.r},${landHex.c}).`);
+    return this._requestSplitUnit(transport, landHex.r, landHex.c);
   },
 
   _getTradePairKey(cityA, cityB) {
