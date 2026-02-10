@@ -194,7 +194,8 @@ function placeFinalizedDivision(unitData, r, c) {
 
     if (targetHexData) {
         targetHexData.unit = unitData;
-        if (targetHexData.owner === null) {
+        const bankPlayerId = typeof BankManager !== 'undefined' ? BankManager.PLAYER_ID : null;
+        if (targetHexData.owner === null && unitData.player !== bankPlayerId) {
             const placingPlayer = unitData.player; targetHexData.owner = placingPlayer; targetHexData.estabilidad = 1;
             targetHexData.nacionalidad = { 1: 0, 2: 0 }; targetHexData.nacionalidad[placingPlayer] = 1;
             const city = gameState.cities.find(ci => ci.r === r && ci.c === c);
@@ -822,6 +823,13 @@ async function moveUnit(unit, toR, toC) {
     unit.c = toC;
     unit.currentMovement -= costOfThisMove;
     unit.hasMoved = true;
+
+    if (typeof UnitGrid !== 'undefined' && Array.isArray(units) && units.includes(unit)) {
+        const moved = UnitGrid.move(unit, fromR, fromC);
+        if (!moved) {
+            UnitGrid.index(unit);
+        }
+    }
     
     if (targetHexData) {
         targetHexData.unit = unit;
@@ -829,9 +837,10 @@ async function moveUnit(unit, toR, toC) {
         // <<== SOLUCIÓN PROBLEMA 1 (Parte A): CAPTURA DE HEXÁGONO NEUTRAL ==>>
         const originalOwner = targetHexData.owner;
         const movingPlayer = unit.player;
+        const bankPlayerId = typeof BankManager !== 'undefined' ? BankManager.PLAYER_ID : null;
 
         // Si la casilla era Neutral, la capturas inmediatamente.
-        if (originalOwner === null) {
+        if (originalOwner === null && movingPlayer !== bankPlayerId) {
             targetHexData.owner = movingPlayer;
             // Inicializar estabilidad y nacionalidad a 1.
             targetHexData.estabilidad = 1;
@@ -3304,7 +3313,8 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
         targetHexData.unit = unit;
         
         // A. Captura de territorio NEUTRAL (Lógica original)
-        if (targetHexData.owner === null) {
+        const bankPlayerId = typeof BankManager !== 'undefined' ? BankManager.PLAYER_ID : null;
+        if (targetHexData.owner === null && unit.player !== bankPlayerId) {
             targetHexData.owner = unit.player;
             targetHexData.estabilidad = 1;
             targetHexData.nacionalidad = { 1: 0, 2: 0 };

@@ -93,7 +93,9 @@ function getUnitOnHex(r, c) {
             UnitGrid.initialize();
         }
         const unit = UnitGrid.get(r, c);
-        return unit && unit.currentHealth > 0 ? unit : null;
+        if (unit && unit.currentHealth > 0) return unit;
+        const boardUnit = board?.[r]?.[c]?.unit;
+        return boardUnit && boardUnit.currentHealth > 0 ? boardUnit : null;
     }
 
     return units.find(u => u.r === r && u.c === c && u.currentHealth > 0);

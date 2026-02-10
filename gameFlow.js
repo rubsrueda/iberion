@@ -1451,9 +1451,12 @@ function updateTerritoryMetrics(playerEndingTurn) {
 
             const unitOnHex = getUnitOnHex(r, c);
 
+            const bankPlayerId = typeof BankManager !== 'undefined' ? BankManager.PLAYER_ID : null;
+            const isBankUnit = unitOnHex && unitOnHex.player === bankPlayerId;
+
             // --- LÓGICA DE OCUPACIÓN ENEMIGA ---
             // Si hay una unidad, y NO es del dueño del hexágono.
-            if (unitOnHex && hex.owner !== null && unitOnHex.player !== hex.owner) {
+            if (unitOnHex && !isBankUnit && hex.owner !== null && unitOnHex.player !== hex.owner) {
                 const originalOwner = hex.owner;
                 
                 // Si la estabilidad es suficiente (umbral de 3), se reduce la nacionalidad.

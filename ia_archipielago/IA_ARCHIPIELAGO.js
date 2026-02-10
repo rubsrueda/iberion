@@ -1270,6 +1270,17 @@ const IAArchipielago = {
     return enemy?.id || (myPlayer === 1 ? 2 : 1);
   },
 
+  _getPlayerType(playerId) {
+    const types = gameState.playerTypes || {};
+    return types[`player${playerId}`] ?? types[playerId] ?? types[Number(playerId)] ?? null;
+  },
+
+  _isHumanType(type) {
+    if (!type) return true;
+    if (type === 'human') return true;
+    return !type.includes('ai');
+  },
+
   _getLandmassFromHex(startR, startC) {
     const startHex = board[startR]?.[startC];
     if (!startHex || startHex.terrain === 'water') return new Set();
@@ -1295,8 +1306,8 @@ const IAArchipielago = {
 
   _findInvaderIslandFortressSpot(myPlayer, hexesPropios) {
     const enemyPlayer = this._getEnemyPlayerId(myPlayer);
-    const enemyType = gameState.playerTypes?.[`player${enemyPlayer}`];
-    const isHumanEnemy = enemyType === 'human';
+    const enemyType = this._getPlayerType(enemyPlayer);
+    const isHumanEnemy = this._isHumanType(enemyType);
     const enemyCapital = (gameState.cities || []).find(c => c.owner === enemyPlayer && c.isCapital);
     if (!enemyCapital) return null;
 
@@ -1388,7 +1399,7 @@ const IAArchipielago = {
 
   _isHumanOpponent(myPlayer) {
     const enemyPlayer = this._getEnemyPlayerId(myPlayer);
-    return gameState.playerTypes?.[`player${enemyPlayer}`] === 'human';
+    return this._isHumanType(this._getPlayerType(enemyPlayer));
   },
 
   _ensureHeavyDivisions(myPlayer, targetRegiments) {
@@ -1448,11 +1459,12 @@ const IAArchipielago = {
   },
 
   _pressEnemyHomeIsland(myPlayer) {
-    if (!gameState.setupTempSettings?.navalMap) return false;
+    const isNavalMap = !!gameState.setupTempSettings?.navalMap || gameState.gameMode === 'invasion';
+    if (!isNavalMap) return false;
 
     const enemyPlayer = this._getEnemyPlayerId(myPlayer);
-    const enemyType = gameState.playerTypes?.[`player${enemyPlayer}`];
-    if (enemyType !== 'human') return false;
+    const enemyType = this._getPlayerType(enemyPlayer);
+    if (!this._isHumanType(enemyType)) return false;
 
     const enemyCapital = (gameState.cities || []).find(c => c.owner === enemyPlayer && c.isCapital);
     if (!enemyCapital) return false;
@@ -1465,7 +1477,9 @@ const IAArchipielago = {
       return this._buildPressureFortressOnEnemyIsland(myPlayer, enemyLandmass, enemyCapital);
     }
 
-    const landing = this._findEnemyLandingTarget(enemyLandmass, enemyCapital);
+    const frente = (typeof IATactica !== 'undefined') ? IATactica.detectarFrente(myPlayer, 2) : [];
+    const enemyUnits = IASentidos.getUnits(enemyPlayer) || [];
+    const landing = this._findEnemyLandingTarget(enemyLandmass, enemyCapital, frente, enemyUnits);
     if (!landing) return false;
 
     let transport = this._findTransportShip(myPlayer);
@@ -1516,8 +1530,11 @@ const IAArchipielago = {
     return this._requestBuildStructure(myPlayer, spot.r, spot.c, 'Fortaleza');
   },
 
-  _findEnemyLandingTarget(enemyLandmass, enemyCapital) {
+  _findEnemyLandingTarget(enemyLandmass, enemyCapital, frente = [], enemyUnits = []) {
     let best = null;
+
+    const frontPoints = Array.isArray(frente) ? frente : [];
+    const enemyUnitList = Array.isArray(enemyUnits) ? enemyUnits : [];
 
     for (const row of board) {
       for (const hex of row) {
@@ -1531,14 +1548,27 @@ const IAArchipielago = {
         });
         if (!waterNeighbor) continue;
 
-        const dist = hexDistance(hex.r, hex.c, enemyCapital.r, enemyCapital.c);
-        if (!best || dist < best.dist) {
-          best = { land: hex, water: waterNeighbor, dist };
+        const distToCapital = hexDistance(hex.r, hex.c, enemyCapital.r, enemyCapital.c);
+        const distToFront = frontPoints.length
+          ? Math.min(...frontPoints.map(fp => hexDistance(hex.r, hex.c, fp.r, fp.c)))
+          : 6;
+        const distToEnemy = enemyUnitList.length
+          ? Math.min(...enemyUnitList.map(u => hexDistance(hex.r, hex.c, u.r, u.c)))
+          : 6;
+
+        let score = (distToFront * 3) + (distToEnemy * 2) - distToCapital;
+        if (distToCapital > 10) score -= (distToCapital - 10) * 2;
+
+        if (!best || score > best.score) {
+          best = { land: hex, water: waterNeighbor, score, distToCapital, distToFront, distToEnemy };
         }
       }
     }
 
     if (!best) return null;
+    if (this.ARCHI_LOG_VERBOSE) {
+      console.log(`[IA_ARCHIPIELAGO] Landing elegido: land=(${best.land.r},${best.land.c}) water=(${best.water.r},${best.water.c}) score=${best.score.toFixed(2)} distCap=${best.distToCapital} distFront=${best.distToFront} distEnemy=${best.distToEnemy}`);
+    }
     return { land: best.land, water: best.water };
   },
 

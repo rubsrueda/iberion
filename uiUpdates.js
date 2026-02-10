@@ -331,6 +331,17 @@ const UIManager = {
             return;
         }
 
+        const gameBoardEl = this._domElements?.gameBoard || document.getElementById('gameBoard');
+        if (gameBoardEl) {
+            const unitIds = new Set((units || []).map(unit => unit?.id).filter(Boolean));
+            gameBoardEl.querySelectorAll('.unit').forEach(el => {
+                const unitId = el.dataset?.id;
+                if (!unitId || !unitIds.has(unitId)) {
+                    el.remove();
+                }
+            });
+        }
+
         // --- 1. Actualizar la Barra Superior (Menú ☰) ---
         // Esta llamada ahora es el método principal y constante para actualizar la info del jugador.
         if (typeof this.updateTopBarInfo === 'function') {
