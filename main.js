@@ -2770,12 +2770,16 @@ async function processActionRequest(action) {
         }
 
         // 1. Enviar el cambio a los clientes conectados (P2P rápido)
-        NetworkManager.broadcastFullState();
-        
-        // 2. [NUEVO] GUARDAR EN LA NUBE INMEDIATAMENTE (Respaldo)
-        // Esto es crucial para que si el móvil se desconecta, al volver descargue este estado exacto.
-        if (NetworkManager.miId) {
-             NetworkManager.subirTurnoANube(); 
+        if (typeof isNetworkGame === 'function' && isNetworkGame()) {
+            if (typeof NetworkManager !== 'undefined' && typeof NetworkManager.broadcastFullState === 'function') {
+                NetworkManager.broadcastFullState();
+            }
+
+            // 2. [NUEVO] GUARDAR EN LA NUBE INMEDIATAMENTE (Respaldo)
+            // Esto es crucial para que si el móvil se desconecta, al volver descargue este estado exacto.
+            if (typeof NetworkManager !== 'undefined' && NetworkManager.miId && typeof NetworkManager.subirTurnoANube === 'function') {
+                NetworkManager.subirTurnoANube();
+            }
         }
     } else {
         console.warn(`[Red - Anfitrión] La acción ${action.type} fue recibida pero no se ejecutó.`);
