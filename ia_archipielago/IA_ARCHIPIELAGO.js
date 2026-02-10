@@ -937,6 +937,9 @@ const IAArchipielago = {
 
   _requestMoveUnit(unit, r, c) {
     if (!unit) return false;
+    if (typeof isValidMove === 'function' && !isValidMove(unit, r, c)) {
+      return false;
+    }
     const action = {
       type: 'moveUnit',
       actionId: `move_${unit.id}_${r}_${c}_${Date.now()}`,
@@ -970,6 +973,16 @@ const IAArchipielago = {
     if (!unit) return false;
     const targetUnit = getUnitOnHex(r, c);
     if (targetUnit && targetUnit.player !== unit.player) {
+      const canAttack = typeof isValidAttack === 'function'
+        ? isValidAttack(unit, targetUnit)
+        : hexDistance(unit.r, unit.c, targetUnit.r, targetUnit.c) <= (unit.attackRange || 1);
+
+      if (!canAttack) {
+        const step = this._getMoveStepTowards(unit, r, c);
+        if (step) return this._requestMoveUnit(unit, step.r, step.c);
+        return false;
+      }
+
       const action = {
         type: 'attackUnit',
         actionId: `attack_${unit.id}_${targetUnit.id}_${Date.now()}`,

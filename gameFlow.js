@@ -1220,12 +1220,26 @@ function simpleAiDeploymentTurn() {
 
     if (useArchipelagoDeployment && typeof IAArchipielago !== 'undefined' && typeof IAArchipielago.deployUnitsAI === 'function') {
         IAArchipielago.deployUnitsAI(aiPlayerNumber);
+        setTimeout(() => {
+            const aiUnits = units.filter(u => u.player === aiPlayerNumber);
+            if (gameState.currentPhase === 'deployment' && aiUnits.length === 0 && typeof IAArchipielago.crearUnidadInicialDeEmergencia === 'function') {
+                console.warn(`[IA DEPLOY] Fallback critico: IA sin unidades. Creando emergencia para J${aiPlayerNumber}.`);
+                IAArchipielago.crearUnidadInicialDeEmergencia(aiPlayerNumber);
+            }
+        }, 200);
         return;
     }
 
     // Fallback: Llama al manager de despliegue clásico.
     if (typeof AiDeploymentManager !== 'undefined' && AiDeploymentManager.deployUnitsAI) {
         AiDeploymentManager.deployUnitsAI(aiPlayerNumber);
+        setTimeout(() => {
+            const aiUnits = units.filter(u => u.player === aiPlayerNumber);
+            if (gameState.currentPhase === 'deployment' && aiUnits.length === 0 && typeof IAArchipielago !== 'undefined' && typeof IAArchipielago.crearUnidadInicialDeEmergencia === 'function') {
+                console.warn(`[IA DEPLOY] Fallback critico: IA sin unidades. Creando emergencia para J${aiPlayerNumber}.`);
+                IAArchipielago.crearUnidadInicialDeEmergencia(aiPlayerNumber);
+            }
+        }, 200);
     } else {
         console.error("[simpleAiDeploymentTurn] AiDeploymentManager no está definido. Revisa que ai_deploymentLogic.js esté cargado.");
     }
