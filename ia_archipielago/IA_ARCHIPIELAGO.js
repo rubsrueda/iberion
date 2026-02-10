@@ -3,7 +3,8 @@
 // EJECUTA ACCIONES REALES: Movimiento, fusión, división, conquista, construcción, caravanas
 
 const IAArchipielago = {
-  ARCHI_LOG_VERBOSE: true,
+  ARCHI_LOG_VERBOSE: false,
+  ARCHI_LOG_ROUTE_LIMIT: 3,
   BARBARIAN_CONQUEST_RATIO: 2.0,
   INVADER_FORTRESS_MIN_DISTANCE: 6,
   HUNT_SMALL_DIVISIONS_TARGET: 3,
@@ -99,7 +100,8 @@ const IAArchipielago = {
     console.log(`\n[IA_ARCHIPIELAGO] ========= RESUMEN DE SITUACIÓN =========`);
     console.log(`Amenazas detectadas: ${amenazas.length}`);
     console.log(`Puntos de frente: ${frente.length}`);
-    console.log(`Oro disponible: ${economia.oro}`);
+    console.log(`Recursos disponibles: oro ${economia.oro}, comida ${economia.comida}, madera ${economia.madera}, piedra ${economia.piedra}, hierro ${economia.hierro}`);
+    console.log(`Investigacion/Recruit: ${economia.researchPoints || 0}/${economia.puntosReclutamiento || 0}`);
     console.log(`Recursos en mapa: ${recursosEnMapa.total}`);
     console.log(`Objetivos enemigos vulnerables: ${recursosVulnerables.length}`);
     console.log(`========================================\n`);
@@ -157,9 +159,11 @@ const IAArchipielago = {
     
     console.log(`[IA_ARCHIPIELAGO] PLAN: Ejecutando con ${misUnidades.length} unidades disponibles`);
 
-    const rutaPrioritaria = situacion.rutas?.[0];
-    if (rutaPrioritaria?.id === 'ruta_larga') {
+    const hasCrisis = amenazas.length > 0 || frente.length > 0;
+    if (!hasCrisis) {
       this._ejecutarRutaLarga(situacion);
+    } else {
+      console.log('[IA_ARCHIPIELAGO] Ruta Larga pausada por crisis tactica.');
     }
 
     if (enemyProfile?.mode === 'spread_small') {
@@ -1088,6 +1092,11 @@ const IAArchipielago = {
     return cities.filter(c => c && Number.isInteger(c.r) && Number.isInteger(c.c));
   },
 
+  _getBankCity() {
+    const bankId = typeof BankManager !== 'undefined' ? BankManager.PLAYER_ID : 0;
+    return (gameState.cities || []).find(c => c && c.owner === bankId) || null;
+  },
+
   _getEnemyPlayerId(myPlayer) {
     if (gameState.numPlayers === 2) return myPlayer === 1 ? 2 : 1;
     const enemy = (gameState.players || []).find(p => p.id !== myPlayer);
@@ -1220,6 +1229,42 @@ const IAArchipielago = {
       }
     });
     return keys;
+  },
+
+  _pickNextTradeRouteCandidate(myPlayer, existingRouteKeys) {
+    const cities = this._getTradeCityCandidates(myPlayer);
+    const bankCity = this._getBankCity();
+    const ownCities = cities.filter(c => c.owner === myPlayer);
+    const tradeCities = bankCity ? ownCities.concat([bankCity]) : ownCities;
+
+    if (tradeCities.length < 2) return null;
+
+    const candidates = [];
+    for (let i = 0; i < tradeCities.length; i++) {
+      for (let j = i + 1; j < tradeCities.length; j++) {
+        const cityA = tradeCities[i];
+        const cityB = tradeCities[j];
+        if (!cityA || !cityB) continue;
+        if (bankCity && cityA === bankCity && cityB === bankCity) continue;
+
+        const routeKey = this._getTradePairKey(cityA, cityB);
+        if (routeKey && existingRouteKeys?.has(routeKey)) continue;
+
+        const infraPath = findInfrastructurePath(cityA, cityB);
+        if (!infraPath) continue;
+
+        const hasBank = bankCity && (cityA === bankCity || cityB === bankCity);
+        candidates.push({ cityA, cityB, infraPath, hasBank });
+      }
+    }
+
+    if (!candidates.length) return null;
+    candidates.sort((a, b) => {
+      if (a.hasBank !== b.hasBank) return a.hasBank ? -1 : 1;
+      return a.infraPath.length - b.infraPath.length;
+    });
+
+    return candidates[0];
   },
 
   _pickObjective(list, unit, myPlayer) {
@@ -1768,8 +1813,8 @@ const IAArchipielago = {
       };
     }
 
-    const candidate = this._findBestTradeCityPair(this._getTradeCityCandidates(myPlayer), myPlayer);
-    if (!candidate) {
+    const roadPlan = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
+    if (!roadPlan.connections.length) {
       return {
         id: 'ruta_larga',
         label: 'Ruta Larga',
@@ -1779,10 +1824,9 @@ const IAArchipielago = {
       };
     }
 
-    const { cityA, cityB, infraPath, missingOwnedSegments } = candidate;
-    const hasInfra = !!infraPath;
-    const missingCount = missingOwnedSegments.length;
-    let weight = 170 + (hasInfra ? 90 : 0) + Math.max(0, 3 - missingCount) * 25;
+    const missingCount = roadPlan.connections.reduce((sum, conn) => sum + (conn.missingOwnedSegments?.length || 0), 0);
+    const hasInfra = missingCount === 0 && roadPlan.connections.length >= (roadPlan.nodes.length - 1);
+    let weight = 190 + (hasInfra ? 80 : 0) + Math.min(80, missingCount * 6);
 
     if (holders.mostRoutes === myKey) weight *= 0.5;
     if (holders.mostRoutes === enemyKey) weight *= 1.4;
@@ -1793,10 +1837,10 @@ const IAArchipielago = {
       weight,
       canExecute: true,
       meta: {
-        cityA: cityA?.name,
-        cityB: cityB?.name,
+        nodes: roadPlan.nodes.length,
         hasInfra,
-        missingCount
+        missingCount,
+        connections: roadPlan.connections.length
       }
     };
   },
@@ -1829,6 +1873,13 @@ const IAArchipielago = {
   _logRutasDeVictoria(rutas) {
     if (!rutas || rutas.length === 0) return;
 
+    if (!this.ARCHI_LOG_VERBOSE) {
+      const top = rutas[0];
+      const metaText = top?.meta ? JSON.stringify(top.meta) : '';
+      console.log(`[IA_ARCHIPIELAGO] RUTA PRINCIPAL: ${top?.id || 'n/a'} | peso=${top?.weight?.toFixed(1) || '0.0'} ${metaText}`);
+      return;
+    }
+
     console.log(`[IA_ARCHIPIELAGO] ========= RUTAS DE VICTORIA =========`);
     rutas.forEach((ruta, idx) => {
       const metaText = ruta.meta ? JSON.stringify(ruta.meta) : '';
@@ -1841,15 +1892,23 @@ const IAArchipielago = {
     const rutas = situacion.rutas || [];
     if (!rutas.length) return;
 
-    console.log(`[IA_ARCHIPIELAGO] ========= PROCESO RUTAS (DETALLE) =========`);
+    const logLimit = this.ARCHI_LOG_VERBOSE ? rutas.length : (this.ARCHI_LOG_ROUTE_LIMIT || 3);
+    if (this.ARCHI_LOG_VERBOSE) {
+      console.log(`[IA_ARCHIPIELAGO] ========= PROCESO RUTAS (DETALLE) =========`);
+    }
     rutas.forEach((ruta, idx) => {
+      const shouldLog = idx < logLimit;
       const metaText = ruta.meta ? JSON.stringify(ruta.meta) : '';
-      console.log(`[IA_ARCHIPIELAGO] [Ruta ${idx + 1}] ${ruta.id} | peso=${ruta.weight.toFixed(1)} | ejecutar=${!!ruta.canExecute} ${metaText}`);
+      if (shouldLog) {
+        console.log(`[IA_ARCHIPIELAGO] [Ruta ${idx + 1}] ${ruta.id} | peso=${ruta.weight.toFixed(1)} | ejecutar=${!!ruta.canExecute} ${metaText}`);
+      }
 
       if (!ruta.canExecute) {
         const reason = this._diagnosticarRutaNoEjecutable(ruta, situacion);
         const reasonText = reason ? ` (razon: ${reason})` : '';
-        console.log(`[IA_ARCHIPIELAGO] [Ruta ${idx + 1}] ${ruta.id} -> omitida${reasonText}`);
+        if (shouldLog) {
+          console.log(`[IA_ARCHIPIELAGO] [Ruta ${idx + 1}] ${ruta.id} -> omitida${reasonText}`);
+        }
         return;
       }
 
@@ -1857,9 +1916,13 @@ const IAArchipielago = {
       const resultText = action?.executed ? 'ejecutada' : 'no ejecutada';
       const reasonText = action?.reason ? ` (razon: ${action.reason})` : '';
       const noteText = action?.note ? ` (nota: ${action.note})` : '';
-      console.log(`[IA_ARCHIPIELAGO] [Ruta ${idx + 1}] ${ruta.id} -> accion: ${action?.action || 'desconocida'} | ${resultText}${reasonText}${noteText}`);
+      if (shouldLog) {
+        console.log(`[IA_ARCHIPIELAGO] [Ruta ${idx + 1}] ${ruta.id} -> accion: ${action?.action || 'desconocida'} | ${resultText}${reasonText}${noteText}`);
+      }
     });
-    console.log(`========================================\n`);
+    if (this.ARCHI_LOG_VERBOSE) {
+      console.log(`========================================\n`);
+    }
   },
 
   _ejecutarAccionPorRuta(ruta, situacion) {
@@ -1954,6 +2017,74 @@ const IAArchipielago = {
     return (myRegs + 1) / (enemyRegs + 1);
   },
 
+  _findRoadConnection(cityA, cityB, myPlayer) {
+    if (!cityA || !cityB) return null;
+    const dummyUnit = { player: myPlayer, regiments: [{ type: 'Infantería Ligera' }] };
+    const roadBuildable = STRUCTURE_TYPES['Camino']?.buildableOn || [];
+    const landPath = findPath_A_Star(dummyUnit, { r: cityA.r, c: cityA.c }, { r: cityB.r, c: cityB.c });
+    if (!landPath) return null;
+
+    const pathIsValid = landPath.every(step => {
+      const hex = board[step.r]?.[step.c];
+      if (!hex) return false;
+      if (hex.isCity) return true;
+      if (hex.owner !== myPlayer) return false;
+      if (hex.terrain === 'water' || hex.terrain === 'forest') return false;
+      if (roadBuildable.length > 0 && !roadBuildable.includes(hex.terrain)) return false;
+      return true;
+    });
+    if (!pathIsValid) return null;
+
+    const missingOwnedSegments = landPath.filter(step => {
+      const hex = board[step.r]?.[step.c];
+      if (!hex || hex.isCity || hex.structure || hex.terrain === 'water' || hex.terrain === 'forest') return false;
+      if (hex.owner !== myPlayer) return false;
+      if (roadBuildable.length > 0 && !roadBuildable.includes(hex.terrain)) return false;
+      return true;
+    });
+
+    return { landPath, missingOwnedSegments };
+  },
+
+  _getRoadNetworkPlan(myPlayer, ciudades) {
+    const ownCities = (ciudades || []).filter(c => c && c.owner === myPlayer);
+    const bankCity = this._getBankCity();
+    const nodes = bankCity ? ownCities.concat([bankCity]) : ownCities;
+
+    if (nodes.length < 2) {
+      return { nodes, connections: [] };
+    }
+
+    const connected = [nodes[0]];
+    const remaining = nodes.slice(1);
+    const connections = [];
+
+    while (remaining.length > 0) {
+      let best = null;
+      let bestIndex = -1;
+
+      for (let i = 0; i < remaining.length; i++) {
+        const target = remaining[i];
+        for (const source of connected) {
+          const conn = this._findRoadConnection(source, target, myPlayer);
+          if (!conn) continue;
+          if (!best || conn.landPath.length < best.landPath.length) {
+            best = { from: source, to: target, landPath: conn.landPath, missingOwnedSegments: conn.missingOwnedSegments };
+            bestIndex = i;
+          }
+        }
+      }
+
+      if (!best) break;
+
+      connections.push(best);
+      connected.push(best.to);
+      remaining.splice(bestIndex, 1);
+    }
+
+    return { nodes, connections };
+  },
+
   _findBestTradeCityPair(ciudades, myPlayer, existingRouteKeys = new Set()) {
     let best = null;
     const dummyUnit = { player: myPlayer, regiments: [{ type: 'Infantería Ligera' }] };
@@ -2007,20 +2138,30 @@ const IAArchipielago = {
       return;
     }
 
-    const candidate = this._findBestTradeCityPair(this._getTradeCityCandidates(myPlayer), myPlayer);
-    if (!candidate) {
-      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No se encontro ruta terrestre valida entre ciudades.');
+    const roadPlan = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
+    if (!roadPlan.connections.length) {
+      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No se encontro red de caminos valida.');
       return;
     }
 
-    const { cityA, cityB, infraPath, landPath, missingOwnedSegments } = candidate;
-    console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] Ciudades: ${cityA.name} -> ${cityB.name} | Infra=${!!infraPath} | Faltantes=${missingOwnedSegments.length}`);
+    const pending = roadPlan.connections
+      .filter(conn => conn.missingOwnedSegments && conn.missingOwnedSegments.length > 0)
+      .sort((a, b) => (a.missingOwnedSegments.length - b.missingOwnedSegments.length) || (a.landPath.length - b.landPath.length));
 
-    if (!infraPath) {
+    if (pending.length > 0) {
+      const target = pending[0];
+      console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] Red caminos: nodos=${roadPlan.nodes.length} | Faltantes=${target.missingOwnedSegments.length}`);
+
+      if (!this._hasTech(myPlayer, 'ENGINEERING')) {
+        const requested = this._ensureTech(myPlayer, 'ENGINEERING');
+        console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] Falta ENGINEERING. Investigando=${!!requested}`);
+        return;
+      }
+
       const roadCost = STRUCTURE_TYPES['Camino']?.cost || {};
       const playerRes = gameState.playerResources[myPlayer] || {};
       const canAfford = (playerRes.piedra || 0) >= (roadCost.piedra || 0) && (playerRes.madera || 0) >= (roadCost.madera || 0);
-      const nextHex = missingOwnedSegments[0];
+      const nextHex = target.missingOwnedSegments[0];
 
       if (!nextHex) {
         console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No hay segmentos propios disponibles para construir camino.');
@@ -2037,24 +2178,15 @@ const IAArchipielago = {
       return;
     }
 
-    const bankId = typeof BankManager !== 'undefined' ? BankManager.PLAYER_ID : 0;
-    const pairIsTradeable = (
-      (cityA.owner === myPlayer && cityB.owner === myPlayer) ||
-      (cityA.owner === myPlayer && cityB.owner === bankId) ||
-      (cityB.owner === myPlayer && cityA.owner === bankId)
-    );
-
-    if (!pairIsTradeable) {
-      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] Par de ciudades no valido para caravanas.');
-      return;
-    }
-
-    const routeKey = this._getTradePairKey(cityA, cityB);
     const existingRouteKeys = this._getExistingTradeRouteKeys();
-    if (routeKey && existingRouteKeys.has(routeKey)) {
-      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] Ya existe una ruta comercial activa entre estas ciudades.');
+    const candidate = this._pickNextTradeRouteCandidate(myPlayer, existingRouteKeys);
+    if (!candidate) {
+      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No hay nuevas rutas comerciales disponibles.');
       return;
     }
+
+    const { cityA, cityB, infraPath } = candidate;
+    console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] Nueva caravana: ${cityA.name} -> ${cityB.name}`);
 
     let supplyUnit = units.find(u => u.player === myPlayer && !u.tradeRoute && u.regiments?.some(reg => (REGIMENT_TYPES[reg.type].abilities || []).includes('provide_supply')));
 
