@@ -958,7 +958,14 @@ const IAArchipielago = {
   },
 
   _getUnexploredRuins() {
-    const ruins = this._getUnexploredRuins();
+    const ruins = [];
+    if (!Array.isArray(board)) return ruins;
+    for (const row of board) {
+      if (!Array.isArray(row)) continue;
+      for (const hex of row) {
+        if (hex?.feature === 'ruins' && !hex.looted) ruins.push(hex);
+      }
+    }
     return ruins;
   },
 
