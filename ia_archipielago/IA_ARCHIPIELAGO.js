@@ -2017,23 +2017,17 @@ const IAArchipielago = {
     return (myRegs + 1) / (enemyRegs + 1);
   },
 
-  _findRoadConnection(cityA, cityB, myPlayer) {
+  _findRoadConnection(cityA, cityB, myPlayer, allowedOwners) {
     if (!cityA || !cityB) return null;
-    const dummyUnit = { player: myPlayer, regiments: [{ type: 'Infantería Ligera' }] };
     const roadBuildable = STRUCTURE_TYPES['Camino']?.buildableOn || [];
-    const landPath = findPath_A_Star(dummyUnit, { r: cityA.r, c: cityA.c }, { r: cityB.r, c: cityB.c });
-    if (!landPath) return null;
-
-    const pathIsValid = landPath.every(step => {
-      const hex = board[step.r]?.[step.c];
-      if (!hex) return false;
-      if (hex.isCity) return true;
-      if (hex.owner !== myPlayer) return false;
-      if (hex.terrain === 'water' || hex.terrain === 'forest') return false;
-      if (roadBuildable.length > 0 && !roadBuildable.includes(hex.terrain)) return false;
-      return true;
+    const landPath = this._findRoadBuildPath({
+      myPlayer,
+      start: { r: cityA.r, c: cityA.c },
+      goal: { r: cityB.r, c: cityB.c },
+      allowedOwners,
+      roadBuildable
     });
-    if (!pathIsValid) return null;
+    if (!landPath) return null;
 
     const missingOwnedSegments = landPath.filter(step => {
       const hex = board[step.r]?.[step.c];
@@ -2046,9 +2040,59 @@ const IAArchipielago = {
     return { landPath, missingOwnedSegments };
   },
 
+  _findRoadBuildPath({ myPlayer, start, goal, allowedOwners, roadBuildable }) {
+    if (!start || !goal) return null;
+    const startKey = `${start.r},${start.c}`;
+    const goalKey = `${goal.r},${goal.c}`;
+    const queue = [start];
+    const visited = new Set([startKey]);
+    const prev = new Map();
+
+    const canTraverse = (hex, isEndpoint) => {
+      if (!hex) return false;
+      if (isEndpoint) return true;
+      if (hex.isCity) return true;
+      if (allowedOwners && !allowedOwners.has(hex.owner)) return false;
+      if (!allowedOwners && hex.owner !== myPlayer) return false;
+      if (hex.terrain === 'water' || hex.terrain === 'forest') return false;
+      if (roadBuildable?.length > 0 && !roadBuildable.includes(hex.terrain)) return false;
+      return true;
+    };
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      const key = `${current.r},${current.c}`;
+      if (key === goalKey) break;
+
+      for (const neighbor of getHexNeighbors(current.r, current.c)) {
+        const nKey = `${neighbor.r},${neighbor.c}`;
+        if (visited.has(nKey)) continue;
+        const hex = board[neighbor.r]?.[neighbor.c];
+        const isEndpoint = nKey === goalKey;
+        if (!canTraverse(hex, isEndpoint)) continue;
+        visited.add(nKey);
+        prev.set(nKey, key);
+        queue.push({ r: neighbor.r, c: neighbor.c });
+      }
+    }
+
+    if (!visited.has(goalKey)) return null;
+
+    const path = [];
+    let cursor = goalKey;
+    while (cursor) {
+      const [r, c] = cursor.split(',').map(Number);
+      path.push({ r, c });
+      cursor = prev.get(cursor);
+    }
+    path.reverse();
+    return path;
+  },
+
   _getRoadNetworkPlan(myPlayer, ciudades) {
     const ownCities = (ciudades || []).filter(c => c && c.owner === myPlayer);
     const bankCity = this._getBankCity();
+    const allowedOwners = new Set([myPlayer]);
     const nodes = bankCity ? ownCities.concat([bankCity]) : ownCities;
 
     if (nodes.length < 2) {
@@ -2066,7 +2110,7 @@ const IAArchipielago = {
       for (let i = 0; i < remaining.length; i++) {
         const target = remaining[i];
         for (const source of connected) {
-          const conn = this._findRoadConnection(source, target, myPlayer);
+          const conn = this._findRoadConnection(source, target, myPlayer, allowedOwners);
           if (!conn) continue;
           if (!best || conn.landPath.length < best.landPath.length) {
             best = { from: source, to: target, landPath: conn.landPath, missingOwnedSegments: conn.missingOwnedSegments };
@@ -2140,7 +2184,7 @@ const IAArchipielago = {
 
     const roadPlan = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
     if (!roadPlan.connections.length) {
-      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No se encontro red de caminos valida.');
+      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No se encontro ruta de caminos construible.');
       return;
     }
 
