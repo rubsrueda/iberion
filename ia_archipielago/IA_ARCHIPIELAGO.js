@@ -937,24 +937,66 @@ const IAArchipielago = {
 
   _requestMoveUnit(unit, r, c) {
     if (!unit) return false;
-    if (typeof RequestMoveUnit !== 'function') {
-      console.warn('[IA_ARCHIPIELAGO] RequestMoveUnit no disponible.');
+    const action = {
+      type: 'moveUnit',
+      actionId: `move_${unit.id}_${r}_${c}_${Date.now()}`,
+      payload: { playerId: unit.player, unitId: unit.id, toR: r, toC: c }
+    };
+
+    const hasNetworkMatch = typeof NetworkManager !== 'undefined' && !!NetworkManager.miId;
+    if (typeof isNetworkGame === 'function' && isNetworkGame() && hasNetworkMatch && typeof NetworkManager !== 'undefined' && !NetworkManager.esAnfitrion) {
+      if (NetworkManager.enviarDatos) {
+        NetworkManager.enviarDatos({ type: 'actionRequest', action });
+        return true;
+      }
       return false;
     }
-    RequestMoveUnit(unit, r, c);
-    return true;
+
+    if (typeof processActionRequest === 'function') {
+      processActionRequest(action);
+      return true;
+    }
+
+    if (typeof RequestMoveUnit === 'function') {
+      RequestMoveUnit(unit, r, c);
+      return true;
+    }
+
+    console.warn('[IA_ARCHIPIELAGO] RequestMoveUnit no disponible.');
+    return false;
   },
 
   _requestMoveOrAttack(unit, r, c) {
     if (!unit) return false;
     const targetUnit = getUnitOnHex(r, c);
     if (targetUnit && targetUnit.player !== unit.player) {
-      if (typeof RequestAttackUnit !== 'function') {
-        console.warn('[IA_ARCHIPIELAGO] RequestAttackUnit no disponible.');
+      const action = {
+        type: 'attackUnit',
+        actionId: `attack_${unit.id}_${targetUnit.id}_${Date.now()}`,
+        payload: { playerId: unit.player, attackerId: unit.id, defenderId: targetUnit.id }
+      };
+
+      const hasNetworkMatch = typeof NetworkManager !== 'undefined' && !!NetworkManager.miId;
+      if (typeof isNetworkGame === 'function' && isNetworkGame() && hasNetworkMatch && typeof NetworkManager !== 'undefined' && !NetworkManager.esAnfitrion) {
+        if (NetworkManager.enviarDatos) {
+          NetworkManager.enviarDatos({ type: 'actionRequest', action });
+          return true;
+        }
         return false;
       }
-      RequestAttackUnit(unit, targetUnit);
-      return true;
+
+      if (typeof processActionRequest === 'function') {
+        processActionRequest(action);
+        return true;
+      }
+
+      if (typeof RequestAttackUnit === 'function') {
+        RequestAttackUnit(unit, targetUnit);
+        return true;
+      }
+
+      console.warn('[IA_ARCHIPIELAGO] RequestAttackUnit no disponible.');
+      return false;
     }
     const step = this._getMoveStepTowards(unit, r, c);
     if (step) return this._requestMoveUnit(unit, step.r, step.c);
@@ -1230,6 +1272,7 @@ const IAArchipielago = {
     });
     return keys;
   },
+
 
   _pickNextTradeRouteCandidate(myPlayer, existingRouteKeys) {
     const cities = this._getTradeCityCandidates(myPlayer);
