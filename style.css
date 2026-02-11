@@ -6263,6 +6263,31 @@ input:checked + .slider:before {
     line-height: 1.5;
 }
 
+@media (max-width: 680px) {
+    .landing-features {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .feature-card {
+        padding: 12px;
+    }
+
+    .feat-icon {
+        font-size: 2.2rem;
+        margin-bottom: 6px;
+    }
+
+    .feature-card h3 {
+        font-size: 1rem;
+    }
+
+    .feature-card p {
+        font-size: 0.85rem;
+        line-height: 1.35;
+    }
+}
+
 /* FOOTER */
 .landing-footer {
     margin-top: auto;

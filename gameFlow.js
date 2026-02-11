@@ -172,6 +172,7 @@ function checkAndProcessBrokenUnit(unit) {
     originalUnit.hasMoved = true;
     originalUnit.hasAttacked = true;
 
+    const isNaval = originalUnit.regiments?.some(reg => REGIMENT_TYPES[reg.type]?.is_naval);
     const safeHavens = gameState.cities
         .filter(c => c.owner === originalUnit.player)
         .sort((a, b) => hexDistance(originalUnit.r, originalUnit.c, a.r, a.c) - hexDistance(originalUnit.r, originalUnit.c, b.r, b.c));
@@ -185,12 +186,16 @@ function checkAndProcessBrokenUnit(unit) {
         let minDistance = hexDistance(originalUnit.r, originalUnit.c, nearestSafeHaven.r, nearestSafeHaven.c);
 
         for (const n of neighbors) {
-            if (!getUnitOnHex(n.r, n.c) && !TERRAIN_TYPES[board[n.r]?.[n.c]?.terrain]?.isImpassableForLand) {
-                const dist = hexDistance(n.r, n.c, nearestSafeHaven.r, nearestSafeHaven.c);
-                if (dist < minDistance) {
-                    minDistance = dist;
-                    bestNeighbor = n;
-                }
+            const neighborHex = board[n.r]?.[n.c];
+            if (!neighborHex) continue;
+            if (getUnitOnHex(n.r, n.c)) continue;
+            if (isNaval && neighborHex.terrain !== 'water') continue;
+            if (!isNaval && TERRAIN_TYPES[neighborHex.terrain]?.isImpassableForLand) continue;
+
+            const dist = hexDistance(n.r, n.c, nearestSafeHaven.r, nearestSafeHaven.c);
+            if (dist < minDistance) {
+                minDistance = dist;
+                bestNeighbor = n;
             }
         }
         retreatHex = bestNeighbor;
@@ -208,8 +213,8 @@ function checkAndProcessBrokenUnit(unit) {
         if(board[retreatHex.r]?.[retreatHex.c]) board[retreatHex.r][retreatHex.c].unit = originalUnit; // Poner en el nuevo hex
 
     } else {
-        logMessage(`¡${originalUnit.name} está rodeada y se rinde!`, "error");
-        handleUnitDestroyed(originalUnit, null);
+        logMessage(`¡${originalUnit.name} está desorganizada y no puede retirarse, pero mantiene su posición!`, "warning");
+        originalUnit.isDisorganized = true;
     }
     
     if (selectedUnit && selectedUnit.id === originalUnit.id) {

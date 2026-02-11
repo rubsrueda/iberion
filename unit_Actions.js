@@ -1468,17 +1468,23 @@ async function attackUnit(attackerDivision, defenderDivision) {
 
                 } else {
                     // ESCENARIO B: NO hay salida (Rodeada por enemigos o terreno).
-                    // Aquí se aplica la Regla 4: Destrucción por no poder retirarse.
-                    logMessage(`¡${defenderDivision.name} está RODEADA y no puede retirarse!`, "important");
-                    await attemptDefectionOrDestroy(defenderDivision, "aniquilación tras cerco en combate");
-                    
-                    // Como el defensor ha desaparecido, salimos.
-                    // (Pero procesamos XP del atacante si quieres)
-                    if (!attackerDestroyed) {
-                        // (Tu código de recompensa para el atacante aquí, si lo tienes separado)
-                        // Normalmente handleUnitDestroyed ya maneja la XP del vencedor si se le pasa.
+                    const defenderIsNaval = defenderDivision.regiments?.some(reg => REGIMENT_TYPES[reg.type]?.is_naval);
+                    if (defenderIsNaval) {
+                        logMessage(`¡${defenderDivision.name} no puede retirarse, pero se mantiene en su posición!`, "warning");
+                        defenderDivision.morale = 0;
+                        defenderDivision.isDisorganized = true;
+                    } else {
+                        logMessage(`¡${defenderDivision.name} está RODEADA y no puede retirarse!`, "important");
+                        await attemptDefectionOrDestroy(defenderDivision, "aniquilación tras cerco en combate");
+                        
+                        // Como el defensor ha desaparecido, salimos.
+                        // (Pero procesamos XP del atacante si quieres)
+                        if (!attackerDestroyed) {
+                            // (Tu código de recompensa para el atacante aquí, si lo tienes separado)
+                            // Normalmente handleUnitDestroyed ya maneja la XP del vencedor si se le pasa.
+                        }
+                        return; // Salir de la función
                     }
-                    return; // Salir de la función
                 }
             }
         }
@@ -2189,14 +2195,20 @@ function handleReinforceUnitAction(unitToReinforce) {
  */
 function findSafeRetreatHex(unit, attacker) {
     const neighbors = getHexNeighbors(unit.r, unit.c);
+    const isNaval = unit?.regiments?.some(reg => REGIMENT_TYPES[reg.type]?.is_naval);
     
     // Filtramos las casillas válidas
     const validRetreats = neighbors.filter(n => {
         const hex = board[n.r]?.[n.c];
         const unitOnHex = getUnitOnHex(n.r, n.c);
         
-        // 1. Debe existir y ser terreno transitable
-        if (!hex || TERRAIN_TYPES[hex.terrain]?.isImpassableForLand) return false;
+        // 1. Debe existir y ser terreno transitable segun el tipo de unidad
+        if (!hex) return false;
+        if (isNaval) {
+            if (hex.terrain !== 'water') return false;
+        } else if (TERRAIN_TYPES[hex.terrain]?.isImpassableForLand) {
+            return false;
+        }
         
         // 2. No debe haber unidad (ni amiga ni enemiga, para evitar fusiones accidentales en pánico)
         if (unitOnHex) return false;
@@ -2547,6 +2559,7 @@ function checkAndProcessBrokenUnit(unit) {
     unit.hasMoved = true;
     unit.hasAttacked = true;
 
+    const isNaval = unit.regiments?.some(reg => REGIMENT_TYPES[reg.type]?.is_naval);
     const safeHavens = gameState.cities.filter(c => c.owner === unit.player).sort((a,b) => hexDistance(unit.r, unit.c, a.r, a.c) - hexDistance(unit.r, unit.c, b.r, b.c));
     const nearestSafeHaven = safeHavens[0] || null;
 
@@ -2557,12 +2570,16 @@ function checkAndProcessBrokenUnit(unit) {
         let minDistance = hexDistance(unit.r, unit.c, nearestSafeHaven.r, nearestSafeHaven.c);
 
         for (const n of neighbors) {
-            if (!getUnitOnHex(n.r, n.c) && !TERRAIN_TYPES[board[n.r]?.[n.c]?.terrain]?.isImpassableForLand) {
-                const dist = hexDistance(n.r, n.c, nearestSafeHaven.r, nearestSafeHaven.c);
-                if (dist < minDistance) {
-                    minDistance = dist;
-                    bestNeighbor = n;
-                }
+            const neighborHex = board[n.r]?.[n.c];
+            if (!neighborHex) continue;
+            if (getUnitOnHex(n.r, n.c)) continue;
+            if (isNaval && neighborHex.terrain !== 'water') continue;
+            if (!isNaval && TERRAIN_TYPES[neighborHex.terrain]?.isImpassableForLand) continue;
+
+            const dist = hexDistance(n.r, n.c, nearestSafeHaven.r, nearestSafeHaven.c);
+            if (dist < minDistance) {
+                minDistance = dist;
+                bestNeighbor = n;
             }
         }
         retreatHex = bestNeighbor;
@@ -2575,8 +2592,8 @@ function checkAndProcessBrokenUnit(unit) {
         unit.r = retreatHex.r;
         unit.c = retreatHex.c;
     } else {
-        logMessage(`¡${unit.name} está rodeada y sin moral! ¡La unidad se rinde!`, "error");
-        handleUnitDestroyed(unit, null);
+        logMessage(`¡${unit.name} está desorganizada y no puede retirarse, pero mantiene su posición!`, "warning");
+        unit.isDisorganized = true;
     }
     
     // Deseleccionar si era la unidad activa
