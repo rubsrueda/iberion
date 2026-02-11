@@ -82,7 +82,7 @@ const TUTORIAL_SCRIPTS = {
         },
         {
             id: 'TUT_08_COMBAT',
-            message: "Un explorador enemigo aparece. Atacalo y gana tu primer combate.",
+            message: "Un explorador enemigo aparece. Atacalo y gana tu primer combate. Despues del ataque, la unidad no puede moverse otra vez este turno.",
             highlightHexCoords: [{ r: 3, c: 3 }],
             onStepStart: () => {
                 const enemy = AiGameplayManager.createUnitObject({
@@ -98,24 +98,31 @@ const TUTORIAL_SCRIPTS = {
             actionCondition: () => gameState.tutorial.attack_completed
         },
         {
-            id: 'TUT_09_SPLIT',
+            id: 'TUT_09_END_TURN',
+            message: "Termina el turno (►) para poder actuar de nuevo.",
+            highlightElementId: 'floatingEndTurnBtn',
+            onStepStart: () => { gameState.tutorial.turnEnded = false; },
+            actionCondition: () => gameState.tutorial.turnEnded === true
+        },
+        {
+            id: 'TUT_10_SPLIT',
             message: "Divide la unidad con <strong>Dividir (✂️)</strong> y coloca la nueva division en (3,2).",
             highlightElementId: 'floatingSplitBtn',
             highlightHexCoords: [{ r: 3, c: 2 }],
             onStepStart: () => {
                 const playerUnit = units.find(u => u.player === 1);
-                if (playerUnit) { resetUnitsForNewTurn(1); selectUnit(playerUnit); }
+                if (playerUnit) { selectUnit(playerUnit); }
                 gameState.tutorial.unit_split = false;
             },
             actionCondition: () => gameState.tutorial.unit_split
         },
         {
-            id: 'TUT_10_SUPPLY_INFO',
+            id: 'TUT_11_SUPPLY_INFO',
             message: "Sin suministro tus tropas sufren. Curar solo es posible en capital o adyacente.",
             duration: 3500
         },
         {
-            id: 'TUT_11_SUPPLY_MOVE',
+            id: 'TUT_12_SUPPLY_MOVE',
             message: "Mueve tu unidad danada junto a la capital (1,2).",
             highlightHexCoords: [{ r: 1, c: 2 }],
             onStepStart: () => {
@@ -130,20 +137,20 @@ const TUTORIAL_SCRIPTS = {
             actionCondition: () => units.some(u => u.player === 1 && u.r === 1 && u.c === 2)
         },
         {
-            id: 'TUT_12_REINFORCE',
+            id: 'TUT_13_REINFORCE',
             message: "Pulsa <strong>Gestionar/Reforzar (💪)</strong> y cura un regimiento.",
             highlightElementId: 'floatingReinforceBtn',
             onStepStart: () => { gameState.tutorial.unitReinforced = false; },
             actionCondition: () => gameState.tutorial.unitReinforced
         },
         {
-            id: 'TUT_13_TECH_OPEN',
+            id: 'TUT_14_TECH_OPEN',
             message: "La ciencia define el futuro. Abre el <strong>Arbol Tecnologico (💡)</strong>.",
             highlightElementId: 'floatingTechTreeBtn',
             actionCondition: () => domElements.techTreeScreen.style.display === 'flex'
         },
         {
-            id: 'TUT_14_TECH_ENGINEERING',
+            id: 'TUT_15_TECH_ENGINEERING',
             message: "Investiga <strong>Ingenieria Civil</strong> para construir caminos.",
             onStepStart: () => {
                 gameState.playerResources[1].researchPoints = 120;
@@ -152,25 +159,24 @@ const TUTORIAL_SCRIPTS = {
             actionCondition: () => gameState.playerResources[1].researchedTechnologies.includes('ENGINEERING')
         },
         {
-            id: 'TUT_15_BUILD_ROAD',
-            message: "Los ingenieros llegan. Construye un <strong>Camino</strong> en (1,3).",
+            id: 'TUT_16_BUILD_ROAD',
+            message: "Construye un <strong>Camino</strong> en un hex propio y vacio (1,3). Selecciona el hex y pulsa <strong>Construir</strong>.",
             highlightHexCoords: [{ r: 1, c: 3 }],
             onStepStart: () => {
                 if (typeof closeTechTreeScreen === 'function') closeTechTreeScreen();
-                const engineer = AiGameplayManager.createUnitObject({
-                    name: "Ingenieros",
-                    regiments: [{ ...REGIMENT_TYPES["Ingenieros"], type: 'Ingenieros' }]
-                }, 1, { r: 1, c: 3 });
-                placeFinalizedDivision(engineer, 1, 3);
+                if (board[1]?.[3]) {
+                    board[1][3].owner = 1;
+                    board[1][3].structure = null;
+                    renderSingleHexVisuals(1, 3);
+                }
                 gameState.playerResources[1].piedra += 200;
                 gameState.playerResources[1].madera += 200;
-                resetUnitsForNewTurn(1);
                 if (UIManager) UIManager.updateAllUIDisplays();
             },
             actionCondition: () => board[1][3]?.structure === 'Camino'
         },
         {
-            id: 'TUT_16_TRADE_ROUTE',
+            id: 'TUT_17_TRADE_ROUTE',
             message: "El comercio sostiene la guerra. Crea una ruta comercial con la <strong>Columna de Suministro</strong>.",
             highlightElementId: 'floatingTradeBtn',
             onStepStart: () => {
@@ -191,12 +197,12 @@ const TUTORIAL_SCRIPTS = {
             actionCondition: () => units.some(u => u.player === 1 && u.tradeRoute)
         },
         {
-            id: 'TUT_17_VICTORY_POINTS',
+            id: 'TUT_18_VICTORY_POINTS',
             message: "Victoria rapida: el juego termina cuando un jugador llega a <strong>10 puntos de victoria</strong>.",
             duration: 3500
         },
         {
-            id: 'TUT_18_FINISH',
+            id: 'TUT_19_FINISH',
             message: "Listo, General. Pulsa la bandera para finalizar y empieza tu primera partida.",
             onStepStart: () => {
                 if (UIManager) {
