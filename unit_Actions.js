@@ -382,7 +382,11 @@ function prepareSplitOrDisembark(unit) {
     else if (!hasNavalRegiments && unit.regiments.length > 1) {
         if (typeof openAdvancedSplitUnitModal === "function") openAdvancedSplitUnitModal(unit);
     }
-    // CASO 3: Es una flota naval pura o una unidad terrestre de un solo regimiento.
+    // CASO 3: Es una flota naval pura con múltiples regimientos. Puede dividirse en agua.
+    else if (hasNavalRegiments && !hasLandRegiments && unit.regiments.length > 1) {
+        if (typeof openAdvancedSplitUnitModal === "function") openAdvancedSplitUnitModal(unit);
+    }
+    // CASO 4: Unidad con un solo regimiento.
     else {
         logMessage("Esta unidad no se puede dividir.");
     }
@@ -4367,6 +4371,7 @@ function _executeEstablishTradeRoute(payload) {
     const pairKey = getTradePairKey(origin, destination);
     if (pairKey) {
         const hasRoute = units.some(u => {
+            if (u.player !== unit.player) return false;
             if (!u.tradeRoute?.origin || !u.tradeRoute?.destination) return false;
             const existingKey = getTradePairKey(u.tradeRoute.origin, u.tradeRoute.destination);
             return existingKey === pairKey;

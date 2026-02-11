@@ -269,6 +269,10 @@ const UIManager = {
         else if (typeof clearHighlights === "function") clearHighlights();
         if (!unit || !board || board.length === 0) return;
 
+        const hasNavalRegiments = unit.regiments?.some(reg => REGIMENT_TYPES[reg.type]?.is_naval);
+        const hasLandRegiments = unit.regiments?.some(reg => !REGIMENT_TYPES[reg.type]?.is_naval);
+        const isPureNaval = hasNavalRegiments && !hasLandRegiments;
+
         const neighbors = getHexNeighbors(unit.r, unit.c);
         for (const n of neighbors) {
             const hexData = board[n.r]?.[n.c];
@@ -276,9 +280,16 @@ const UIManager = {
 
             // Un hexágono es válido para la división si:
             // 1. Está vacío (no hay otra unidad).
-            // 2. No es un terreno intransitable (ej. agua).
-            if (!hexData.unit && !TERRAIN_TYPES[hexData.terrain]?.isImpassableForLand) {
-                hexData.element.classList.add('highlight-place'); // Usaremos 'highlight-place' o una nueva clase
+            // 2. Para naval: debe ser agua.
+            // 3. Para tierra/mixto: no debe ser un terreno intransitable para tierra.
+            if (hexData.unit) continue;
+
+            if (isPureNaval) {
+                if (hexData.terrain === 'water') {
+                    hexData.element.classList.add('highlight-place');
+                }
+            } else if (!TERRAIN_TYPES[hexData.terrain]?.isImpassableForLand) {
+                hexData.element.classList.add('highlight-place');
             }
         }
     },
@@ -331,14 +342,39 @@ const UIManager = {
             return;
         }
 
+        // Re-sincronizar unidades con el tablero para evitar casillas vacías por error.
+        if (board && Array.isArray(units)) {
+            units.forEach(unit => {
+                if (!unit || typeof unit.r !== 'number' || typeof unit.c !== 'number') return;
+                const hex = board[unit.r]?.[unit.c];
+                if (!hex) return;
+
+                if (!hex.unit || hex.unit.id === unit.id) {
+                    hex.unit = unit;
+                } else if (hex.unit.id !== unit.id) {
+                    console.warn(`[UnitSync] Conflicto en (${unit.r},${unit.c}): ${hex.unit.id} vs ${unit.id}`);
+                }
+
+                if (typeof UnitGrid !== 'undefined') {
+                    const gridUnit = UnitGrid.get(unit.r, unit.c);
+                    if (!gridUnit || gridUnit.id !== unit.id) {
+                        UnitGrid.index(unit);
+                    }
+                }
+            });
+        }
+
         const gameBoardEl = this._domElements?.gameBoard || document.getElementById('gameBoard');
         if (gameBoardEl) {
             const unitIds = new Set((units || []).map(unit => unit?.id).filter(Boolean));
+            const seenUnitIds = new Set();
             gameBoardEl.querySelectorAll('.unit').forEach(el => {
                 const unitId = el.dataset?.id;
-                if (!unitId || !unitIds.has(unitId)) {
+                if (!unitId || !unitIds.has(unitId) || seenUnitIds.has(unitId)) {
                     el.remove();
+                    return;
                 }
+                seenUnitIds.add(unitId);
             });
         }
 
