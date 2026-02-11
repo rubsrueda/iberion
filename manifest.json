@@ -6,32 +6,35 @@
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["fullscreen", "standalone"],
+  "lang": "es",
+  "dir": "ltr",
   "orientation": "landscape-primary",
   "background_color": "#1a2531",
   "theme_color": "#f1c40f",
   "prefer_related_applications": false,
   "icons": [
     {
-      "src": "images/icon.png",
-      "sizes": "192x192",
+      "src": "images/icon-96.png",
+      "sizes": "96x96",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "images/icon.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "images/icon.png",
+      "src": "images/icon-144.png",
       "sizes": "144x144",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "images/icon.png",
-      "sizes": "96x96",
+      "src": "images/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "images/icon-512.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }
@@ -39,14 +42,110 @@
   "screenshots": [
     {
       "src": "images/screenshots/inicio.png",
-      "sizes": "1280x720",
+      "sizes": "1855x1060",
       "form_factor": "wide",
       "type": "image/png"
     },
     {
-      "src": "images/screenshots/tecnologia.png",
-      "sizes": "1280x720",
+      "src": "images/screenshots/inicio_narrow.png",
+      "sizes": "720x1280",
+      "form_factor": "narrow",
+      "type": "image/png"
+    },
+    {
+      "src": "images/screenshots/alianza.png",
+      "sizes": "1185x986",
       "form_factor": "wide",
+      "type": "image/png"
+    },
+    {
+      "src": "images/screenshots/alianza_narrow.png",
+      "sizes": "720x1280",
+      "form_factor": "narrow",
+      "type": "image/png"
+    },
+    {
+      "src": "images/screenshots/crea_division.png",
+      "sizes": "611x318",
+      "form_factor": "wide",
+      "type": "image/png"
+    },
+    {
+      "src": "images/screenshots/crea_division_narrow.png",
+      "sizes": "720x1280",
+      "form_factor": "narrow",
+      "type": "image/png"
+    },
+    {
+      "src": "images/screenshots/cuaderno.png",
+      "sizes": "1786x1026",
+      "form_factor": "wide",
+      "type": "image/png"
+    },
+    {
+      "src": "images/screenshots/cuaderno_narrow.png",
+      "sizes": "720x1280",
+      "form_factor": "narrow",
+      "type": "image/png"
+    },
+    {
+      "src": "images/screenshots/derrota.png",
+      "sizes": "509x499",
+      "form_factor": "wide",
+      "type": "image/png"
+    },
+    {
+      "src": "images/screenshots/derrota_narrow.png",
+      "sizes": "720x1280",
+      "form_factor": "narrow",
+      "type": "image/png"
+    },
+    {
+      "src": "images/screenshots/heroe.png",
+      "sizes": "769x578",
+      "form_factor": "wide",
+      "type": "image/png"
+    },
+    {
+      "src": "images/screenshots/heroe_narrow.png",
+      "sizes": "720x1280",
+      "form_factor": "narrow",
+      "type": "image/png"
+    },
+    {
+      "src": "images/screenshots/historial.png",
+      "sizes": "1014x495",
+      "form_factor": "wide",
+      "type": "image/png"
+    },
+    {
+      "src": "images/screenshots/historial_narrow.png",
+      "sizes": "720x1280",
+      "form_factor": "narrow",
+      "type": "image/png"
+    },
+    {
+      "src": "images/screenshots/tecnologia.png",
+      "sizes": "695x731",
+      "form_factor": "wide",
+      "type": "image/png"
+    },
+    {
+      "src": "images/screenshots/tecnologia_narrow.png",
+      "sizes": "720x1280",
+      "form_factor": "narrow",
+      "type": "image/png"
+    },
+    {
+      "src": "images/screenshots/tienda.png",
+      "sizes": "846x828",
+      "form_factor": "wide",
+      "type": "image/png"
+    },
+    {
+      "src": "images/screenshots/tienda_narrow.png",
+      "sizes": "720x1280",
+      "form_factor": "narrow",
       "type": "image/png"
     }
   ],
