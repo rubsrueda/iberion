@@ -6,7 +6,7 @@ const TUTORIAL_SCRIPTS = {
     completo: [
         {
             id: 'TUT_00_BRIEFING',
-            message: "Bienvenido, General. En 3 minutos veras lo esencial: tactica, economia y dominio del mapa.",
+            message: "Bienvenido, General. Este turno guia recorre 15 puntos clave del mando.",
             duration: 2500,
             onStepStart: () => {
                 gameState.currentPhase = "play";
@@ -21,7 +21,7 @@ const TUTORIAL_SCRIPTS = {
                 gameState.playerResources[1].madera += 600;
                 gameState.playerResources[1].hierro += 300;
                 gameState.playerResources[1].comida += 300;
-                gameState.playerResources[1].researchPoints = 120;
+                gameState.playerResources[1].researchPoints = 140;
 
                 if (UIManager) {
                     UIManager.updateActionButtonsBasedOnPhase();
@@ -31,51 +31,25 @@ const TUTORIAL_SCRIPTS = {
             highlightHexCoords: [{ r: 1, c: 1 }]
         },
         {
-            id: 'TUT_01_MAP_CLICK',
-            message: "Toca el mapa para confirmar tu mando.",
-            onStepStart: () => { gameState.tutorial.map_clicked = false; },
-            actionCondition: () => gameState.tutorial.map_clicked === true
-        },
-        {
-            id: 'TUT_02_MENU_OPEN',
-            message: "Abre el menu (☰). Aqui veras recursos, turno y estado del imperio.",
-            highlightElementId: 'floatingMenuBtn',
-            onStepStart: () => { gameState.tutorial.menu_opened = false; },
-            actionCondition: () => gameState.tutorial.menu_opened === true
-        },
-        {
-            id: 'TUT_03_CREATE_DIVISION',
-            message: "Selecciona tu capital y pulsa <strong>Crear Division (➕)</strong>.",
+            id: 'TUT_01_RECRUIT',
+            message: "1) Reclutar unidades: selecciona tu capital, crea una division y colócala en (2,2).",
             highlightElementId: 'floatingCreateDivisionBtn',
+            highlightHexCoords: [{ r: 2, c: 2 }],
             onStepStart: () => {
                 const capitalHex = board[1][1];
                 if (capitalHex) UIManager.showHexContextualInfo(1, 1, capitalHex);
             },
-            highlightHexCoords: [{ r: 1, c: 1 }],
-            actionCondition: () => domElements.unitManagementModal.style.display === 'flex'
-        },
-        {
-            id: 'TUT_04_BUILD_DIVISION',
-            message: "Agrega <strong>3 regimientos de Infanteria Ligera</strong> con el boton +.",
-            actionCondition: () => typeof currentDivisionBuilder !== 'undefined' &&
-                currentDivisionBuilder.length >= 3 &&
-                currentDivisionBuilder.every(r => r.type === 'Infantería Ligera')
-        },
-        {
-            id: 'TUT_05_FINALIZE_DIVISION',
-            message: "Pulsa <strong>Finalizar y Colocar</strong>.",
-            highlightElementId: 'finalizeUnitManagementBtn',
-            actionCondition: () => placementMode.active === true
-        },
-        {
-            id: 'TUT_06_PLACE_DIVISION',
-            message: "Coloca la division en la casilla resaltada.",
-            highlightHexCoords: [{ r: 2, c: 2 }],
             actionCondition: () => units.some(u => u.player === 1 && u.r === 2 && u.c === 2)
         },
         {
-            id: 'TUT_07_RESOURCE_MOVE',
-            message: "La economia manda. Mueve tu division a la mina de oro (2,1).",
+            id: 'TUT_02_SELECT_READ',
+            message: "2) Seleccion y lectura del tablero: toca cualquier hex para leer terreno y rangos.",
+            onStepStart: () => { gameState.tutorial.map_clicked = false; },
+            actionCondition: () => gameState.tutorial.map_clicked === true
+        },
+        {
+            id: 'TUT_03_MOVE',
+            message: "3) Movimiento: mueve tu division a la mina de oro (2,1).",
             highlightHexCoords: [{ r: 2, c: 1 }],
             onStepStart: () => {
                 resetUnitsForNewTurn(1);
@@ -90,17 +64,16 @@ const TUTORIAL_SCRIPTS = {
             actionCondition: () => units.some(u => u.player === 1 && u.r === 2 && u.c === 1)
         },
         {
-            id: 'TUT_08_COMBAT',
-            message: "Un explorador enemigo aparece. Atacalo y gana tu primer combate.",
-            highlightHexCoords: [{ r: 3, c: 2 }],
+            id: 'TUT_04_COMBAT',
+            message: "4) Combate: derrota al explorador enemigo que aparece al sur.",
+            highlightHexCoords: [{ r: 3, c: 1 }],
             onStepStart: () => {
-                const playerUnit = units.find(u => u.player === 1);
-                const enemyTarget = playerUnit ? { r: playerUnit.r + 1, c: playerUnit.c } : { r: 3, c: 2 };
                 const enemy = AiGameplayManager.createUnitObject({
                     name: "Explorador Hostil",
                     regiments: [{ ...REGIMENT_TYPES["Infantería Ligera"], type: 'Infantería Ligera', health: 100 }]
-                }, 2, enemyTarget);
-                placeFinalizedDivision(enemy, enemyTarget.r, enemyTarget.c);
+                }, 2, { r: 3, c: 1 });
+                placeFinalizedDivision(enemy, 3, 1);
+                const playerUnit = units.find(u => u.player === 1);
                 if (playerUnit) { playerUnit.hasAttacked = false; }
                 gameState.tutorial.attack_completed = false;
                 if (UIManager) UIManager.updateAllUIDisplays();
@@ -108,15 +81,8 @@ const TUTORIAL_SCRIPTS = {
             actionCondition: () => gameState.tutorial.attack_completed
         },
         {
-            id: 'TUT_09_END_TURN',
-            message: "Termina el turno (►) para poder actuar de nuevo.",
-            highlightElementId: 'floatingEndTurnBtn',
-            onStepStart: () => { gameState.tutorial.turnEnded = false; },
-            actionCondition: () => gameState.tutorial.turnEnded === true
-        },
-        {
-            id: 'TUT_10_SPLIT',
-            message: "Divide la unidad con <strong>Dividir (✂️)</strong> y coloca la nueva division en (3,2).",
+            id: 'TUT_05_SPLIT_MERGE',
+            message: "5) Dividir y unir: divide la unidad (✂️) y coloca la nueva division en (3,2).",
             highlightElementId: 'floatingSplitBtn',
             highlightHexCoords: [{ r: 3, c: 2 }],
             onStepStart: () => {
@@ -127,14 +93,10 @@ const TUTORIAL_SCRIPTS = {
             actionCondition: () => gameState.tutorial.unit_split
         },
         {
-            id: 'TUT_11_SUPPLY_INFO',
-            message: "Sin suministro tus tropas sufren. Curar solo es posible en capital o adyacente.",
-            duration: 3500
-        },
-        {
-            id: 'TUT_12_SUPPLY_MOVE',
-            message: "Mueve tu unidad danada junto a la capital (1,2).",
+            id: 'TUT_06_REINFORCE',
+            message: "6) Reforzar y consolidar: lleva una unidad danada junto a la capital (1,2) y reforzala.",
             highlightHexCoords: [{ r: 1, c: 2 }],
+            highlightElementId: 'floatingReinforceBtn',
             onStepStart: () => {
                 const unit = units.find(u => u.player === 1);
                 if (unit) {
@@ -142,38 +104,18 @@ const TUTORIAL_SCRIPTS = {
                     recalculateUnitHealth(unit);
                 }
                 resetUnitsForNewTurn(1);
+                gameState.tutorial.unitReinforced = false;
                 if (UIManager) UIManager.updateAllUIDisplays();
             },
-            actionCondition: () => units.some(u => u.player === 1 && u.r === 1 && u.c === 2)
-        },
-        {
-            id: 'TUT_13_REINFORCE',
-            message: "Pulsa <strong>Gestionar/Reforzar (💪)</strong> y cura un regimiento.",
-            highlightElementId: 'floatingReinforceBtn',
-            onStepStart: () => { gameState.tutorial.unitReinforced = false; },
             actionCondition: () => gameState.tutorial.unitReinforced
         },
         {
-            id: 'TUT_14_TECH_OPEN',
-            message: "La ciencia define el futuro. Abre el <strong>Arbol Tecnologico (💡)</strong>.",
-            highlightElementId: 'floatingTechTreeBtn',
-            actionCondition: () => domElements.techTreeScreen.style.display === 'flex'
-        },
-        {
-            id: 'TUT_15_TECH_ENGINEERING',
-            message: "Investiga <strong>Ingenieria Civil</strong> para construir caminos.",
-            onStepStart: () => {
-                gameState.playerResources[1].researchPoints = 120;
-                if (UIManager) UIManager.updateAllUIDisplays();
-            },
-            actionCondition: () => gameState.playerResources[1].researchedTechnologies.includes('ENGINEERING')
-        },
-        {
-            id: 'TUT_16_BUILD_ROAD',
-            message: "Construye un <strong>Camino</strong> en un hex propio y vacio (1,3). Selecciona el hex y pulsa <strong>Construir</strong>.",
+            id: 'TUT_07_STRUCTURES',
+            message: "7) Construccion: con ENGINEERING construye un Camino en (1,3). Fortaleza mejora caminos con FORTIFICATIONS; ciudades requieren Colono.",
             highlightHexCoords: [{ r: 1, c: 3 }],
             onStepStart: () => {
-                if (typeof closeTechTreeScreen === 'function') closeTechTreeScreen();
+                const techs = gameState.playerResources[1].researchedTechnologies;
+                if (!techs.includes('ENGINEERING')) techs.push('ENGINEERING');
                 if (board[1]?.[3]) {
                     board[1][3].owner = 1;
                     board[1][3].structure = null;
@@ -186,29 +128,8 @@ const TUTORIAL_SCRIPTS = {
             actionCondition: () => board[1][3]?.structure === 'Camino'
         },
         {
-            id: 'TUT_17_TECH_FORTIFICATIONS',
-            message: "Ahora fortifica la frontera. Investiga <strong>Fortificaciones</strong>.",
-            onStepStart: () => {
-                gameState.playerResources[1].researchPoints = 160;
-                if (UIManager) UIManager.updateAllUIDisplays();
-            },
-            actionCondition: () => gameState.playerResources[1].researchedTechnologies.includes('FORTIFICATIONS')
-        },
-        {
-            id: 'TUT_18_BUILD_FORT',
-            message: "Mejora el camino a <strong>Fortaleza</strong> en (1,3).",
-            highlightHexCoords: [{ r: 1, c: 3 }],
-            onStepStart: () => {
-                gameState.playerResources[1].piedra += 1200;
-                gameState.playerResources[1].hierro += 500;
-                gameState.playerResources[1].oro += 800;
-                if (UIManager) UIManager.updateAllUIDisplays();
-            },
-            actionCondition: () => board[1][3]?.structure === 'Fortaleza'
-        },
-        {
-            id: 'TUT_19_TRADE_ROUTE',
-            message: "El comercio sostiene la guerra. Crea una ruta comercial con la <strong>Columna de Suministro</strong>.",
+            id: 'TUT_08_TRADE_ROUTE',
+            message: "8) Comercio y rutas: crea una ruta comercial con la Columna de Suministro.",
             highlightElementId: 'floatingTradeBtn',
             onStepStart: () => {
                 addCityToBoardData(1, 4, 1, null, false);
@@ -228,23 +149,40 @@ const TUTORIAL_SCRIPTS = {
             actionCondition: () => units.some(u => u.player === 1 && u.tradeRoute)
         },
         {
-            id: 'TUT_20_TACTICS_INFO',
-            message: "Concepto tactico: flanquea, usa terreno (bosques/colinas) y controla el suministro. Estrategico: ciudades, rutas y fortalezas definen la economia.",
-            duration: 4200
+            id: 'TUT_09_EXPLORE_PILLAGE',
+            message: "9) Exploracion y saqueo: las ruinas dan botin y saquear debilita economias enemigas.",
+            duration: 3200
         },
         {
-            id: 'TUT_21_NAVAL_INFO',
-            message: "Naval y desembarcos: las flotas transportan tropas y abren frentes. Busca costas seguras y protege la ruta.",
-            duration: 3800
+            id: 'TUT_10_RAZE_DISBAND',
+            message: "10) Arrasar y disolver: destruir infraestructura corta rutas; disolver recupera parte del coste.",
+            duration: 3200
         },
         {
-            id: 'TUT_22_VICTORY_POINTS',
-            message: "Victoria rapida: el juego termina cuando un jugador llega a <strong>8 puntos de victoria</strong>.",
+            id: 'TUT_11_ASSIGN_COMMANDER',
+            message: "11) Asignar comandante: en puntos de reclutamiento y con liderazgo investigado.",
+            duration: 3200
+        },
+        {
+            id: 'TUT_12_END_TURN',
+            message: "12) Fin de turno: pulsa ► para cerrar acciones y preparar el siguiente turno.",
+            highlightElementId: 'floatingEndTurnBtn',
+            onStepStart: () => { gameState.tutorial.turnEnded = false; },
+            actionCondition: () => gameState.tutorial.turnEnded === true
+        },
+        {
+            id: 'TUT_13_CHAIN',
+            message: "13) Cadena tactica: suministro, movimiento, combate, control, construccion, reclutamiento, plan.",
             duration: 3500
         },
         {
-            id: 'TUT_23_FINISH',
-            message: "Listo, General. Pulsa la bandera para finalizar y empieza tu primera partida.",
+            id: 'TUT_14_ERRORS',
+            message: "14) Errores comunes: mover sin suministro, atacar mal posicionado, expandir sin rutas.",
+            duration: 3500
+        },
+        {
+            id: 'TUT_15_TACTIC_STRATEGY',
+            message: "15) Lo tactico y lo estrategico: posicion gana batallas, infraestructura gana guerras. Pulsa la bandera para finalizar.",
             onStepStart: () => {
                 if (UIManager) {
                     UIManager.showRewardToast("¡TUTORIAL COMPLETADO!", "🏆");
