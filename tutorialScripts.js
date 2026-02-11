@@ -6,7 +6,7 @@ const TUTORIAL_SCRIPTS = {
     completo: [
         {
             id: 'TUT_00_BRIEFING',
-            message: "Bienvenido, General. Hoy tomas el mando de Iberion. En 10 minutos aprenderas a ganar una guerra.",
+            message: "Bienvenido, General. En 3 minutos veras lo esencial: tactica, economia y dominio del mapa.",
             duration: 2500,
             onStepStart: () => {
                 gameState.currentPhase = "play";
@@ -77,21 +77,31 @@ const TUTORIAL_SCRIPTS = {
             id: 'TUT_07_RESOURCE_MOVE',
             message: "La economia manda. Mueve tu division a la mina de oro (2,1).",
             highlightHexCoords: [{ r: 2, c: 1 }],
-            onStepStart: () => resetUnitsForNewTurn(1),
+            onStepStart: () => {
+                resetUnitsForNewTurn(1);
+                const playerUnit = units.find(u => u.player === 1);
+                if (playerUnit) {
+                    playerUnit.hasMoved = false;
+                    playerUnit.hasAttacked = false;
+                    playerUnit.currentMovement = playerUnit.movement;
+                }
+                if (UIManager) UIManager.updateAllUIDisplays();
+            },
             actionCondition: () => units.some(u => u.player === 1 && u.r === 2 && u.c === 1)
         },
         {
             id: 'TUT_08_COMBAT',
-            message: "Un explorador enemigo aparece. Atacalo y gana tu primer combate. Despues del ataque, la unidad no puede moverse otra vez este turno.",
-            highlightHexCoords: [{ r: 3, c: 3 }],
+            message: "Un explorador enemigo aparece. Atacalo y gana tu primer combate.",
+            highlightHexCoords: [{ r: 3, c: 2 }],
             onStepStart: () => {
+                const playerUnit = units.find(u => u.player === 1);
+                const enemyTarget = playerUnit ? { r: playerUnit.r + 1, c: playerUnit.c } : { r: 3, c: 2 };
                 const enemy = AiGameplayManager.createUnitObject({
                     name: "Explorador Hostil",
                     regiments: [{ ...REGIMENT_TYPES["Infantería Ligera"], type: 'Infantería Ligera', health: 100 }]
-                }, 2, { r: 3, c: 3 });
-                placeFinalizedDivision(enemy, 3, 3);
-                const playerUnit = units.find(u => u.player === 1);
-                if (playerUnit) { playerUnit.hasAttacked = false; playerUnit.hasMoved = false; }
+                }, 2, enemyTarget);
+                placeFinalizedDivision(enemy, enemyTarget.r, enemyTarget.c);
+                if (playerUnit) { playerUnit.hasAttacked = false; }
                 gameState.tutorial.attack_completed = false;
                 if (UIManager) UIManager.updateAllUIDisplays();
             },
@@ -176,11 +186,32 @@ const TUTORIAL_SCRIPTS = {
             actionCondition: () => board[1][3]?.structure === 'Camino'
         },
         {
-            id: 'TUT_17_TRADE_ROUTE',
+            id: 'TUT_17_TECH_FORTIFICATIONS',
+            message: "Ahora fortifica la frontera. Investiga <strong>Fortificaciones</strong>.",
+            onStepStart: () => {
+                gameState.playerResources[1].researchPoints = 160;
+                if (UIManager) UIManager.updateAllUIDisplays();
+            },
+            actionCondition: () => gameState.playerResources[1].researchedTechnologies.includes('FORTIFICATIONS')
+        },
+        {
+            id: 'TUT_18_BUILD_FORT',
+            message: "Mejora el camino a <strong>Fortaleza</strong> en (1,3).",
+            highlightHexCoords: [{ r: 1, c: 3 }],
+            onStepStart: () => {
+                gameState.playerResources[1].piedra += 1200;
+                gameState.playerResources[1].hierro += 500;
+                gameState.playerResources[1].oro += 800;
+                if (UIManager) UIManager.updateAllUIDisplays();
+            },
+            actionCondition: () => board[1][3]?.structure === 'Fortaleza'
+        },
+        {
+            id: 'TUT_19_TRADE_ROUTE',
             message: "El comercio sostiene la guerra. Crea una ruta comercial con la <strong>Columna de Suministro</strong>.",
             highlightElementId: 'floatingTradeBtn',
             onStepStart: () => {
-                addCityToBoardData(1, 4, 1, "Puerto Menor", false);
+                addCityToBoardData(1, 4, 1, null, false);
                 board[1][2].structure = 'Camino';
                 renderSingleHexVisuals(1, 2);
 
@@ -197,12 +228,22 @@ const TUTORIAL_SCRIPTS = {
             actionCondition: () => units.some(u => u.player === 1 && u.tradeRoute)
         },
         {
-            id: 'TUT_18_VICTORY_POINTS',
-            message: "Victoria rapida: el juego termina cuando un jugador llega a <strong>10 puntos de victoria</strong>.",
+            id: 'TUT_20_TACTICS_INFO',
+            message: "Concepto tactico: flanquea, usa terreno (bosques/colinas) y controla el suministro. Estrategico: ciudades, rutas y fortalezas definen la economia.",
+            duration: 4200
+        },
+        {
+            id: 'TUT_21_NAVAL_INFO',
+            message: "Naval y desembarcos: las flotas transportan tropas y abren frentes. Busca costas seguras y protege la ruta.",
+            duration: 3800
+        },
+        {
+            id: 'TUT_22_VICTORY_POINTS',
+            message: "Victoria rapida: el juego termina cuando un jugador llega a <strong>8 puntos de victoria</strong>.",
             duration: 3500
         },
         {
-            id: 'TUT_19_FINISH',
+            id: 'TUT_23_FINISH',
             message: "Listo, General. Pulsa la bandera para finalizar y empieza tu primera partida.",
             onStepStart: () => {
                 if (UIManager) {
