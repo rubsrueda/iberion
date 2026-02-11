@@ -1,747 +1,208 @@
 // En tutorialScripts.js
 
+console.log("tutorialScripts.js CARGADO - v11 (tutorial narrativo 10 min)");
+
 const TUTORIAL_SCRIPTS = {
     completo: [
-        // =====================================================================
-        // === CAPÍTULO 1: Fundamentos del Mando (7 Pasos)
-        // =====================================================================
         {
-            id: 'TUT_1_START',
-            message: "¡Bienvenido, General! Comencemos tu entrenamiento.",
-            duration: 3000,
-           
+            id: 'TUT_00_BRIEFING',
+            message: "Bienvenido, General. Hoy tomas el mando de Iberion. En 10 minutos aprenderas a ganar una guerra.",
+            duration: 2500,
             onStepStart: () => {
                 gameState.currentPhase = "play";
+                gameState.currentPlayer = 1;
+                gameState.myPlayerNumber = 1;
+
                 addCityToBoardData(1, 1, 1, "Tu Capital", true);
-                UIManager.updateActionButtonsBasedOnPhase();
-                UIManager.updateAllUIDisplays();
                 renderSingleHexVisuals(1, 1);
-                gameState.playerResources[1].oro += 2000;
-                gameState.playerResources[1].piedra += 2100;
-                gameState.playerResources[1].madera += 500;
-                gameState.playerResources[1].hierro += 500;
-                gameState.playerResources[1].researchPoints = 180;
+
+                gameState.playerResources[1].oro += 800;
+                gameState.playerResources[1].piedra += 600;
+                gameState.playerResources[1].madera += 600;
+                gameState.playerResources[1].hierro += 300;
+                gameState.playerResources[1].comida += 300;
+                gameState.playerResources[1].researchPoints = 120;
+
+                if (UIManager) {
+                    UIManager.updateActionButtonsBasedOnPhase();
+                    UIManager.updateAllUIDisplays();
+                }
             },
-            highlightHexCoords: [{r: 1, c: 1}]
-            
+            highlightHexCoords: [{ r: 1, c: 1 }]
         },
-
         {
-            id: 'intro',
-            message: "Has llegado a un mundo vivo... Recuerda <strong>clic en el mapa</strong> para cada paso.",
-
-            onStepStart: () => {
-                // 1. Resetear SIEMPRE la bandera al entrar en el paso
-                gameState.tutorial.map_clicked = false;
-                
-                gameState.currentPhase = "play";
-                UIManager.updateActionButtonsBasedOnPhase();
-            },
-            // 2. Esperar a que se ponga a true
+            id: 'TUT_01_MAP_CLICK',
+            message: "Toca el mapa para confirmar tu mando.",
+            onStepStart: () => { gameState.tutorial.map_clicked = false; },
             actionCondition: () => gameState.tutorial.map_clicked === true
         },
-
         {
-            id: 'orientation_intro',
-            message: "¡General! Para una mejor experiencia, puedes <strong>girar tu dispositivo</strong>. Prueba a jugar en horizontal o vertical según tu preferencia antes de empezar.",
-            
-            // duration: 5000, <--- BORRAS ESTO
-
-            onStepStart: () => {
-                gameState.tutorial.map_clicked = false; // Reset obligatorio
-                gameState.currentPhase = "play";
-                UIManager.updateActionButtonsBasedOnPhase();
-            },
-            actionCondition: () => gameState.tutorial.map_clicked === true
-        },
-
-        {
-            id: 'mapa',
-            message: "El mapa está compuesto or hexágonos donde con distintos terrenos, algunos dan recursos específicos, se pueden conquistar al ocuparlos con tu ejército, y se pueden construir infraestructras como caminos, fortalezas y ciudades",
-            // duration: 5000, <--- BORRAS ESTO
-
-            onStepStart: () => {
-                gameState.tutorial.map_clicked = false; // Reset obligatorio
-            },
-            actionCondition: () => gameState.tutorial.map_clicked === true
-        },
-
-        {
-            id: 'tutorial_menu_intro',
-            message: "Antes de marchar, fíjate a tu derecha. Pulsa la <strong>rueda (⚙️)</strong> para desplegar las opciones y ver el <strong>Menú (☰)</strong>.",
-            highlightElementId: 'toggle-right-menu-btn', // Apuntar al engranaje, no al menú directamente
-            actionCondition: () => {
-                const menuGroup = document.querySelector('.right-menu-group');
-                return menuGroup && menuGroup.classList.contains('is-open');
-            }
-        },
-
-        {
-            id: 'tutorial_info',
-            message: "Antes de marchar, fíjate en <strong>(☰)</strong> muestra tus recursos y opciones de guardado. ¡Púlsalo para verlo!",
+            id: 'TUT_02_MENU_OPEN',
+            message: "Abre el menu (☰). Aqui veras recursos, turno y estado del imperio.",
             highlightElementId: 'floatingMenuBtn',
-            actionCondition: () => document.getElementById('top-bar-menu').style.display === 'flex'
+            onStepStart: () => { gameState.tutorial.menu_opened = false; },
+            actionCondition: () => gameState.tutorial.menu_opened === true
         },
-
         {
-            id: 'tut_menu_forge',
-            message: "⚔️ <strong>La Forja:</strong> Aquí transformará los planos y fragmentos recuperados en el campo de batalla en equipo real para sus Generales.",
-            highlightElementId: 'openForgeBtn', 
-
-            onStepStart: () => { 
-                // 1. Resetear el sensor de clic (Obligatorio para que no salte solo)
-                gameState.tutorial.map_clicked = false; 
-
-                // 2. Asegurar que los menús necesarios estén visibles
-                // Barra superior (recursos)
-                const topMenu = document.getElementById('top-bar-menu');
-                if (topMenu) topMenu.style.display = 'flex';
-                
-                // Menú lateral derecho (donde suele estar el botón de forja)
-                const rightMenu = document.querySelector('.right-menu-group');
-                if (rightMenu) rightMenu.classList.add('is-open');
-            },
-
-            // Esperamos clic en el mapa (el fondo), NO en el botón
-            actionCondition: () => document.getElementById('forgeModal').style.display === 'flex'
-        },
-
-        {
-            id: 'tut_menu_forge_close', // PASO INTERMEDIO NECESARIO
-            message: "¡Bien! Ahora <strong>cierra la ventana de la Forja (X)</strong> para continuar.",
-            highlightElementId: 'closeForgeBtn',
-            // La condición de éxito es que la ventana desaparezca
-            actionCondition: () => document.getElementById('forgeModal').style.display === 'none'
-        },
-        
-        {
-            id: 'tut_menu_bag',
-            message: "🎒 <strong>La Bolsa:</strong> Su almacén personal. Aquí podrá supervisar sus libros de experiencia, equipo acumulado y materiales de construcción.",
-            highlightElementId: 'openInventoryBtn',
-            
-            onStepStart: () => {
-                // Reabrir menú lateral si se cerró accidentalmente
-                const rightMenu = document.querySelector('.right-menu-group');
-                if (rightMenu) rightMenu.classList.add('is-open');
-            },
-            actionCondition: () => document.getElementById('inventoryModal').style.display === 'flex'
-        },
-
-        {
-            id: 'tut_menu_bag_close', // PASO INTERMEDIO NECESARIO
-            message: "Observa tus objetos y <strong>cierra el inventario (X)</strong>.",
-            highlightElementId: 'closeInventoryBtn',
-            actionCondition: () => document.getElementById('inventoryModal').style.display === 'none'
-        },
-
-        {
-            id: 'tut_menu_wiki',
-            message: "ℹ️ <strong>La Wiki:</strong> El manual del General. Indispensable para entender la 🏦 <strong>Banca</strong>, el Comercio y cómo ganar por 🏆 <strong>Prestigio</strong>.",
-            highlightElementId: 'floatingWikiBtn',
-            duration: 5000
-        },
-
-        {
-            id: 'tut_menu_wiki_close', // PASO INTERMEDIO NECESARIO
-            message: "Una vez leído, <strong>cierra la Wiki (X)</strong> para seguir.",
-            highlightElementId: 'closeWikiModalBtn',
-            actionCondition: () => document.getElementById('wikiModal').style.display === 'none'
-        },
-
-        {
-            id: 'tut_menu_mailbox',
-            message: "✉️ <strong>Mensajes:</strong> Manténgase al tanto de sus hazañas. Aquí recibirá mensajes y recompensas por misiones completadas.",
-            highlightElementId: 'floatingInboxBtn',
-            duration: 5000
-        },
-        
-        {
-            id: 'tut_menu_end',
-            message: "Excelente. El menú lateral <strong>(⚙️)</strong> es tu centro de gestión. Toca el mapa para volver a la batalla.",
-            onStepStart: () => {
-                gameState.tutorial.map_clicked = false;
-                // Opcional: Cerrar menú lateral automáticamente para limpiar visión
-                const rightMenu = document.querySelector('.right-menu-group');
-                if (rightMenu) rightMenu.classList.remove('is-open');
-            },
-            // Aquí sí volvemos a la lógica de clic en el mapa porque ya no hay botones bloqueando
-            actionCondition: () => gameState.tutorial.map_clicked === true
-        },
-
-        {
-            id: 'TUT_2_CREATE_UNIT',
-            message: "Tu primera tarea: selecciona tu ciudad, y recluta una división. Pulsa el botón <strong>'Crear División' (➕)</strong>.",
+            id: 'TUT_03_CREATE_DIVISION',
+            message: "Selecciona tu capital y pulsa <strong>Crear Division (➕)</strong>.",
             highlightElementId: 'floatingCreateDivisionBtn',
             onStepStart: () => {
-                // Seleccionamos la capital para que el botón de crear aparezca.
                 const capitalHex = board[1][1];
                 if (capitalHex) UIManager.showHexContextualInfo(1, 1, capitalHex);
             },
-            highlightHexCoords: [{r: 1, c: 1}],
+            highlightHexCoords: [{ r: 1, c: 1 }],
             actionCondition: () => domElements.unitManagementModal.style.display === 'flex'
         },
         {
-            id: 'TUT_3_BUILD_DIVISION',
-            message: "Añade <strong>tres regimientos de Infantería Ligera</strong> a tu división pulsando el <strong>'+'</strong>.",
-            actionCondition: () => typeof currentDivisionBuilder !== 'undefined' && currentDivisionBuilder.length >= 3 && currentDivisionBuilder.every(r => r.type === 'Infantería Ligera')
+            id: 'TUT_04_BUILD_DIVISION',
+            message: "Agrega <strong>3 regimientos de Infanteria Ligera</strong> con el boton +.",
+            actionCondition: () => typeof currentDivisionBuilder !== 'undefined' &&
+                currentDivisionBuilder.length >= 3 &&
+                currentDivisionBuilder.every(r => r.type === 'Infantería Ligera')
         },
         {
-            id: 'TUT_4_FINALIZE_DIVISION',
-            message: "¡Perfecto! Ahora, pulsa <strong>'Finalizar y Colocar'</strong>.",
+            id: 'TUT_05_FINALIZE_DIVISION',
+            message: "Pulsa <strong>Finalizar y Colocar</strong>.",
             highlightElementId: 'finalizeUnitManagementBtn',
             actionCondition: () => placementMode.active === true
         },
         {
-            id: 'TUT_5_PLACE_UNIT',
-            message: "Despliega tu nueva división en la <strong>casilla resaltada</strong>.",
-            highlightHexCoords: [{r: 2, c: 2}],
+            id: 'TUT_06_PLACE_DIVISION',
+            message: "Coloca la division en la casilla resaltada.",
+            highlightHexCoords: [{ r: 2, c: 2 }],
             actionCondition: () => units.some(u => u.player === 1 && u.r === 2 && u.c === 2)
         },
-
         {
-            id: 'ui_layout_intro',
-            message: "Familiarízate con los mandos: a la <strong>izquierda</strong> verás las acciones de tus unidades, y a la <strong>derecha</strong> los controles del juego.",
-            duration: 8000
-        },
-
-        {
-            id: 'TUT_6_SELECT_AND_MOVE',
-            message: "Ahora, <strong>selecciona tu división</strong> y <strong>muévela a la posición estratégica</strong>.",
-            highlightHexCoords: [{r: 3, c: 3}],
+            id: 'TUT_07_RESOURCE_MOVE',
+            message: "La economia manda. Mueve tu division a la mina de oro (2,1).",
+            highlightHexCoords: [{ r: 2, c: 1 }],
             onStepStart: () => resetUnitsForNewTurn(1),
-            actionCondition: () => units.some(u => u.player === 1 && u.r === 3 && u.c === 3)
+            actionCondition: () => units.some(u => u.player === 1 && u.r === 2 && u.c === 1)
         },
-        
-         {
-            id: 'TUT_7_ATTACK',
-            message: "¡Una emboscada! <strong>Ataca a la unidad enemiga</strong> (la roja).",
-            highlightHexCoords: [{r: 4, c: 4}],
+        {
+            id: 'TUT_08_COMBAT',
+            message: "Un explorador enemigo aparece. Atacalo y gana tu primer combate.",
+            highlightHexCoords: [{ r: 3, c: 3 }],
             onStepStart: () => {
-                // >>> SOLUCIÓN DE IDENTIDAD <<<
-                // Forzamos que el juego sepa que eres el Jugador 1 justo ahora
-                gameState.myPlayerNumber = 1; 
-                // -----------------------------
-
-                // 1. Crear Enemigo
-                const enemy = AiGameplayManager.createUnitObject({ 
-                    name: "Explorador Hostil", 
-                    regiments: [{...REGIMENT_TYPES["Infantería Ligera"], type: 'Infantería Ligera', health: 100 }]
-                }, 2, {r: 4, c: 4}); // Jugador 2 en (4,4)
-                
-                placeFinalizedDivision(enemy, 4, 4);
-
-                // 2. Asegurar que NUESTRA unidad pueda atacar
+                const enemy = AiGameplayManager.createUnitObject({
+                    name: "Explorador Hostil",
+                    regiments: [{ ...REGIMENT_TYPES["Infantería Ligera"], type: 'Infantería Ligera', health: 100 }]
+                }, 2, { r: 3, c: 3 });
+                placeFinalizedDivision(enemy, 3, 3);
                 const playerUnit = units.find(u => u.player === 1);
-                if (playerUnit) {
-                    playerUnit.hasAttacked = false; 
-                    playerUnit.hasMoved = false; 
-                }
-
-                // 3. Resetear bandera
+                if (playerUnit) { playerUnit.hasAttacked = false; playerUnit.hasMoved = false; }
                 gameState.tutorial.attack_completed = false;
-                
-                // 4. Centrar y actualizar
-                if (typeof centerMapOn === 'function') setTimeout(() => centerMapOn(4, 4), 100);
-                gameState.currentPhase = "play";
-                UIManager.updateActionButtonsBasedOnPhase();
+                if (UIManager) UIManager.updateAllUIDisplays();
             },
             actionCondition: () => gameState.tutorial.attack_completed
         },
-
-         {
-        id: 'TUT_7_B_END_TURN_PROMPT',
-        message: "¡Bien hecho! Has completado tus acciones. Ahora, <strong>finaliza tu turno (►)</strong> para continuar.",
-        highlightElementId: 'floatingEndTurnBtn',
-        onStepStart: () => {
-            if(domElements.floatingEndTurnBtn) {
-                domElements.floatingEndTurnBtn.disabled = false; // Nos aseguramos de que el botón esté habilitado
-            }
-            gameState.tutorial.turnEnded = false; // Preparamos la bandera que debe activarse
-        },
-        actionCondition: () => gameState.tutorial.turnEnded
-    },
-
-        // =====================================================================
-        // === CAPÍTULO 2: Tácticas Avanzadas (5 Pasos)
-        // =====================================================================
         {
-            id: 'TUT_8_SPLIT_INTRO',
-            message: "¡Buen golpe! Para tácticas avanzadas, necesitas más unidades. Pulsa <strong>'Dividir' (✂️)</strong>.",
+            id: 'TUT_09_SPLIT',
+            message: "Divide la unidad con <strong>Dividir (✂️)</strong> y coloca la nueva division en (3,2).",
             highlightElementId: 'floatingSplitBtn',
+            highlightHexCoords: [{ r: 3, c: 2 }],
             onStepStart: () => {
                 const playerUnit = units.find(u => u.player === 1);
-                if(playerUnit) { resetUnitsForNewTurn(1); selectUnit(playerUnit); }
+                if (playerUnit) { resetUnitsForNewTurn(1); selectUnit(playerUnit); }
+                gameState.tutorial.unit_split = false;
             },
-            actionCondition: () => domElements.advancedSplitUnitModal.style.display === 'flex'
-        },
-        {
-            id: 'TUT_9_SPLIT_EXECUTE',
-            message: "Mueve un regimiento a la 'Nueva Unidad', confirma y <strong>colócala en la casilla de flanqueo</strong>.",
-            highlightHexCoords: [{r: 3, c: 4}],
-            onStepStart: () => { gameState.tutorial.unit_split = false; },
             actionCondition: () => gameState.tutorial.unit_split
         },
         {
-            id: 'TUT_10_FLANK_INFO',
-            message: "¡Perfecto! Atacar a un enemigo que ya está en combate con un aliado es un <strong>flanqueo</strong>. Causa mucho más daño y reduce la moral enemiga.",
-            duration: 6000
+            id: 'TUT_10_SUPPLY_INFO',
+            message: "Sin suministro tus tropas sufren. Curar solo es posible en capital o adyacente.",
+            duration: 3500
         },
         {
-            id: 'TUT_11_FLANK_EXECUTE',
-            message: "Ahora, selecciona tu primera unidad y <strong>ataca de nuevo al enemigo</strong> para ejecutar el flanqueo.",
-            highlightHexCoords: [{r: 4, c: 4}],
+            id: 'TUT_11_SUPPLY_MOVE',
+            message: "Mueve tu unidad danada junto a la capital (1,2).",
+            highlightHexCoords: [{ r: 1, c: 2 }],
             onStepStart: () => {
-                units.filter(u => u.player === 1).forEach(unit => resetUnitsForNewTurn(1));
-                gameState.tutorial.attack_completed = false;
-            },
-            actionCondition: () => gameState.tutorial.attack_completed
-        },
-        {
-            id: 'TUT_12_MERGE_UNITS',
-            message: "Reagrupa tus fuerzas. <strong>Mueve una de tus unidades sobre la otra para fusionarlas</strong>.",
-            /*
-            onStepStart: () => {
-                // Limpieza correcta: antes de filtrar, quitamos las unidades del tablero
-                units.forEach(u => {
-                    if (u.player !== 1 && board[u.r]?.[u.c]) {
-                        board[u.r][u.c].unit = null;
-                    }
-                });
-                units = units.filter(u => u.player === 1);
-                renderFullBoardVisualState();
-                resetUnitsForNewTurn(1);
-                gameState.tutorial.unitHasMerge = false;
-            },
-            */
-            onStepStart: () => {
-                // Ya no filtramos manualmente. El enemigo ya debería haber muerto por combate.
-                const hex = board[4][4];
-                if (hex && hex.feature === 'ruins') {
-                    logMessage("El enemigo ha caído, dejando ruinas en el campo de batalla.");
+                const unit = units.find(u => u.player === 1);
+                if (unit) {
+                    unit.regiments.forEach(reg => { reg.health = Math.max(20, Math.floor(reg.health * 0.5)); });
+                    recalculateUnitHealth(unit);
                 }
                 resetUnitsForNewTurn(1);
-                gameState.tutorial.unitHasMerge = false;
+                if (UIManager) UIManager.updateAllUIDisplays();
             },
-
-            actionCondition: () => units.filter(u => u.player === 1).length === 1
-        },
-
-        // =====================================================================
-        // === CAPÍTULO 3: Logística y Gestión (6 Pasos)
-        // =====================================================================
-        {
-            id: 'TUT_13_INSPECT_UNIT',
-            message: "Tus tropas están heridas. Para ver su estado en detalle, pulsa <strong>'Gestionar/Reforzar' (💪)</strong>.",
-            highlightElementId: 'floatingReinforceBtn',
-            onStepStart: () => {
-                const playerUnit = units.find(u => u.player === 1);
-                if(playerUnit) {
-                    playerUnit.regiments.forEach(r => r.health *= 1);
-                    recalculateUnitHealth(playerUnit);
-                    selectUnit(playerUnit);
-                }
-            },
-            actionCondition: () => domElements.unitDetailModal.style.display === 'flex'
-        },
-        {
-            id: 'TUT_14_UNIT_DETAIL_INFO',
-            message: "Aquí puedes ver la salud de cada regimiento. Cierra la ventana de Gestión de la División, con la <strong>'X'</strong>.",
-            actionCondition: () => domElements.unitDetailModal.style.display === 'none'
-        },
-        {
-            id: 'TUT_15_SUPPLY_INFO',
-            message: "Para curar tropas, necesitan <strong>Suministros</strong>. Solo puedes reforzar unidades en tu capital o junto a ella.",
-            duration: 5000
-        },
-        {
-            id: 'TUT_16_SUPPLY_MOVE',
-            message: "<strong>Mueve tu división dañada junto a tu capital</strong>.",
-            highlightHexCoords: [{r: 1, c: 2}],
-            onStepStart: () => {
-                resetUnitsForNewTurn(1);
-                // Forzamos el redibujado completo de unidades
-                if (UIManager && UIManager.renderAllUnitsFromData) UIManager.renderAllUnitsFromData();
-                UIManager.updateAllUIDisplays();
-            },
-
             actionCondition: () => units.some(u => u.player === 1 && u.r === 1 && u.c === 2)
         },
         {
-            id: 'TUT_17_REINFORCE_EXECUTE',
-            message: "¡En rango de suministro! Vuelve a pulsar <strong>'Gestionar' (💪)</strong> y luego el <strong>'+'</strong> para curar un regimiento.",
+            id: 'TUT_12_REINFORCE',
+            message: "Pulsa <strong>Gestionar/Reforzar (💪)</strong> y cura un regimiento.",
             highlightElementId: 'floatingReinforceBtn',
             onStepStart: () => { gameState.tutorial.unitReinforced = false; },
             actionCondition: () => gameState.tutorial.unitReinforced
         },
         {
-            id: 'TUT_18_NEXT_UNIT_BUTTON',
-            message: "Cuando tienes varias unidades, el botón <strong>'Siguiente Unidad' (»)</strong> te ayuda a seleccionarlas rápidamente. ¡Púlsalo!",
-            highlightElementId: 'floatingNextUnitBtn',
-            onStepStart: () => {
-                const secondUnit = AiGameplayManager.createUnitObject({ name: "Exploradores", regiments: [{...REGIMENT_TYPES["Infantería Ligera"], type: 'Infantería Ligera'}]}, 1, {r: 0, c: 2});
-                placeFinalizedDivision(secondUnit, 0, 2);
-                resetUnitsForNewTurn(1);
-                // Forzamos el redibujado completo de unidades
-                if (UIManager && UIManager.renderAllUnitsFromData) UIManager.renderAllUnitsFromData();
-                UIManager.updateAllUIDisplays();
-            },
-            actionCondition: () => selectedUnit && selectedUnit.name === "Exploradores"
-        },
-        
-        {
-            id: 'TUT_GOLD_RESOURCES',
-            message: "¡Excelente! Ahora, <strong>mueve tu unidad hacia la mina de oro (💰) en (2,1)</strong>. Ocupar hexágonos aumenta tus ingresos por turno.",
-            onStepStart: () => {
-                resetUnitsForNewTurn(1); // Nos aseguramos de que pueda moverse
-                if (typeof centerMapOn === 'function') centerMapOn(2, 1); // <--- CENTRA LA CÁMARA
-            },
-            highlightHexCoords: [{r: 2, c: 1}],
-            actionCondition: () => units.some(u => u.player === 1 && u.r === 2 && u.c === 1)
-        },
-
-        // =====================================================================
-        // === CAPÍTULO 4: Tecnología y Construcción (5 Pasos)
-        // =====================================================================
-
-        {
-            id: 'TUT_19_TECH_INTRO',
-            message: "La Tecnología es clave. Abre el <strong>Menú (⚙️)</strong> y luego el <strong>Árbol de Tecnologías (💡)</strong>.",
-            highlightElementId: 'toggle-right-menu-btn',
+            id: 'TUT_13_TECH_OPEN',
+            message: "La ciencia define el futuro. Abre el <strong>Arbol Tecnologico (💡)</strong>.",
+            highlightElementId: 'floatingTechTreeBtn',
             actionCondition: () => domElements.techTreeScreen.style.display === 'flex'
         },
         {
-            id: 'TUT_20_RESEARCH_ENGINEERING',
-            message: "Para construir caminos, investiga <strong>'Ingeniería Civil'</strong>.",
-            onStepStart: () => { gameState.playerResources[1].researchPoints = 100; UIManager.updateAllUIDisplays(); },
+            id: 'TUT_14_TECH_ENGINEERING',
+            message: "Investiga <strong>Ingenieria Civil</strong> para construir caminos.",
+            onStepStart: () => {
+                gameState.playerResources[1].researchPoints = 120;
+                if (UIManager) UIManager.updateAllUIDisplays();
+            },
             actionCondition: () => gameState.playerResources[1].researchedTechnologies.includes('ENGINEERING')
         },
         {
-            id: 'TUT_21_CLEAR_PATH',
-            message: "<strong>La la colina (4,3) Sería un buen lugar para construir una Fortaleza</strong>. asegura el camino a la colina, primero debes ocupar toda la ruta. ",
-            highlightHexCoords: [{r: 2, c: 3}],
+            id: 'TUT_15_BUILD_ROAD',
+            message: "Los ingenieros llegan. Construye un <strong>Camino</strong> en (1,3).",
+            highlightHexCoords: [{ r: 1, c: 3 }],
             onStepStart: () => {
-                closeTechTreeScreen();
+                if (typeof closeTechTreeScreen === 'function') closeTechTreeScreen();
+                const engineer = AiGameplayManager.createUnitObject({
+                    name: "Ingenieros",
+                    regiments: [{ ...REGIMENT_TYPES["Ingenieros"], type: 'Ingenieros' }]
+                }, 1, { r: 1, c: 3 });
+                placeFinalizedDivision(engineer, 1, 3);
+                gameState.playerResources[1].piedra += 200;
+                gameState.playerResources[1].madera += 200;
                 resetUnitsForNewTurn(1);
+                if (UIManager) UIManager.updateAllUIDisplays();
             },
-            actionCondition: () => units.some(u => u.player === 1 && u.r === 2 && u.c === 3)
+            actionCondition: () => board[1][3]?.structure === 'Camino'
         },
         {
-            id: 'TUT_22_BUILD_PATH_PROMPT',
-            message: "¡Ruta controlada! Ahora construye el camino completo. en cada una. Recuerda mover tu unidad para poder construir.",
-            highlightHexCoords: [{r: 1, c: 2}, {r: 2, c: 3}, {r: 3, c: 3}],
+            id: 'TUT_16_TRADE_ROUTE',
+            message: "El comercio sostiene la guerra. Crea una ruta comercial con la <strong>Columna de Suministro</strong>.",
+            highlightElementId: 'floatingTradeBtn',
             onStepStart: () => {
-                gameState.playerResources[1].piedra += 300; // Suficiente para 3 tramos
-                gameState.playerResources[1].madera += 300;
-                gameState.playerResources[1].researchPoints += 160;
-                UIManager.updateAllUIDisplays();
-                units.filter(u => u.player === 1).forEach(u => { u.morale = 50; u.currentHealth = u.maxHealth; });
+                addCityToBoardData(1, 4, 1, "Puerto Menor", false);
+                board[1][2].structure = 'Camino';
+                renderSingleHexVisuals(1, 2);
+
+                const supply = AiGameplayManager.createUnitObject({
+                    name: "Columna de Suministro",
+                    regiments: [{ ...REGIMENT_TYPES["Columna de Suministro"], type: 'Columna de Suministro' }]
+                }, 1, { r: 1, c: 1 });
+                placeFinalizedDivision(supply, 1, 1);
+                supply.hasMoved = false;
+                supply.hasAttacked = false;
+                selectUnit(supply);
+                if (UIManager) UIManager.updateAllUIDisplays();
             },
-            
-            // La condición se cumple solo cuando LOS TRES tramos del camino están construidos
-            actionCondition: () => {
-                const hex1 = board[1]?.[2];
-                const hex2 = board[2]?.[3];
-                const hex3 = board[3]?.[3];
-                return hex1?.structure === 'Camino' && hex2?.structure === 'Camino' && hex3?.structure === 'Camino';
-            }
+            actionCondition: () => units.some(u => u.player === 1 && u.tradeRoute)
         },
         {
-            id: 'TUT_23_RESEARCH_FORTIFICATIONS',
-            message: "¡Camino completo! Ahora fortifica esa colina. Ve al Árbol Tecnológico e investiga <strong>'Fortificaciones'</strong>.",
-            onStepStart: () => { openTechTreeScreen(); },
-            actionCondition: () => gameState.playerResources[1].researchedTechnologies.includes('FORTIFICATIONS')
+            id: 'TUT_17_VICTORY_POINTS',
+            message: "Victoria rapida: el juego termina cuando un jugador llega a <strong>10 puntos de victoria</strong>.",
+            duration: 3500
         },
         {
-            id: 'TUT_24_BUILD_FORTRESS',
-            message: "Vuelve al mapa. Ahora que la colina está conectada y tienes la tecnología, <strong>selecciónala y construye una Fortaleza</strong>.",
-            highlightHexCoords: [{r: 4, c: 3}],
+            id: 'TUT_18_FINISH',
+            message: "Listo, General. Pulsa la bandera para finalizar y empieza tu primera partida.",
             onStepStart: () => {
-                closeTechTreeScreen();
-                // Damos recursos para la fortaleza
-                gameState.playerResources[1].piedra += 1000;
-                gameState.playerResources[1].hierro += 400;
-                gameState.playerResources[1].oro += 600;
-                UIManager.updateAllUIDisplays();
-                // Movemos la unidad a un lado para que la casilla quede libre para construir
-                const playerUnit = units.find(u => u.player === 1);
-                if (playerUnit && playerUnit.r === 4 && playerUnit.c === 3) {
-                    _executeMoveUnit(playerUnit, 4, 4);
+                if (UIManager) {
+                    UIManager.showRewardToast("¡TUTORIAL COMPLETADO!", "🏆");
+                    UIManager.setEndTurnButtonToFinalizeTutorial();
                 }
-            },
-            actionCondition: () => board[4][3]?.structure === 'Fortaleza'
-        },
-        {
-            id: 'TUT_25_END_TURN_FINAL',
-            message: "Has aprendido a construir y fortificar. <strong>Finaliza tu turno</strong> para la última lección.",
-            highlightElementId: 'floatingEndTurnBtn',
-            onStepStart: () => { gameState.tutorial.turnEnded = false; },
-            actionCondition: () => gameState.tutorial.turnEnded
-        },
-        
-        // =====================================================================
-        // === CAPÍTULO 5: Héroes y Metajuego (8 Pasos)
-        // =====================================================================
-        {
-            id: 'TUT_24_HEROES_INTRO',
-            message: "Los Héroes son comandantes únicos que lideran tus divisiones. Abre el <strong>Cuartel (🎖️)</strong> desde el menú.",
-            highlightElementId: 'toggle-right-menu-btn', // Primero abrimos el menú
-            actionCondition: () => domElements.barracksModal.style.display === 'flex'
-        },
-        {
-            id: 'TUT_25_HERO_DETAIL',
-            message: "Este es tu primer héroe, Fabio Máximo. <strong>Haz clic en su retrato</strong> para ver sus detalles.",
-            actionCondition: () => domElements.heroDetailModal.style.display === 'flex'
-        },
-        {
-            id: 'TUT_26_HERO_LEVEL_UP',
-            message: "Sube de <strong>Nivel</strong> a un héroe con Libros de XP para fortalecerlo. ¡Usa los que te hemos concedido!",
-            onStepStart: () => { if (PlayerDataManager.currentPlayer) PlayerDataManager.currentPlayer.inventory.xp_books += 10; },
-            highlightElementId: 'heroLevelUpBtn',
-            actionCondition: () => PlayerDataManager.currentPlayer && PlayerDataManager.currentPlayer.heroes.find(h=>h.id==='g_fabius').level > 1
-        },
-        {
-            id: 'TUT_27_HERO_EVOLVE',
-            message: "La <strong>Evolución</strong> aumenta las estrellas y desbloquea habilidades. Requiere Fragmentos. ¡Evoluciona a Fabio!",
-            onStepStart: () => { if(PlayerDataManager.currentPlayer) PlayerDataManager.addFragmentsToHero('g_fabius', 50); },
-            highlightElementId: 'heroEvolveBtn',
-            actionCondition: () => PlayerDataManager.currentPlayer && PlayerDataManager.currentPlayer.heroes.find(h=>h.id==='g_fabius').stars > 1
-        },
-        {
-            id: 'TUT_28_RESEARCH_LEADERSHIP',
-            message: "Ha llegado tu primer Héroe. Pero para asignarlo, necesitas la tecnología de <strong>'Liderazgo'</strong>. Investígala ahora.",
-            onStepStart: () => {
-                openTechTreeScreen();
-                gameState.playerResources[1].researchPoints += 100; // Damos puntos suficientes
-                UIManager.updateAllUIDisplays();
-            },
-            actionCondition: () => gameState.playerResources[1].researchedTechnologies.includes('LEADERSHIP')
-        },
-        {
-            id: 'TUT_29_CREATE_HQ_DIVISION',
-            message: "¡Bien! Ahora necesitas una división con un <strong>'Cuartel General'</strong>. Crea una nueva división desde tu Fortaleza que incluya este regimiento.",
-            onStepStart: () => {
-                closeTechTreeScreen();
-                // Damos recursos para el Cuartel General
-                gameState.playerResources[1].oro += 800; 
-                UIManager.updateAllUIDisplays();
-            },
-            // La condición se cumple cuando exista una unidad con un Cuartel General
-            actionCondition: () => units.some(u => u.player === 1 && u.regiments.some(r => r.type === 'Cuartel General'))
-        },
-        {
-            id: 'TUT_30_ASSIGN_PROMPT',
-            message: "¡División de mando lista! Ahora, <strong>selecciónala y pulsa 'Asignar General' (👤)</strong>.",
-            highlightElementId: 'floatingAssignGeneralBtn',
-            onStepStart: () => {
-                // Seleccionamos automáticamente la nueva unidad de mando
-                const hqUnit = units.find(u => u.player === 1 && u.regiments.some(r => r.type === 'Cuartel General'));
-                if (hqUnit) {
-                    selectUnit(hqUnit);
-                }
-            },
-            actionCondition: () => domElements.barracksModal.style.display === 'flex'
-        },
-        {
-            id: 'TUT_31_ASSIGN_EXECUTE',
-            message: "Este es tu Cuartel. <strong>Haz clic en el retrato de Fabio Máximo</strong> para abrir sus detalles y asignarlo.",
-            // La condición se cumple cuando la unidad de mando tiene un comandante asignado
-            actionCondition: () => {
-                const hqUnit = units.find(u => u.player === 1 && u.regiments.some(r => r.type === 'Cuartel General'));
-                return hqUnit && hqUnit.commander === 'g_fabius';
-            }
-        },
-        {
-            id: 'TUT_32_FINAL_GOAL',
-            message: "¡General asignado! Tu ejército está completo. La victoria se logra capturando la <strong>capital enemiga</strong>.",
-            duration: 5000,
-            onStepStart: () => {
-                addCityToBoardData(7, 8, 2, "Capital Enemiga", true);
-                renderSingleHexVisuals(8, 8);
-                resetUnitsForNewTurn(1);
-            }
-        },
-        {
-            id: 'TUT_32_END_TURN_FINAL',
-            message: "Has aprendido mucho. Cierra la consola y <strong>finaliza tu turno</strong> para la prueba final.",
-            highlightElementId: 'floatingEndTurnBtn',
-            onStepStart: () => {
-                const consoleEl = document.getElementById('debug-console');
-                if (consoleEl) consoleEl.style.display = 'none';
-                gameState.tutorial.turnEnded = false;
-            },
-            actionCondition: () => gameState.tutorial.turnEnded
-        },
-
-        // =====================================================================
-        // === CAPÍTULO 6: Conquista y Asimilación (¡NUEVO!)
-        // =====================================================================
-        /*
-        {
-            id: 'TUT_28_CONQUEST_INTRO',
-            message: "¡Bien hecho! Ahora aprenderás a conquistar. <strong>Selecciona tu división en (4,4)</strong>.",
-            highlightHexCoords: [{r: 4, c: 4}],
-            onStepStart: () => {
-                resetUnitsForNewTurn(1);
-                // Aseguramos que el hex (4,4) es del enemigo
-                const hex = board[4][4];
-                if(hex) { hex.owner = 2; hex.nacionalidad = {1:0, 2:1}; renderSingleHexVisuals(4,4); }
-            },
-            actionCondition: () => selectedUnit && selectedUnit.r === 4 && selectedUnit.c === 4
-        },
-        */
-        {
-            id: 'TUT_28_CONQUEST_INTRO',
-            message: "¡Bien hecho! Ahora aprenderás a conquistar. <strong>Selecciona tu división más avanzada</strong> (la resaltada).",
-            onStepStart: () => {
-                resetUnitsForNewTurn(1);
-                
-                // 1. Buscamos la unidad del jugador 1 más alejada de la capital (1,1)
-                const playerUnits = units.filter(u => u.player === 1);
-                let farthestUnit = playerUnits[0];
-                let maxDist = -1;
-
-                playerUnits.forEach(u => {
-                    const dist = hexDistance(1, 1, u.r, u.c);
-                    if (dist > maxDist) {
-                        maxDist = dist;
-                        farthestUnit = u;
-                    }
-                });
-
-                // 2. Guardamos su posición para que el resaltado la encuentre
-                if (farthestUnit) {
-                    gameState.tutorial.targetCoords = { r: farthestUnit.r, c: farthestUnit.c };
-                    
-                    // 3. Preparamos ese hexágono para la lección (lo hacemos enemigo temporalmente)
-                    const hex = board[farthestUnit.r][farthestUnit.c];
-                    if(hex) {
-                        hex.owner = 2;
-                        hex.nacionalidad = { 1: 0, 2: 1 };
-                        renderSingleHexVisuals(farthestUnit.r, farthestUnit.c);
-                    }
-                }
-                gameState.tutorial.unit_selected_by_objective = false;
-            },
-            // Usamos una función para que el resaltado sea dinámico
-            highlightHexCoords: () => [gameState.tutorial.targetCoords],
-            actionCondition: () => gameState.tutorial.unit_selected_by_objective === true
-        },
-
-        {
-            id: 'TUT_29_NATIONALITY_INFO',
-            message: "En el panel inferior, fíjate en <strong>'Nac: 1/5'</strong>. Es la lealtad del territorio. Debes reducirla a 0 para conquistarlo.",
-            highlightElementId: 'contextualInfoPanel',
-            duration: 7000 // Pausa de 7 segundos para leer
-        },
-        {
-            id: 'TUT_30_END_TURN_FOR_CONQUEST',
-            message: "La Nacionalidad enemiga disminuye al final de cada turno que ocupas la casilla. <strong>Finaliza tu turno (►)</strong> para ver el efecto.",
-            highlightElementId: 'floatingEndTurnBtn',
-            onStepStart: () => {
-                gameState.tutorial.turnEnded = false;
-            },
-            actionCondition: () => gameState.tutorial.turnEnded
-        },
-        {
-            id: 'TUT_31_CONQUEST_RESULT',
-            message: "¡Territorio conquistado! La casilla ha cambiado a tu color. Así se expande un imperio.",
-            duration: 5000,
-            onStepStart: () => {
-                // Forzamos el cambio de dueño para el tutorial, ya que la lógica normal podría requerir más turnos
-                const hex = board[4][4];
-                if(hex) {
-                    hex.owner = 1;
-                    hex.nacionalidad = {1:1, 2:0};
-                    renderSingleHexVisuals(4,4);
-                }
-            }
-        },
-
-        // =====================================================================
-        // === CAPÍTULO 7: La Victoria Final (4 Pasos)
-        // =====================================================================
-        {
-            id: 'TUT_33_SHOW_GOAL',
-            message: "La victoria se logra capturando la <strong>capital enemiga</strong>. ¡Está allí!",
-            duration: 4000,
-            onStepStart: () => {
-                addCityToBoardData(7, 8, 2, "Capital Enemiga", true);
-                renderSingleHexVisuals(7, 8);
-                const playerUnit = units.find(u => u.player === 1);
-                if(playerUnit) { resetUnitsForNewTurn(1); selectUnit(playerUnit); }
-            }
-        },
-
-
-        {
-            id: 'TUT_34_CAPTURE_CAPITAL',
-            message: "El camino está despejado. <strong>Mueve tu división y captura la capital</strong>.",
-            highlightHexCoords: [{r: 7, c: 8}],
-            onStepStart: () => {
-                const playerUnit = units.find(u => u.player === 1);
-                if (playerUnit) playerUnit.currentMovement = 99;
-            },
-            actionCondition: () => units.some(u => u.player === 1 && u.r === 7 && u.c === 8)
-        },
-
-        {
-            id: 'TUT_36_FINAL_BATTLE_PROMPT',
-            message: "¡Pero no estará indefensa! Una última guarnición la protege. <strong>Acércate y destrúyela</strong>.",
-            highlightHexCoords: [{r: 6, c: 8}],
-            onStepStart: () => {
-                // Creamos la división enemiga que protege la capital
-                const enemyGuard = AiGameplayManager.createUnitObject({ 
-                    name: "Guardia de la Capital", 
-                    regiments: [
-                        {...REGIMENT_TYPES["Infantería Ligera"], type: 'Infantería Ligera'}, 
-                        {...REGIMENT_TYPES["Infantería Ligera"], type: 'Infantería Ligera'}
-                    ]
-                }, 2, {r: 6, c: 8}); // La colocamos justo delante de la capital
-                placeFinalizedDivision(enemyGuard, 6, 8);
-                
-                // Preparamos al jugador
-                const playerUnit = units.find(u => u.player === 1);
-                if (playerUnit) {
-                    playerUnit.currentMovement = 99; // Damos movimiento de sobra
-                }
-                gameState.tutorial.attack_completed = false; // Reseteamos el flag de ataque
-            },
-            // La condición se cumple cuando el jugador ha atacado (y presumiblemente destruido) a la guardia
-            actionCondition: () => {
-                const enemyGuard = units.find(u => u.name === "Guardia de la Capital");
-                return !enemyGuard || enemyGuard.currentHealth <= 0;
-            }
-        },
-        {
-            id: 'TUT_37_CAPTURE_CAPITAL',
-            message: "¡La defensa ha caído! Ahora, <strong>captura la capital</strong>.",
-            highlightHexCoords: [{r: 7, c: 8}],
-            onStepStart: () => {
-                // Damos una nueva acción al jugador
-                resetUnitsForNewTurn(1);
-                const playerUnit = units.find(u => u.player === 1);
-                if (playerUnit) {
-                    playerUnit.currentMovement = 99;
-                }
-                const hex = board[7][8];
-                // Forzamos el cambio de dueño para el tutorial, ya que la lógica normal podría requerir más turnos
-                
-                if(hex) {
-                    hex.owner = 1;
-                    hex.nacionalidad = {1:1, 2:0};
-                    renderSingleHexVisuals(7,8);
-                }
-            },
-            actionCondition: () => board[7][8]?.owner === 1
-
-
-        },
-        {
-            id: 'TUT_38_VICTORY',
-            message: "Has completado tu entrenamiento. ¡Ahora estás listo para la conquista! Termina el Turno y comienza a Jugar",
-            onStepStart: () => {
-                UIManager.showRewardToast("¡TUTORIAL COMPLETADO!", "🏆");
-                UIManager.setEndTurnButtonToFinalizeTutorial();
             },
             actionCondition: () => false
         }
