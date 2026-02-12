@@ -2087,29 +2087,49 @@ if (newTutorialBtn) {
         if (!PlayerDataManager.currentPlayer) PlayerDataManager.login("General", "tutorial");
         document.getElementById('gameModesModal').style.display = 'none';
         
+        // Preguntar qué tipo de tutorial desea el usuario
+        const tutorialType = confirm(
+            "¿Deseas el tutorial de INVASIÓN ARCHIPIÉLAGO (Jugador 2)?\n\n" +
+            "Aceptar = Tutorial de Invasión (con mapa marino)\n" +
+            "Cancelar = Tutorial Clásico (mapa terrestre)"
+        );
+        
+        const gameMode = tutorialType ? 'invasion' : 'development';
         
         if (typeof resetGameStateVariables === 'function') {
-            resetGameStateVariables(2, Infinity, 'development');
+            resetGameStateVariables(2, Infinity, gameMode);
         }
 
-        //PlayerDataManager.login("General", "tutorial");
-        
+        gameState.gameMode = gameMode;
         gameState.playerCivilizations[2] = 'Roma';
         gameState.playerCivilizations[1] = 'Iberia';
 
-        const tutorialScenario = GAME_DATA_REGISTRY.scenarios["TUTORIAL_SCENARIO"];
-        const tutorialMap = GAME_DATA_REGISTRY.maps[tutorialScenario.mapFile];
-
-        if(typeof resetAndSetupTacticalGame === 'function') await resetAndSetupTacticalGame(tutorialScenario, tutorialMap, "tutorial");
-        
-        if(typeof initializeTutorialState === 'function') initializeTutorialState(); 
-        gameState.currentPhase = "deployment";
-        
         showScreen(domElements.gameContainer);
         if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
-        initializeTutorialState(); 
-        gameState.currentPhase = "deployment";
-        TutorialManager.start(TUTORIAL_SCRIPTS.completo);
+        
+        // Generar el mapa apropiado según el modo
+        if (gameMode === 'invasion') {
+            // Mapa archipiélago para tutorial de invasión
+            console.log('[TUTORIAL] Generando mapa de invasión archipiélago...');
+            if (typeof initializeNewGameBoardDOMAndData === 'function') {
+                initializeNewGameBoardDOMAndData('min', 'small', true, 'invasion');
+            }
+        } else {
+            // Mapa tutorial clásico para tutorial normal
+            console.log('[TUTORIAL] Generando mapa tutorial clásico...');
+            const tutorialScenario = GAME_DATA_REGISTRY.scenarios["TUTORIAL_SCENARIO"];
+            const tutorialMap = GAME_DATA_REGISTRY.maps[tutorialScenario.mapFile];
+            if(typeof resetAndSetupTacticalGame === 'function') {
+                await resetAndSetupTacticalGame(tutorialScenario, tutorialMap, "tutorial");
+            }
+        }
+        
+        if(typeof initializeTutorialState === 'function') initializeTutorialState(); 
+        gameState.currentPhase = "play";
+        
+        // Seleccionar tutorial basado en gameMode
+        const selectedTutorial = TutorialManager.selectTutorialByGameMode(gameState.gameMode);
+        TutorialManager.start(selectedTutorial);
         TurnTimerManager.start(300); // Inicia el reloj con 3 minutos
     });
 }
