@@ -9,6 +9,18 @@ const TutorialManager = {
     currentIndex: -1,
     initialUnitCount: 0,
 
+    /**
+     * Selecciona el tutorial appropriado según el gameMode
+     */
+    selectTutorialByGameMode: function(gameMode) {
+        if (gameMode === 'invasion' && TUTORIAL_SCRIPTS && TUTORIAL_SCRIPTS.archipelagoInvasor) {
+            console.log('[TutorialManager] Seleccionando tutorial: Archipiélago Invasor');
+            return TUTORIAL_SCRIPTS.archipelagoInvasor;
+        }
+        console.log('[TutorialManager] Seleccionando tutorial: Completo (por defecto)');
+        return TUTORIAL_SCRIPTS.completo;
+    },
+
     start: function(steps) {
         // hERRAMIENTA DE DIAGNÓSTICO DEFINITIVA ==>>
         // Esta línea te mostrará en la consola exactamente QUÉ archivo y QUÉ línea de código
