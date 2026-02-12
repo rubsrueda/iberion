@@ -156,6 +156,13 @@ const IAArchipielago = {
    */
   ejecutarPlanDeAccion(situacion) {
     const { myPlayer, amenazas, frente, economia, ciudades, hexesPropios, enemyProfile } = situacion;
+    // Si hay un plan de presión por fortaleza, intentar producir fuerzas primero
+    if (gameState.aiFortressPressure && gameState.aiFortressPressure[myPlayer]) {
+      const finished = this._pressureProduceForFortress(myPlayer);
+      if (finished) {
+        delete gameState.aiFortressPressure[myPlayer];
+      }
+    }
     let misUnidades = IASentidos.getUnits(myPlayer);
     const isNavalMap = !!gameState.setupTempSettings?.navalMap;
     
@@ -966,7 +973,8 @@ const IAArchipielago = {
         return;
       }
       console.log(`[IA_ARCHIPIELAGO] Construyendo fortaleza (Camino 16) en (${invaderFortSpot.r},${invaderFortSpot.c})`);
-      this._requestBuildStructure(myPlayer, invaderFortSpot.r, invaderFortSpot.c, 'Fortaleza');
+      const built = this._requestBuildStructure(myPlayer, invaderFortSpot.r, invaderFortSpot.c, 'Fortaleza');
+      this._startFortressPressure(myPlayer, invaderFortSpot);
       return;
     }
 
@@ -974,7 +982,7 @@ const IAArchipielago = {
     this._ensureTech(myPlayer, 'ENGINEERING');
     const roadBuildable = STRUCTURE_TYPES['Camino']?.buildableOn || [];
     const ciudades = this._getTradeCityCandidates(myPlayer);
-    const existingRouteKeys = this._getExistingTradeRouteKeys();
+    const existingRouteKeys = this._getExistingTradeRouteKeys(myPlayer);
     const candidate = this._findBestTradeCityPair(ciudades, myPlayer, existingRouteKeys);
     const nextHex = candidate && !candidate.infraPath ? candidate.missingOwnedSegments[0] : null;
 
@@ -1442,6 +1450,28 @@ const IAArchipielago = {
       if (total >= desired) break;
     }
 
+    // Si con fusiones no alcanzamos el tamaño deseado, intentar producir divisiones complementarias.
+    if (total < desired) {
+      const missing = desired - total;
+      const per = Math.min(MAX_REGIMENTS_PER_DIVISION || missing, missing);
+      const divisionsNeeded = Math.ceil(missing / per);
+      console.log(`[IA_ARCHIPIELAGO] Refuerzo pesado incompleto (${total}/${desired}). Produciendo ${divisionsNeeded} divisiones de ${per} regimientos.`);
+      const created = this._producirDivisiones(myPlayer, divisionsNeeded, per);
+      if (created > 0) {
+        console.log(`[IA_ARCHIPIELAGO] Producción completada: creadas ${created} divisiones para reforzar.`);
+        // Opcional: intentar fusionar recién creadas hacia el ancla en el mismo turno
+        const freshUnits = IASentidos.getUnits(myPlayer).filter(u => (u.regiments?.length || 0) <= per && hexDistance(u.r, u.c, anchor.r, anchor.c) <= 4);
+        for (const fu of freshUnits) {
+          if (total >= desired) break;
+          const regCount = fu.regiments?.length || 0;
+          if (this._requestMergeUnits(fu, anchor)) {
+            total += regCount;
+            console.log(`[IA_ARCHIPIELAGO] Fusionada nueva unidad ${fu.name} → ${anchor.name}`);
+          }
+        }
+      }
+    }
+
     return total >= desired;
   },
 
@@ -1486,7 +1516,31 @@ const IAArchipielago = {
     if (!transport) {
       transport = this._createTransportShip(myPlayer);
       if (!transport) return false;
-      console.log('[IA_ARCHIPIELAGO] Armada creada para invasion.');
+      console.log('[IA_ARCHIPIELAGO] Armada creada para invasion. Intentando embarcar inmediatamente.');
+
+      // Intentar embarcar una unidad cercana inmediatamente
+      const embarkUnit = this._selectEmbarkUnit(myPlayer, transport);
+      if (embarkUnit) {
+        console.log(`[IA_ARCHIPIELAGO] Embarcando tropas en ${transport.name || transport.id}.`);
+        if (this._requestMergeUnits(embarkUnit, transport)) return true;
+      }
+
+      // Si no hay unidad cercana, intentar producir una unidad pequeña y embarcarla
+      if (typeof AiGameplayManager !== 'undefined' && AiGameplayManager.produceUnit) {
+        const comp = this._getArmyComposition(myPlayer, 3, null);
+        const newUnit = AiGameplayManager.produceUnit(myPlayer, comp, 'attacker', 'TropaEmb');
+        if (newUnit) {
+          // si la nueva unidad no está adyacente, intentar moverla junto al barco
+          const dist = hexDistance(newUnit.r, newUnit.c, transport.r, transport.c);
+          if (dist > 1) {
+            const moveTarget = getHexNeighbors(transport.r, transport.c).find(n => board[n.r]?.[n.c] && !board[n.r][n.c].unit && board[n.r][n.c].terrain !== 'water');
+            if (moveTarget) this._requestMoveUnit(newUnit, moveTarget.r, moveTarget.c);
+          }
+          if (this._requestMergeUnits(newUnit, transport)) return true;
+        }
+      }
+
+      // No se pudo embarcar ahora: devolver true para indicar progreso (barco creado)
       return true;
     }
 
@@ -1581,6 +1635,9 @@ const IAArchipielago = {
   },
 
   _findTransportShip(myPlayer) {
+    // Preferir barcos que ya llevan regimientos de tierra (capacidad usada), luego cualquiera con capacidad
+    const withLand = units.find(u => u.player === myPlayer && u.regiments?.some(r => REGIMENT_TYPES?.[r.type] && !REGIMENT_TYPES[r.type].is_naval) && this._getTransportCapacity(u) > 0);
+    if (withLand) return withLand;
     return units.find(u => u.player === myPlayer && u.regiments?.some(r => REGIMENT_TYPES?.[r.type]?.is_naval) && this._getTransportCapacity(u) > 0) || null;
   },
 
@@ -1637,9 +1694,10 @@ const IAArchipielago = {
     return [aKey, bKey].sort().join('|');
   },
 
-  _getExistingTradeRouteKeys() {
+  _getExistingTradeRouteKeys(playerFilter = null) {
     const keys = new Set();
     (units || []).forEach(u => {
+      if (playerFilter !== null && (u.player ?? u.playerId) !== playerFilter) return;
       if (u.tradeRoute?.origin && u.tradeRoute?.destination) {
         const key = this._getTradePairKey(u.tradeRoute.origin, u.tradeRoute.destination);
         if (key) keys.add(key);
@@ -1841,6 +1899,61 @@ const IAArchipielago = {
     return created;
   },
 
+  _startFortressPressure(myPlayer, spot) {
+    if (!gameState.aiFortressPressure) gameState.aiFortressPressure = {};
+    // Si ya hay un plan, ampliar objetivo
+    const existing = gameState.aiFortressPressure[myPlayer];
+    if (existing) {
+      existing.target = spot;
+      existing.attemptsLeft = Math.max(existing.attemptsLeft || 3, 3);
+      existing.targetDivisions = Math.max(existing.targetDivisions || 3, 3);
+      console.log(`[IA_ARCHIPIELAGO] Actualizando plan de presión de fortaleza para ${myPlayer}`);
+      return;
+    }
+
+    gameState.aiFortressPressure[myPlayer] = {
+      target: spot,
+      attemptsLeft: 3,
+      targetDivisions: 3,
+      regimentsPerDivision: Math.min(6, this.HEAVY_DIVISION_TARGET || 6)
+    };
+    console.log(`[IA_ARCHIPIELAGO] Iniciando plan de presión por fortaleza para jugador ${myPlayer} en (${spot.r},${spot.c})`);
+  },
+
+  _pressureProduceForFortress(myPlayer) {
+    const plan = (gameState.aiFortressPressure || {})[myPlayer];
+    if (!plan) return false;
+    const target = plan.target || null;
+    const want = plan.targetDivisions || 3;
+    const per = plan.regimentsPerDivision || 6;
+
+    console.log(`[IA_ARCHIPIELAGO] Fortaleza presión: intentando producir ${want} divisiones de ${per} regimientos para ${myPlayer}. Intentos restantes: ${plan.attemptsLeft}`);
+
+    const created = this._producirDivisiones(myPlayer, want, per, target);
+    if (created >= want) {
+      console.log(`[IA_ARCHIPIELAGO] Fortaleza presión: objetivo alcanzado (${created}/${want}).`);
+      return true; // plan completo
+    }
+
+    if (created > 0) {
+      // Reducir objetivo y seguir intentando en siguientes turnos
+      plan.targetDivisions = Math.max(0, plan.targetDivisions - created);
+      console.log(`[IA_ARCHIPIELAGO] Fortaleza presión: creadas ${created}, quedan ${plan.targetDivisions} divisiones por crear.`);
+      // keep attemptsLeft the same to allow more production
+      if (plan.targetDivisions <= 0) return true;
+      return false;
+    }
+
+    // No se pudo producir nada este turno
+    plan.attemptsLeft = (plan.attemptsLeft || 1) - 1;
+    if (plan.attemptsLeft <= 0) {
+      console.log(`[IA_ARCHIPIELAGO] Fortaleza presión: intentos agotados para jugador ${myPlayer}.`);
+      return true; // abandonar plan
+    }
+    console.log(`[IA_ARCHIPIELAGO] Fortaleza presión: sin producción este turno, quedarán ${plan.attemptsLeft} intentos.`);
+    return false;
+  },
+
   _findClosestUnitToTarget(myPlayer, target) {
     const myUnits = IASentidos.getUnits(myPlayer);
     if (!myUnits.length) return null;
@@ -1944,7 +2057,7 @@ const IAArchipielago = {
   },
 
   _ejecutarRutaMasComercios(situacion) {
-    const existingRouteKeys = this._getExistingTradeRouteKeys();
+    const existingRouteKeys = this._getExistingTradeRouteKeys(situacion.myPlayer);
     const candidate = this._findBestTradeCityPair(this._getTradeCityCandidates(situacion.myPlayer), situacion.myPlayer, existingRouteKeys);
     if (!candidate) {
       return { action: 'comercios', executed: false, reason: 'sin_ruta' };
