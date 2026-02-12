@@ -179,18 +179,18 @@ function isHexSuppliedForReinforce(r, c, playerId) {
     const hexData = board[r]?.[c];
     if (!hexData) return false;
 
-    // Caso 1: La unidad está DIRECTAMENTE en una Capital o Fortaleza propia.
-    if (hexData.owner === playerId && (hexData.isCapital || hexData.structure === "Fortaleza")) {
-        //console.log(`%c[DEBUG Reforzar] OK: Unidad en fuente de refuerzo directa. (owner:${hexData.owner}, isCapital:${hexData.isCapital}, structure:${hexData.structure})`, "color: green;");
+    // Caso 1: La unidad está DIRECTAMENTE en una fuente de refuerzo propia.
+    // Antes solo considerábamos Capital o Fortaleza; ahora incluimos también Ciudades propias.
+    if (hexData.owner === playerId && (hexData.isCapital || hexData.structure === "Fortaleza" || hexData.isCity)) {
         return true;
     }
 
-    // Caso 2: La unidad está ADYACENTE a una Capital o Fortaleza propia.
+    // Caso 2: La unidad está ADYACENTE a una fuente de refuerzo propia (Capital/Fortaleza/Ciudad).
     const neighbors = getHexNeighbors(r, c);
     for (const neighbor of neighbors) {
         const neighborHexData = board[neighbor.r]?.[neighbor.c];
         if (neighborHexData) {
-            if (neighborHexData.owner === playerId && (neighborHexData.isCapital || neighborHexData.structure === "Fortaleza")) {
+            if (neighborHexData.owner === playerId && (neighborHexData.isCapital || neighborHexData.structure === "Fortaleza" || neighborHexData.isCity)) {
                 return true;
             }
         }
