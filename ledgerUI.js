@@ -3,6 +3,16 @@
  * Interfaz visual del Cuaderno de Estado
  * Modal con 4 pestañas con diseño premium
  */
+// Helper para escapar HTML en atributos
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
 const LedgerUI = {
     modalElement: null,
@@ -19,6 +29,31 @@ const LedgerUI = {
             console.error('[LedgerUI] ❌ Elemento #ledgerModal no encontrado en HTML. Reintentando en 500ms...');
             setTimeout(() => this.initialize(), 500);
             return;
+        }
+
+        // Asegurar que exista la pestaña de Comercio (si el HTML no la incluye)
+        const firstTab = this.modalElement.querySelector('[data-tab]');
+        if (firstTab) {
+            const tabsContainer = firstTab.parentNode;
+            if (!this.modalElement.querySelector('[data-tab="comercio"]')) {
+                const comercioBtn = document.createElement('button');
+                comercioBtn.setAttribute('data-tab', 'comercio');
+                comercioBtn.className = 'ledger-tab-btn';
+                comercioBtn.textContent = '🛒 Comercio';
+                tabsContainer.appendChild(comercioBtn);
+            }
+
+            // Añadir contenedor de contenido para la pestaña si falta
+            const firstContent = this.modalElement.querySelector('[data-content]');
+            if (firstContent) {
+                const contentsContainer = firstContent.parentNode;
+                if (!this.modalElement.querySelector('[data-content="comercio"]')) {
+                    const comercioContent = document.createElement('div');
+                    comercioContent.setAttribute('data-content', 'comercio');
+                    comercioContent.style.display = 'none';
+                    contentsContainer.appendChild(comercioContent);
+                }
+            }
         }
 
         this._setupEventListeners();
@@ -187,6 +222,79 @@ const LedgerUI = {
 
         content.innerHTML = html;
     },
+
+    /**
+     * Muestra PESTAÑA: COMERCIO (Rutas usadas y disponibles)
+     */
+    displayComercio: function(comercio) {
+        const content = this.modalElement.querySelector('[data-content="comercio"]');
+        if (!content) return;
+
+        const activeRows = (comercio.activeRoutes || []).map(r => `
+            <tr>
+                <td>${r.originName}</td>
+                <td>${r.destinationName}</td>
+                <td>${r.unitName || ('Unidad ' + r.unitId)}</td>
+                <td>${r.goldCarried ?? 0}/${r.cargoCapacity ?? '—'}</td>
+                <td>${r.pathLength ?? '—'}</td>
+            </tr>
+        `).join('') || '<tr><td colspan="5">No hay rutas comerciales activas</td></tr>';
+
+        const freeRows = (comercio.freeRoutes || []).map(r => `
+            <tr>
+                <td>${r.aName}</td>
+                <td>${r.bName}</td>
+                <td>${r.isConnected ? 'Sí' : 'No'}</td>
+                <td style="width:120px; text-align:center;">
+                    <button class="start-trade-btn" data-a="${escapeHtml(r.aName)}" data-b="${escapeHtml(r.bName)}" ${r.isConnected ? '' : 'disabled'}>
+                        Iniciar
+                    </button>
+                </td>
+            </tr>
+        `).join('') || '<tr><td colspan="4">No hay pares de ciudades disponibles</td></tr>';
+
+        const html = `
+            <div class="ledger-section">
+                <h3>🛒 Rutas Comerciales Activas (${comercio.activeCount || 0})</h3>
+                <div class="ledger-table-container">
+                    <table class="ledger-table">
+                        <thead>
+                            <tr><th>Origen</th><th>Destino</th><th>Unidad</th><th>Carga</th><th>Longitud</th></tr>
+                        </thead>
+                        <tbody>${activeRows}</tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="ledger-section">
+                <h3>📍 Pares de Ciudades Disponibles (${comercio.freeCount || 0})</h3>
+                <div class="ledger-table-container">
+                    <table class="ledger-table">
+                        <thead>
+                            <tr><th>Ciudad A</th><th>Ciudad B</th><th>Conectadas</th></tr>
+                        </thead>
+                        <tbody>${freeRows}</tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+        content.innerHTML = html;
+
+        // Adjuntar listeners a botones de inicio de ruta
+        const startBtns = content.querySelectorAll('.start-trade-btn');
+        startBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const a = btn.getAttribute('data-a');
+                const b = btn.getAttribute('data-b');
+                if (typeof LedgerManager !== 'undefined' && LedgerManager.startTradeRoute) {
+                    LedgerManager.startTradeRoute(a, b);
+                } else {
+                    console.error('[LedgerUI] LedgerManager.startTradeRoute no disponible');
+                }
+            });
+        });
+    }
 
     /**
      * Muestra PESTAÑA 2: DEMOGRAFÍA
