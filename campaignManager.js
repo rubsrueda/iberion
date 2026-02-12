@@ -12,6 +12,14 @@ let campaignState = {
     currentMapTacticalDataForBattle: null,
 };
 
+/**
+ * Selecciona el tutorial appropriado según el gameMode
+ * Delegado a TutorialManager.selectTutorialByGameMode()
+ */
+function getTutorialForGameMode(gameMode) {
+    return TutorialManager.selectTutorialByGameMode(gameMode);
+}
+
 // --- INICIALIZACIÓN Y NAVEGACIÓN ENTRE PANTALLAS ---
 // En campaignManager.js, REEMPLAZA la función showScreen COMPLETA
 
@@ -108,31 +116,37 @@ function setupMainMenuListeners() { // Esta función será llamada por main.js -
     */
     //domElements.startCampaignBtnEl.addEventListener('click', initializeCampaignMode);
     //domElements.startSkirmishBtnEl.addEventListener('click', () => showScreen(domElements.setupScreen)); 
-        
-    //domElements.startTutorialBtn.addEventListener('click', () => {
-        // 1. Carga el mapa y el estado base del juego
+    
+    // Seleccionar mapa basado en gameMode
+    if (gameState.gameMode === 'invasion' && typeof initializeNewGameBoardDOMAndData === 'function') {
+        // Mapa archipiélago para tutorial de invasión
+        console.log('[CampaignManager] Tutorial: Generando mapa de invasión archipiélago...');
+        initializeNewGameBoardDOMAndData('min', 'small', true, 'invasion');
+    } else {
+        // Mapa tutorial clásico para tutorial normal
+        console.log('[CampaignManager] Tutorial: Generando mapa tutorial clásico...');
         const tutorialScenario = GAME_DATA_REGISTRY.scenarios["TUTORIAL_SCENARIO"];
         const tutorialMap = GAME_DATA_REGISTRY.maps[tutorialScenario.mapFile];
-        
-        // <<== MODIFICACIÓN: Llamamos a resetAndSetupTacticalGame primero ==>>
         resetAndSetupTacticalGame(tutorialScenario, tutorialMap, "tutorial");
+    }
         
-        // 2. Muestra la pantalla del juego
-        showScreen(domElements.gameContainer);
-        if (domElements.tacticalUiContainer) {
-            domElements.tacticalUiContainer.style.display = 'block';
-        }
-        
-        // <<== MODIFICACIÓN: Inicializamos el estado del tutorial DESPUÉS ==>>
-        // Esto asegura que la fase se establece correctamente.
-        initializeTutorialState(); 
-        
-        // 3. Forzamos el estado inicial a 'deployment' para los primeros pasos.
-        gameState.currentPhase = "deployment";
-        
-        // 4. Inicia la secuencia del tutorial
-        TutorialManager.start(TUTORIAL_SCRIPTS.completo);
-    //    });
+    // 2. Muestra la pantalla del juego
+    showScreen(domElements.gameContainer);
+    if (domElements.tacticalUiContainer) {
+        domElements.tacticalUiContainer.style.display = 'block';
+    }
+    
+    // <<== MODIFICACIÓN: Inicializamos el estado del tutorial DESPUÉS ==>>
+    // Esto asegura que la fase se establece correctamente.
+    initializeTutorialState(); 
+    
+    // 3. Forzamos el estado inicial a 'play' para los primeros pasos.
+    gameState.currentPhase = "play";
+    
+    // 4. Inicia la secuencia del tutorial apropriada según el modo de juego
+    const selectedTutorial = getTutorialForGameMode(gameState.gameMode);
+    TutorialManager.start(selectedTutorial);
+    
     domElements.backToMainMenuBtn_fromCampaign.addEventListener('click', () => showScreen(domElements.mainMenuScreenEl)); 
     domElements.backToMainMenuBtn_fromSetup.addEventListener('click', () => showScreen(domElements.mainMenuScreenEl)); 
     domElements.closeScenarioBriefingBtnEl.addEventListener('click', closeScenarioBriefing);
