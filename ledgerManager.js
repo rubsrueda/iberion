@@ -9,7 +9,7 @@ console.log('[ledgerManager.js] Archivo cargado en:', new Date().toISOString());
 
 const LedgerManager = {
     isOpen: false,
-    currentTab: 'resumen', // resumen, demografia, militar, economia, cronica
+    currentTab: 'resumen', // resumen, demografia, militar, economia, cronica, comercio
 
     /**
      * Abre el cuaderno de estado
@@ -88,7 +88,7 @@ const LedgerManager = {
      * Cambia de pestaña
      */
     switchTab: function(tabName) {
-        if (['resumen', 'demografia', 'militar', 'economia', 'cronica'].includes(tabName)) {
+        if (['resumen', 'demografia', 'militar', 'economia', 'cronica', 'comercio'].includes(tabName)) {
             this.currentTab = tabName;
             this.updateAllDisplays();
         }
@@ -116,6 +116,192 @@ const LedgerManager = {
             case 'cronica':
                 this._updateCronica();
                 break;
+            case 'comercio':
+                this._updateComercio();
+                break;
+        }
+    },
+
+    /**
+     * PESTAÑA: COMERCIO – Rutas usadas y pares disponibles
+     */
+    _updateComercio: function() {
+        const myPlayerId = gameState.myPlayerNumber || gameState.currentPlayer;
+
+        // Obtener rutas activas pertenecientes al jugador
+        const activeUnits = units.filter(u => (u.playerId ?? u.player) === myPlayerId && u.tradeRoute && u.tradeRoute.origin && u.tradeRoute.destination);
+        const getPairKey = (a, b) => {
+            if (!a || !b) return null;
+            const aKey = Number.isInteger(a.r) && Number.isInteger(a.c) ? `${a.r},${a.c}` : a.name;
+            const bKey = Number.isInteger(b.r) && Number.isInteger(b.c) ? `${b.r},${b.c}` : b.name;
+            return [aKey, bKey].sort().join('|');
+        };
+
+        const activeKeys = new Set();
+        const activeRoutes = activeUnits.map(u => {
+            const origin = u.tradeRoute.origin;
+            const destination = u.tradeRoute.destination;
+            const key = getPairKey(origin, destination);
+            if (key) activeKeys.add(key);
+            return {
+                unitId: u.id,
+                unitName: u.name,
+                originName: origin.name || `${origin.r},${origin.c}`,
+                destinationName: destination.name || `${destination.r},${destination.c}`,
+                goldCarried: u.tradeRoute.goldCarried,
+                cargoCapacity: u.tradeRoute.cargoCapacity,
+                pathLength: Array.isArray(u.tradeRoute.path) ? u.tradeRoute.path.length : (u.tradeRoute.pathData ? u.tradeRoute.pathData.length : null)
+            };
+        });
+
+        // Obtener todas las ciudades del jugador
+        const playerCities = [];
+        for (let r = 0; r < board.length; r++) {
+            for (let c = 0; c < board[r].length; c++) {
+                const hex = board[r][c];
+                if (hex && hex.owner === myPlayerId && hex.isCity) {
+                    playerCities.push({ r, c, name: hex.name || `${r},${c}` });
+                }
+            }
+        }
+
+        // Función para comprobar conectividad vía carreteras entre dos ciudades
+        const areCitiesConnected = (a, b) => {
+            if (!a || !b) return false;
+            const startKey = `${a.r},${a.c}`;
+            const targetKey = `${b.r},${b.c}`;
+            const queue = [{ r: a.r, c: a.c }];
+            const visited = new Set([startKey]);
+            while (queue.length) {
+                const cur = queue.shift();
+                if (cur.r === b.r && cur.c === b.c) return true;
+                const neighbors = getHexNeighbors(cur.r, cur.c);
+                for (const n of neighbors) {
+                    const key = `${n.r},${n.c}`;
+                    if (visited.has(key)) continue;
+                    const hex = board[n.r]?.[n.c];
+                    if (!hex) continue;
+                    // Permitimos avanzar por hexes propios que formen parte de la red (hasRoad) o ciudades.
+                    if (hex.owner === myPlayerId && (hex.hasRoad || hex.isCity)) {
+                        visited.add(key);
+                        queue.push({ r: n.r, c: n.c });
+                    }
+                }
+            }
+            return false;
+        };
+
+        // Generar pares disponibles
+        const freeRoutes = [];
+        for (let i = 0; i < playerCities.length; i++) {
+            for (let j = i + 1; j < playerCities.length; j++) {
+                const a = playerCities[i];
+                const b = playerCities[j];
+                const key = getPairKey(a, b);
+                if (activeKeys.has(key)) continue; // ya en uso
+                const connected = areCitiesConnected(a, b);
+                freeRoutes.push({ aName: a.name, bName: b.name, isConnected: connected });
+            }
+        }
+
+        const comercio = {
+            activeCount: activeRoutes.length,
+            activeRoutes: activeRoutes,
+            freeCount: freeRoutes.length,
+            freeRoutes: freeRoutes
+        };
+
+        LedgerUI.displayComercio(comercio);
+    },
+
+    /**
+     * Intenta iniciar una ruta comercial entre dos ciudades (por nombre/coord string).
+     * Busca una unidad válida en la ciudad origen, calcula el camino y llama a _executeEstablishTradeRoute.
+     */
+    startTradeRoute: function(aName, bName) {
+        const myPlayerId = gameState.myPlayerNumber || gameState.currentPlayer;
+        if (!aName || !bName) return false;
+
+        // Resolver ciudades por nombre o por coordenadas "r,c"
+        const parseOrFind = (label) => {
+            // intentar por nombre
+            let city = gameState.cities.find(c => c.name === label && c.owner === myPlayerId);
+            if (city) return city;
+            // intentar parsear 'r,c'
+            const parts = label.split(',').map(s => s.trim());
+            if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                const r = parseInt(parts[0], 10), c = parseInt(parts[1], 10);
+                city = gameState.cities.find(ci => ci.r === r && ci.c === c && ci.owner === myPlayerId);
+                if (city) return city;
+            }
+            return null;
+        };
+
+        const origin = parseOrFind(aName);
+        const dest = parseOrFind(bName);
+        if (!origin || !dest) {
+            logMessage('No se encontraron las ciudades origen/destino para iniciar la ruta.', 'warning');
+            if (typeof showToast === 'function') showToast('No se encontraron las ciudades origen/destino.', 'warning', 3500);
+            if (typeof Chronicle !== 'undefined' && typeof Chronicle.logEvent === 'function') {
+                Chronicle.logEvent('trade_route_failed', { reason: 'cities_not_found', aName: aName, bName: bName, player: myPlayerId });
+            }
+            return false;
+        }
+
+        // Buscar unidad candidata en origen
+        let candidate = units.find(u => (u.playerId ?? u.player) === myPlayerId && u.r === origin.r && u.c === origin.c && !u.tradeRoute && u.regiments?.some(reg => (REGIMENT_TYPES[reg.type].abilities || []).includes('provide_supply')));
+        if (!candidate) {
+            // fallback: cualquier unidad sin ruta en la ciudad
+            candidate = units.find(u => (u.playerId ?? u.player) === myPlayerId && u.r === origin.r && u.c === origin.c && !u.tradeRoute);
+        }
+
+        if (!candidate) {
+            logMessage('No hay unidades válidas en la ciudad origen para iniciar la ruta.', 'warning');
+            if (typeof showToast === 'function') showToast('No hay unidades válidas en la ciudad origen.', 'warning', 3500);
+            if (typeof Chronicle !== 'undefined' && typeof Chronicle.logEvent === 'function') {
+                Chronicle.logEvent('trade_route_failed', { reason: 'no_unit_available', origin: origin?.name || `${origin?.r},${origin?.c}`, player: myPlayerId });
+            }
+            return false;
+        }
+
+        // Determinar si es naval
+        const isNaval = candidate.regiments?.some(reg => REGIMENT_TYPES[reg.type]?.is_naval === true);
+
+        // Calcular path usando las mismas utilidades que requestEstablishTradeRoute
+        let path = null;
+        if (isNaval) {
+            path = typeof traceNavalPath === 'function' ? traceNavalPath(candidate, { r: candidate.r, c: candidate.c }, dest) : null;
+        } else {
+            path = typeof findInfrastructurePath === 'function' ? findInfrastructurePath(origin, dest) : null;
+        }
+
+        if (!path || path.length === 0) {
+            logMessage('No se pudo calcular un camino válido para la ruta.', 'warning');
+            if (typeof showToast === 'function') showToast('No se pudo calcular un camino válido para la ruta.', 'warning', 3500);
+            if (typeof Chronicle !== 'undefined' && typeof Chronicle.logEvent === 'function') {
+                Chronicle.logEvent('trade_route_failed', { reason: 'no_path', origin: origin?.name, destination: dest?.name, unitId: candidate?.id, player: myPlayerId });
+            }
+            return false;
+        }
+
+        // Ejecutar establecimiento de ruta
+        if (typeof _executeEstablishTradeRoute === 'function') {
+            _executeEstablishTradeRoute({ unitId: candidate.id, origin: origin, destination: dest, path: path });
+            logMessage(`Ruta iniciada: ${origin.name} → ${dest.name}`, 'success');
+            if (typeof showToast === 'function') showToast(`Ruta iniciada: ${origin.name} → ${dest.name}`, 'success', 3000);
+            if (typeof Chronicle !== 'undefined' && typeof Chronicle.logEvent === 'function') {
+                Chronicle.logEvent('trade_route_started', {
+                    player: myPlayerId,
+                    unitId: candidate.id,
+                    unitName: candidate.name,
+                    origin: { r: origin.r, c: origin.c, name: origin.name },
+                    destination: { r: dest.r, c: dest.c, name: dest.name }
+                });
+            }
+            return true;
+        } else {
+            console.error('Función _executeEstablishTradeRoute no disponible.');
+            return false;
         }
     },
 
