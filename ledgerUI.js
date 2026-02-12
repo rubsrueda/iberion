@@ -294,7 +294,7 @@ const LedgerUI = {
                 }
             });
         });
-    }
+    },
 
     /**
      * Muestra PESTAÑA 2: DEMOGRAFÍA
@@ -303,39 +303,54 @@ const LedgerUI = {
         const content = this.modalElement.querySelector('[data-content="demografia"]');
         if (!content) return;
 
+        // Validar que tabla sea un array
+        if (!Array.isArray(tabla) || tabla.length === 0) {
+            content.innerHTML = `
+                <div class="ledger-section">
+                    <h3>Rankings - Situación Global</h3>
+                    <div style="text-align: center; padding: 40px; color: #888;">
+                        <p>No hay datos de ranking disponibles.</p>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
         const rows = tabla.map((row, idx) => `
             <tr class="${row.isMe ? 'highlight-row' : ''}">
-                <td class="rank">${row.isMe ? '👤' : '🤖'} #${row.rango}</td>
-                <td class="civ">${row.civilization}${row.isMe ? ' (Tú)' : ''}</td>
-                <td class="score">${row.score}</td>
-                <td class="military">⚔️ ${row.power}</td>
-                <td class="gold">💰 ${row.gold}</td>
-                <td class="territory">🗺️ ${row.territory}</td>
-                <td class="cities">🏰 ${row.cities}</td>
-                <td class="population">👥 ${row.population}</td>
+                <td class="rank">${row.isMe ? '👤' : '🤖'} #${row.rango || idx + 1}</td>
+                <td class="civ">${row.civilization || 'Desconocida'}${row.isMe ? ' (Tú)' : ''}</td>
+                <td class="score">${row.score ?? '—'}</td>
+                <td class="military">⚔️ ${row.power ?? '—'}</td>
+                <td class="gold">💰 ${row.gold ?? '—'}</td>
+                <td class="territory">🗺️ ${row.territory ?? '—'}</td>
+                <td class="cities">🏰 ${row.cities ?? '—'}</td>
+                <td class="population">👥 ${row.population ?? '—'}</td>
             </tr>
         `).join('');
 
         const html = `
-            <h3>Rankings - Situación Global</h3>
-            <div class="ledger-table-container">
-                <table class="ledger-table">
-                    <thead>
-                        <tr>
-                            <th>Rango</th>
-                            <th>Civilización</th>
-                            <th>Puntuación</th>
-                            <th>Militar</th>
-                            <th>Oro</th>
-                            <th>Territorio</th>
-                            <th>Ciudades</th>
-                            <th>Población</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${rows}
-                    </tbody>
-                </table>
+            <div class="ledger-section">
+                <h3>Rankings - Situación Global</h3>
+                <div class="ledger-table-container">
+                    <table class="ledger-table">
+                        <thead>
+                            <tr>
+                                <th>Rango</th>
+                                <th>Civilización</th>
+                                <th>Puntuación</th>
+                                <th>Militar</th>
+                                <th>Oro</th>
+                                <th>Territorio</th>
+                                <th>Ciudades</th>
+                                <th>Población</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         `;
 
