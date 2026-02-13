@@ -1,0 +1,65 @@
+{
+  "version": "1.0",
+  "description": "Mapa generado REALMENTE desde generateIslandCluster (invasion mode). Jugador 1 (invasor) en isla PEQUEÑA (izquierda), Jugador 2 (defensor) en isla GRANDE (derecha).",
+  "rows": 10,
+  "cols": 10,
+  "board": [
+    ["water", "water", "water", "water", "water", "water", "water", "water", "water", "water"],
+    ["water", "water", "water", "water", "water", "water", "water", "water", "water", "water"],
+    ["water", "water", "water", "water", "water", "water", "plains", "water", "water", "water"],
+    ["water", "plains", "plains", "water", "water", "water", "plains", "plains", "water", "water"],
+    ["water", "water", "plains", "water", "water", "water", "plains", "plains", "plains", "plains"],
+    ["water", "plains", "plains", "plains", "water", "plains", "plains", "plains", "plains", "plains"],
+    ["water", "water", "plains", "plains", "water", "water", "plains", "plains", "plains", "plains"],
+    ["water", "water", "water", "water", "water", "water", "plains", "plains", "water", "water"],
+    ["water", "water", "water", "water", "water", "water", "water", "water", "water", "water"],
+    ["water", "water", "water", "water", "water", "water", "water", "water", "water", "water"]
+  ],
+  "positions": {
+    "yourCapital": {
+      "r": 3,
+      "c": 1,
+      "type": "plains",
+      "notes": "Base de Invasión (Jugador 1/Invasor) — isla PEQUEÑA izquierda (8 hexes)"
+    },
+    "enemyCapital": {
+      "r": 2,
+      "c": 6,
+      "type": "plains",
+      "notes": "Capital del Reino (Jugador 2/Defensor) — isla GRANDE derecha (18 hexes)"
+    },
+    "targetHex_Forest": {
+      "r": 4,
+      "c": 2,
+      "type": "forest",
+      "notes": "Hex objetivo para demo de restricción (Infantería Pesada no puede entrar)"
+    }
+  },
+  "territories": {
+    "player1_invasion": {
+      "description": "Isla PEQUEÑA (invasor/atacante) — izquierda, centro ~(5, 2)",
+      "hexes": [
+        {"r": 3, "c": 1}, {"r": 3, "c": 2},
+        {"r": 4, "c": 2},
+        {"r": 5, "c": 1}, {"r": 5, "c": 2}, {"r": 5, "c": 3},
+        {"r": 6, "c": 2}, {"r": 6, "c": 3}
+      ],
+      "size": 8,
+      "notes": "Zona de desembarco del invasor — radio limitado de control inicial"
+    },
+    "player2_defense": {
+      "description": "Isla GRANDE (defensor) — derecha, centro ~(5, 7)",
+      "size": 18,
+      "notes": "Territorio del defensor que debe proteger — reino distribuido en la isla grande"
+    }
+  },
+  "scenario": {
+    "name": "Archipelago Invasion Tutorial — Fixed Map",
+    "gameMode": "invasion",
+    "navalMap": true,
+    "resourceLevel": "medium",
+    "difficulty": "beginner",
+    "generated_from": "generateNavalArchipelagoMap(10, 10, 'medium', 'invasion')",
+    "generation_note": "Este mapa fue generado realmente usando la lógica de generateIslandCluster. Es fijo para reproducibilidad del tutorial."
+  }
+}
