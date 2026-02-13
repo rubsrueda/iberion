@@ -4,289 +4,296 @@ console.log("tutorialScripts.js CARGADO - v11 (tutorial narrativo 10 min)");
 
 const TUTORIAL_SCRIPTS = {
     completo: [
+        // Tutorial compacto y funcional: reclutar, dividir para atravesar bosque, mover, combatir y finalizar.
         {
             id: 'TUT_00_BRIEFING',
-            message: "Bienvenido, General. Este turno guia recorre 15 puntos clave del mando.",
-            duration: 2500,
+            message: "Bienvenido, General. Este tutorial rápido te enseñará reclutar, dividir, moverte por bosque y combatir.",
+            duration: 2200,
             onStepStart: () => {
                 gameState.currentPhase = "play";
                 gameState.currentPlayer = 1;
                 gameState.myPlayerNumber = 1;
 
-                addCityToBoardData(1, 1, 1, "Tu Capital", true);
-                renderSingleHexVisuals(1, 1);
+                // Asegurar estructura mínima del tutorial y flags
+                gameState.tutorial = gameState.tutorial || {};
+                gameState.tutorial.unit_split = false;
+                gameState.tutorial.attack_completed = false;
+                gameState.tutorial.turnEnded = false;
 
-                gameState.playerResources[1].oro += 800;
-                gameState.playerResources[1].piedra += 600;
-                gameState.playerResources[1].madera += 600;
-                gameState.playerResources[1].hierro += 300;
-                gameState.playerResources[1].comida += 300;
-                gameState.playerResources[1].researchPoints = 140;
+                // Ubicar dos capitales en casillas de tierra usando helper seguro
+                const rows = (board || []).length || 10;
+                const cols = (board && board[0]) ? board[0].length : 10;
+                const cap1 = typeof findDistributedLandPosition === 'function'
+                    ? findDistributedLandPosition({ minR: 1, maxR: Math.max(2, Math.floor(rows * 0.3)), minC: 1, maxC: Math.max(2, Math.floor(cols * 0.3)), maxAttempts: 500 })
+                    : { r: 1, c: 1 };
+                const cap2 = typeof findDistributedLandPosition === 'function'
+                    ? findDistributedLandPosition({ minR: Math.max(2, Math.floor(rows * 0.6)), maxR: Math.max(3, rows - 2), minC: Math.max(2, Math.floor(cols * 0.6)), maxC: Math.max(3, cols - 2), maxAttempts: 500 })
+                    : { r: Math.max(5, rows - 2), c: Math.max(5, cols - 3) };
 
-                if (UIManager) {
-                    UIManager.updateActionButtonsBasedOnPhase();
-                    UIManager.updateAllUIDisplays();
+                addCityToBoardData(cap1.r, cap1.c, 1, "Tu Capital", true);
+                renderSingleHexVisuals(cap1.r, cap1.c);
+                addCityToBoardData(cap2.r, cap2.c, 2, "Capital Enemiga", true);
+                renderSingleHexVisuals(cap2.r, cap2.c);
+
+                // Dar recursos útiles
+                const res = gameState.playerResources[1];
+                if (res) {
+                    res.oro = (res.oro || 0) + 800;
+                    res.piedra = (res.piedra || 0) + 400;
+                    res.madera = (res.madera || 0) + 400;
+                    res.hierro = (res.hierro || 0) + 200;
+                    res.comida = (res.comida || 0) + 200;
                 }
+
+                // Crear una unidad de demostración en la capital del jugador 1
+                if (typeof AiGameplayManager !== 'undefined' && AiGameplayManager.createUnitObject) {
+                    const demo = AiGameplayManager.createUnitObject({
+                        name: 'División Demo',
+                        regiments: [
+                            { ...(REGIMENT_TYPES && REGIMENT_TYPES['Infantería Pesada'] ? REGIMENT_TYPES['Infantería Pesada'] : {}), type: 'Infantería Pesada', health: 100 },
+                            { ...(REGIMENT_TYPES && REGIMENT_TYPES['Infantería Ligera'] ? REGIMENT_TYPES['Infantería Ligera'] : {}), type: 'Infantería Ligera', health: 100 }
+                        ]
+                    }, 1, { r: cap1.r, c: cap1.c });
+                    if (demo && typeof placeFinalizedDivision === 'function') placeFinalizedDivision(demo, cap1.r, cap1.c);
+                }
+
+                // Elegir un hex objetivo cercano para demostrar bosque + bloqueo de Infantería Pesada
+                let target = null;
+                const neigh = [ [0,1],[1,0],[0,-1],[-1,0],[1,-1],[-1,1] ];
+                for (const d of neigh) {
+                    const rr = cap1.r + d[0];
+                    const cc = cap1.c + d[1];
+                    if (board[rr] && board[rr][cc] && board[rr][cc].terrain !== 'water') { target = { r: rr, c: cc }; break; }
+                }
+                if (!target) target = { r: Math.min(rows-1, cap1.r+1), c: Math.min(cols-1, cap1.c) };
+                // Forzar que el objetivo sea bosque para la demostración
+                if (board[target.r] && board[target.r][target.c]) {
+                    board[target.r][target.c].terrain = 'forest';
+                    renderSingleHexVisuals(target.r, target.c);
+                }
+
+                // Guardar coords para pasos siguientes
+                gameState.tutorial.positions = { capital: cap1, enemyCapital: cap2, targetHex: target };
+
+                if (UIManager) UIManager.updateAllUIDisplays();
             },
-            highlightHexCoords: [{ r: 1, c: 1 }]
+            highlightHexCoords: []
         },
         {
             id: 'TUT_01_RECRUIT',
-            message: "1) Reclutar unidades: selecciona tu capital, crea una división y colócala en (2,2). Intenta moverla: no podrás porque la división se creó con un regimiento de Infantería Pesada que no puede atravesar bosque. Divide la división (✂️) para quitar ese regimiento y poder moverte a través del bosque.",
-            highlightElementId: 'floatingCreateDivisionBtn',
-            highlightHexCoords: [{ r: 2, c: 2 }],
-            // También resaltamos el botón de dividir en la UI para guiar al usuario
-            highlightSplitBtn: 'floatingSplitBtn',
+            message: "1) Tu división contiene Infantería Pesada y no puede atravesar bosque. Intenta moverla al hex objetivo marcado. Si no puedes, usa 'Dividir' (✂️) para separar al pesado y poder mover la unidad ligera.",
+            highlightElementId: 'floatingSplitBtn',
             onStepStart: () => {
-                const capitalHex = board[1][1];
-                if (capitalHex) UIManager.showHexContextualInfo(1, 1, capitalHex);
-
-                // Preparar el escenario: marcar el hex destino como bosque
-                if (board[2]?.[2]) {
-                    board[2][2].terrain = board[2][2].terrain || 'Bosque';
-                    renderSingleHexVisuals(2, 2);
-                }
-
-                // Reiniciar flag de división para esta etapa del tutorial
-                gameState.tutorial = gameState.tutorial || {};
+                // Mostrar objetivo y preparar flags
+                const pos = gameState.tutorial.positions;
+                if (pos && pos.targetHex) renderSingleHexVisuals(pos.targetHex.r, pos.targetHex.c);
                 gameState.tutorial.unit_split = false;
-
-                // Si ya existe una unidad en (2,2) la convertimos en una unidad con
-                // Infantería Pesada para representar la restricción de movimiento.
-                const placedUnit = units.find(u => u.player === 1 && u.r === 2 && u.c === 2);
-                if (placedUnit) {
-                    if (typeof REGIMENT_TYPES !== 'undefined' && REGIMENT_TYPES["Infantería Pesada"]) {
-                        placedUnit.regiments = [{ ...REGIMENT_TYPES["Infantería Pesada"], type: 'Infantería Pesada', health: 100 }];
-                        recalculateUnitHealth && recalculateUnitHealth(placedUnit);
-                    }
-                }
                 if (UIManager) UIManager.updateAllUIDisplays();
             },
+            actionCondition: () => (gameState.tutorial || {}).unit_split === true
+        },
+        {
+            id: 'TUT_02_MOVE',
+            message: "2) Mueve la división ligera resultante al hex marcado. Debería poder atravesar el bosque tras dividir.",
+            highlightHexCoords: [],
+            onStepStart: () => {
+                resetUnitsForNewTurn && resetUnitsForNewTurn(1);
+            },
             actionCondition: () => {
-                // Requerimos que la unidad exista en (2,2) y que el jugador haya dividido la unidad
-                return units.some(u => u.player === 1 && u.r === 2 && u.c === 2) && (gameState.tutorial || {}).unit_split === true;
+                const pos = gameState.tutorial.positions; if (!pos) return false;
+                return units.some(u => u.player === 1 && u.r === pos.targetHex.r && u.c === pos.targetHex.c);
             }
         },
         {
-            id: 'TUT_02_SELECT_READ',
-            message: "2) Seleccion y lectura del tablero: toca cualquier hex para leer terreno y rangos.",
-            onStepStart: () => { gameState.tutorial.map_clicked = false; },
-            actionCondition: () => gameState.tutorial.map_clicked === true
-        },
-        {
-            id: 'TUT_03_MOVE',
-            message: "3) Movimiento: mueve tu division a la mina de oro (2,1).",
-            highlightHexCoords: [{ r: 2, c: 1 }],
+            id: 'TUT_03_COMBAT',
+            message: "3) Combate: derrota al explorador enemigo que aparecerá junto al objetivo.",
             onStepStart: () => {
-                resetUnitsForNewTurn(1);
-                const playerUnit = units.find(u => u.player === 1);
-                if (playerUnit) {
-                    playerUnit.hasMoved = false;
-                    playerUnit.hasAttacked = false;
-                    playerUnit.currentMovement = playerUnit.movement;
+                const pos = gameState.tutorial.positions; if (!pos) return;
+                const spawn = { r: Math.min((board.length-1), pos.targetHex.r+1), c: pos.targetHex.c };
+                if (AiGameplayManager && AiGameplayManager.createUnitObject) {
+                    const enemy = AiGameplayManager.createUnitObject({ name: 'Explorador Hostil', regiments: [{ ...(REGIMENT_TYPES && REGIMENT_TYPES['Infantería Ligera'] ? REGIMENT_TYPES['Infantería Ligera'] : {}), type: 'Infantería Ligera', health: 100 }] }, 2, { r: spawn.r, c: spawn.c });
+                    if (enemy && typeof placeFinalizedDivision === 'function') placeFinalizedDivision(enemy, spawn.r, spawn.c);
                 }
-                if (UIManager) UIManager.updateAllUIDisplays();
-            },
-            actionCondition: () => units.some(u => u.player === 1 && u.r === 2 && u.c === 1)
-        },
-        {
-            id: 'TUT_04_COMBAT',
-            message: "4) Combate: derrota al explorador enemigo que aparece al sur.",
-            highlightHexCoords: [{ r: 3, c: 1 }],
-            onStepStart: () => {
-                const enemy = AiGameplayManager.createUnitObject({
-                    name: "Explorador Hostil",
-                    regiments: [{ ...REGIMENT_TYPES["Infantería Ligera"], type: 'Infantería Ligera', health: 100 }]
-                }, 2, { r: 3, c: 1 });
-                placeFinalizedDivision(enemy, 3, 1);
-                const playerUnit = units.find(u => u.player === 1);
-                if (playerUnit) { playerUnit.hasAttacked = false; }
                 gameState.tutorial.attack_completed = false;
                 if (UIManager) UIManager.updateAllUIDisplays();
             },
-            actionCondition: () => gameState.tutorial.attack_completed
+            actionCondition: () => (gameState.tutorial || {}).attack_completed === true
         },
         {
-            id: 'TUT_05_SPLIT_MERGE',
-            message: "5) Dividir y unir: divide la unidad (✂️) y coloca la nueva division en (3,2).",
-            highlightElementId: 'floatingSplitBtn',
-            highlightHexCoords: [{ r: 3, c: 2 }],
-            onStepStart: () => {
-                const playerUnit = units.find(u => u.player === 1);
-                if (playerUnit) { selectUnit(playerUnit); }
-                gameState.tutorial.unit_split = false;
-            },
-            actionCondition: () => gameState.tutorial.unit_split
-        },
-        {
-            id: 'TUT_06_REINFORCE',
-            message: "6) Reforzar y consolidar: lleva una unidad danada junto a la capital (1,2) y reforzala.",
-            highlightHexCoords: [{ r: 1, c: 2 }],
-            highlightElementId: 'floatingReinforceBtn',
-            onStepStart: () => {
-                const unit = units.find(u => u.player === 1);
-                if (unit) {
-                    unit.regiments.forEach(reg => { reg.health = Math.max(20, Math.floor(reg.health * 0.5)); });
-                    recalculateUnitHealth(unit);
-                }
-                resetUnitsForNewTurn(1);
-                gameState.tutorial.unitReinforced = false;
-                if (UIManager) UIManager.updateAllUIDisplays();
-            },
-            actionCondition: () => gameState.tutorial.unitReinforced
-        },
-        {
-            id: 'TUT_07_STRUCTURES',
-            message: "7) Construccion: con ENGINEERING construye un Camino en (1,3). Fortaleza mejora caminos con FORTIFICATIONS; ciudades requieren Colono.",
-            highlightHexCoords: [{ r: 1, c: 3 }],
-            onStepStart: () => {
-                const techs = gameState.playerResources[1].researchedTechnologies;
-                if (!techs.includes('ENGINEERING')) techs.push('ENGINEERING');
-                if (board[1]?.[3]) {
-                    board[1][3].owner = 1;
-                    board[1][3].structure = null;
-                    renderSingleHexVisuals(1, 3);
-                }
-                gameState.playerResources[1].piedra += 200;
-                gameState.playerResources[1].madera += 200;
-                if (UIManager) UIManager.updateAllUIDisplays();
-            },
-            actionCondition: () => board[1][3]?.structure === 'Camino'
-        },
-        {
-            id: 'TUT_08_TRADE_ROUTE',
-            message: "8) Comercio y rutas: crea una ruta comercial con la Columna de Suministro.",
-            highlightElementId: 'floatingTradeBtn',
-            onStepStart: () => {
-                addCityToBoardData(1, 4, 1, null, false);
-                board[1][2].structure = 'Camino';
-                renderSingleHexVisuals(1, 2);
-
-                const supply = AiGameplayManager.createUnitObject({
-                    name: "Columna de Suministro",
-                    regiments: [{ ...REGIMENT_TYPES["Columna de Suministro"], type: 'Columna de Suministro' }]
-                }, 1, { r: 1, c: 1 });
-                placeFinalizedDivision(supply, 1, 1);
-                supply.hasMoved = false;
-                supply.hasAttacked = false;
-                selectUnit(supply);
-                if (UIManager) UIManager.updateAllUIDisplays();
-            },
-            actionCondition: () => units.some(u => u.player === 1 && u.tradeRoute)
-        },
-        {
-            id: 'TUT_09_EXPLORE_PILLAGE',
-            message: "9) Exploracion y saqueo: las ruinas dan botin y saquear debilita economias enemigas.",
-            duration: 3200
-        },
-        {
-            id: 'TUT_10_RAZE_DISBAND',
-            message: "10) Arrasar y disolver: destruir infraestructura corta rutas; disolver recupera parte del coste.",
-            duration: 3200
-        },
-        {
-            id: 'TUT_11_ASSIGN_COMMANDER',
-            message: "11) Asignar comandante: en puntos de reclutamiento y con liderazgo investigado.",
-            duration: 3200
-        },
-        {
-            id: 'TUT_12_END_TURN',
-            message: "12) Fin de turno: pulsa ► para cerrar acciones y preparar el siguiente turno.",
+            id: 'TUT_04_END',
+            message: "4) Fin de turno: pulsa ► para finalizar el turno y completar el tutorial.",
             highlightElementId: 'floatingEndTurnBtn',
             onStepStart: () => { gameState.tutorial.turnEnded = false; },
             actionCondition: () => gameState.tutorial.turnEnded === true
-        },
-        {
-            id: 'TUT_13_CHAIN',
-            message: "13) Cadena tactica: suministro, movimiento, combate, control, construccion, reclutamiento, plan.",
-            duration: 3500
-        },
-        {
-            id: 'TUT_14_ERRORS',
-            message: "14) Errores comunes: mover sin suministro, atacar mal posicionado, expandir sin rutas.",
-            duration: 3500
-        },
-        {
-            id: 'TUT_15_TACTIC_STRATEGY',
-            message: "15) Lo tactico y lo estrategico: posicion gana batallas, infraestructura gana guerras. Pulsa la bandera para finalizar.",
-            onStepStart: () => {
-                if (UIManager) {
-                    UIManager.showRewardToast("¡TUTORIAL COMPLETADO!", "🏆");
-                    UIManager.setEndTurnButtonToFinalizeTutorial();
-                }
-            },
-            actionCondition: () => false
         }
     ],
 
     archipelagoInvasor: [
         {
-            id: 'ARCHI_TUT_00_INTRO',
-            message: "¡Bienvenido, Invasor! Eres el Jugador 2. Tu objetivo: invadir la isla del enemigo paso a paso, como lo haría la IA.",
-            duration: 3000,
+            id: 'ARCHI_TUT_00_MAPA_FIJO',
+            message: "Paso 1: Cargando mapa fijo del archipiélago...",
+            duration: 2000,
             onStepStart: () => {
+                console.log("=== PASO 1: SETUP INICIAL - CARGANDO MAPA FIJO ===");
                 gameState.currentPhase = "play";
-                gameState.currentPlayer = 2;
-                gameState.myPlayerNumber = 2;
+                gameState.currentPlayer = 1;
+                gameState.myPlayerNumber = 1;
                 gameState.setupTempSettings = gameState.setupTempSettings || {};
                 gameState.setupTempSettings.navalMap = true;
 
-                addCityToBoardData(5, 5, 1, "Capital Enemiga", true);
-                addCityToBoardData(2, 2, 2, "Tu Capital Invasora", true);
-
-                gameState.playerResources[2].oro = 1500;
-                gameState.playerResources[2].piedra = 800;
-                gameState.playerResources[2].madera = 800;
-                gameState.playerResources[2].hierro = 500;
-                gameState.playerResources[2].comida = 500;
-                gameState.playerResources[2].researchPoints = 200;
-
-                const techs = gameState.playerResources[2].researchedTechnologies || [];
-                ['ENGINEERING', 'FORTIFICATIONS', 'NAVIGATION', 'LEADERSHIP', 'DRILL_TACTICS'].forEach(t => {
-                    if (!techs.includes(t)) techs.push(t);
-                });
-                gameState.playerResources[2].researchedTechnologies = techs;
-
-                if (UIManager) {
-                    UIManager.updateActionButtonsBasedOnPhase();
-                    UIManager.updateAllUIDisplays();
-                }
+                // Cargar mapa desde JSON
+                const loadMapFromJSON = async () => {
+                    try {
+                        const response = await fetch('./data/tutorial_map.json');
+                        const mapData = await response.json();
+                        
+                        console.log("✓ Mapa JSON cargado:", mapData);
+                        
+                        // 1. APLICAR TERRENOS DESDE JSON
+                        const B_ROWS = mapData.rows || 10;
+                        const B_COLS = mapData.cols || 10;
+                        
+                        // Asegurar que el board tiene las dimensiones correctas
+                        if (!board || board.length !== B_ROWS) {
+                            console.warn("⚠️ Reinicializando board a", B_ROWS, "x", B_COLS);
+                            for (let r = 0; r < B_ROWS; r++) {
+                                if (!board[r]) board[r] = [];
+                                for (let c = 0; c < B_COLS; c++) {
+                                    if (!board[r][c]) board[r][c] = {};
+                                }
+                            }
+                        }
+                        
+                        // Aplicar terrenos
+                        for (let r = 0; r < B_ROWS; r++) {
+                            for (let c = 0; c < B_COLS; c++) {
+                                if (board[r]?.[c] && mapData.board[r]?.[c]) {
+                                    board[r][c].terrain = mapData.board[r][c];
+                                }
+                            }
+                        }
+                        console.log("✓ Terrenos aplicados");
+                        
+                        // 2. CREAR CAPITALES EN COORDENADAS FIJAS
+                        const cap1 = mapData.positions.yourCapital;  // (3, 1)
+                        const cap2 = mapData.positions.enemyCapital;  // (2, 6)
+                        
+                        // Validar que son tierra, no agua
+                        if (board[cap1.r]?.[cap1.c]?.terrain === 'water') {
+                            console.error("❌ ERROR: Capital invasor en agua!", cap1);
+                            return false;
+                        }
+                        if (board[cap2.r]?.[cap2.c]?.terrain === 'water') {
+                            console.error("❌ ERROR: Capital defensor en agua!", cap2);
+                            return false;
+                        }
+                        
+                        // Crear ciudades
+                        addCityToBoardData(cap1.r, cap1.c, 1, "Base de Invasión", true);
+                        renderSingleHexVisuals(cap1.r, cap1.c);
+                        
+                        addCityToBoardData(cap2.r, cap2.c, 2, "Capital del Reino", true);
+                        renderSingleHexVisuals(cap2.r, cap2.c);
+                        
+                        console.log("✓ Capital invasor en", cap1, "— isla pequeña LEFT");
+                        console.log("✓ Capital defensor en", cap2, "— isla grande RIGHT");
+                        
+                        // 3. GUARDAR POSICIONES EN ESTADO
+                        gameState.tutorial = gameState.tutorial || {};
+                        gameState.tutorial.positions = {
+                            yourCapital: cap1,
+                            enemyCapital: cap2,
+                            targetHex_Forest: mapData.positions.targetHex_Forest
+                        };
+                        gameState.tutorial.step1_complete = true;
+                        
+                        // 4. INICIALIZAR RECURSOS
+                        gameState.playerResources[1] = gameState.playerResources[1] || {};
+                        const res1 = gameState.playerResources[1];
+                        res1.oro = 800;
+                        res1.piedra = 400;
+                        res1.madera = 400;
+                        res1.hierro = 200;
+                        res1.comida = 200;
+                        
+                        gameState.playerResources[2] = gameState.playerResources[2] || {};
+                        const res2 = gameState.playerResources[2];
+                        res2.oro = 1200;
+                        res2.piedra = 600;
+                        res2.madera = 600;
+                        res2.hierro = 400;
+                        res2.comida = 400;
+                        
+                        console.log("✓ Recursos inicializados");
+                        console.log("=== PASO 1 COMPLETADO ===");
+                        
+                        if (UIManager) {
+                            UIManager.updateAllUIDisplays();
+                            UIManager.updateActionButtonsBasedOnPhase();
+                        }
+                        
+                        return true;
+                    } catch (error) {
+                        console.error("❌ Error cargando mapa JSON:", error);
+                        return false;
+                    }
+                };
+                
+                // Ejecutar carga
+                loadMapFromJSON();
             },
-            highlightHexCoords: [{ r: 2, c: 2 }]
+            highlightHexCoords: []
         },
         {
-            id: 'ARCHI_TUT_00B_BASIC_MOVEMENT',
-            message: "FASE 0B - MOVIMIENTO BÁSICO: Selecciona tu unidad en (2,2) y muévela a una casilla adyacente. Las unidades se mueven en hexágonos conectados, consumen movimiento y necesitan suministro.",
-            highlightHexCoords: [{ r: 3, c: 2 }],
+            id: 'ARCHI_TUT_00B_INTRO',
+            message: "Bienvenido, Invasor. Tu objetivo: conquistar la isla del enemigo paso a paso. Eres el Jugador 1 (invasor), controlando la isla PEQUEÑA a la izquierda. El Jugador 2 (defensor) controla la isla GRANDE a la derecha.",
+            duration: 3500,
             onStepStart: () => {
-                const unit = units.find(u => u.player === 2 && u.r === 2 && u.c === 2);
+                console.log("Paso 1B: Briefing completado");
+                const pos = (gameState.tutorial && gameState.tutorial.positions) || {};
+                console.log("Posiciones cargadas:", pos);
+                if (pos.yourCapital) renderSingleHexVisuals(pos.yourCapital.r, pos.yourCapital.c);
+                if (pos.enemyCapital) renderSingleHexVisuals(pos.enemyCapital.r, pos.enemyCapital.c);
+                if (UIManager) UIManager.updateAllUIDisplays();
+            },
+            highlightHexCoords: []
+        },
+        {
+            id: 'ARCHI_TUT_00C_BASIC_MOVEMENT',
+            message: "Fase 0C: Movimiento Básico. Selecciona una unidad en tu capital invasora (la isla pequeña a la izquierda) y muévela a una casilla adyacente.",
+            highlightHexCoords: [],
+            onStepStart: () => {
+                const pos = (gameState.tutorial && gameState.tutorial.positions) || {};
+                const cap = pos.yourCapital || { r: 3, c: 1 };
+                const unit = units && units.find(u => u.player === 1 && u.r === cap.r && u.c === cap.c);
                 if (unit) {
                     unit.hasMoved = false;
                     unit.currentMovement = unit.movement;
-                    selectUnit(unit);
+                    selectUnit && selectUnit(unit);
                 }
                 gameState.tutorial = gameState.tutorial || {};
                 gameState.tutorial.unit_moved = false;
                 if (UIManager) UIManager.updateAllUIDisplays();
             },
             actionCondition: () => {
-                const moved = units.find(u => u.player === 2 && u.hasMoved);
+                const moved = units && units.find(u => u.player === 1 && u.hasMoved);
                 return moved && (gameState.tutorial || {}).unit_moved === true;
             }
         },
         {
-            id: 'ARCHI_TUT_00C_CITIES',
-            message: "FASE 0C - CIUDADES: Son puntos de control estratégicos. Generan ingresos (oro/comida), permiten refuerzos, reclutamiento y caravanas. Tu capital está en (2,2). El enemigo controla (5,5).",
+            id: 'ARCHI_TUT_00D_CITIES',
+            message: "Fase 0D: Ciudades. Son puntos de control estratégicos. Generan ingresos (oro/comida), permiten reclutamiento y refuerzos. Tu capital está en (3,1) — isla pequeña. El enemigo controla (2,6) — isla grande.",
             duration: 3500,
             onStepStart: () => {
                 // Resaltar ambas capitales
-                renderSingleHexVisuals(2, 2);
-                renderSingleHexVisuals(5, 5);
+                const pos = (gameState.tutorial && gameState.tutorial.positions) || {};
+                if (pos.yourCapital) renderSingleHexVisuals(pos.yourCapital.r, pos.yourCapital.c);
+                if (pos.enemyCapital) renderSingleHexVisuals(pos.enemyCapital.r, pos.enemyCapital.c);
             }
         },
         {
-            id: 'ARCHI_TUT_00D_ECONOMY',
-            message: "FASE 0D - IMPUESTOS & ECONOMÍA: Cada ciudad genera oro/comida cada turno (impuestos territoriales). Puedes ver tus recursos arriba. Caravanas dan ingresos extra. Sin economía, no puedes producir/construir.",
+            id: 'ARCHI_TUT_00E_ECONOMY',
+            message: "Fase 0E: Impuestos & Economía. Cada ciudad genera oro/comida cada turno. Ves tus recursos arriba. Sin economía, no puedes producir/construir.",
             duration: 3500,
             onStepStart: () => {
                 // Mostrar panel de recursos
@@ -295,17 +302,19 @@ const TUTORIAL_SCRIPTS = {
         },
         {
             id: 'ARCHI_TUT_00E_TERRITORY_CONTROL',
-            message: "FASE 0E - CONTROL DE TERRENO: Los hexágonos te pertenecen si tienes una ciudad, estructura o unidad allí. El terreno enemigo sombreado en rojo = prohibido. Tu terreno está protegido: solo tú puedes construir/ocupar. Controla más = más ingresos.",
+            message: "Fase 0E: Control de Terreno. Los hexágonos que controlas están marcados si tienes una ciudad, estructura o unidad allí. Tu terreno es defendido (isla pequeña izquierda). Terreno enemigo es rojo/bloqueado. Controla más = más ingresos.",
             duration: 4000,
             onStepStart: () => {
-                // Marcar algunos hexágonos como propios
+                // Marcar hexágonos alrededor de la capital invasora como propios
+                const pos = (gameState.tutorial && gameState.tutorial.positions) || {};
+                const cap = pos.yourCapital || { r: 3, c: 1 };
                 const ownHexes = [
-                    { r: 2, c: 1 }, { r: 2, c: 3 },
-                    { r: 1, c: 2 }, { r: 3, c: 2 }
+                    { r: cap.r-1, c: cap.c }, { r: cap.r+1, c: cap.c },
+                    { r: cap.r, c: cap.c-1 }, { r: cap.r, c: cap.c+1 }
                 ];
                 ownHexes.forEach(hex => {
-                    if (board[hex.r]?.[hex.c]) {
-                        board[hex.r][hex.c].owner = 2;
+                    if (board[hex.r]?.[hex.c] && board[hex.r][hex.c].terrain !== 'water') {
+                        board[hex.r][hex.c].owner = 1;
                         renderSingleHexVisuals(hex.r, hex.c);
                     }
                 });
@@ -314,21 +323,17 @@ const TUTORIAL_SCRIPTS = {
         },
         {
             id: 'ARCHI_TUT_00F_SUPPLY',
-            message: "FASE 0F - SUMINISTRO & REFUERZOS: Las unidades necesitan suministro para moverse, atacar y reforzarse. Suministro viene de: (1) ciudades/fortalezas propias, (2) caminos/infraestructura conectados. Sin suministro = unidad bloqueada.",
+            message: "Fase 0F: Suministro & Refuerzos. Las unidades necesitan suministro para moverse, atacar y reforzarse. Suministro viene de: (1) ciudades/fortalezas propias, (2) caminos/infraestructura conectados.",
             duration: 4000,
             onStepStart: () => {
-                // Crear un hexágono sin suministro para demostrar
-                if (board[4]?.[4]) {
-                    board[4][4].owner = null; // Sin dueño = sin suministro
-                    renderSingleHexVisuals(4, 4);
+                // Crear un camino de demo
+                const pos = (gameState.tutorial && gameState.tutorial.positions) || {};
+                const cap = pos.yourCapital || { r: 3, c: 1 };
+                if (board[cap.r + 1]?.[cap.c + 1]) {
+                    board[cap.r + 1][cap.c + 1].structure = 'Camino';
+                    board[cap.r + 1][cap.c + 1].owner = 1;
+                    renderSingleHexVisuals(cap.r + 1, cap.c + 1);
                 }
-                // Crear un camino para mostrar conexión
-                if (board[2]?.[3]) {
-                    board[2][3].structure = 'Camino';
-                    board[2][3].owner = 2;
-                    renderSingleHexVisuals(2, 3);
-                }
-                gameState.playerResources[2].madera += 100;
                 if (UIManager) UIManager.updateAllUIDisplays();
             }
         },
@@ -355,7 +360,9 @@ const TUTORIAL_SCRIPTS = {
             id: 'ARCHI_TUT_02_STRATEGIC_SPLIT',
             message: "FASE 2 - DIVISIÓN ESTRATÉGICA: Para ocupar más territorio, divide tu unidad grande. La IA expande presencia constantemente.",
             onStepStart: () => {
-                const unit = units.find(u => u.player === 2 && u.r === 2 && u.c === 2);
+                const pos = (gameState.tutorial && gameState.tutorial.positions) || {};
+                const cap = pos.yourCapital || { r: 2, c: 2 };
+                const unit = units.find(u => u.player === 2 && u.r === cap.r && u.c === cap.c);
                 if (unit && (unit.regiments?.length || 0) <= 5) {
                     const comp = ['Infantería Pesada', 'Infantería Pesada', 'Arqueros', 'Caballería Ligera', 'Infantería Pesada'];
                     for (let i = 0; i < 2; i++) {
@@ -407,11 +414,13 @@ const TUTORIAL_SCRIPTS = {
             onStepStart: () => {
                 let supply = units.find(u => u.player === 2 && u.regiments?.some(r => r.type === 'Columna de Suministro'));
                 if (!supply && AiGameplayManager?.createUnitObject) {
+                    const pos = (gameState.tutorial && gameState.tutorial.positions) || {};
+                    const cap = pos.yourCapital || { r: 2, c: 2 };
                     supply = AiGameplayManager.createUnitObject({
                         name: "Columna de Comercio",
                         regiments: [{ ...REGIMENT_TYPES["Columna de Suministro"], type: 'Columna de Suministro' }]
-                    }, 2, { r: 2, c: 2 });
-                    placeFinalizedDivision(supply, 2, 2);
+                    }, 2, { r: cap.r, c: cap.c });
+                    placeFinalizedDivision(supply, cap.r, cap.c);
                 }
                 gameState.tutorial = gameState.tutorial || {};
                 gameState.tutorial.trade_route_created = false;
