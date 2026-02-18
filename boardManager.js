@@ -220,17 +220,39 @@ function generateProceduralMap(B_ROWS, B_COLS, resourceLevel, isNavalMap = false
         ensurePathBetweenPoints({r: capitalP1.r, c: capitalP1.c}, {r: capitalP2.r, c: capitalP2.c}, 1);
     }
 
-    // --- INICIO COLOCAR LA BANCA ---
-    const bankCityR = Math.floor(B_ROWS / 2);
-    let bankCityC = Math.floor(B_COLS / 2);
+    // =========================================================================
+    // --- NUEVO: COLOCAR LA BANCA EN EL PUNTO MEDIO ENTRE JUGADORES ---
+    // =========================================================================
     
-    // Si cae en agua, desplazar
-    while(board[bankCityR]?.[bankCityC]?.terrain === 'water') {
+    // 1. Localizar las capitales de los dos jugadores para hallar el centro real de la partida
+    const cap1 = gameState.cities.find(c => c.isCapital && c.owner === 1);
+    const cap2 = gameState.cities.find(c => c.isCapital && c.owner === 2);
+
+    let bankCityR, bankCityC;
+
+    if (cap1 && cap2) {
+        // Calculamos el promedio de las coordenadas
+        bankCityR = Math.floor((cap1.r + cap2.r) / 2);
+        bankCityC = Math.floor((cap1.c + cap2.c) / 2);
+        console.log(`[MapGen] La Banca calculada en el punto medio estratégico: (${bankCityR}, ${bankCityC})`);
+    } else {
+        // Fallback por seguridad: centro geográfico del tablero
+        bankCityR = Math.floor(B_ROWS / 2);
+        bankCityC = Math.floor(B_COLS / 2);
+    }
+    
+    // 2. Si la posición calculada es agua, la desplazamos a la casilla más cercana
+    let safetyCounterPos = 0;
+    while(board[bankCityR]?.[bankCityC]?.terrain === 'water' && safetyCounterPos < 10) {
         bankCityC++; 
-        if (bankCityC >= B_COLS) { bankCityC = Math.floor(B_COLS / 2) - 1; }
+        if (bankCityC >= B_COLS) { 
+            bankCityC = Math.floor(B_COLS / 2); 
+            bankCityR++; 
+        }
+        safetyCounterPos++;
     }
 
-    // Definir la ciudad
+    // 3. Fundar la ciudad
     const bankCityName = "La Banca";
     addCityToBoardData(bankCityR, bankCityC, BankManager.PLAYER_ID, bankCityName, true);
     const bankHex = board[bankCityR]?.[bankCityC];
@@ -241,22 +263,18 @@ function generateProceduralMap(B_ROWS, B_COLS, resourceLevel, isNavalMap = false
     logMessage(`¡La ciudad neutral de ${bankCityName} ha sido fundada en (${bankCityR}, ${bankCityC})!`);
 
     // =========================================================================
-    // === "EXCAVADORA" DE ACCESO A LA BANCA (Solución Definitiva) ===
+    // === "EXCAVADORA" DE ACCESO A LA BANCA (Adaptada a la nueva posición) ===
     // =========================================================================
     
-    // 1. Buscar la tierra firme (Llanura/Colina) más cercana que NO esté pegada a la banca.
-    // Esto asegura que salimos de cualquier "anillo" de bloqueo inmediato.
     let targetLand = null;
     let minDistance = Infinity;
 
+    // Buscamos el punto de tierra firme más cercano para conectar la banca
     for (let r = 0; r < B_ROWS; r++) {
         for (let c = 0; c < B_COLS; c++) {
             const hex = board[r]?.[c];
-            // Buscamos terreno transitable que no sea la propia ciudad
             if (hex && (hex.terrain === 'plains' || hex.terrain === 'hills') && !hex.isCity) {
                 const dist = hexDistance(bankCityR, bankCityC, r, c);
-                // Buscamos el más cercano, pero que esté al menos a distancia 2 
-                // (para saltar un posible anillo de bloqueo adyacente)
                 if (dist >= 2 && dist < minDistance) {
                     minDistance = dist;
                     targetLand = { r, c };
@@ -265,24 +283,18 @@ function generateProceduralMap(B_ROWS, B_COLS, resourceLevel, isNavalMap = false
         }
     }
 
-    // 2. Si encontramos un destino, "excavamos" una línea recta hacia él.
     if (targetLand) {
         console.log(`[MapGen] Abriendo ruta comercial forzada hacia (${targetLand.r}, ${targetLand.c})`);
-        
         let crawlerR = bankCityR;
         let crawlerC = bankCityC;
-        let safetyCounter = 0;
+        let safetyCounterExc = 0;
 
-        // Bucle paso a paso desde la Banca hasta el Objetivo
-        while ((crawlerR !== targetLand.r || crawlerC !== targetLand.c) && safetyCounter < 50) {
-            safetyCounter++;
-            
-            // Obtener vecinos
+        while ((crawlerR !== targetLand.r || crawlerC !== targetLand.c) && safetyCounterExc < 50) {
+            safetyCounterExc++;
             const neighbors = getHexNeighbors(crawlerR, crawlerC);
             let bestNeighbor = null;
             let bestDist = Infinity;
 
-            // Elegir el vecino que nos acerca más al objetivo (ignorando terreno)
             for (const n of neighbors) {
                 const d = hexDistance(n.r, n.c, targetLand.r, targetLand.c);
                 if (d < bestDist) {
@@ -294,22 +306,15 @@ function generateProceduralMap(B_ROWS, B_COLS, resourceLevel, isNavalMap = false
             if (bestNeighbor) {
                 crawlerR = bestNeighbor.r;
                 crawlerC = bestNeighbor.c;
-
-                // --- TERRAFORMACIÓN ---
                 const hexToClear = board[crawlerR]?.[crawlerC];
                 if (hexToClear && !hexToClear.isCity) {
-                    // Convertimos cualquier cosa (Agua, Bosque, etc.) en Llanura
                     hexToClear.terrain = 'plains';
-                    hexToClear.resourceNode = null; // Quitamos recursos que estorben
-                    hexToClear.structure = null;    // Quitamos estructuras
+                    hexToClear.resourceNode = null; 
+                    hexToClear.structure = null;    
                 }
-            } else {
-                break; // No debería ocurrir
-            }
+            } else { break; }
         }
     } else {
-        // Fallback extremo: Si todo el mapa es agua/bosque, limpiar un radio de 2 alrededor.
-        console.log("[MapGen] Fallback: Limpiando área perimetral.");
         const neighbors = getHexNeighbors(bankCityR, bankCityC);
         for (const n of neighbors) {
             if(board[n.r]?.[n.c]) board[n.r][n.c].terrain = 'plains';
