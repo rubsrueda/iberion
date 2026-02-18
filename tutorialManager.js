@@ -17,8 +17,8 @@ const TutorialManager = {
             console.log('[TutorialManager] Seleccionando tutorial: Archipiélago Invasor');
             return TUTORIAL_SCRIPTS.archipelagoInvasor;
         }
-        console.log('[TutorialManager] Seleccionando tutorial: Completo (por defecto)');
-        return TUTORIAL_SCRIPTS.completo;
+            console.error('[TutorialManager] Modo de juego no soportado para tutorial.');
+            return null; // No tutorial available for other game modes
     },
 
     start: function(steps) {

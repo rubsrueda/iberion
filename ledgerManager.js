@@ -4,7 +4,6 @@
  * Proporciona métodos para obtener datos y actualizar vistas
  */
 
-console.log('%c🔥🔥🔥 LEDGER MANAGER CARGADO 🔥🔥🔥', 'background: red; color: yellow; font-size: 20px; padding: 10px;');
 console.log('[ledgerManager.js] Archivo cargado en:', new Date().toISOString());
 
 const LedgerManager = {

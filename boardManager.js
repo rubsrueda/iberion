@@ -1,3 +1,60 @@
+/**
+ * Verifica que el mapa y recursos cumplen los requisitos del tutorial Archipelago Invasor.
+ * Devuelve true si todo es correcto, false si hay errores.
+ */
+function verifyTutorialMapAndResources() {
+    let errors = [];
+    // 1. Solo una capital por jugador
+    const capitals = gameState.cities.filter(c => c.isCapital);
+    const player1Capitals = capitals.filter(c => c.owner === 1);
+    const player2Capitals = capitals.filter(c => c.owner === 2);
+    if (player1Capitals.length !== 1) errors.push('Debe haber UNA capital para el Jugador 1.');
+    if (player2Capitals.length !== 1) errors.push('Debe haber UNA capital para el Jugador 2.');
+
+    // 2. Existen ciudades bárbaras
+    const barbarianCities = gameState.cities.filter(c => c.owner === null || c.owner === 9);
+    if (barbarianCities.length === 0) errors.push('Debe haber al menos una ciudad bárbara.');
+
+    // 3. Camino no bloqueado entre capital y banca
+    const bankCity = gameState.cities.find(c => c.name && c.name.toLowerCase().includes('banca'));
+    if (player1Capitals[0] && bankCity) {
+        // Usar BFS para buscar camino no bloqueado por agua/bosque
+        const queue = [{ r: player1Capitals[0].r, c: player1Capitals[0].c }];
+        const visited = new Set();
+        let found = false;
+        while (queue.length > 0) {
+            const { r, c } = queue.shift();
+            if (`${r},${c}` === `${bankCity.r},${bankCity.c}`) { found = true; break; }
+            visited.add(`${r},${c}`);
+            const neighbors = getHexNeighbors(r, c);
+            neighbors.forEach(([nr, nc]) => {
+                const hex = board[nr]?.[nc];
+                if (!hex) return;
+                if (visited.has(`${nr},${nc}`)) return;
+                if (hex.terrain === 'water' || hex.terrain === 'forest') return;
+                queue.push({ r: nr, c: nc });
+            });
+        }
+        if (!found) errors.push('No hay camino transitable entre la capital del jugador y la ciudad de la banca.');
+    }
+
+    // 4. No hay ciudades ni unidades en el agua
+    gameState.cities.forEach(city => {
+        const hex = board[city.r]?.[city.c];
+        if (hex && hex.terrain === 'water') errors.push(`Ciudad '${city.name}' está en agua.`);
+    });
+    units.forEach(unit => {
+        const hex = board[unit.r]?.[unit.c];
+        if (hex && hex.terrain === 'water') errors.push(`Unidad '${unit.name}' está en agua.`);
+    });
+
+    if (errors.length > 0) {
+        console.error('[TutorialMapCheck] Errores de verificación:', errors);
+        return false;
+    }
+    console.log('[TutorialMapCheck] Mapa y recursos verificados correctamente.');
+    return true;
+}
 // boardManager.js (20251206)
 // Funciones para crear, gestionar y renderizar el tablero y sus hexágonos.
 

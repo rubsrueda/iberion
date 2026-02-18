@@ -1,8 +1,6 @@
 /// unit_Actions.js
 // Lógica relacionada con las acciones de las unidades (selección, movimiento, ataque, colocación).
 
-// ========== VERSIÓN DE CÓDIGO: v3.2 - ANTI-RACE CONDITION MEJORADA ==========
-console.log("%c[SISTEMA] unit_Actions.js v3.2 CARGADO - actionId con validación de timestamp", "background: #00FF00; color: #000; font-weight: bold; padding: 4px;");
 
 // Sistema de prevención de race conditions
 const ActionValidator = {
