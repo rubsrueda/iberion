@@ -264,40 +264,38 @@ function generateProceduralMap(B_ROWS, B_COLS, resourceLevel, isNavalMap = false
     if (capitalP1 && capitalP2) {
         ensurePathBetweenPoints({r: capitalP1.r, c: capitalP1.c}, {r: capitalP2.r, c: capitalP2.c}, 1);
     }
-
     // =========================================================================
-    // --- NUEVO: COLOCAR LA BANCA EN EL PUNTO MEDIO ENTRE JUGADORES ---
+    // --- COLOCAR LA BANCA EN EL PUNTO MEDIO ESTRATÉGICO ---
     // =========================================================================
     
-    // 1. Localizar las capitales de los dos jugadores para hallar el centro real de la partida
+    // 1. Localizar las capitales de los jugadores
     const cap1 = gameState.cities.find(c => c.isCapital && c.owner === 1);
     const cap2 = gameState.cities.find(c => c.isCapital && c.owner === 2);
 
     let bankCityR, bankCityC;
 
     if (cap1 && cap2) {
-        // Calculamos el promedio de las coordenadas
+        // Calcular el punto medio exacto entre las dos capitales
         bankCityR = Math.floor((cap1.r + cap2.r) / 2);
         bankCityC = Math.floor((cap1.c + cap2.c) / 2);
-        console.log(`[MapGen] La Banca calculada en el punto medio estratégico: (${bankCityR}, ${bankCityC})`);
     } else {
-        // Fallback por seguridad: centro geográfico del tablero
+        // Fallback: Centro del mapa
         bankCityR = Math.floor(B_ROWS / 2);
         bankCityC = Math.floor(B_COLS / 2);
     }
     
-    // 2. Si la posición calculada es agua, la desplazamos a la casilla más cercana
-    let safetyCounterPos = 0;
-    while(board[bankCityR]?.[bankCityC]?.terrain === 'water' && safetyCounterPos < 10) {
+    // 2. Si cae en agua, buscar tierra firme cercana
+    let safetyRadius = 0;
+    while(board[bankCityR]?.[bankCityC]?.terrain === 'water' && safetyRadius < 15) {
         bankCityC++; 
         if (bankCityC >= B_COLS) { 
             bankCityC = Math.floor(B_COLS / 2); 
             bankCityR++; 
         }
-        safetyCounterPos++;
+        safetyRadius++;
     }
 
-    // 3. Fundar la ciudad
+    // 3. Fundar La Banca
     const bankCityName = "La Banca";
     addCityToBoardData(bankCityR, bankCityC, BankManager.PLAYER_ID, bankCityName, true);
     const bankHex = board[bankCityR]?.[bankCityC];
@@ -307,14 +305,9 @@ function generateProceduralMap(B_ROWS, B_COLS, resourceLevel, isNavalMap = false
     }
     logMessage(`¡La ciudad neutral de ${bankCityName} ha sido fundada en (${bankCityR}, ${bankCityC})!`);
 
-    // =========================================================================
-    // === "EXCAVADORA" DE ACCESO A LA BANCA (Adaptada a la nueva posición) ===
-    // =========================================================================
-    
+    // --- LA EXCAVADORA (Mantenida para asegurar acceso) ---
     let targetLand = null;
     let minDistance = Infinity;
-
-    // Buscamos el punto de tierra firme más cercano para conectar la banca
     for (let r = 0; r < B_ROWS; r++) {
         for (let c = 0; c < B_COLS; c++) {
             const hex = board[r]?.[c];
@@ -329,17 +322,14 @@ function generateProceduralMap(B_ROWS, B_COLS, resourceLevel, isNavalMap = false
     }
 
     if (targetLand) {
-        console.log(`[MapGen] Abriendo ruta comercial forzada hacia (${targetLand.r}, ${targetLand.c})`);
         let crawlerR = bankCityR;
         let crawlerC = bankCityC;
-        let safetyCounterExc = 0;
-
-        while ((crawlerR !== targetLand.r || crawlerC !== targetLand.c) && safetyCounterExc < 50) {
-            safetyCounterExc++;
+        let safetyCounter = 0;
+        while ((crawlerR !== targetLand.r || crawlerC !== targetLand.c) && safetyCounter < 50) {
+            safetyCounter++;
             const neighbors = getHexNeighbors(crawlerR, crawlerC);
             let bestNeighbor = null;
             let bestDist = Infinity;
-
             for (const n of neighbors) {
                 const d = hexDistance(n.r, n.c, targetLand.r, targetLand.c);
                 if (d < bestDist) {
@@ -347,25 +337,17 @@ function generateProceduralMap(B_ROWS, B_COLS, resourceLevel, isNavalMap = false
                     bestNeighbor = n;
                 }
             }
-
             if (bestNeighbor) {
                 crawlerR = bestNeighbor.r;
                 crawlerC = bestNeighbor.c;
                 const hexToClear = board[crawlerR]?.[crawlerC];
                 if (hexToClear && !hexToClear.isCity) {
                     hexToClear.terrain = 'plains';
-                    hexToClear.resourceNode = null; 
-                    hexToClear.structure = null;    
+                    hexToClear.resourceNode = null;
                 }
             } else { break; }
         }
-    } else {
-        const neighbors = getHexNeighbors(bankCityR, bankCityC);
-        for (const n of neighbors) {
-            if(board[n.r]?.[n.c]) board[n.r][n.c].terrain = 'plains';
-        }
     }
-    // =========================================================================
 
     // --- 2. Colocar Recursos ---
     placeResourcesOnGeneratedMap(B_ROWS, B_COLS, resourceLevel);
@@ -409,9 +391,12 @@ function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel, gameMode = '
     const arch2Size = Math.floor(totalHexes * (isInvasionMode ? 0.18 : 0.12)); // Defensor más grande en invasión
     generateIslandCluster(arch2CenterR, arch2CenterC, arch2Size, B_ROWS, B_COLS);
     
-    // 5. OPCIONALMENTE CONECTAR CON FRANJA DE TIERRA (50% de probabilidad)
-    if (Math.random() < 0.5) {
-        console.log("Conectando archipiélagos con franja de tierra...");
+    // 5. CONECTAR ARCHIPIÉLAGOS (Forzado en modo Invasión/Tutorial)
+    // Si es modo invasión, la probabilidad es 100%, si no, 50%
+    const forceConnection = isInvasionMode || Math.random() < 0.5;
+    
+    if (forceConnection) {
+        console.log("[MapGen] Conectando archipiélagos para garantizar transitabilidad...");
         createLandBridge(arch1CenterR, arch1CenterC, arch2CenterR, arch2CenterC, B_ROWS, B_COLS);
     }
     
@@ -431,13 +416,18 @@ function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel, gameMode = '
         if (board[cap2Pos.r]?.[cap2Pos.c]) board[cap2Pos.r][cap2Pos.c].structure = isInvasionMode ? 'Ciudad' : 'Aldea';
     }
     
-    // 7. COLOCAR LA BANCA EN ISLA NEUTRAL (centro del mapa)
-    const bankR = Math.floor(B_ROWS / 2);
-    const bankC = Math.floor(B_COLS / 2);
+    // 7. COLOCAR LA BANCA (Punto medio y conexión garantizada)
+    let bankR, bankC;
+    if (cap1Pos && cap2Pos) {
+        bankR = Math.floor((cap1Pos.r + cap2Pos.r) / 2);
+        bankC = Math.floor((cap1Pos.c + cap2Pos.c) / 2);
+    } else {
+        bankR = Math.floor(B_ROWS / 2);
+        bankC = Math.floor(B_COLS / 2);
+    }
     
-    // Crear pequeña isla para la banca
-    const bankIslandSize = 8;
-    generateIslandCluster(bankR, bankC, bankIslandSize, B_ROWS, B_COLS);
+    // Crear isla para la banca
+    generateIslandCluster(bankR, bankC, 8, B_ROWS, B_COLS);
     
     const bankPos = findSafeLandPosition(bankR, bankC, 3, B_ROWS, B_COLS);
     if (bankPos) {
@@ -446,7 +436,17 @@ function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel, gameMode = '
             board[bankPos.r][bankPos.c].structure = 'Metrópoli';
             board[bankPos.r][bankPos.c].terrain = 'plains';
         }
-        logMessage("¡La ciudad neutral de La Banca ha sido fundada en una isla central!", "event");
+
+        // --- CONEXIÓN EXTRA PARA EL TUTORIAL ---
+        // Si es modo invasión, tiramos puentes desde la banca a ambas capitales 
+        // para que el jugador nunca se pierda en el mar.
+        if (isInvasionMode && cap1Pos && cap2Pos) {
+            console.log("[Tutorial] Creando corredores terrestres hacia La Banca...");
+            createLandBridge(cap1Pos.r, cap1Pos.c, bankPos.r, bankPos.c, B_ROWS, B_COLS);
+            createLandBridge(cap2Pos.r, cap2Pos.c, bankPos.r, bankPos.c, B_ROWS, B_COLS);
+        }
+        
+        logMessage("¡La ciudad neutral de La Banca ha sido fundada en un punto estratégico!", "event");
     }
 
     // 7.5. MODO INVASIÓN: Ciudades adicionales para el defensor en el archipiélago grande
