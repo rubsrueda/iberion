@@ -40,15 +40,8 @@ const TUTORIAL_SCRIPTS = {
                             }
                         }
                         
-                        // Aplicar terrenos
-                        for (let r = 0; r < B_ROWS; r++) {
-                            for (let c = 0; c < B_COLS; c++) {
-                                if (board[r]?.[c] && mapData.board[r]?.[c]) {
-                                    board[r][c].terrain = mapData.board[r][c];
-                                }
-                            }
-                        }
-                        console.log("✓ Terrenos aplicados");
+                            // NO modificar el terreno aquí. El mapa procedural ya lo hace correctamente.
+                            console.log("✓ Terrenos NO modificados por el tutorial");
                         
                         // 2. CREAR CAPITALES EN COORDENADAS FIJAS
                         const cap1 = mapData.positions.yourCapital;  // (3, 1)
@@ -64,12 +57,13 @@ const TUTORIAL_SCRIPTS = {
                             return false;
                         }
                         
-                        // Crear ciudades
-                        addCityToBoardData(cap1.r, cap1.c, 1, "Base de Invasión", true);
-                        renderSingleHexVisuals(cap1.r, cap1.c);
-                        
-                        addCityToBoardData(cap2.r, cap2.c, 2, "Capital del Reino", true);
-                        renderSingleHexVisuals(cap2.r, cap2.c);
+                            // NO crear capitales aquí, el mapa procedural ya las crea correctamente
+                            if (board[cap1.r]?.[cap1.c]?.terrain !== 'water') {
+                                renderSingleHexVisuals(cap1.r, cap1.c);
+                            }
+                            if (board[cap2.r]?.[cap2.c]?.terrain !== 'water') {
+                                renderSingleHexVisuals(cap2.r, cap2.c);
+                            }
                         
                         console.log("✓ Capital invasor en", cap1, "— isla pequeña LEFT");
                         console.log("✓ Capital defensor en", cap2, "— isla grande RIGHT");
