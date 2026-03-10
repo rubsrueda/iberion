@@ -1,5 +1,5 @@
 // invasionSteps.js
-export const INVASION_STEPS = [
+const INVASION_STEPS = [
     {
         id: 'ARCHI_TUT_00_MAPA_FIJO',
         message: "Paso 1: Cargando mapa fijo...",
