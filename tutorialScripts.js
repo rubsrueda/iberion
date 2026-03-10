@@ -4,7 +4,7 @@ import { INVASION_STEPS } from './invasionSteps.js';
 
 console.log("tutorialScripts.js CARGADO - v12 (Estructura Modular)");
 
-export const TUTORIAL_SCRIPTS = {
+const TUTORIAL_SCRIPTS = {
     // Usamos el operador "..." para meter todos los pasos de los otros archivos aquí
     archipelagoInvasor: [
         ...INTRO_STEPS,
@@ -389,4 +389,5 @@ const TUTORIAL_SCRIPTS = {
         }
     ]
 };
+
 
