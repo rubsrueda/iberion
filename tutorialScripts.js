@@ -1,6 +1,16 @@
 // En tutorialScripts.js
+import { INTRO_STEPS } from './introTutorial.js';
+import { INVASION_STEPS } from './invasionSteps.js';
 
-console.log("tutorialScripts.js CARGADO - v11 (tutorial narrativo 10 min)");
+console.log("tutorialScripts.js CARGADO - v12 (Estructura Modular)");
+
+export const TUTORIAL_SCRIPTS = {
+    // Usamos el operador "..." para meter todos los pasos de los otros archivos aquí
+    archipelagoInvasor: [
+        ...INTRO_STEPS,
+        ...INVASION_STEPS
+    ]
+};
 
 const TUTORIAL_SCRIPTS = {
 
@@ -379,3 +389,4 @@ const TUTORIAL_SCRIPTS = {
         }
     ]
 };
+
