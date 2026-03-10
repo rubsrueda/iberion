@@ -1,5 +1,5 @@
 // introTutorial.js
-export const INTRO_STEPS = [
+const INTRO_STEPS = [
     { 
         id: 'TUT_01', 
         message: "¡Saludos, General! El Reino te ha confiado la conquista de este archipiélago. Toca para continuar.", 
