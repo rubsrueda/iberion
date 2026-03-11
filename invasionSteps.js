@@ -1,13 +1,14 @@
 // invasionSteps.js
-const INVASION_STEPS = [
+export const INVASION_STEPS = [
     {
         id: 'ARCHI_TUT_00_MAPA_FIJO',
-        message: "Paso 1: Cargando mapa fijo...",
+        message: "Paso 1: Cargando mapa fijo del archipiélago...",
+        duration: 2000,
         onStepStart: () => {
-            console.log("Cargando lógica de mapa...");
-            // ... (todo el código de fetch y setup que ya tienes)
+            console.log("=== PASO 1: SETUP INICIAL ===");
+            // ... (todo el código que ya tenías)
         },
         actionCondition: () => gameState.tutorial.step1_complete
     },
-    // ... el resto de tus fases (Fase 0C, 0D, etc.)
+    // ... el resto de tus pasos del archivo original
 ];
