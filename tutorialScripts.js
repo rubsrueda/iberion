@@ -6,10 +6,11 @@ console.log("tutorialScripts.js CARGADO - v12 (Estructura Modular)");
 
 const TUTORIAL_SCRIPTS = {
 
+   export const TUTORIAL_SCRIPTS = {
     archipelagoInvasor: [
-
         ...INTRO_STEPS,
-        ...INVASION_STEPS, 
+        ...INVASION_STEPS
+    ]
         // --- BLOQUE 1: BIENVENIDA (Pasos 1-3) ---
         { id: 'TUT_01', message: "¡Saludos, General! El Reino te ha confiado la conquista de este archipiélago. Toca para continuar.", actionCondition: () => true },
         { id: 'TUT_02', message: "Tu objetivo es capturar la Capital enemiga o lograr la victoria por puntos. Toca para continuar.", onStepStart: () => centerMapOn(2, 6), actionCondition: () => true },
@@ -384,6 +385,7 @@ const TUTORIAL_SCRIPTS = {
         }
     ]
 };
+
 
 
 
