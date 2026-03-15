@@ -91,7 +91,7 @@ const INTRO_STEPS = [
 
     { 
         id: 'TUT_05_PRESENTACION', 
-        message: "Este es tu centro de operaciones. Vamos a ver para qué sirve cada herramienta. Toca el mapa para empezar el recorrido.", 
+        message: "Este es tu centro de operaciones. Vamos a ver cada herramienta. Toca el mapa para empezar el recorrido.", 
         onStepStart: () => {
             gameState.tutorial.map_clicked = false;
             // Abrir el menú
@@ -110,14 +110,14 @@ const INTRO_STEPS = [
 
     { 
         id: 'TUT_07_INV', 
-        message: "🎒 Inventario: Guarda los objetos, tesoros y suministros que encuentres explorando el mundo.", 
+        message: "🎒 Inventario: ves tus objetos Guardados, Sellos de Heroes, Libros de Experiencia, Equipo, suministros...", 
         onStepStart: () => { gameState.tutorial.map_clicked = false; },
         actionCondition: () => gameState.tutorial.map_clicked === true 
     },
 
     { 
         id: 'TUT_08_FORJA', 
-        message: "⚔️ Forja: Mejora el equipo de tus tropas o funde materiales para crear armas legendarias.", 
+        message: "⚔️ Forja: Mejora el equipo de tus Héroes o funde materiales para crear armas legendarias.", 
         onStepStart: () => { gameState.tutorial.map_clicked = false; },
         actionCondition: () => gameState.tutorial.map_clicked === true 
     },
@@ -131,14 +131,14 @@ const INTRO_STEPS = [
 
     { 
         id: 'TUT_10_MAIL', 
-        message: "✉️ Mensajes: Recibe recompensas, informes de batalla y avisos de otros generales.", 
+        message: "✉️ Mensajes: Recibe recompensas, informes de batalla y avisos del Juego.", 
         onStepStart: () => { gameState.tutorial.map_clicked = false; },
         actionCondition: () => gameState.tutorial.map_clicked === true 
     },
 
     { 
         id: 'TUT_11_TECH', 
-        message: "💡 Tecnologías: Invierte recursos en investigar mejoras permanentes para tu imperio y nuevas unidades.", 
+        message: "💡 Tecnologías: Invierte puntos en investigar mejoras para la partida en curso.", 
         onStepStart: () => { gameState.tutorial.map_clicked = false; },
         actionCondition: () => gameState.tutorial.map_clicked === true 
     },
@@ -152,7 +152,7 @@ const INTRO_STEPS = [
 
     { 
         id: 'TUT_13_INFO', 
-        message: "☰ Información: Acceso a los ajustes del juego y opciones de guardado. ¡Úsalo antes de retirarte!", 
+        message: "☰ Información: Detalles y consultas de la partida ¡Úsalo para saber!", 
         onStepStart: () => { gameState.tutorial.map_clicked = false; },
         onStepEnd: () => {
             // Cerrar el menú al terminar el recorrido
@@ -161,4 +161,13 @@ const INTRO_STEPS = [
         },
         actionCondition: () => gameState.tutorial.map_clicked === true 
     }
+
+    { 
+        id: 'TUT_14', 
+        message: "Para finalizar turno, Está el botón '🎮 ' que dará paso al turno del siguiente jugador.", 
+        onStepStart: () => {
+            gameState.tutorial.map_clicked = false;
+        },
+        actionCondition: () => gameState.tutorial.map_clicked === true 
+    },
 ];
