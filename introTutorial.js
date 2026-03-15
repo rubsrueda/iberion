@@ -109,6 +109,13 @@ const INTRO_STEPS = [
     },
 
     { 
+        id: 'TUT_0601_HEROES', 
+        message: "Tus Heroes suben de nivel al ganar Experiencia con Libros, y Evolucionan al Conseguir Sellos del Héroe, Esto permite desbloquear Habilidades y Talentos, además puedes equiparlos desde la forja, personalizando héroes únicos.", 
+        onStepStart: () => { gameState.tutorial.map_clicked = false; },
+        actionCondition: () => gameState.tutorial.map_clicked === true 
+    },
+
+    { 
         id: 'TUT_07_INV', 
         message: "🎒 Inventario: ves tus objetos Guardados, Sellos de Heroes, Libros de Experiencia, Equipo, suministros...", 
         onStepStart: () => { gameState.tutorial.map_clicked = false; },
