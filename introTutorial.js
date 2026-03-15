@@ -184,4 +184,3 @@ const INTRO_STEPS = [
         actionCondition: () => gameState.tutorial && gameState.tutorial.map_clicked === true 
     }
 ];
-];
