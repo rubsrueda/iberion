@@ -1,20 +1,7 @@
 // invasionSteps.js
 const INVASION_STEPS = [
   
-        {
-            id: 'ARCHI_TUT_00B_INTRO',
-            message: "Bienvenido, Invasor. Tu objetivo: conquistar la isla del enemigo paso a paso. Eres el Jugador 1 (invasor), controlando la isla PEQUEÑA a la izquierda. El Jugador 2 (defensor) controla la isla GRANDE a la derecha.",
-            duration: 3500,
-            onStepStart: () => {
-                console.log("Paso 1B: Briefing completado");
-                const pos = (gameState.tutorial && gameState.tutorial.positions) || {};
-                console.log("Posiciones cargadas:", pos);
-                if (pos.yourCapital) renderSingleHexVisuals(pos.yourCapital.r, pos.yourCapital.c);
-                if (pos.enemyCapital) renderSingleHexVisuals(pos.enemyCapital.r, pos.enemyCapital.c);
-                if (UIManager) UIManager.updateAllUIDisplays();
-            },
-            highlightHexCoords: []
-        },
+       
         {
             id: 'ARCHI_TUT_00C_BASIC_MOVEMENT',
             message: "Fase 0C: Movimiento Básico. Selecciona una unidad en tu capital invasora (la isla pequeña a la izquierda) y muévela a una casilla adyacente.",
