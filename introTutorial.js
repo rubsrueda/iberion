@@ -4,6 +4,18 @@ const INTRO_STEPS = [
         id: 'ARCHI_TUT_00_MAPA_FIJO',
         onStepStart: () => {
             console.log("=== PASO 0: SETUP INICIAL ===");
+            
+            // --- MEJORA CRÍTICA: Hacer que el panel de mensajes avance al hacer clic ---
+            const tutPanel = document.getElementById('tutorialMessagePanel');
+            if (tutPanel) {
+                tutPanel.style.cursor = 'pointer'; // Indicamos que es clicable
+                tutPanel.onclick = () => {
+                    if (gameState.isTutorialActive && gameState.tutorial) {
+                        gameState.tutorial.map_clicked = true;
+                    }
+                };
+            }
+
             gameState.currentPhase = "play";
             gameState.currentPlayer = 1;
             gameState.myPlayerNumber = 1;
@@ -51,7 +63,7 @@ const INTRO_STEPS = [
 
     { 
         id: 'TUT_01', 
-        message: "¡Saludos, General! El Reino te ha confiado la conquista de este archipiélago. Toca el mapa para continuar.", 
+        message: "¡Saludos, General! El Reino te ha confiado la conquista de este archipiélago. Toca el mapa (o este mensaje) para continuar.", 
         onStepStart: () => {
             if (!gameState.tutorial) gameState.tutorial = {};
             gameState.tutorial.map_clicked = false;
@@ -61,7 +73,7 @@ const INTRO_STEPS = [
 
     { 
         id: 'TUT_02', 
-        message: "Tu objetivo es capturar la Capital enemiga o lograr la victoria por puntos. Toca el mapa para continuar.", 
+        message: "Tu objetivo es capturar la Capital enemiga o lograr la victoria por puntos. Toca para continuar.", 
         onStepStart: () => {
             centerMapOn(2, 6);
             gameState.tutorial.map_clicked = false;
@@ -91,10 +103,9 @@ const INTRO_STEPS = [
 
     { 
         id: 'TUT_05_PRESENTACION', 
-        message: "Este es tu centro de operaciones. Vamos a ver cada herramienta. Toca el mapa para empezar el recorrido.", 
+        message: "Este es tu centro de operaciones. Vamos a ver cada herramienta. Toca para empezar el recorrido.", 
         onStepStart: () => {
             gameState.tutorial.map_clicked = false;
-            // Abrir el menú
             const menuGroup = document.querySelector('.right-menu-group');
             if (menuGroup) menuGroup.classList.add('is-open');
         },
@@ -110,14 +121,14 @@ const INTRO_STEPS = [
 
     { 
         id: 'TUT_0601_HEROES', 
-        message: "Tus Heroes suben de nivel al ganar Experiencia con Libros, y Evolucionan al Conseguir Sellos del Héroe, Esto permite desbloquear Habilidades y Talentos, además puedes equiparlos desde la forja, personalizando héroes únicos.", 
+        message: "Tus Héroes suben de nivel con Experiencia, y Evolucionan con Sellos del Héroe. Esto desbloquea Habilidades y Talentos. Además, puedes equiparlos desde la forja.", 
         onStepStart: () => { gameState.tutorial.map_clicked = false; },
         actionCondition: () => gameState.tutorial.map_clicked === true 
     },
 
     { 
         id: 'TUT_07_INV', 
-        message: "🎒 Inventario: ves tus objetos Guardados, Sellos de Heroes, Libros de Experiencia, Equipo, suministros...", 
+        message: "🎒 Inventario: Aquí ves tus objetos guardados, Sellos, Libros de Experiencia, Equipo y suministros.", 
         onStepStart: () => { gameState.tutorial.map_clicked = false; },
         actionCondition: () => gameState.tutorial.map_clicked === true 
     },
@@ -138,14 +149,14 @@ const INTRO_STEPS = [
 
     { 
         id: 'TUT_10_MAIL', 
-        message: "✉️ Mensajes: Recibe recompensas, informes de batalla y avisos del Juego.", 
+        message: "✉️ Mensajes: Recibe recompensas, informes de batalla y avisos del Sistema.", 
         onStepStart: () => { gameState.tutorial.map_clicked = false; },
         actionCondition: () => gameState.tutorial.map_clicked === true 
     },
 
     { 
         id: 'TUT_11_TECH', 
-        message: "💡 Tecnologías: Invierte puntos en investigar mejoras para la partida en curso.", 
+        message: "💡 Tecnologías: Invierte puntos en investigar mejoras tácticas para la partida en curso.", 
         onStepStart: () => { gameState.tutorial.map_clicked = false; },
         actionCondition: () => gameState.tutorial.map_clicked === true 
     },
@@ -159,10 +170,9 @@ const INTRO_STEPS = [
 
     { 
         id: 'TUT_13_INFO', 
-        message: "☰ Información: Detalles y consultas de la partida ¡Úsalo para saber!", 
+        message: "☰ Información: Detalles y consultas de la partida. ¡Úsalo para saber tu estado!", 
         onStepStart: () => { gameState.tutorial.map_clicked = false; },
         onStepEnd: () => {
-            // Cerrar el menú al terminar el recorrido
             const menuGroup = document.querySelector('.right-menu-group');
             if (menuGroup) menuGroup.classList.remove('is-open');
         },
@@ -171,10 +181,10 @@ const INTRO_STEPS = [
 
     { 
         id: 'TUT_14', 
-        message: "Para finalizar turno, Está el botón '►' que dará paso al turno del siguiente jugador.", 
+        message: "Para finalizar turno, pulsa el botón '►' que dará paso al turno del siguiente jugador. ¡Buena suerte, General!", 
         onStepStart: () => {
             gameState.tutorial.map_clicked = false;
         },
         actionCondition: () => gameState.tutorial.map_clicked === true 
-    },
+    }
 ];
