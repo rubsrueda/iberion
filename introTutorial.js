@@ -148,11 +148,40 @@ const INTRO_STEPS = [
      
     { 
         id: 'TUT_04', 
-        message: "Empecemos por preparar tu panel de mando. Toca el mapa para continuar.", 
+        message: "Empecemos por entender tu panel de mando. Abajo a la derecha '⚙️' Toca el mapa para continuar.", 
         onStepStart: () => {
             centerMapOn(3, 1);
             gameState.tutorial.map_clicked = false;
         },
         actionCondition: () => gameState.tutorial.map_clicked === true 
     }
+
+ { 
+        id: 'TUT_05_MENU', 
+        message: "Aquí encontrarás: 🎖️ a los Heroes, 🎒 tu Inventario, ⚔️ la Forja, ℹ️ La Ayuda, ✉️Tus mensajes, 💡 Tecnologías, C La Consola, y ☰ El panel de Información. Explóralos para conocer tu estado. Toca el mapa para continuar.", 
+        onStepStart: () => {
+            gameState.tutorial.map_clicked = false;
+
+            // LÓGICA PARA ABRIR EL MENÚ AUTOMÁTICAMENTE
+            const menuGroup = document.querySelector('.right-menu-group');
+            const toggleBtn = document.getElementById('toggle-right-menu-btn');
+            
+            if (menuGroup && !menuGroup.classList.contains('is-open')) {
+                menuGroup.classList.add('is-open');
+                if (toggleBtn) toggleBtn.textContent = '✕'; // Cambia el icono a cerrar
+            }
+        },
+        onStepEnd: () => {
+            // OPCIONAL: Cerrar el menú al pasar al siguiente paso
+            const menuGroup = document.querySelector('.right-menu-group');
+            const toggleBtn = document.getElementById('toggle-right-menu-btn');
+            
+            if (menuGroup) {
+                menuGroup.classList.remove('is-open');
+                if (toggleBtn) toggleBtn.textContent = '⚙️';
+            }
+        },
+        actionCondition: () => gameState.tutorial && gameState.tutorial.map_clicked === true 
+    }
+];
 ];
