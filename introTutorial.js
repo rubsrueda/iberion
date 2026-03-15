@@ -127,10 +127,27 @@ const INTRO_STEPS = [
             centerMapOn(2, 6);
             gameState.tutorial.map_clicked = false;
         },
-        actionCondition: () => gameState.tutorial.map_clicked === true 
+        
     },
+
+      {
+            id: 'ARCHI_TUT_03',
+            message: "Empezamos por conquistar la isla pequeña paso a paso. Eres el Jugador 1 (invasor), inicias en la isla PEQUEÑA a la izquierda. El Jugador 2 (defensor) controla el resto.",
+           // duration: 3500,
+            onStepStart: () => {
+                console.log("Paso 1B: Briefing completado");
+                const pos = (gameState.tutorial && gameState.tutorial.positions) || {};
+                console.log("Posiciones cargadas:", pos);
+                if (pos.yourCapital) renderSingleHexVisuals(pos.yourCapital.r, pos.yourCapital.c);
+                if (pos.enemyCapital) renderSingleHexVisuals(pos.enemyCapital.r, pos.enemyCapital.c);
+                if (UIManager) UIManager.updateAllUIDisplays();
+            },
+            highlightHexCoords: []
+           actionCondition: () => gameState.tutorial.map_clicked === true 
+        },
+     
     { 
-        id: 'TUT_03', 
+        id: 'TUT_04', 
         message: "Empecemos por preparar tu panel de mando. Toca el mapa para continuar.", 
         onStepStart: () => {
             centerMapOn(3, 1);
