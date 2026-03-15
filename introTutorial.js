@@ -160,11 +160,11 @@ const INTRO_STEPS = [
             if (menuGroup) menuGroup.classList.remove('is-open');
         },
         actionCondition: () => gameState.tutorial.map_clicked === true 
-    }
+    },
 
     { 
         id: 'TUT_14', 
-        message: "Para finalizar turno, Está el botón '🎮 ' que dará paso al turno del siguiente jugador.", 
+        message: "Para finalizar turno, Está el botón '►' que dará paso al turno del siguiente jugador.", 
         onStepStart: () => {
             gameState.tutorial.map_clicked = false;
         },
