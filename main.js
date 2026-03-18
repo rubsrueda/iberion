@@ -1285,6 +1285,10 @@ function initApp() {
                 gameState.deploymentUnitLimitByPlayer = null;
             }
             gameState.victoryByPointsEnabled = settings.victoryByPoints ?? VICTORY_BY_POINTS_ENABLED_DEFAULT;
+            if (!gameState.setupTempSettings) gameState.setupTempSettings = {};
+            gameState.setupTempSettings.unitSplitMode = settings.unitSplitMode || 'detail';
+            gameState.setupTempSettings.barbarianDensity = settings.barbarianDensity || 'med';
+            gameState.setupTempSettings.navalMap = settings.navalMap || false;
             console.error(`DEBUGGING TIMER | PASO 3: Asignando gameState.turnDurationSeconds. Valor final: ${gameState.turnDurationSeconds}`);
             gameState.isCampaignBattle = false;
             
@@ -1443,6 +1447,54 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
                 if (checkbox) checkbox.checked = false;
             }
         });
+    }
+
+    // === TOOLTIP DINAMICO PARA MODO DE DIVISION ===
+    const unitSplitModeSelect = document.getElementById('unitSplitMode');
+    const unitSplitModeHelp = document.getElementById('unitSplitModeHelp');
+    const unitSplitModeBadge = document.getElementById('unitSplitModeBadge');
+    if (unitSplitModeSelect && unitSplitModeHelp) {
+        const splitModeHelpMap = {
+            detail: 'Al dividir eliges regimientos manualmente y luego el destino.',
+            minimum: 'Minimo: mueve automaticamente el regimiento mas pequeno a la nueva unidad.',
+            maximum: 'Maximo: mueve automaticamente todos los regimientos menos uno.',
+            average: 'Promedio: mueve automaticamente la mitad de los regimientos.'
+        };
+
+        const splitModeBadgeMap = {
+            detail: {
+                text: 'MANUAL',
+                style: 'background: rgba(52, 73, 94, 0.45); color: #d5d8dc; border: 1px solid rgba(149, 165, 166, 0.45);'
+            },
+            minimum: {
+                text: 'AUTO MIN',
+                style: 'background: rgba(30, 96, 145, 0.30); color: #7ec8ff; border: 1px solid rgba(30, 96, 145, 0.55);'
+            },
+            maximum: {
+                text: 'AUTO MAX',
+                style: 'background: rgba(120, 40, 140, 0.30); color: #dda0ff; border: 1px solid rgba(142, 68, 173, 0.55);'
+            },
+            average: {
+                text: 'AUTO PROM',
+                style: 'background: rgba(31, 138, 112, 0.30); color: #7dffda; border: 1px solid rgba(31, 138, 112, 0.55);'
+            }
+        };
+
+        const refreshSplitModeHelp = () => {
+            const selectedMode = unitSplitModeSelect.value || 'detail';
+            const helpText = splitModeHelpMap[selectedMode] || splitModeHelpMap.detail;
+            unitSplitModeHelp.textContent = helpText;
+            unitSplitModeSelect.title = helpText;
+
+            if (unitSplitModeBadge) {
+                const badgeInfo = splitModeBadgeMap[selectedMode] || splitModeBadgeMap.detail;
+                unitSplitModeBadge.textContent = badgeInfo.text;
+                unitSplitModeBadge.style.cssText = `display: inline-block; margin: 4px 0 6px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: bold; letter-spacing: 0.2px; ${badgeInfo.style}`;
+            }
+        };
+
+        unitSplitModeSelect.addEventListener('change', refreshSplitModeHelp);
+        refreshSplitModeHelp();
     }
 
     // === LÓGICA DE TRANSICIÓN DE PANTALLAS DE CONFIGURACIÓN (SETUP) ===

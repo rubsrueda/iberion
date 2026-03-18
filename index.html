@@ -771,12 +771,18 @@
                         </div>
                         <div class="setup-option">
                             <label for="unitSplitMode">Division</label>
+                            <div id="unitSplitModeBadge" style="display: inline-block; margin: 4px 0 6px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: bold; letter-spacing: 0.2px; background: rgba(52, 73, 94, 0.45); color: #d5d8dc; border: 1px solid rgba(149, 165, 166, 0.45);">
+                                MANUAL
+                            </div>
                             <select id="unitSplitMode">
                                 <option value="detail" selected>Detallar (como ahora)</option>
                                 <option value="minimum">Minimo (divide el regimiento mas pequeno)</option>
                                 <option value="maximum">Maximo (divide todos menos uno)</option>
                                 <option value="average">Promedio (divide la mitad)</option>
                             </select>
+                            <div id="unitSplitModeHelp" style="margin-top: 6px; font-size: 11px; color: #bcaaa4; line-height: 1.35;">
+                                Al dividir eliges regimientos manualmente y luego el destino.
+                            </div>
                         </div>
                     </div>
                 </div>
