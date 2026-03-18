@@ -143,13 +143,15 @@ const StatTracker = {
     },
 
     _calculateScore: function(playerStats) {
-        const cityBonus = playerStats.cities * 100;
-        const territoryBonus = playerStats.territory * 10;
-        const militaryBonus = (playerStats.militaryPower + playerStats.navyPower) * 5;
-        const populationBonus = playerStats.population * 50;
-        const goldBonus = Math.floor(playerStats.gold / 100);
-        
-        return cityBonus + territoryBonus + militaryBonus + populationBonus + goldBonus;
+        const cityBonus = playerStats.cities * 180;
+        const territoryBonus = playerStats.territory * 20;
+        const militaryBonus = (playerStats.militaryPower + playerStats.navyPower) * 4;
+        const populationBonus = playerStats.population * 60;
+        const conquestBonus = (playerStats.unitsDestroyed || 0) * 80;
+        const infrastructureBonus = (playerStats.buildingsConstructed || 0) * 50;
+        const researchBonus = (playerStats.technologiesDiscovered || 0) * 70;
+
+        return cityBonus + territoryBonus + militaryBonus + populationBonus + conquestBonus + infrastructureBonus + researchBonus;
     },
 
     /**

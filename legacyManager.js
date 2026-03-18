@@ -115,11 +115,7 @@ const LegacyManager = {
             const series = {
                 name: player.civilization || `Jugador ${player.playerId}`,
                 color: this._getPlayerColor(player.playerId),
-                data: Array(totalTurns).fill(0).map((_, i) => {
-                    // Aproximación: score = f(cities, territory, military)
-                    // En producción, esto vendría del rastreador histórico
-                    return Math.floor(player.score * (i / totalTurns) * 0.8 + Math.random() * 1000);
-                }),
+                data: this._buildTimelineSeries(player, totalTurns),
                 isWinner: player.playerId === winnerPlayerId
             };
             graphData.series.push(series);
@@ -128,6 +124,42 @@ const LegacyManager = {
 
         console.log('[LegacyManager._updateTimeline] GraphData completo:', graphData);
         LegacyUI.displayTimeline(graphData);
+    },
+
+    _buildTimelineSeries: function(player, totalTurns) {
+        const finalScore = this._calculateLegacyEmpireScore(player);
+        const eventWeights = {
+            build: 50,
+            research: 70,
+            conquer: 120,
+            battle: 60,
+            discovery: 40,
+            trade: 35,
+            event: 20
+        };
+        const weightedEvents = Array.isArray(player.importantEvents) ? player.importantEvents : [];
+
+        return Array.from({ length: totalTurns }, (_, index) => {
+            const turn = index + 1;
+            const progressBase = finalScore * (turn / Math.max(1, totalTurns));
+            const eventScore = weightedEvents.reduce((sum, event) => {
+                if ((event.turn || 0) > turn) return sum;
+                return sum + (eventWeights[event.type] || 15);
+            }, 0);
+            return Math.round(progressBase * 0.8 + eventScore);
+        });
+    },
+
+    _calculateLegacyEmpireScore: function(player) {
+        const cities = player.cities || 0;
+        const territory = player.territory || 0;
+        const militaryPower = (player.militaryPower || 0) + (player.navyPower || 0);
+        const population = player.population || 0;
+        const kills = player.unitsDestroyed || 0;
+        const builds = player.buildingsConstructed || 0;
+        const techs = player.technologiesDiscovered || 0;
+
+        return (cities * 220) + (territory * 25) + (militaryPower * 4) + (population * 70) + (kills * 90) + (builds * 50) + (techs * 80);
     },
 
     /**
@@ -226,10 +258,23 @@ const LegacyManager = {
             : (gameState.turnNumber || 1);
         const narrative = {
             events: allEvents,
-            totalTurns: totalTurns
+            totalTurns: totalTurns,
+            summary: this._buildNarrativeSummary(allEvents, battles)
         };
 
         LegacyUI.displayNarrative(narrative);
+    },
+
+    _buildNarrativeSummary: function(allEvents, battles) {
+        const winner = gameState.winner ? `Jugador ${gameState.winner}` : 'Imperio vencedor';
+        const battleCount = Array.isArray(battles) ? battles.length : 0;
+        const eventCount = Array.isArray(allEvents) ? allEvents.length : 0;
+
+        if (battleCount === 0 && eventCount === 0) {
+            return `${winner} consolidó su dominio sin que la crónica registrara hitos suficientes.`;
+        }
+
+        return `${winner} cerró la partida tras ${gameState.turnNumber || 0} turnos, con ${battleCount} enfrentamientos destacados y ${eventCount} hitos narrativos registrados.`;
     },
 
     /**

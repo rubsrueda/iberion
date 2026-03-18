@@ -469,7 +469,7 @@ function openBuildStructureModal() {
                 } } 
             else {
                 console.log(`    - Hex está vacío. ¿Se puede construir "${structureId}" desde cero aquí (terreno "${hex.terrain}")?`);
-                if (structureInfo.buildableOn?.includes(hex.terrain)) {
+                if ((structureInfo.buildOrder || 999) === 1 && structureInfo.buildableOn?.includes(hex.terrain)) {
                     isOptionForHex = true;
                     console.log(`      -> SÍ. El terreno es compatible.`);
                 } else {
@@ -1141,19 +1141,12 @@ function handleFinalizeSplit() {
     
     if (domElements.advancedSplitUnitModal) domElements.advancedSplitUnitModal.style.display = 'none';
 
-    gameState.preparingAction = { 
-        type: 'split_unit', 
-        unitId: _unitBeingSplit.id, 
-        originalR: _unitBeingSplit.r, 
-        originalC: _unitBeingSplit.c,
-        newUnitRegiments: JSON.parse(JSON.stringify(_tempNewUnitRegiments)),
-        remainingOriginalRegiments: JSON.parse(JSON.stringify(_tempOriginalRegiments))
-    };
+    prepareSplitAction(_unitBeingSplit, {
+        newUnitRegiments: _tempNewUnitRegiments,
+        remainingOriginalRegiments: _tempOriginalRegiments,
+        message: 'Haz clic en un hex adyacente para colocar la nueva unidad.'
+    });
 
-    if (typeof UIManager !== 'undefined' && UIManager.highlightPossibleSplitHexes) {
-        UIManager.highlightPossibleSplitHexes(_unitBeingSplit);
-    } 
-    if (typeof logMessage === "function") logMessage(`Haz clic en un hex adyacente para colocar la nueva unidad.`);
     if (gameState.isTutorialActive) {
         TutorialManager.notifyActionCompleted('unit_split');
     }

@@ -121,6 +121,41 @@ const LedgerManager = {
         }
     },
 
+    _getTradePairKey: function(a, b) {
+        if (!a || !b) return null;
+        const aKey = Number.isInteger(a.r) && Number.isInteger(a.c) ? `${a.r},${a.c}` : a.name;
+        const bKey = Number.isInteger(b.r) && Number.isInteger(b.c) ? `${b.r},${b.c}` : b.name;
+        return [aKey, bKey].sort().join('|');
+    },
+
+    _getTradeValueForCity: function(cityLike) {
+        const hex = board?.[cityLike?.r]?.[cityLike?.c];
+        if (!hex) return 1;
+        if (hex.isCapital) return STRUCTURE_TYPES.Ciudad?.tradeValue || 10;
+        if (hex.structure && STRUCTURE_TYPES[hex.structure]?.tradeValue) {
+            return STRUCTURE_TYPES[hex.structure].tradeValue;
+        }
+        if (hex.isCity) return STRUCTURE_TYPES.Aldea?.tradeValue || 5;
+        return 1;
+    },
+
+    _isTradeUnitOperational: function(unit) {
+        if (!unit?.tradeRoute?.origin || !unit?.tradeRoute?.destination) return false;
+        const isNaval = unit.regiments?.some(reg => REGIMENT_TYPES[reg.type]?.is_naval === true);
+        const path = isNaval
+            ? (typeof traceNavalPath === 'function' ? traceNavalPath(unit, { r: unit.r, c: unit.c }, unit.tradeRoute.destination) : null)
+            : (typeof findInfrastructurePath === 'function' ? findInfrastructurePath(unit.tradeRoute.origin, unit.tradeRoute.destination) : null);
+
+        return Array.isArray(path) && path.length > 0;
+    },
+
+    _getOperationalTradeUnits: function(playerId) {
+        return units.filter(unit => {
+            const unitPlayer = unit.playerId ?? unit.player;
+            return unitPlayer === playerId && unit.tradeRoute && this._isTradeUnitOperational(unit);
+        });
+    },
+
     /**
      * PESTAÑA: COMERCIO – Rutas usadas y pares disponibles
      */
@@ -128,19 +163,13 @@ const LedgerManager = {
         const myPlayerId = gameState.myPlayerNumber || gameState.currentPlayer;
 
         // Obtener rutas activas pertenecientes al jugador
-        const activeUnits = units.filter(u => (u.playerId ?? u.player) === myPlayerId && u.tradeRoute && u.tradeRoute.origin && u.tradeRoute.destination);
-        const getPairKey = (a, b) => {
-            if (!a || !b) return null;
-            const aKey = Number.isInteger(a.r) && Number.isInteger(a.c) ? `${a.r},${a.c}` : a.name;
-            const bKey = Number.isInteger(b.r) && Number.isInteger(b.c) ? `${b.r},${b.c}` : b.name;
-            return [aKey, bKey].sort().join('|');
-        };
+        const activeUnits = this._getOperationalTradeUnits(myPlayerId);
 
         const activeKeys = new Set();
         const activeRoutes = activeUnits.map(u => {
             const origin = u.tradeRoute.origin;
             const destination = u.tradeRoute.destination;
-            const key = getPairKey(origin, destination);
+            const key = this._getTradePairKey(origin, destination);
             if (key) activeKeys.add(key);
             return {
                 unitId: u.id,
@@ -166,28 +195,8 @@ const LedgerManager = {
 
         // Función para comprobar conectividad vía carreteras entre dos ciudades
         const areCitiesConnected = (a, b) => {
-            if (!a || !b) return false;
-            const startKey = `${a.r},${a.c}`;
-            const targetKey = `${b.r},${b.c}`;
-            const queue = [{ r: a.r, c: a.c }];
-            const visited = new Set([startKey]);
-            while (queue.length) {
-                const cur = queue.shift();
-                if (cur.r === b.r && cur.c === b.c) return true;
-                const neighbors = getHexNeighbors(cur.r, cur.c);
-                for (const n of neighbors) {
-                    const key = `${n.r},${n.c}`;
-                    if (visited.has(key)) continue;
-                    const hex = board[n.r]?.[n.c];
-                    if (!hex) continue;
-                    // Permitimos avanzar por hexes propios que formen parte de la red (hasRoad) o ciudades.
-                    if (hex.owner === myPlayerId && (hex.hasRoad || hex.isCity)) {
-                        visited.add(key);
-                        queue.push({ r: n.r, c: n.c });
-                    }
-                }
-            }
-            return false;
+            const path = typeof findInfrastructurePath === 'function' ? findInfrastructurePath(a, b) : null;
+            return Array.isArray(path) && path.length > 0;
         };
 
         // Generar pares disponibles
@@ -196,7 +205,7 @@ const LedgerManager = {
             for (let j = i + 1; j < playerCities.length; j++) {
                 const a = playerCities[i];
                 const b = playerCities[j];
-                const key = getPairKey(a, b);
+                const key = this._getTradePairKey(a, b);
                 if (activeKeys.has(key)) continue; // ya en uso
                 const connected = areCitiesConnected(a, b);
                 freeRoutes.push({ aName: a.name, bName: b.name, isConnected: connected });
@@ -709,7 +718,8 @@ const LedgerManager = {
             for (let c = 0; c < board[r].length; c++) {
                 if (board[r][c]?.owner === playerId) {
                     totalHexes++;
-                    if (!board[r][c]?.hasRoad) {
+                    const hasInfrastructure = board[r][c]?.hasRoad || board[r][c]?.structure === 'Camino' || board[r][c]?.isCity;
+                    if (!hasInfrastructure) {
                         hexesWithoutRoads++;
                     }
                 }
@@ -735,16 +745,13 @@ const LedgerManager = {
     },
 
     _calculateTrade: function(playerId) {
-        // Oro de caravanas activas (aproximado)
-        // En realidad el oro se da cuando llegan a destino, pero aquí hacemos estimación
-        const caravans = units.filter(u => 
-            u.playerId === playerId && 
-            u.type === 'Caravana' && 
-            !u.isDefeated
-        );
-        
-        // Estimación: 30-50 oro por caravana activa
-        return caravans.length * 40;
+        const activeTradeUnits = this._getOperationalTradeUnits(playerId);
+        return activeTradeUnits.reduce((totalTrade, unit) => {
+            const originValue = this._getTradeValueForCity(unit.tradeRoute.origin);
+            const destinationValue = this._getTradeValueForCity(unit.tradeRoute.destination);
+            const routeValue = Math.max(1, Math.min(originValue, destinationValue));
+            return totalTrade + (routeValue * (TRADE_INCOME_PER_ROUTE || 50));
+        }, 0);
     },
 
     _calculateRaids: function(playerId) {

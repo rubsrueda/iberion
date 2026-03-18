@@ -241,6 +241,111 @@ function placeFinalizedDivision(unitData, r, c) {
     }
 }
 
+function getConfiguredSplitMode() {
+    return gameState.setupTempSettings?.unitSplitMode || 'detail';
+}
+
+function _cloneRegimentsForSplit(regiments) {
+    return JSON.parse(JSON.stringify(regiments || []));
+}
+
+function _getAutoSplitSortValue(regiment) {
+    const regimentData = REGIMENT_TYPES[regiment.type] || {};
+    return {
+        currentHealth: regiment.health || 0,
+        maxHealth: regimentData.health || 0,
+        attack: regimentData.attack || 0,
+        defense: regimentData.defense || 0
+    };
+}
+
+function buildAutomaticSplitPlan(unit, splitMode = getConfiguredSplitMode()) {
+    if (!unit?.regiments || unit.regiments.length <= 1) return null;
+
+    const regiments = _cloneRegimentsForSplit(unit.regiments);
+    const navalRegiments = regiments.filter(reg => REGIMENT_TYPES[reg.type]?.is_naval);
+    const landRegiments = regiments.filter(reg => !REGIMENT_TYPES[reg.type]?.is_naval);
+    const isMixedTransport = navalRegiments.length > 0 && landRegiments.length > 0;
+
+    if (isMixedTransport) {
+        return {
+            newUnitRegiments: landRegiments,
+            remainingOriginalRegiments: navalRegiments,
+            message: 'Desembarco automatico preparado. Haz clic en el destino y las tropas bajaran del transporte.'
+        };
+    }
+
+    const sortedRegiments = [...regiments].sort((left, right) => {
+        const leftValue = _getAutoSplitSortValue(left);
+        const rightValue = _getAutoSplitSortValue(right);
+
+        if (leftValue.currentHealth !== rightValue.currentHealth) return leftValue.currentHealth - rightValue.currentHealth;
+        if (leftValue.maxHealth !== rightValue.maxHealth) return leftValue.maxHealth - rightValue.maxHealth;
+        if (leftValue.attack !== rightValue.attack) return leftValue.attack - rightValue.attack;
+        return leftValue.defense - rightValue.defense;
+    });
+
+    let newUnitRegiments = [];
+    let remainingOriginalRegiments = [];
+
+    switch (splitMode) {
+        case 'minimum':
+            newUnitRegiments = [sortedRegiments[0]];
+            remainingOriginalRegiments = sortedRegiments.slice(1);
+            break;
+        case 'maximum':
+            newUnitRegiments = sortedRegiments.slice(0, -1);
+            remainingOriginalRegiments = [sortedRegiments[sortedRegiments.length - 1]];
+            break;
+        case 'average': {
+            const regimentsToMove = Math.max(1, Math.floor(sortedRegiments.length / 2));
+            newUnitRegiments = sortedRegiments.slice(0, regimentsToMove);
+            remainingOriginalRegiments = sortedRegiments.slice(regimentsToMove);
+            break;
+        }
+        default:
+            return null;
+    }
+
+    if (newUnitRegiments.length === 0 || remainingOriginalRegiments.length === 0) return null;
+
+    return {
+        newUnitRegiments,
+        remainingOriginalRegiments,
+        message: 'Division automatica preparada. Haz clic en el destino y la nueva unidad aparecera sin pasos extra.'
+    };
+}
+
+function prepareSplitAction(unit, splitPlan) {
+    if (!unit || !splitPlan) return false;
+
+    gameState.preparingAction = {
+        type: 'split_unit',
+        unitId: unit.id,
+        originalR: unit.r,
+        originalC: unit.c,
+        newUnitRegiments: _cloneRegimentsForSplit(splitPlan.newUnitRegiments),
+        remainingOriginalRegiments: _cloneRegimentsForSplit(splitPlan.remainingOriginalRegiments)
+    };
+
+    if (typeof UIManager !== 'undefined' && UIManager.highlightPossibleSplitHexes) {
+        UIManager.highlightPossibleSplitHexes(unit);
+    }
+
+    if (typeof logMessage === 'function') {
+        logMessage(splitPlan.message || 'Haz clic en un hex adyacente para colocar la nueva unidad.');
+    }
+
+    return true;
+}
+
+function getNavalTransportCapacity(unit) {
+    if (!unit?.regiments) return 0;
+    return unit.regiments.reduce((totalCapacity, regiment) => {
+        return totalCapacity + (REGIMENT_TYPES[regiment.type]?.transportCapacity || 0);
+    }, 0);
+}
+
 function splitUnit(originalUnit, targetR, targetC) {
     if (!originalUnit || !originalUnit.regiments || !gameState.preparingAction) return false;
     const actionData = gameState.preparingAction;
@@ -302,13 +407,27 @@ async function mergeUnits(mergingUnit, targetUnit) {
     if (!mergingUnit || !targetUnit || mergingUnit.player !== targetUnit.player || mergingUnit.id === targetUnit.id) {
         return false;
     }
-    const isEmbarking = REGIMENT_TYPES[targetUnit.regiments[0]?.type]?.is_naval && !REGIMENT_TYPES[mergingUnit.regiments[0]?.type]?.is_naval;
-    const isLandMerge = !REGIMENT_TYPES[targetUnit.regiments[0]?.type]?.is_naval && !REGIMENT_TYPES[mergingUnit.regiments[0]?.type]?.is_naval;
-    const isNavalMerge = REGIMENT_TYPES[targetUnit.regiments[0]?.type]?.is_naval && REGIMENT_TYPES[mergingUnit.regiments[0]?.type]?.is_naval;
+    const targetHasNaval = targetUnit.regiments?.some(reg => REGIMENT_TYPES[reg.type]?.is_naval);
+    const mergingHasNaval = mergingUnit.regiments?.some(reg => REGIMENT_TYPES[reg.type]?.is_naval);
+    const isEmbarking = targetHasNaval && !mergingHasNaval;
+    const isLandMerge = !targetHasNaval && !mergingHasNaval;
+    const isNavalMerge = targetHasNaval && mergingHasNaval;
     if (!isEmbarking && !isLandMerge && !isNavalMerge) {
         logMessage("Esta combinación de unidades no se puede fusionar.", "warning");
         return false;
     }
+
+    if (isEmbarking) {
+        const transportCapacity = getNavalTransportCapacity(targetUnit);
+        const embarkedLandRegiments = targetUnit.regiments.filter(reg => !REGIMENT_TYPES[reg.type]?.is_naval).length;
+        const incomingLandRegiments = mergingUnit.regiments.filter(reg => !REGIMENT_TYPES[reg.type]?.is_naval).length;
+
+        if ((embarkedLandRegiments + incomingLandRegiments) > transportCapacity) {
+            logMessage(`Capacidad naval excedida. Esta flota solo puede transportar ${transportCapacity} regimientos terrestres.`, "warning");
+            return false;
+        }
+    }
+
     const totalRegiments = (targetUnit.regiments?.length || 0) + (mergingUnit.regiments?.length || 0);
     if (totalRegiments > MAX_REGIMENTS_PER_DIVISION) {
         logMessage(`Límite de regimientos excedido.`, "warning");
@@ -371,6 +490,19 @@ function prepareSplitOrDisembark(unit) {
     const hasLandRegiments = unit.regiments.some(reg => !REGIMENT_TYPES[reg.type]?.is_naval);
 
     
+
+    if (unit.regiments.length <= 1) {
+        logMessage("Esta unidad no se puede dividir.");
+        return;
+    }
+
+    const splitMode = getConfiguredSplitMode();
+    const splitPlan = splitMode === 'detail' ? null : buildAutomaticSplitPlan(unit, splitMode);
+
+    if (splitPlan) {
+        prepareSplitAction(unit, splitPlan);
+        return;
+    }
 
     // CASO 1: Es una unidad mixta (transporte con tropas). DEBE desembarcar/dividir.
     if (hasNavalRegiments && hasLandRegiments) {
@@ -737,10 +869,15 @@ function getMovementCost(unit, r_start, c_start, r_target, c_target, isPotential
                 // Si la casilla está vacía, se verifican las reglas normales de terreno.
                 if (unitRegimentData.is_naval) canPassThrough = neighborHexData.terrain === 'water';
                 else {
-                    const unitCategory = unitRegimentData.category;
-                    const isImpassable = (IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY.all_land.includes(neighborHexData.terrain)) ||
-                                        (IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[unitCategory] || []).includes(neighborHexData.terrain);
-                    canPassThrough = !isImpassable;
+                    const structureData = STRUCTURE_TYPES[neighborHexData.structure];
+                    if (structureData && typeof structureData.movementCost === 'number') {
+                        canPassThrough = true;
+                    } else {
+                        const unitCategory = unitRegimentData.category;
+                        const isImpassable = (IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY.all_land.includes(neighborHexData.terrain)) ||
+                                            (IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[unitCategory] || []).includes(neighborHexData.terrain);
+                        canPassThrough = !isImpassable;
+                    }
                 }
             } 
             // Si la casilla está ocupada, se comprueba si es un aliado y si tenemos "Jump".
@@ -2974,16 +3111,6 @@ async function RequestMergeUnits(mergingUnit, targetUnit, skipConfirm = false) {
     _isMergingUnits = true; // Bloquear nuevas solicitudes
 
     try {
-        // La confirmación debe ocurrir ANTES de enviar la acción al anfitrión
-        // para que el modal aparezca en el cliente que inicia la fusión
-        if (!skipConfirm) {
-            const confirmation = window.confirm(`¿Fusionar "${mergingUnit.name}" con "${targetUnit.name}"?`);
-            if (!confirmation) {
-                logMessage("Fusión cancelada.", "info");
-                return;
-            }
-        }
-
         // ¡ACTUALIZAMOS EL RELOJ! Esto es lo que permitirá sincronizar al volver de la llamada
         gameState.lastActionTimestamp = Date.now();
 
@@ -3178,16 +3305,30 @@ function _executeRazeStructure(payload) {
         return; 
     }
     
-    if (!hex.structure) return;
+    if (!hex.structure || hex.isCapital) return;
 
-    logMessage(`${unit.name} ha arrasado la estructura ${hex.structure} en (${r},${c}).`, "important");
+    const isOwnStructure = hex.owner === playerId;
+    logMessage(`${unit.name} ha ${isOwnStructure ? 'demolido' : 'arrasado'} la estructura ${hex.structure} en (${r},${c}).`, "important");
 
     const structureBefore = hex.structure;
     const featureBefore = hex.feature;
 
-    // Convertimos la estructura en ruinas
+    // Convertimos la estructura en ruinas o la retiramos si es propia
     hex.structure = null;
-    hex.feature = 'ruins'; 
+    hex.hasRoad = false;
+    hex.feature = isOwnStructure ? featureBefore : 'ruins';
+    delete hex.currentIntegrity;
+
+    if (STRUCTURE_TYPES[structureBefore]?.isCity) {
+        hex.isCity = false;
+        delete hex.cityName;
+        if (Array.isArray(gameState.cities)) {
+            gameState.cities = gameState.cities.filter(city => city.r !== r || city.c !== c);
+        }
+        if (gameState.capitalCityId?.[hex.owner]?.r === r && gameState.capitalCityId?.[hex.owner]?.c === c) {
+            gameState.capitalCityId[hex.owner] = null;
+        }
+    }
     
     unit.hasMoved = true;
     unit.hasAttacked = true;
@@ -3563,6 +3704,7 @@ function handleConfirmBuildStructure(actionData) {
 
     // --- 2. Cobro de Recursos (sin cambios) ---
     for (const res in data.cost) {
+        if (res === 'Colono') continue;
         playerRes[res] -= data.cost[res];
     }
      // Consumir la unidad de colono
@@ -3618,6 +3760,7 @@ function handleConfirmBuildStructure(actionData) {
     
     // Primero asignamos la estructura física al hexágono
     board[r][c].structure = structureType;
+    board[r][c].hasRoad = structureType === 'Camino';
 
     // Si es una ciudad (Aldea, Ciudad, Metrópoli), usamos la función inteligente
     if (data.isCity) {
@@ -3776,6 +3919,8 @@ function consolidateRegiments(unit) {
 function findInfrastructurePath(startCoords, targetCoords) {
     let queue = [ { ...startCoords, path: [startCoords] } ];
     let visited = new Set([`${startCoords.r},${startCoords.c}`]);
+    const startOwner = startCoords.owner ?? board[startCoords.r]?.[startCoords.c]?.owner ?? null;
+    const bankOwner = (typeof BankManager !== 'undefined') ? BankManager.PLAYER_ID : null;
 
     while (queue.length > 0) {
         let current = queue.shift();
@@ -3789,11 +3934,12 @@ function findInfrastructurePath(startCoords, targetCoords) {
             if (visited.has(key)) continue;
 
             const hex = board[neighbor.r]?.[neighbor.c];
+            const allowedOwner = startOwner === null || hex?.owner === startOwner || (bankOwner !== null && hex?.owner === bankOwner);
             
             
             // La condición ahora solo comprueba si el hexágono tiene infraestructura.
             // IGNORA si hay una unidad en él.
-            if (hex && (hex.structure || hex.isCity)) {
+            if (hex && allowedOwner && (hex.structure || hex.isCity)) {
                 visited.add(key);
                 const newPath = [...current.path, neighbor];
                 queue.push({ ...neighbor, path: newPath });
@@ -4274,8 +4420,18 @@ function requestEstablishTradeRoute() {
         
         playerUnits.forEach(u => {
             const r = u.tradeRoute;
+            const unitIsNaval = u.regiments.some(reg => REGIMENT_TYPES[reg.type].is_naval);
+            const routeKey = [r.origin.name, r.destination.name].sort().join('|');
+            const currentPath = unitIsNaval
+                ? traceNavalPath(u, { r: u.r, c: u.c }, r.destination)
+                : findInfrastructurePath(r.origin, r.destination);
+
+            if (!currentPath || currentPath.length === 0) {
+                return;
+            }
+
             // Guardamos la clave para evitar duplicados luego
-            existingRouteKeys.add(`${r.origin.name}-${r.destination.name}`);
+            existingRouteKeys.add(routeKey);
             
             activeRoutesHTML += `
                 <div style="font-size: 9px; color: #ccc; margin-top: 2px;">
@@ -4296,7 +4452,7 @@ function requestEstablishTradeRoute() {
     // --- DENTRO DE requestEstablishTradeRoute ---
     potentialDestinations.forEach(dest => {
         // FILTRO DE DUPLICADOS: Si ya existe una ruta de A -> B, saltar.
-        const routeKey = `${startPoint.name}-${dest.name}`;
+        const routeKey = [startPoint.name, dest.name].sort().join('|');
         if (existingRouteKeys.has(routeKey)) {
             return; // Ya existe, no la añadimos a la lista de opciones
         }

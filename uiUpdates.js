@@ -1064,10 +1064,10 @@ const UIManager = {
         const hexUnderUnit = board[unit.r]?.[unit.c];
         // Comprobamos si hay una estructura, si no es una capital, y si el dueño ORIGINAL
         // del hexágono no eres tú.
-        if (hexUnderUnit && hexUnderUnit.structure && !hexUnderUnit.isCapital && hexUnderUnit.owner !== unit.player) {
-            // Hecho, aquí comprobaremos al propietario anterior o cualquier enemigo para la opción de arrasar
+        if (hexUnderUnit && hexUnderUnit.structure && !hexUnderUnit.isCapital) {
             if (this._domElements.floatingRazeBtn) {
                 this._domElements.floatingRazeBtn.style.display = 'flex';
+                this._domElements.floatingRazeBtn.title = hexUnderUnit.owner === unit.player ? 'Destruir Construccion' : 'Arrasar Estructura';
             }
         }
 
@@ -1514,6 +1514,15 @@ const UIManager = {
         const modal = document.getElementById('postMatchModal');
         if (!modal) return;
 
+        const myPlayerNumber = gameState.myPlayerNumber || 1;
+        const myPowerSeries = (gameState.matchSnapshots || []).map(snap => snap[`p${myPlayerNumber}`] ?? snap.p1 ?? 0);
+        const enemyPowerSeries = (gameState.matchSnapshots || []).map(snap => {
+            const enemyKey = Object.keys(snap).find(key => /^p\d+$/.test(key) && key !== `p${myPlayerNumber}`);
+            return enemyKey ? snap[enemyKey] : (myPlayerNumber === 1 ? (snap.p2 ?? 0) : (snap.p1 ?? 0));
+        });
+        const finalOwnPower = myPowerSeries[myPowerSeries.length - 1] || 0;
+        const finalEnemyPower = enemyPowerSeries[enemyPowerSeries.length - 1] || 0;
+
         // Validación: Si progress es undefined, usar valores por defecto
         if (!progress) {
             console.warn('[showPostMatchSummary] progress es undefined, usando valores por defecto');
@@ -1563,6 +1572,11 @@ const UIManager = {
         const levelDisp = document.getElementById('playerLevelDisplay');
         if (levelDisp) levelDisp.textContent = progress.level;
 
+        const xpGainedDisplay = document.getElementById('xpGainedDisplay');
+        if (xpGainedDisplay) {
+            xpGainedDisplay.textContent = `+${xpGained} XP de perfil obtenida en esta batalla`;
+        }
+
         // 3. INYECCIÓN DE STATS Y CONTENEDOR DE GRÁFICO
         const statsGrid = document.getElementById('matchStatsGrid');
         if (statsGrid) {
@@ -1571,9 +1585,12 @@ const UIManager = {
                 <div style="grid-column: span 2; color: #ffd700; font-style: italic; font-size: 0.9em; margin-bottom: 10px;">
                     "${emotionMsg}"
                 </div>
-                <div style="font-size: 0.8em;">Turnos: <strong>${matchData.turns}</strong></div>
-                <div style="font-size: 0.8em;">Bajas: <strong>${matchData.kills}</strong></div>
-                <div id="miniPowerGraph" style="grid-column: span 2; height: 50px; display: flex; align-items: flex-end; gap: 2px; background: rgba(0,0,0,0.5); padding: 5px; margin-top: 10px; border: 1px solid #444;">
+                <div style="font-size: 0.8em;">Resultado: <strong>${playerWon ? 'Victoria' : 'Derrota'}</strong></div>
+                <div style="font-size: 0.8em;">Turnos jugados: <strong>${matchData.turns}</strong></div>
+                <div style="font-size: 0.8em;">Regimientos enemigos destruidos: <strong>${matchData.kills}</strong></div>
+                <div style="font-size: 0.8em;">Poder final propio / rival: <strong>${finalOwnPower} / ${finalEnemyPower}</strong></div>
+                <div style="grid-column: span 2; font-size: 0.75em; color: #bcaaa4; text-align: left;">Grafica: verde es tu poder militar al cierre de cada ronda y rojo el del rival principal. No mide oro ahorrado ni nivel de cuenta.</div>
+                <div id="miniPowerGraph" style="grid-column: span 2; height: 70px; display: flex; align-items: flex-end; gap: 3px; background: rgba(0,0,0,0.5); padding: 6px; margin-top: 10px; border: 1px solid #444;">
                 </div>
             `;
         }
@@ -1581,15 +1598,28 @@ const UIManager = {
         // 4. DIBUJAR GRÁFICO (Con protección contra nulos)
         const graph = document.getElementById('miniPowerGraph');
         if (graph && gameState.matchSnapshots && gameState.matchSnapshots.length > 0) {
-            const maxPower = Math.max(...gameState.matchSnapshots.map(s => s.p1), 1);
-            gameState.matchSnapshots.forEach(snap => {
-                const h = (snap.p1 / maxPower) * 100;
-                const bar = document.createElement('div');
-                bar.style.flex = "1";
-                bar.style.height = `${Math.max(5, h)}%`;
-                bar.style.background = playerWon ? "#4caf50" : "#8d6e63";
-                bar.style.opacity = "0.7";
-                graph.appendChild(bar);
+            const maxPower = Math.max(...myPowerSeries, ...enemyPowerSeries, 1);
+            gameState.matchSnapshots.forEach((snap, index) => {
+                const column = document.createElement('div');
+                column.style.flex = '1';
+                column.style.display = 'flex';
+                column.style.alignItems = 'flex-end';
+                column.style.gap = '1px';
+                column.title = `Turno ${snap.turn}: tu poder ${myPowerSeries[index] || 0}, rival ${enemyPowerSeries[index] || 0}`;
+
+                const ownBar = document.createElement('div');
+                ownBar.style.flex = '1';
+                ownBar.style.height = `${Math.max(5, ((myPowerSeries[index] || 0) / maxPower) * 100)}%`;
+                ownBar.style.background = '#4caf50';
+
+                const enemyBar = document.createElement('div');
+                enemyBar.style.flex = '1';
+                enemyBar.style.height = `${Math.max(5, ((enemyPowerSeries[index] || 0) / maxPower) * 100)}%`;
+                enemyBar.style.background = '#e57373';
+
+                column.appendChild(ownBar);
+                column.appendChild(enemyBar);
+                graph.appendChild(column);
             });
         }
 

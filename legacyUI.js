@@ -186,8 +186,8 @@ const LegacyUI = {
         legend += `</div>`;
 
         const html = `
-            <h3>📈 Progresión de Puntuación</h3>
-            <p style="color: #aaa; font-size: 0.9em;">Evolución de cada imperio a lo largo de la partida</p>
+            <h3>📈 Evolución de cada imperio</h3>
+            <p style="color: #aaa; font-size: 0.9em;">Serie compuesta por expansion, poder militar, ciudades, poblacion e hitos. No recompensa simplemente guardar oro.</p>
             ${svg}
             ${legend}
         `;
@@ -264,6 +264,7 @@ const LegacyUI = {
         const html = `
             <h3>📖 La Crónica de la Partida</h3>
             <p style="color: #aaa; font-size: 0.9em;">Reseña narrativa de los eventos más importantes (${narrative.totalTurns} turnos)</p>
+            <div style="margin: 12px 0 18px; padding: 12px; border: 1px solid rgba(212,165,116,0.4); background: rgba(212,165,116,0.08); color: #f2d3ac; line-height: 1.45;">${narrative.summary || 'Sin resumen narrativo disponible.'}</div>
             <div class="narrative-log" style="
                 max-height: 500px;
                 overflow-y: auto;
@@ -310,7 +311,7 @@ const LegacyUI = {
 
         const html = `
             <h3>⚔️ Análisis de Combates</h3>
-            <p style="color: #aaa; font-size: 0.9em;">Detalles de los últimos 10 combates</p>
+            <p style="color: #aaa; font-size: 0.9em;">Detalles de los últimos 10 combates. La última columna muestra pérdidas del atacante y del defensor, en ese orden.</p>
             <div class="legacy-table-container">
                 <table class="legacy-table">
                     <thead>
@@ -322,7 +323,7 @@ const LegacyUI = {
                             <th>Ubicación</th>
                             <th>Terreno</th>
                             <th>Ganador</th>
-                            <th>Bajas (A/D)</th>
+                            <th>Pérdidas Atacante / Defensor</th>
                         </tr>
                     </thead>
                     <tbody>

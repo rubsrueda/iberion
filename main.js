@@ -977,6 +977,7 @@ function initApp() {
                 resourceLevel: domElements.resourceLevelSelect.value,
                 boardSize: domElements.boardSizeSelect.value,
                 turnTime: document.getElementById('turnTimeSelect')?.value || '180',
+                unitSplitMode: document.getElementById('unitSplitMode')?.value || 'detail',
                 barbarianDensity: document.getElementById('barbarianDensity')?.value || 'med',
                 victoryByPoints: (document.getElementById('victoryByPoints')?.value || 'enabled') === 'enabled',
                 navalMap: domElements.boardSizeSelect.value === 'large' && document.getElementById('navalMapCheckbox')?.checked,
@@ -1027,6 +1028,7 @@ function initApp() {
                     resourceLevel: document.getElementById('resourceLevel')?.value || 'med',
                     unitLimit: document.getElementById('initialUnitsCount')?.value || '5',
                     turnTime: document.getElementById('turnTimeSelect')?.value || '180',
+                    unitSplitMode: document.getElementById('unitSplitMode')?.value || 'detail',
                     numPlayers: parseInt(document.getElementById('num-players-slider')?.value) || 2,
                     gameMode: document.getElementById('gameModeSelect')?.value || 'development',
                     barbarianDensity: document.getElementById('barbarianDensity')?.value || 'med',
@@ -1058,6 +1060,7 @@ function initApp() {
                 if (!gameState.setupTempSettings) gameState.setupTempSettings = {};
                 gameState.setupTempSettings.barbarianDensity = settings.barbarianDensity || 'med';
                 gameState.setupTempSettings.navalMap = settings.navalMap || false;
+                gameState.setupTempSettings.unitSplitMode = settings.unitSplitMode || 'detail';
                 
                 // Leer Civilizaciones y Tipos de la Pantalla 2
                 const playerTypes = {};
@@ -1452,6 +1455,7 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
             const resourceLevelVal = document.getElementById('resourceLevel')?.value || 'med';
             const unitLimitVal = document.getElementById('initialUnitsCount')?.value || '5';
             const turnTimeVal = document.getElementById('turnTimeSelect')?.value || '180'; // Valor por defecto seguro
+            const unitSplitModeVal = document.getElementById('unitSplitMode')?.value || 'detail';
             const numPlayersVal = parseInt(document.getElementById('num-players-slider')?.value) || 2;
 
             const barbarianDensityVal = document.getElementById('barbarianDensity')?.value || 'med';
@@ -1465,6 +1469,7 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
                 resourceLevel: resourceLevelVal,
                 unitLimit: unitLimitVal,
                 turnTime: turnTimeVal,
+                unitSplitMode: unitSplitModeVal,
                 numPlayers: numPlayersVal,
                 barbarianDensity: barbarianDensityVal,
                 victoryByPoints: victoryByPointsVal === 'enabled',
@@ -2434,6 +2439,7 @@ function iniciarPartidaLAN(settings) {
     if (!gameState.setupTempSettings) gameState.setupTempSettings = {};
     gameState.setupTempSettings.barbarianDensity = settings.barbarianDensity || 'med';
     gameState.setupTempSettings.navalMap = settings.navalMap || false;
+    gameState.setupTempSettings.unitSplitMode = settings.unitSplitMode || 'detail';
     gameState.isCampaignBattle = false;
 
     showScreen(domElements.gameContainer);

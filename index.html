@@ -769,6 +769,15 @@
                                 <option value="none">Sin límite</option>
                             </select>
                         </div>
+                        <div class="setup-option">
+                            <label for="unitSplitMode">Division</label>
+                            <select id="unitSplitMode">
+                                <option value="detail" selected>Detallar (como ahora)</option>
+                                <option value="minimum">Minimo (divide el regimiento mas pequeno)</option>
+                                <option value="maximum">Maximo (divide todos menos uno)</option>
+                                <option value="average">Promedio (divide la mitad)</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <!-- Barbaros -->
@@ -1330,7 +1339,7 @@
             <div id="mvpHeroContainer"></div>
             
             <div style="margin: 20px 0;">
-                <p>Nivel de Comandante: <strong id="playerLevelDisplay">1</strong></p>
+                <p>Nivel de cuenta del comandante: <strong id="playerLevelDisplay">1</strong></p>
                 <div class="xp-bar-container" style="height: 25px; background: #1a2a33; border: 2px solid #7f8c8d;">
                     <div id="playerXpBar" class="xp-bar" style="width: 0%; background: linear-gradient(to right, #f1c40f, #e67e22);"></div>
                 </div>
