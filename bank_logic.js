@@ -57,7 +57,9 @@ const BankManager = {
                 // CORRECCIÓN: Solo contar caravanas que salgan específicamente de esta ciudad
                 if (u.tradeRoute.origin.r === bankCity.r && u.tradeRoute.origin.c === bankCity.c) {
                     // Guardamos la clave "Origen-Destino" para evitar duplicados
-                    const routeKey = `${u.tradeRoute.origin.name}-${u.tradeRoute.destination.name}`;
+                    const originKey = `${u.tradeRoute.origin.r},${u.tradeRoute.origin.c}`;
+                    const destKey = `${u.tradeRoute.destination.r},${u.tradeRoute.destination.c}`;
+                    const routeKey = `${originKey}|${destKey}`;
                     existingRouteKeys.add(routeKey);
                 }
             }
@@ -71,7 +73,7 @@ const BankManager = {
             if (targetCity.owner === this.PLAYER_ID) return false;
 
             // Regla 2: Que NO HAYA YA una caravana desde ESTA ciudad hacia ese destino (igual que el jugador)
-            const routeKey = `${bankCity.name}-${targetCity.name}`;
+            const routeKey = `${bankCity.r},${bankCity.c}|${targetCity.r},${targetCity.c}`;
             if (existingRouteKeys.has(routeKey)) return false;
 
             // Regla 3: Que exista camino físico

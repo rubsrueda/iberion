@@ -1639,11 +1639,13 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
             }
             // --- FIN DEL DIAGNÓSTICO ---
 
-            // Si pasamos los diagnósticos, llamamos a la función.
-            if (typeof openAdvancedSplitUnitModal === "function") {
+            // Pasar siempre por el flujo unificado para respetar el modo de división configurado.
+            if (typeof prepareSplitOrDisembark === "function") {
+                prepareSplitOrDisembark(selectedUnit);
+            } else if (typeof openAdvancedSplitUnitModal === "function") {
                 openAdvancedSplitUnitModal(selectedUnit);
             } else {
-                console.error("CRÍTICO: La función openAdvancedSplitUnitModal no está definida, pero se intentó llamar.");
+                console.error("CRÍTICO: No se encontró prepareSplitOrDisembark ni openAdvancedSplitUnitModal.");
             }
         });
     }

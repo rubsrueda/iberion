@@ -237,8 +237,9 @@ const LedgerUI = {
                 <td>${r.unitName || ('Unidad ' + r.unitId)}</td>
                 <td>${r.goldCarried ?? 0}/${r.cargoCapacity ?? '—'}</td>
                 <td>${r.pathLength ?? '—'}</td>
+                <td>${r.isOperational === false ? '⚠️ Revisar ruta' : '✅ En curso'}</td>
             </tr>
-        `).join('') || '<tr><td colspan="5">No hay rutas comerciales activas</td></tr>';
+        `).join('') || '<tr><td colspan="6">No hay rutas comerciales activas</td></tr>';
 
         const freeRows = (comercio.freeRoutes || []).map(r => `
             <tr>
@@ -259,7 +260,7 @@ const LedgerUI = {
                 <div class="ledger-table-container">
                     <table class="ledger-table">
                         <thead>
-                            <tr><th>Origen</th><th>Destino</th><th>Unidad</th><th>Carga</th><th>Longitud</th></tr>
+                            <tr><th>Origen</th><th>Destino</th><th>Unidad</th><th>Carga</th><th>Longitud</th><th>Estado</th></tr>
                         </thead>
                         <tbody>${activeRows}</tbody>
                     </table>

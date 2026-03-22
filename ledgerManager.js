@@ -141,18 +141,14 @@ const LedgerManager = {
 
     _isTradeUnitOperational: function(unit) {
         if (!unit?.tradeRoute?.origin || !unit?.tradeRoute?.destination) return false;
-        const isNaval = unit.regiments?.some(reg => REGIMENT_TYPES[reg.type]?.is_naval === true);
-        const path = isNaval
-            ? (typeof traceNavalPath === 'function' ? traceNavalPath(unit, { r: unit.r, c: unit.c }, unit.tradeRoute.destination) : null)
-            : (typeof findInfrastructurePath === 'function' ? findInfrastructurePath(unit.tradeRoute.origin, unit.tradeRoute.destination) : null);
-
-        return Array.isArray(path) && path.length > 0;
+        const routePath = unit.tradeRoute.path;
+        return Array.isArray(routePath) && routePath.length > 0;
     },
 
-    _getOperationalTradeUnits: function(playerId) {
+    _getPlayerTradeUnits: function(playerId) {
         return units.filter(unit => {
             const unitPlayer = unit.playerId ?? unit.player;
-            return unitPlayer === playerId && unit.tradeRoute && this._isTradeUnitOperational(unit);
+            return unitPlayer === playerId && !!unit.tradeRoute;
         });
     },
 
@@ -162,8 +158,8 @@ const LedgerManager = {
     _updateComercio: function() {
         const myPlayerId = gameState.myPlayerNumber || gameState.currentPlayer;
 
-        // Obtener rutas activas pertenecientes al jugador
-        const activeUnits = this._getOperationalTradeUnits(myPlayerId);
+        // Obtener rutas activas pertenecientes al jugador (incluye caravanas en proceso)
+        const activeUnits = this._getPlayerTradeUnits(myPlayerId);
 
         const activeKeys = new Set();
         const activeRoutes = activeUnits.map(u => {
@@ -178,7 +174,8 @@ const LedgerManager = {
                 destinationName: destination.name || `${destination.r},${destination.c}`,
                 goldCarried: u.tradeRoute.goldCarried,
                 cargoCapacity: u.tradeRoute.cargoCapacity,
-                pathLength: Array.isArray(u.tradeRoute.path) ? u.tradeRoute.path.length : (u.tradeRoute.pathData ? u.tradeRoute.pathData.length : null)
+                pathLength: Array.isArray(u.tradeRoute.path) ? u.tradeRoute.path.length : (u.tradeRoute.pathData ? u.tradeRoute.pathData.length : null),
+                isOperational: this._isTradeUnitOperational(u)
             };
         });
 

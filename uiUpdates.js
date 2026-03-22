@@ -1787,7 +1787,11 @@ const UIManager = {
                 icon: '✂️', 
                 title: 'Dividir', 
                 onClick: () => { 
-                    if (typeof openAdvancedSplitUnitModal === "function") openAdvancedSplitUnitModal(unit); 
+                    if (typeof prepareSplitOrDisembark === "function") {
+                        prepareSplitOrDisembark(unit);
+                    } else if (typeof openAdvancedSplitUnitModal === "function") {
+                        openAdvancedSplitUnitModal(unit);
+                    }
                 }
             });
         }
