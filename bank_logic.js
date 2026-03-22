@@ -44,10 +44,6 @@ const BankManager = {
         const bankCity = gameState.cities.find(c => c.owner === this.PLAYER_ID);
         if (!bankCity) return;
         
-        // Comprobar bloqueo físico: Si hay alguien en la puerta, no salimos.
-        const unitAtBank = getUnitOnHex(bankCity.r, bankCity.c);
-        if (unitAtBank) return;
-        
         // A. Listar rutas activas desde ESTA ciudad (como lo hace el jugador)
         const existingRouteKeys = new Set();
         
@@ -124,6 +120,27 @@ const BankManager = {
             return false; // Devolver 'false' en caso de fallo
         }
 
+        // Elegir casilla de despliegue: primero ciudad banco, luego adyacentes libres.
+        const deployHex = (() => {
+            const isFree = (r, c) => !!(board[r]?.[c] && !board[r][c].unit);
+            if (isFree(originCity.r, originCity.c)) {
+                return { r: originCity.r, c: originCity.c };
+            }
+
+            if (typeof getHexNeighbors === 'function') {
+                const neighbors = getHexNeighbors(originCity.r, originCity.c) || [];
+                const freeNeighbor = neighbors.find(n => isFree(n.r, n.c));
+                if (freeNeighbor) return freeNeighbor;
+            }
+
+            return null;
+        })();
+
+        if (!deployHex) {
+            console.log('[Banca] No hay casilla libre para desplegar caravana cerca del banco.');
+            return false;
+        }
+
         // Calcular la composición de la nueva caravana
         const composition = this.calculateCaravanComposition();
         
@@ -133,8 +150,8 @@ const BankManager = {
             player: this.PLAYER_ID,
             name: `Caravana a ${targetCity.name}`,
             regiments: composition,
-            r: originCity.r, 
-            c: originCity.c,
+            r: deployHex.r,
+            c: deployHex.c,
             // Propiedades por defecto
             hasMoved: true, // Para que no pueda ser controlada en el turno de creación
             hasAttacked: true,
@@ -160,7 +177,7 @@ const BankManager = {
         };
 
         // Colocar la unidad en el tablero
-        placeFinalizedDivision(newCaravanData, originCity.r, originCity.c);
+        placeFinalizedDivision(newCaravanData, deployHex.r, deployHex.c);
         logMessage(`La Banca ha enviado una caravana hacia ${targetCity.name}.`, "event");
 
         return true; // Devolver 'true' en caso de éxito

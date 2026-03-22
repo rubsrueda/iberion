@@ -152,6 +152,11 @@ const LedgerManager = {
         });
     },
 
+    // Compatibilidad retroactiva: algunas rutas antiguas del código aún invocan este método.
+    _getOperationalTradeUnits: function(playerId) {
+        return this._getPlayerTradeUnits(playerId).filter(unit => this._isTradeUnitOperational(unit));
+    },
+
     /**
      * PESTAÑA: COMERCIO – Rutas usadas y pares disponibles
      */
@@ -165,6 +170,7 @@ const LedgerManager = {
         const activeRoutes = activeUnits.map(u => {
             const origin = u.tradeRoute.origin;
             const destination = u.tradeRoute.destination;
+            if (!origin || !destination) return null;
             const key = this._getTradePairKey(origin, destination);
             if (key) activeKeys.add(key);
             return {
@@ -177,7 +183,7 @@ const LedgerManager = {
                 pathLength: Array.isArray(u.tradeRoute.path) ? u.tradeRoute.path.length : (u.tradeRoute.pathData ? u.tradeRoute.pathData.length : null),
                 isOperational: this._isTradeUnitOperational(u)
             };
-        });
+        }).filter(Boolean);
 
         // Obtener todas las ciudades del jugador
         const playerCities = [];
@@ -742,7 +748,9 @@ const LedgerManager = {
     },
 
     _calculateTrade: function(playerId) {
-        const activeTradeUnits = this._getOperationalTradeUnits(playerId);
+        const activeTradeUnits = this._getPlayerTradeUnits(playerId).filter(unit => {
+            return unit?.tradeRoute?.origin && unit?.tradeRoute?.destination;
+        });
         return activeTradeUnits.reduce((totalTrade, unit) => {
             const originValue = this._getTradeValueForCity(unit.tradeRoute.origin);
             const destinationValue = this._getTradeValueForCity(unit.tradeRoute.destination);
