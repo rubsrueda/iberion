@@ -26,6 +26,8 @@ const Chronicle = {
             if (typeof logToConsole === 'function') {
                 logToConsole(message, 'chronicle');
             }
+                    // Enviar al Event Feed visual
+                    if (typeof EventFeed !== 'undefined') EventFeed.push(eventType, message);
         }
     },
 
@@ -118,5 +120,60 @@ const Chronicle = {
         
         if (city) return `la ciudad de ${city.name}`;
         return `las ${terrainName.toLowerCase()}s en (${r},${c})`;
+    }
+};
+// =============================================================================
+// EventFeed — Panel lateral de eventos durante la partida
+// =============================================================================
+const EventFeed = {
+    _panel: null,
+    _list: null,
+    _maxItems: 7,
+
+    _typeMap: {
+        battle_start:       'feed-battle',
+        unit_destroyed:     'feed-battle',
+        conquest:           'feed-conquest',
+        construction:       'feed-build',
+        commander_assigned: 'feed-milestone',
+        game_start:         'feed-milestone',
+    },
+
+    _skip: new Set(['move', 'turn_start', 'consolidate']),
+
+    init: function() {
+        this._panel = document.getElementById('event-feed');
+        this._list  = document.getElementById('event-feed-list');
+    },
+
+    show: function() {
+        if (!this._panel) this.init();
+        if (this._panel) this._panel.style.display = 'flex';
+    },
+
+    hide: function() {
+        if (this._panel) this._panel.style.display = 'none';
+    },
+
+    push: function(eventType, message) {
+        if (this._skip.has(eventType)) return;
+        if (!this._list) this.init();
+        if (!this._list) return;
+
+        while (this._list.children.length >= this._maxItems) {
+            this._list.removeChild(this._list.lastChild);
+        }
+
+        const item = document.createElement('div');
+        item.className = 'event-feed-item ' + (this._typeMap[eventType] || '');
+        item.textContent = message.length > 90 ? message.slice(0, 87) + '\u2026' : message;
+        this._list.insertBefore(item, this._list.firstChild);
+
+        if (this._panel && this._panel.style.display === 'none') this.show();
+    },
+
+    clear: function() {
+        if (this._list) this._list.innerHTML = '';
+        this.hide();
     }
 };

@@ -174,28 +174,55 @@ const UIManager = {
         }
     },
 
-    attachAttackPredictionListener: function(selectedUnit) {
-        if (!this._domElements.gameBoard || !selectedUnit) return;
-        
-        if (this._currentAttackPredictionListener) {
-            this._domElements.gameBoard.removeEventListener('mousemove', this._currentAttackPredictionListener);
-        }
-        
-        this._currentAttackPredictionListener = (event) => {
-            const hexEl = event.target.closest('.hex');
-            if (!hexEl) { this.hideCombatPrediction(); return; }
-            const r = parseInt(hexEl.dataset.r);
-            const c = parseInt(hexEl.dataset.c);
-            const targetUnit = getUnitOnHex(r, c);
-            if (hexEl.classList.contains('highlight-attack') && targetUnit && isValidAttack(selectedUnit, targetUnit)) {
-                const outcome = predictCombatOutcome(selectedUnit, targetUnit);
-                this.showCombatPrediction(outcome, targetUnit, event);
-            } else {
-                this.hideCombatPrediction();
+        attachAttackPredictionListener: function(selectedUnit) {
+            if (!this._domElements.gameBoard || !selectedUnit) return;
+
+            if (this._currentAttackPredictionListener) {
+                this._domElements.gameBoard.removeEventListener('mousemove', this._currentAttackPredictionListener);
             }
-        };
-        this._domElements.gameBoard.addEventListener('mousemove', this._currentAttackPredictionListener);
-    },
+
+            // Estado local del throttle: un frame pendiente + clave del último hex calculado
+            let _framePending = false;
+            let _lastHexKey = null;
+            let _lastClientX = 0;
+            let _lastClientY = 0;
+
+            this._currentAttackPredictionListener = (event) => {
+                // Capturar datos del evento antes de que pueda reciclarse
+                const target = event.target;
+                _lastClientX = event.clientX;
+                _lastClientY = event.clientY;
+
+                if (_framePending) return;
+                _framePending = true;
+
+                requestAnimationFrame(() => {
+                    _framePending = false;
+                    const hexEl = target.closest('.hex');
+                    if (!hexEl) { _lastHexKey = null; this.hideCombatPrediction(); return; }
+
+                    const r = parseInt(hexEl.dataset.r);
+                    const c = parseInt(hexEl.dataset.c);
+                    const hexKey = `${r},${c}`;
+
+                    // Si el puntero sigue sobre el mismo hex, no recalcular
+                    if (hexKey === _lastHexKey) return;
+                    _lastHexKey = hexKey;
+
+                    const targetUnit = getUnitOnHex(r, c);
+                    if (hexEl.classList.contains('highlight-attack') && targetUnit && isValidAttack(selectedUnit, targetUnit)) {
+                        const outcome = predictCombatOutcome(selectedUnit, targetUnit);
+                        // Reconstruir evento sintético con coordenadas capturadas
+                        this.showCombatPrediction(outcome, targetUnit, { clientX: _lastClientX, clientY: _lastClientY });
+                    } else {
+                        this.hideCombatPrediction();
+                    }
+                });
+            };
+
+            this._domElements.gameBoard.addEventListener('mousemove', this._currentAttackPredictionListener);
+        },
+    
     
     removeAttackPredictionListener: function() {
         if (this._currentAttackPredictionListener && this._domElements.gameBoard) {

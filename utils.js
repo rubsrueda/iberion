@@ -432,21 +432,23 @@ function calculateTalentBonuses(unit, opposingUnit = null, isFirstHit = false) {
  * @param {number} [duration=3000] - La duración en milisegundos.
  */
 function showToast(message, type = 'info', duration = 3000) {
-    // Crear el elemento de la notificación
+    // Duración por defecto según nivel si no se especifica explícitamente
+    const defaultDurations = { destacado: 4500, epico: 6000 };
+    const effectiveDuration = duration !== 3000 ? duration : (defaultDurations[type] || 3000);
+
     const toast = document.createElement('div');
     toast.className = `toast-notification ${type}`;
     toast.textContent = message;
+    toast.style.animationDuration = `${effectiveDuration / 1000}s`;
 
-    // Ajustar la duración de la animación a través de JS
-    toast.style.animationDuration = `${duration / 1000}s`;
-
-    // Añadirlo al cuerpo del documento
     document.body.appendChild(toast);
 
-    // Eliminar el elemento del DOM después de que termine la animación
-    setTimeout(() => {
-        toast.remove();
-    }, duration);
+    // Sonido para toasts épicos
+    if (type === 'epico' && typeof AudioManager !== 'undefined' && typeof AudioManager.play === 'function') {
+        AudioManager.play('epic_milestone');
+    }
+
+    setTimeout(() => toast.remove(), effectiveDuration);
 }
 
 /**

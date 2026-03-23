@@ -2331,7 +2331,175 @@ body {
     100% {
         opacity: 0;
         transform: translate(-50%, -70px) scale(0.8);
-    }
+}
+
+}
+
+/* --- Nivel DESTACADO --- */
+.toast-notification.destacado {
+    font-size: 1.25em;
+    padding: 14px 30px;
+    border-color: #f39c12;
+    color: #fff;
+    box-shadow: 0 0 18px rgba(243, 156, 18, 0.6);
+    animation-name: toast-destacado;
+}
+@keyframes toast-destacado {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+    12%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+    18%  { transform: translate(-50%, -50%) scale(1); }
+    85%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -80px) scale(0.85); }
+}
+
+/* --- Nivel ÉPICO --- */
+.toast-notification.epico {
+    font-size: 1.5em;
+    font-weight: 700;
+    padding: 18px 40px;
+    background-color: rgba(10, 5, 0, 0.95);
+    border: 2px solid #ffd700;
+    color: #ffd700;
+    letter-spacing: 0.04em;
+    text-shadow: 0 0 12px rgba(255, 215, 0, 0.9);
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.5), 0 6px 25px rgba(0,0,0,0.7);
+    animation-name: toast-epico;
+}
+@keyframes toast-epico {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(-3deg); }
+    8%   { opacity: 1; transform: translate(-50%, -50%) scale(1.15) rotate(1deg); }
+    14%  { transform: translate(-50%, -50%) scale(0.97) rotate(0deg); }
+    18%  { transform: translate(-50%, -50%) scale(1.03); }
+    22%  { transform: translate(-50%, -50%) scale(1); }
+    80%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -100px) scale(0.8); }
+}
+
+/* ========================================================================== */
+/* ==  ANIMACIONES AMBIENTALES (agua, bosque)                              == */
+/* ========================================================================== */
+
+/* Agua animada: ondas sutiles con pseudo-elemento */
+.hex.water::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: repeating-linear-gradient(
+        135deg,
+        rgba(100, 180, 255, 0.12) 0px,
+        rgba(100, 180, 255, 0.06) 4px,
+        transparent 4px,
+        transparent 10px
+    );
+    animation: water-ripple 3s ease-in-out infinite alternate;
+    pointer-events: none;
+    z-index: 1;
+}
+@keyframes water-ripple {
+    0%   { opacity: 0.4; transform: scaleX(1) translateY(0px); }
+    50%  { opacity: 0.9; transform: scaleX(1.03) translateY(-1px); }
+    100% { opacity: 0.5; transform: scaleX(0.98) translateY(1px); }
+}
+
+/* Bosque animado: balanceo suave */
+.hex.forest::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(ellipse at 50% 30%, rgba(60, 180, 60, 0.15) 0%, transparent 65%);
+    animation: forest-sway 4s ease-in-out infinite alternate;
+    pointer-events: none;
+    z-index: 1;
+}
+@keyframes forest-sway {
+    0%   { opacity: 0.3; transform: scaleY(1) translateX(0px); }
+    40%  { opacity: 0.8; transform: scaleY(1.02) translateX(1px); }
+    100% { opacity: 0.4; transform: scaleY(0.99) translateX(-1px); }
+}
+
+/* Offset de fase aleatoria: cada n-ésimo hex empieza en momento diferente */
+.hex.water:nth-child(3n)::after   { animation-delay: -1s; }
+.hex.water:nth-child(5n)::after   { animation-delay: -2.2s; }
+.hex.water:nth-child(7n)::after   { animation-delay: -0.7s; }
+.hex.forest:nth-child(3n)::after  { animation-delay: -1.5s; }
+.hex.forest:nth-child(5n)::after  { animation-delay: -3s; }
+.hex.forest:nth-child(7n)::after  { animation-delay: -0.5s; }
+
+/* ========================================================================== */
+/* ==  POLVO AL MOVER TROPAS (clase aplicada via JS temporalmente)         == */
+/* ========================================================================== */
+.hex-dust::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(ellipse at 50% 80%, rgba(210, 180, 120, 0.7) 0%, transparent 70%);
+    animation: dust-puff 0.8s ease-out forwards;
+    pointer-events: none;
+    z-index: 5;
+}
+@keyframes dust-puff {
+    0%   { opacity: 0; transform: scale(0.5) translateY(0); }
+    30%  { opacity: 1; transform: scale(1.1) translateY(-3px); }
+    100% { opacity: 0; transform: scale(1.5) translateY(-8px); }
+}
+
+/* ========================================================================== */
+/* ==  EVENT FEED (panel lateral de eventos de partida)                    == */
+/* ========================================================================== */
+#event-feed {
+    position: fixed;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 220px;
+    max-height: 340px;
+    background: rgba(8, 12, 20, 0.82);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    border-radius: 8px;
+    overflow: hidden;
+    z-index: 1500;
+    display: flex;
+    flex-direction: column;
+    pointer-events: none;
+    backdrop-filter: blur(4px);
+}
+#event-feed-header {
+    flex-shrink: 0;
+    padding: 5px 9px;
+    font-size: 0.7em;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255, 215, 0, 0.7);
+    border-bottom: 1px solid rgba(255, 215, 0, 0.2);
+}
+#event-feed-list {
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: none;
+    padding: 4px 0;
+    display: flex;
+    flex-direction: column-reverse;
+}
+#event-feed-list::-webkit-scrollbar { display: none; }
+.event-feed-item {
+    padding: 4px 9px;
+    font-size: 0.72em;
+    line-height: 1.35;
+    color: rgba(220, 220, 220, 0.85);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    animation: feed-item-in 0.35s ease-out forwards;
+}
+.event-feed-item.feed-battle { color: #f08080; }
+.event-feed-item.feed-conquest { color: #ffd700; }
+.event-feed-item.feed-build { color: #7ec8e3; }
+.event-feed-item.feed-milestone { color: #b8ff8a; font-weight: 600; }
+@keyframes feed-item-in {
+    from { opacity: 0; transform: translateX(15px); }
+    to { opacity: 1; transform: translateX(0); }
 }
 
 /* ========================================================================== */

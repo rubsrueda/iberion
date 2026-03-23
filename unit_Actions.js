@@ -3444,6 +3444,14 @@ function _executeAssignGeneral(payload) {
  * No contiene lógica de red. Asume que la acción ya ha sido validada y confirmada.
  * @private
  */
+    // Efecto visual de polvo al mover tropas terrestres (solo terreno no-acuático)
+    function _triggerDustEffect(r, c) {
+        const hexEl = board[r]?.[c]?.element;
+        if (!hexEl || board[r][c].terrain === 'water') return;
+        hexEl.classList.add('hex-dust');
+        setTimeout(() => hexEl.classList.remove('hex-dust'), 900);
+    }
+
 async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
     // Prohibir entrar en La Banca
     if (board[toR]?.[toC]?.owner === BankManager.PLAYER_ID) {
@@ -3491,6 +3499,7 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
         targetHexData.unit = unit;
         
         // A. Captura de territorio NEUTRAL (Lógica original)
+            _triggerDustEffect(toR, toC);
         const bankPlayerId = typeof BankManager !== 'undefined' ? BankManager.PLAYER_ID : null;
         if (targetHexData.owner === null && unit.player !== bankPlayerId) {
             targetHexData.owner = unit.player;
