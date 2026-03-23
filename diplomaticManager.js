@@ -4,6 +4,56 @@
  */
 
 const DiplomaticManager = {
+
+    _playerPalette: ['#f87171', '#60a5fa', '#34d399', '#fbbf24', '#a78bfa', '#fb7185', '#22d3ee', '#4ade80'],
+
+    _extractPlayerId(rawKey) {
+        if (Number.isInteger(rawKey)) return rawKey;
+        if (typeof rawKey === 'number' && Number.isFinite(rawKey)) return Math.trunc(rawKey);
+        if (typeof rawKey !== 'string') return null;
+
+        const numeric = Number(rawKey);
+        if (Number.isFinite(numeric)) return Math.trunc(numeric);
+
+        const match = rawKey.match(/(\d+)/);
+        if (!match) return null;
+        const parsed = Number(match[1]);
+        return Number.isFinite(parsed) ? parsed : null;
+    },
+
+    _getPlayerColor(playerId) {
+        return this._playerPalette[(Math.max(1, playerId) - 1) % this._playerPalette.length];
+    },
+
+    _collectActiveRivalIds() {
+        const idSet = new Set();
+        const selfId = Number(gameState.currentPlayer);
+        const eliminated = new Set((gameState.eliminatedPlayers || []).map(v => Number(v)).filter(Number.isFinite));
+        const barbarianId = (typeof BARBARIAN_PLAYER_ID !== 'undefined') ? BARBARIAN_PLAYER_ID : 9;
+
+        const pushIfValid = (candidate) => {
+            const id = this._extractPlayerId(candidate);
+            if (!Number.isFinite(id)) return;
+            if (id === selfId) return;
+            if (id === BankManager.PLAYER_ID || id === barbarianId) return;
+            if (eliminated.has(id)) return;
+            idSet.add(id);
+        };
+
+        if (gameState.playerTypes && typeof gameState.playerTypes === 'object') {
+            Object.keys(gameState.playerTypes).forEach(pushIfValid);
+        }
+
+        if (idSet.size === 0 && gameState.playerCivilizations && typeof gameState.playerCivilizations === 'object') {
+            Object.keys(gameState.playerCivilizations).forEach(pushIfValid);
+        }
+
+        if (idSet.size === 0 && gameState.playerResources && typeof gameState.playerResources === 'object') {
+            Object.keys(gameState.playerResources).forEach(pushIfValid);
+        }
+
+        return Array.from(idSet).sort((a, b) => a - b);
+    },
     
     /**
      * Open diplomacy modal and populate with current players
@@ -22,22 +72,17 @@ const DiplomaticManager = {
         playerList.innerHTML = '';
 
         // Get all active players except current player
-        const activePlayerIds = gameState.playerTypes 
-            ? Object.keys(gameState.playerTypes).map(Number).filter(id => {
-                // Exclude: self, eliminated players, bank
-                return id !== gameState.currentPlayer && 
-                       !gameState.eliminatedPlayers?.includes(id) &&
-                       id !== BankManager.PLAYER_ID &&
-                       id !== 9; // barbarians
-            })
-            : [];
+        const activePlayerIds = this._collectActiveRivalIds();
 
         if (activePlayerIds.length === 0) {
             playerList.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">No hay otros jugadores activos.</p>';
         } else {
             activePlayerIds.forEach(playerId => {
-                const playerCiv = gameState.playerCivilizations?.[playerId];
-                const civilizationName = playerCiv?.name || `Jugador ${playerId}`;
+                const civKey = gameState.playerCivilizations?.[playerId];
+                const civData = CIVILIZATIONS[civKey] || null;
+                const civilizationName = civData?.name || `Jugador ${playerId}`;
+                const nationality = civData?.name || 'Nacionalidad desconocida';
+                const playerColor = this._getPlayerColor(playerId);
                 
                 // Check if trade is blocked
                 const isBlocked = isTradeBlockedBetweenPlayers(gameState.currentPlayer, playerId);
@@ -57,11 +102,12 @@ const DiplomaticManager = {
                 const playerInfo = document.createElement('div');
                 playerInfo.style.cssText = 'flex: 1; min-width: 0;';
                 playerInfo.innerHTML = `
-                    <div style="color: #00f3ff; font-weight: bold; font-size: 14px;">
+                    <div style="display:flex; align-items:center; gap:8px; color: #00f3ff; font-weight: bold; font-size: 14px;">
+                        <span style="width:10px; height:10px; border-radius:50%; background:${playerColor}; box-shadow:0 0 6px ${playerColor}; display:inline-block;"></span>
                         👑 ${civilizationName}
                     </div>
                     <div style="color: #888; font-size: 11px;">
-                        Jugador #${playerId}
+                        Jugador #${playerId} • ${nationality}
                     </div>
                 `;
 

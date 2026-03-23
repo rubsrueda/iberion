@@ -4592,7 +4592,7 @@ function requestEstablishTradeRoute() {
     const potentialDestinations = gameState.cities.filter(c => {
         if (c.r === startPoint.r && c.c === startPoint.c) return false;
         if (c.owner === null || c.owner === undefined) return false;
-        if (c.owner === 9) return false; // Sin comercio con ciudades bárbaras/independientes
+        if (c.owner === 9) return true; // Permitir comercio con ciudades bárbaras/independientes
         if (c.owner === pId || c.owner === BankManager.PLAYER_ID) return true;
         return !isTradeBlockedBetweenPlayers(pId, c.owner);
     });
