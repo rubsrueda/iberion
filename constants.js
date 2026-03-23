@@ -142,7 +142,7 @@ const REGIMENT_TYPES = {
         sprite: 'images/sprites/barco256.png', visionRange: 4, attackRange: 3, initiative: 10,
         goldValueOnDestroy: 200, foodConsumption: 1, puntosReclutamiento: 50, evasion: 5,
         abilities: ["enhanced_vision", "reveal_details", "jump", "barlovento"],
-        canOnlyBeAttackedByRanged: true, transportCapacity: 0, cargoCapacity: 200
+        canOnlyBeAttackedByRanged: true, transportCapacity: 1, cargoCapacity: 200
     },
     "Barco de Guerra": {category: "naval", is_naval: true,
         cost: { oro: 2000, upkeep: 100, madera: 1000 },
@@ -150,7 +150,7 @@ const REGIMENT_TYPES = {
         sprite: 'images/sprites/barco256.png', visionRange: 3, attackRange: 3, initiative: 9,
         goldValueOnDestroy: 2200, foodConsumption: 1, puntosReclutamiento: 50, evasion: 1,
         abilities: ["provide_supply", "transport", "coastal_bombardment"],
-        canOnlyBeAttackedByRanged: true, transportCapacity: 2, cargoCapacity: 2200
+        canOnlyBeAttackedByRanged: true, transportCapacity: 1, cargoCapacity: 2200
     }, 
 
     //Unidades Especiales

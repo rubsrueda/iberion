@@ -1092,6 +1092,14 @@ function isValidAttack(attacker, defender) {
     if (!attacker || !defender) return false;
     if (attacker.player === defender.player) return false;
     
+    // NUEVA LÓGICA: Permitir represalia de caravanas de la Banca
+    if (_isBankRetaliationAttack(attacker, defender)) {
+        // Las caravanas en represalia pueden atacar sin restricciones de rango normal
+        const distance = hexDistance(attacker.r, attacker.c, defender.r, defender.c);
+        const attackerRange = attacker.attackRange || 1;
+        return distance <= attackerRange + 2; // Rango aumentado para represalia
+    }
+    
     if (gameState.isTutorialActive && gameState.tutorial.force_attack_allowed) {
         // Permitido en tutorial
     } else {
@@ -2613,6 +2621,12 @@ function _executeUnitCleanup(unit) {
         UnitGrid.unindex(unit);
     }
 
+    // NUEVA LÓGICA: Si la caravana destruida es de la Banca en modo represalia, desactivar
+    if (unit.player === BankManager.PLAYER_ID && unit.tradeRoute && unit.bankRetaliation_activeAgainst) {
+        _deactivateBankRetaliationCaravans();
+        console.log(`[BankRetaliation] Caravana destruida - represalia desactivada`);
+    }
+
     // Eliminación del array global
     const index = units.findIndex(u => u.id === unit.id);
     if (index > -1) units.splice(index, 1);
@@ -3385,9 +3399,16 @@ function _executeRazeStructure(payload) {
     if (!hex.structure || hex.isCapital) return;
 
     const isOwnStructure = hex.owner === playerId;
+    const structureBefore = hex.structure;
+    
     logMessage(`${unit.name} ha ${isOwnStructure ? 'demolido' : 'arrasado'} la estructura ${hex.structure} en (${r},${c}).`, "important");
 
-    const structureBefore = hex.structure;
+    // NUEVA LÓGICA: Si se destruye un Camino de la Banca, activar represalia de caravanas
+    if (structureBefore === 'Camino' && hex.owner === BankManager.PLAYER_ID && playerId !== BankManager.PLAYER_ID) {
+        logMessage(`🚨 ¡La Banca declara represalia! Las caravanas atacarán a J${playerId} por haber destruido sus caminos.`, "warning");
+        _activateBankRoadRetaliationCaravans(playerId);
+    }
+
     const featureBefore = hex.feature;
 
     // Convertimos la estructura en ruinas o la retiramos si es propia
@@ -3847,6 +3868,12 @@ function handleConfirmBuildStructure(actionData) {
     // Primero asignamos la estructura física al hexágono
     board[r][c].structure = structureType;
     board[r][c].hasRoad = structureType === 'Camino';
+
+    // NUEVA LÓGICA: Si se reconstruye un Camino de la Banca, desactivar represalia
+    if (structureType === 'Camino' && playerId === BankManager.PLAYER_ID) {
+        logMessage(`✅ Camino de la Banca reconstruido. ¡Represalia cancelada!`, "success");
+        _deactivateBankRetaliationCaravans();
+    }
 
     // Si es una ciudad (Aldea, Ciudad, Metrópoli), usamos la función inteligente
     if (data.isCity) {
@@ -4793,6 +4820,80 @@ function traceNavalPath(unit, startWaterHex, destCity) {
     }
 
     return bestPath;
+}
+
+/**
+ * Activa el modo represalia en todas las caravanas de laBanca.
+ * Las caravanas atacarán al jugador que destruyó el camino.
+ * @param {number} targetPlayerId - El ID del jugador que destruyó el camino
+ */
+function _activateBankRoadRetaliationCaravans(targetPlayerId) {
+    // Buscar todas las caravanas (unidades de la Banca con ruta comercial)
+    const bankCaravans = units.filter(u => 
+        u.player === BankManager.PLAYER_ID && 
+        u.tradeRoute && 
+        !u.bankRetaliation_activeAgainst?.includes(targetPlayerId)
+    );
+
+    bankCaravans.forEach(caravan => {
+        if (!caravan.bankRetaliation_activeAgainst) {
+            caravan.bankRetaliation_activeAgainst = [];
+        }
+        if (!caravan.bankRetaliation_activeAgainst.includes(targetPlayerId)) {
+            caravan.bankRetaliation_activeAgainst.push(targetPlayerId);
+            console.log(`[BankRetaliation] Caravana ${caravan.name} ahora ataca a J${targetPlayerId}`);
+        }
+    });
+}
+
+/**
+ * Desactiva el modo represalia en las caravanas de la Banca.
+ * Se llama cuando se reconstruye un camino de la Banca o la caravana es destruida.
+ * @param {number} targetPlayerId - El ID del jugador contra el cual se deactiva represalia (opcional)
+ */
+function _deactivateBankRetaliationCaravans(targetPlayerId = null) {
+    // Buscar todas las caravanas de la Banca
+    const bankCaravans = units.filter(u => 
+        u.player === BankManager.PLAYER_ID && 
+        u.bankRetaliation_activeAgainst && 
+        u.bankRetaliation_activeAgainst.length > 0
+    );
+
+    bankCaravans.forEach(caravan => {
+        if (targetPlayerId !== null) {
+            // Deactivar represalia solo contra un jugador específico
+            caravan.bankRetaliation_activeAgainst = caravan.bankRetaliation_activeAgainst.filter(id => id !== targetPlayerId);
+            if (caravan.bankRetaliation_activeAgainst.length === 0) {
+                delete caravan.bankRetaliation_activeAgainst;
+            }
+            console.log(`[BankRetaliation] Caravana ${caravan.name} ya no ataca a J${targetPlayerId}`);
+        } else {
+            // Deactivar represalia completamente
+            delete caravan.bankRetaliation_activeAgainst;
+            console.log(`[BankRetaliation] Caravana ${caravan.name} modo represalia desactivado`);
+        }
+    });
+}
+
+/**
+ * Comprueba si una caravana de la Banca está en represalia contra un jugador.
+ * Usado en isValidAttack para permitir que caravanas ataquen jugadores en represalia.
+ * @param {object} attackerUnit - La unidad que intenta atacar
+ * @param {object} defenderUnit - La unidad objetivo
+ * @returns {boolean} true si es un ataque de represalia válido
+ */
+function _isBankRetaliationAttack(attackerUnit, defenderUnit) {
+    // La unidad atacante debe ser una caravana de la Banca
+    if (attackerUnit.player !== BankManager.PLAYER_ID || !attackerUnit.tradeRoute) {
+        return false;
+    }
+
+    // La unidad defendida debe ser del jugador contra el que hay represalia
+    if (!attackerUnit.bankRetaliation_activeAgainst) {
+        return false;
+    }
+
+    return attackerUnit.bankRetaliation_activeAgainst.includes(defenderUnit.player);
 }
 
 console.log("unit_Actions.js se ha cargado.");

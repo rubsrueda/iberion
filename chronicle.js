@@ -144,9 +144,36 @@ const EventFeed = {
     init: function() {
         this._panel = document.getElementById('event-feed');
         this._list  = document.getElementById('event-feed-list');
+            this._minBtn = document.getElementById('event-feed-minimize-btn');
+            this._setupMinimizeButton();
+        },
     },
+        _setupMinimizeButton: function() {
+            if (!this._minBtn) return;
+            this._minBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleMinimize();
+            });
+        },
 
+        toggleMinimize: function() {
+            if (!this._panel) this.init();
+            this._panel.classList.toggle('minimized');
+            // Cambiar el ícono del botón
+            if (this._minBtn) {
+                this._minBtn.textContent = this._panel.classList.contains('minimized') ? '+' : '−';
+            }
+            // Guardar preferencia en localStorage
+            localStorage.setItem('eventFeedMinimized', this._panel.classList.contains('minimized'));
+        },
     show: function() {
+        restoreMinimizePreference: function() {
+            if (!this._panel) this.init();
+            const isMinimized = localStorage.getItem('eventFeedMinimized') === 'true';
+            if (isMinimized) {
+                this._panel.classList.add('minimized');
+                if (this._minBtn) this._minBtn.textContent = '+';
+            }
         if (!this._panel) this.init();
         if (this._panel) this._panel.style.display = 'flex';
     },
