@@ -232,7 +232,10 @@ function placeFinalizedDivision(unitData, r, c) {
     if (gameState.currentPhase === "deployment") {
         if (!gameState.unitsPlacedByPlayer[unitData.player]) gameState.unitsPlacedByPlayer[unitData.player] = 0;
         gameState.unitsPlacedByPlayer[unitData.player]++;
-        logMessage(`J${unitData.player} desplegó ${gameState.unitsPlacedByPlayer[unitData.player]}/${gameState.deploymentUnitLimit === Infinity ? '∞' : gameState.deploymentUnitLimit}.`);
+        const effectiveLimit = (gameState.deploymentUnitLimitByPlayer && gameState.deploymentUnitLimitByPlayer[unitData.player] !== undefined)
+            ? gameState.deploymentUnitLimitByPlayer[unitData.player]
+            : gameState.deploymentUnitLimit;
+        logMessage(`J${unitData.player} desplegó ${gameState.unitsPlacedByPlayer[unitData.player]}/${effectiveLimit === Infinity ? '∞' : effectiveLimit}.`);
         
         // CORRECCIÓN: Actualizar la UI para ocultar el botón si se alcanzó el límite
         if (UIManager && typeof UIManager.updateActionButtonsBasedOnPhase === 'function') {
@@ -800,7 +803,10 @@ function isValidMove(unit, toR, toC, isPotentialMerge = false) {
             const unitCategory = unitRegimentData.category;
             const isImpassable = (IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY.all_land.includes(targetHexData.terrain)) ||
                                  (IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[unitCategory] || []).includes(targetHexData.terrain);
-            if (isImpassable) return false;
+            // Un camino (u otra estructura con movementCost) en el hex anula la restricción de terreno
+            const hasRoadBypass = isImpassable && STRUCTURE_TYPES[targetHexData.structure] &&
+                                  typeof STRUCTURE_TYPES[targetHexData.structure].movementCost === 'number';
+            if (isImpassable && !hasRoadBypass) return false;
         }
     }
     
@@ -2989,6 +2995,18 @@ function handlePlacementModeClick(r, c) {
         logMessage("Error interno: modo invasión no procesado correctamente.");
     }
     
+    // Verificar límite de unidades por jugador (usado en modo invasión)
+    if (canPlace && gameState.deploymentUnitLimitByPlayer) {
+        const playerLimit = gameState.deploymentUnitLimitByPlayer[gameState.currentPlayer];
+        if (playerLimit !== undefined && playerLimit !== Infinity) {
+            const placed = gameState.unitsPlacedByPlayer?.[gameState.currentPlayer] || 0;
+            if (placed >= playerLimit) {
+                logMessage(`Has alcanzado el límite de ${playerLimit} divisiones para el despliegue.`, "warning");
+                canPlace = false;
+            }
+        }
+    }
+
     if (canPlace) {
         // --- GESTIÓN DE RECURSOS (siempre se hace en el cliente antes de enviar) ---
         // ... (tu código de validación y resta de recursos se queda igual) ...
@@ -3934,7 +3952,8 @@ function findInfrastructurePath(startCoords, targetCoords) {
             if (visited.has(key)) continue;
 
             const hex = board[neighbor.r]?.[neighbor.c];
-            const allowedOwner = startOwner === null || hex?.owner === startOwner || (bankOwner !== null && hex?.owner === bankOwner);
+            // La Banca (startOwner === bankOwner === 0) puede atravesar cualquier infraestructura
+            const allowedOwner = startOwner === null || startOwner === bankOwner || hex?.owner === startOwner || (bankOwner !== null && hex?.owner === bankOwner);
             
             
             // La condición ahora solo comprueba si el hexágono tiene infraestructura.

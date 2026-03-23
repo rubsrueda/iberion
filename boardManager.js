@@ -1344,9 +1344,10 @@ mapTacticalData.cities?.forEach(cityInfo => {
     let cityOwnerPlayerNumber = null;
     if (cityInfo.owner === 'player') cityOwnerPlayerNumber = 1;
     else if (cityInfo.owner === 'enemy') cityOwnerPlayerNumber = 2; 
-    else if (cityInfo.owner === 'neutral' || !cityInfo.owner) { cityOwnerPlayerNumber = null; }
+    else if (cityInfo.owner === 'neutral' || cityInfo.owner === null || cityInfo.owner === undefined) { cityOwnerPlayerNumber = null; }
+    else if (cityInfo.owner === 0 || cityInfo.owner === '0' || cityInfo.owner === 'bank') { cityOwnerPlayerNumber = BankManager?.PLAYER_ID ?? 0; }
     addCityToBoardData(cityInfo.r, cityInfo.c, cityOwnerPlayerNumber, cityInfo.name, false);
-    if (cityOwnerPlayerNumber && board[cityInfo.r]?.[cityInfo.c]) {
+    if (cityOwnerPlayerNumber !== null && cityOwnerPlayerNumber !== undefined && board[cityInfo.r]?.[cityInfo.c]) {
         board[cityInfo.r][cityInfo.c].owner = cityOwnerPlayerNumber;
     }
 });

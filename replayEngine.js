@@ -231,7 +231,7 @@ const ReplayEngine = {
                 snapshot.push({
                     r: r,
                     c: c,
-                    o: hex.owner || null,              // owner
+                    o: (hex.owner === undefined ? null : hex.owner), // owner (preserva 0 para La Banca)
                     s: hex.structure || null,          // structure
                     iC: hex.isCity || false,           // isCity
                     iCa: hex.isCapital || false,       // isCapital
