@@ -3306,6 +3306,65 @@ function RequestAssignGeneral(unit, generalId) {
 }
 
 /**
+ * RequestToggleTradeBlock
+ * Multiplayer-safe action to toggle trade blocking between players
+ */
+function RequestToggleTradeBlock(targetPlayerId, forceState = null) {
+    if (gameState.currentPlayer === undefined || targetPlayerId === undefined) return;
+
+    const actionId = `toggleTradeBlock_${gameState.currentPlayer}_${targetPlayerId}_${Date.now()}`;
+    const action = {
+        type: 'toggleTradeBlock',
+        actionId: actionId,
+        payload: {
+            playerId: gameState.currentPlayer,
+            targetPlayerId: targetPlayerId,
+            forceState: forceState,
+            timestamp: Date.now()
+        }
+    };
+
+    // Send to network if multiplayer
+    if (isNetworkGame()) {
+        if (NetworkManager.esAnfitrion) {
+            processActionRequest(action);
+        } else {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+        }
+    } else {
+        // Local game execution
+        _executeToggleTradeBlock(action.payload);
+    }
+}
+
+/**
+ * _executeToggleTradeBlock
+ * Execute the trade block toggle action
+ */
+function _executeToggleTradeBlock(payload) {
+    const { playerId, targetPlayerId, forceState } = payload;
+
+    if (!gameState || playerId === undefined || targetPlayerId === undefined) return;
+
+    _ensureTradeBlockState();
+
+    // Determine final state
+    const currentState = isTradeBlockedBetweenPlayers(playerId, targetPlayerId);
+    const newState = forceState !== null ? forceState : !currentState;
+
+    // Set bilateral trade block
+    if (!gameState.tradeBlocks[playerId]) gameState.tradeBlocks[playerId] = {};
+    gameState.tradeBlocks[playerId][targetPlayerId] = newState;
+
+    const civName = gameState.playerCivilizations?.[targetPlayerId]?.name || `Jugador ${targetPlayerId}`;
+    const msg = newState 
+        ? `🚫 Comercio bloqueado con ${civName}`
+        : `✅ Comercio permitido con ${civName}`;
+    
+    logMessage(msg, newState ? 'warning' : 'success');
+}
+
+/**
  * [Función de Ejecución] Contiene la lógica real de arrasar la estructura.
  * @param {object} payload - El objeto de datos de la acción.
  */
@@ -3943,11 +4002,12 @@ function consolidateRegiments(unit) {
 /**
  * (NUEVA FUNCIÓN) Encuentra una ruta usando solo hexágonos con infraestructura.
  */
-function findInfrastructurePath(startCoords, targetCoords) {
+function findInfrastructurePath(startCoords, targetCoords, pathOptions = {}) {
     let queue = [ { ...startCoords, path: [startCoords] } ];
     let visited = new Set([`${startCoords.r},${startCoords.c}`]);
     const startOwner = startCoords.owner ?? board[startCoords.r]?.[startCoords.c]?.owner ?? null;
     const bankOwner = (typeof BankManager !== 'undefined') ? BankManager.PLAYER_ID : null;
+    const allowForeignInfrastructure = !!pathOptions.allowForeignInfrastructure;
 
     while (queue.length > 0) {
         let current = queue.shift();
@@ -3961,10 +4021,11 @@ function findInfrastructurePath(startCoords, targetCoords) {
             if (visited.has(key)) continue;
 
             const hex = board[neighbor.r]?.[neighbor.c];
-            // La Banca (startOwner === bankOwner === 0) puede atravesar cualquier infraestructura
-            const allowedOwner = startOwner === null || startOwner === bankOwner || hex?.owner === startOwner || (bankOwner !== null && hex?.owner === bankOwner);
-            
-            
+            const isTargetHex = neighbor.r === targetCoords.r && neighbor.c === targetCoords.c;
+            // La Banca puede atravesar cualquier infraestructura. Para rutas comerciales entre jugadores,
+            // permitimos infraestructura extranjera si así lo pide pathOptions.
+            const allowedOwner = allowForeignInfrastructure || startOwner === null || startOwner === bankOwner || isTargetHex || hex?.owner === startOwner || (bankOwner !== null && hex?.owner === bankOwner);
+
             // La condición ahora solo comprueba si el hexágono tiene infraestructura.
             // IGNORA si hay una unidad en él.
             if (hex && allowedOwner && (hex.structure || hex.isCity)) {
@@ -4405,6 +4466,37 @@ function RequestDisbandUnit(unitToDisband) {
 
 /** comercio **/
 
+function _ensureTradeBlockState() {
+    if (!gameState.tradeBlocks || typeof gameState.tradeBlocks !== 'object') {
+        gameState.tradeBlocks = {};
+    }
+}
+
+function isTradeBlockedBetweenPlayers(playerA, playerB) {
+    if (playerA === null || playerA === undefined || playerB === null || playerB === undefined) return false;
+    _ensureTradeBlockState();
+    return !!(gameState.tradeBlocks[playerA]?.[playerB] || gameState.tradeBlocks[playerB]?.[playerA]);
+}
+
+// Acción estratégica: bloquea/desbloquea comercio con otro jugador.
+function toggleTradeBlock(targetPlayerId, forceState = null, actorPlayerId = gameState.currentPlayer) {
+    if (!Number.isInteger(targetPlayerId) || !Number.isInteger(actorPlayerId)) return false;
+    if (targetPlayerId === actorPlayerId) return false;
+
+    _ensureTradeBlockState();
+    if (!gameState.tradeBlocks[actorPlayerId]) gameState.tradeBlocks[actorPlayerId] = {};
+
+    const currentlyBlocked = !!gameState.tradeBlocks[actorPlayerId][targetPlayerId];
+    const nextBlocked = (forceState === null) ? !currentlyBlocked : !!forceState;
+
+    if (nextBlocked) gameState.tradeBlocks[actorPlayerId][targetPlayerId] = true;
+    else delete gameState.tradeBlocks[actorPlayerId][targetPlayerId];
+
+    const actionText = nextBlocked ? 'bloqueado' : 'desbloqueado';
+    logMessage(`Comercio con J${targetPlayerId} ${actionText} por J${actorPlayerId}.`, 'info');
+    return nextBlocked;
+}
+
 /**
  * Escanea y presenta rutas válidas. Ahora soluciona el bloqueo marítimo y nombra unidades.
  */
@@ -4470,10 +4562,13 @@ function requestEstablishTradeRoute() {
     }
 
     // 3. ESCANEO DE NUEVOS DESTINOS
-    const potentialDestinations = gameState.cities.filter(c => 
-        (c.owner === pId || c.owner === BankManager.PLAYER_ID) && 
-        (c.r !== startPoint.r || c.c !== startPoint.c) // Que no sea la misma ciudad
-    );
+    const potentialDestinations = gameState.cities.filter(c => {
+        if (c.r === startPoint.r && c.c === startPoint.c) return false;
+        if (c.owner === null || c.owner === undefined) return false;
+        if (c.owner === 9) return false; // Sin comercio con ciudades bárbaras/independientes
+        if (c.owner === pId || c.owner === BankManager.PLAYER_ID) return true;
+        return !isTradeBlockedBetweenPlayers(pId, c.owner);
+    });
 
     const validRoutes = [];
 
@@ -4493,7 +4588,7 @@ function requestEstablishTradeRoute() {
             path = traceNavalPath(unit, {r: unit.r, c: unit.c}, dest);
         } else {
             // PIEZA B: Si es tierra, usamos la infraestructura de caminos
-            path = findInfrastructurePath(startPoint, dest);
+            path = findInfrastructurePath(startPoint, dest, { allowForeignInfrastructure: true });
         }
         
         // Si alguna de las dos funciones anteriores devolvió un camino válido (no null)

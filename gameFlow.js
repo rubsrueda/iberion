@@ -2280,12 +2280,22 @@ function updateTradeRoutes(playerNum) {
             // Llegada si está en la casilla o a distancia 1 (barco atracado)
             if (dist <= 1 || route.position >= route.path.length - 1) {
                 const ownerOfDest = board[dest.r]?.[dest.c]?.owner;
-                
+                const routeOwner = unit.player;
+                const blockedTrade = (typeof isTradeBlockedBetweenPlayers === 'function')
+                    ? isTradeBlockedBetweenPlayers(routeOwner, ownerOfDest)
+                    : false;
+
+                if (blockedTrade) {
+                    logMessage(`${unit.name} cancela ruta: J${routeOwner} y J${ownerOfDest} tienen comercio bloqueado.`, 'warning');
+                    delete unit.tradeRoute;
+                    break;
+                }
+
                 // Entrega de oro
                 if (ownerOfDest !== null && ownerOfDest !== BankManager.PLAYER_ID && route.goldCarried > 0) {
                     gameState.playerResources[ownerOfDest].oro += route.goldCarried;
                     logMessage(`${unit.name} ha entregado ${route.goldCarried} de oro en ${dest.name}.`);
-                    
+
                     // Otorgar puntos de investigación por intercambio de caravana
                     if (typeof ResearchRewardsManager !== 'undefined' && ResearchRewardsManager.onCaravanTrade) {
                         ResearchRewardsManager.onCaravanTrade(ownerOfDest);
@@ -2318,7 +2328,7 @@ function updateTradeRoutes(playerNum) {
                         route.path = null;
                     }
                 } else {
-                    route.path = findInfrastructurePath(currentPos, route.destination);
+                    route.path = findInfrastructurePath(currentPos, route.destination, { allowForeignInfrastructure: true });
                 }
 
                 if (!route.path || route.path.length === 0) {

@@ -64,6 +64,7 @@ function resetGameStateForIberiaMagna() {
         turnDurationSeconds: turnDuration, 
         lastActionTimestamp: 0, 
         matchSnapshots: [], // Aquí guardaremos la "foto" de poder de cada turno
+        tradeBlocks: {}, // Diplomatic trade blocking: { [playerA]: { [playerB]: true } }
     };
 
     for (let i = 1; i <= numPlayers; i++) {
@@ -116,7 +117,8 @@ function resetGameStateVariables(playerCount = 2, turnDuration = Infinity, gameM
         selectedHexR: -1,
         selectedHexC: -1,
         preparingAction: null,
-        selectedUnit: null
+        selectedUnit: null,
+        tradeBlocks: {} // Diplomatic trade blocking: { [playerA]: { [playerB]: true } }
     };
 
     // Este bucle ahora creará los jugadores necesarios dinámicamente

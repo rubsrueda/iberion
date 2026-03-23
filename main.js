@@ -2801,6 +2801,13 @@ async function processActionRequest(action) {
             }
             break;
 
+        case 'toggleTradeBlock':
+            if (typeof _executeToggleTradeBlock === 'function') {
+                _executeToggleTradeBlock(payload);
+                actionExecuted = true;
+            }
+            break;
+
         default:
             console.warn(`[Red - Anfitrión] Recibida petición de acción desconocida: ${action.type}`);
             break;

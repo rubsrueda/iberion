@@ -198,7 +198,9 @@ const LedgerManager = {
 
         // Función para comprobar conectividad vía carreteras entre dos ciudades
         const areCitiesConnected = (a, b) => {
-            const path = typeof findInfrastructurePath === 'function' ? findInfrastructurePath(a, b) : null;
+            const path = typeof findInfrastructurePath === 'function'
+                ? findInfrastructurePath(a, b, { allowForeignInfrastructure: true })
+                : null;
             return Array.isArray(path) && path.length > 0;
         };
 
@@ -283,7 +285,9 @@ const LedgerManager = {
         if (isNaval) {
             path = typeof traceNavalPath === 'function' ? traceNavalPath(candidate, { r: candidate.r, c: candidate.c }, dest) : null;
         } else {
-            path = typeof findInfrastructurePath === 'function' ? findInfrastructurePath(origin, dest) : null;
+            path = typeof findInfrastructurePath === 'function'
+                ? findInfrastructurePath(origin, dest, { allowForeignInfrastructure: true })
+                : null;
         }
 
         if (!path || path.length === 0) {

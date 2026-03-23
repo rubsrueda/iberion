@@ -183,6 +183,7 @@
     <!-- Panel de Botones a la Derecha (oculto inicialmente, se expande) -->
     <div id="top-bar-actions" class="top-bar-panel top-bar-actions-panel">
         <button id="btn-open-ledger" title="Abrir Cuaderno de Estado" onclick="if(typeof LedgerManager !== 'undefined') { LedgerManager.open(); }">📖</button>
+        <button id="btn-open-diplomacy" title="Relaciones Diplomáticas" onclick="if(typeof DiplomaticManager !== 'undefined') { DiplomaticManager.openModal(); }">🤝</button>
         
          <!-- <button id="saveGameBtn_top" title="Guardar Partida">💾</button>-->
         
@@ -2881,6 +2882,33 @@
     </div>
 
     <script src="test-replay-system.js"></script>
+
+    <!-- DIPLOMATIC RELATIONS MODAL -->
+    <div id="diplomacyModal" class="modal modal-themed" style="display: none; z-index: 10040;">
+        <div class="modal-content" style="max-width: 450px; max-height: 600px; display: flex; flex-direction: column;">
+            
+            <!-- HEADER -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid #334155;">
+                <h2 style="margin: 0; color: #00f3ff; font-size: 18px;">🤝 RELACIONES DIPLOMÁTICAS</h2>
+                <button id="closeDiplomacyBtn" class="close-button" style="cursor: pointer;">×</button>
+            </div>
+
+            <!-- CONTENT -->
+            <div style="flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px;">
+                <div id="diplomacyPlayersList" style="display: flex; flex-direction: column; gap: 8px;">
+                    <!-- Populated by JS -->
+                    <p style="text-align: center; color: #888;">Cargando jugadores...</p>
+                </div>
+            </div>
+
+            <!-- FOOTER -->
+            <div style="padding: 12px; border-top: 1px solid #334155; text-align: center; font-size: 12px; color: #888;">
+                Haz clic en "Bloquear Comercio" para impedir que este jugador comercie contigo.
+            </div>
+        </div>
+    </div>
+
+    <script src="diplomaticManager.js"></script>
 
 </body>
 </html>
