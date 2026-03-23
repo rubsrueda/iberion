@@ -1829,7 +1829,7 @@ function RequestReinforceRegiment(division, regiment) {
         let spriteHTML = '';
         if (heroData.sprite.includes('.png') || heroData.sprite.includes('.jpg')) {
             // Usamos una clase para que el CSS la controle
-            spriteHTML = `<img src="${heroData.sprite}" alt="${heroData.name}" class="hero-card-image">`;
+            spriteHTML = `<img src="${heroData.sprite}" alt="${heroData.name}" class="hero-card-image hero-card-image-${heroData.id}">`;
         } else {
             // Mantenemos la lógica para los emojis como fallback
             spriteHTML = `<div class="hero-sprite">${heroData.sprite}</div>`;
@@ -1897,7 +1897,7 @@ function refreshBarracksView() {
         
         let spriteHTML = '';
         if (heroData.sprite.includes('.png') || heroData.sprite.includes('.jpg')) {
-            spriteHTML = `<img src="${heroData.sprite}" alt="${heroData.name}" class="hero-card-image">`;
+            spriteHTML = `<img src="${heroData.sprite}" alt="${heroData.name}" class="hero-card-image hero-card-image-${heroData.id}">`;
         } else {
             spriteHTML = `<div class="hero-sprite">${heroData.sprite}</div>`;
         }
@@ -1991,7 +1991,7 @@ function openHeroDetailModal(heroInstance) {
     });
     const isLocked = heroInstance.stars === 0;
     // --- Rellenar UI de Detalles del Héroe ---
-    document.getElementById('hero-portrait-container').innerHTML = `<img src="${heroData.sprite}" alt="${heroData.name}">`;
+    document.getElementById('hero-portrait-container').innerHTML = `<img src="${heroData.sprite}" alt="${heroData.name}" class="hero-portrait-image hero-portrait-image-${heroData.id}">`;
     document.getElementById('heroDetailName').textContent = heroData.name;
     document.getElementById('heroDetailTitle').textContent = heroData.title;
     
@@ -2765,7 +2765,7 @@ function openEquipmentSelector(heroInstance, slotType) {
             }).join(', ');
 
             itemDiv.innerHTML = `
-                <span class="item-icon">${itemDef.icon}</span>
+                <span class="item-icon">${_getEquipmentIconHTML(itemDef, 'item-icon-img')}</span>
                 <div class="item-info">
                     <strong class="item-name rarity-${itemDef.rarity}">${itemDef.name}</strong>
                     <span class="item-stats">${statsString}</span>
@@ -2888,7 +2888,7 @@ function openEquipmentSelector(heroInstance, slotType) {
             const statsStr = itemDef.bonuses.map(b => `${b.value}${b.is_percentage ? '%' : ''} ${b.stat}`).join(', ');
 
             itemDiv.innerHTML = `
-                <span class="item-icon">${itemDef.icon}</span>
+                <span class="item-icon">${_getEquipmentIconHTML(itemDef, 'item-icon-img')}</span>
                 <div class="item-info">
                     <strong class="item-name rarity-${itemDef.rarity}">${itemDef.name} ${statusText}</strong>
                     <span class="item-stats">${statsStr}</span>
@@ -2974,6 +2974,17 @@ function openForgeModal() {
     modal.style.display = 'flex';
 }
 
+function _isImagePathIcon(iconValue) {
+    return typeof iconValue === 'string' && /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(iconValue);
+}
+
+function _getEquipmentIconHTML(itemDef, sizeClass = 'item-icon-img') {
+    if (_isImagePathIcon(itemDef?.icon)) {
+        return `<img src="${itemDef.icon}" alt="${itemDef.name || 'Equipo'}" class="${sizeClass}">`;
+    }
+    return `<span>${itemDef?.icon || '❔'}</span>`;
+}
+
 /**
  * Rellena la lista de planos en la Forja basándose en los fragmentos del jugador.
  */
@@ -3009,7 +3020,7 @@ function populateBlueprintList() {
         if (canForge) itemDiv.classList.add('can-forge');
         
         itemDiv.innerHTML = `
-            <span class="item-icon">${itemDef.icon}</span>
+            <span class="item-icon">${_getEquipmentIconHTML(itemDef, 'item-icon-img')}</span>
             <div class="item-info">
                 <strong class="item-name rarity-${itemDef.rarity}">${itemDef.name}</strong>
                 <span class="item-progress">Fragmentos: ${fragmentsHeld} / ${fragmentsNeeded}</span>
@@ -3039,7 +3050,7 @@ function showBlueprintDetail(itemId) {
     const fragmentsHeld = PlayerDataManager.currentPlayer.inventory.equipment_fragments[itemId] || 0;
     const fragmentsNeeded = itemDef.fragments_needed;
 
-    document.getElementById('blueprintItemIcon').textContent = itemDef.icon;
+    document.getElementById('blueprintItemIcon').innerHTML = _getEquipmentIconHTML(itemDef, 'item-icon-large-img');
     document.getElementById('blueprintItemName').textContent = itemDef.name;
 
     const statsString = itemDef.bonuses.map(b => {

@@ -1992,6 +1992,14 @@ body {
     margin-right: 15px;
 }
 
+.item-icon-img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    display: inline-block;
+    vertical-align: middle;
+}
+
 .blueprint-item .item-info .item-name {
     font-weight: bold;
 }
@@ -2016,6 +2024,14 @@ body {
     font-size: 4em;
     text-align: center;
     margin-bottom: 15px;
+}
+
+.item-icon-large-img {
+    width: 80px;
+    height: 80px;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto;
 }
 
 #blueprintItemName {
@@ -2451,9 +2467,9 @@ body {
 /* ========================================================================== */
 #event-feed {
     position: fixed;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
+    right: 8px;
+    top: 64px;
+    transform: none;
     width: 220px;
     max-height: 340px;
     background: rgba(8, 12, 20, 0.82);
@@ -2470,7 +2486,7 @@ body {
 #event-feed.minimized {
     max-height: 32px;
     width: 50px;
-    top: 120px;
+    top: 64px;
 }
 #event-feed.minimized #event-feed-header span {
     display: none;
@@ -5276,8 +5292,22 @@ input[type="range"] {
 .hero-card-image {
     width: 70px !important;
     height: 70px !important;
-    object-fit: cover;
+    object-fit: contain;
+    object-position: center center;
+    background: rgba(0, 0, 0, 0.15);
     margin: 0 auto 5px auto;
+}
+
+#hero-portrait-container img,
+.hero-portrait-image {
+    object-fit: contain !important;
+    object-position: center center !important;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.hero-card-image-g_fabius,
+.hero-portrait-image-g_fabius {
+    object-position: center 20%;
 }
 
 .hero-card .hero-name {

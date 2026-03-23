@@ -128,6 +128,7 @@ const Chronicle = {
 const EventFeed = {
     _panel: null,
     _list: null,
+    _minBtn: null,
     _maxItems: 7,
 
     _typeMap: {
@@ -144,36 +145,38 @@ const EventFeed = {
     init: function() {
         this._panel = document.getElementById('event-feed');
         this._list  = document.getElementById('event-feed-list');
-            this._minBtn = document.getElementById('event-feed-minimize-btn');
-            this._setupMinimizeButton();
-        },
+        this._minBtn = document.getElementById('event-feed-minimize-btn');
+        this._setupMinimizeButton();
+        this.restoreMinimizePreference();
     },
-        _setupMinimizeButton: function() {
-            if (!this._minBtn) return;
-            this._minBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.toggleMinimize();
-            });
-        },
 
-        toggleMinimize: function() {
-            if (!this._panel) this.init();
-            this._panel.classList.toggle('minimized');
-            // Cambiar el ícono del botón
-            if (this._minBtn) {
-                this._minBtn.textContent = this._panel.classList.contains('minimized') ? '+' : '−';
-            }
-            // Guardar preferencia en localStorage
-            localStorage.setItem('eventFeedMinimized', this._panel.classList.contains('minimized'));
-        },
+    _setupMinimizeButton: function() {
+        if (!this._minBtn || this._minBtn.dataset.bound === '1') return;
+        this._minBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleMinimize();
+        });
+        this._minBtn.dataset.bound = '1';
+    },
+
+    toggleMinimize: function() {
+        if (!this._panel) this.init();
+        if (!this._panel) return;
+
+        this._panel.classList.toggle('minimized');
+        const minimized = this._panel.classList.contains('minimized');
+        if (this._minBtn) this._minBtn.textContent = minimized ? '+' : '−';
+        localStorage.setItem('eventFeedMinimized', minimized ? 'true' : 'false');
+    },
+
+    restoreMinimizePreference: function() {
+        if (!this._panel) return;
+        const isMinimized = localStorage.getItem('eventFeedMinimized') === 'true';
+        this._panel.classList.toggle('minimized', isMinimized);
+        if (this._minBtn) this._minBtn.textContent = isMinimized ? '+' : '−';
+    },
+
     show: function() {
-        restoreMinimizePreference: function() {
-            if (!this._panel) this.init();
-            const isMinimized = localStorage.getItem('eventFeedMinimized') === 'true';
-            if (isMinimized) {
-                this._panel.classList.add('minimized');
-                if (this._minBtn) this._minBtn.textContent = '+';
-            }
         if (!this._panel) this.init();
         if (this._panel) this._panel.style.display = 'flex';
     },
