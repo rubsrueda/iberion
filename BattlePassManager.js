@@ -85,6 +85,8 @@ const BattlePassManager = {
             
             // Inicializar misiones vacías
             this.dailyMissions = [];
+            // Verificar y aplicar reset de ciclo también en modo local
+            await this.checkAndResetIfNeeded();
             return;
         }
         
@@ -120,6 +122,9 @@ const BattlePassManager = {
         }
         
         console.log("[BattlePassManager] Progreso cargado:", this.userProgress);
+
+        // Verificar si el ciclo de temporada ha cambiado y resetear si es necesario
+        await this.checkAndResetIfNeeded();
 
         // 2. CARGAR O GENERAR MISIONES DIARIAS
         await this.checkDailyMissionsGen(uid);
@@ -265,17 +270,13 @@ const BattlePassManager = {
         const progressBar = document.getElementById('bpHeaderProgressBar');
         if (progressBar) progressBar.style.width = `${percent}%`;
 
-        // 4. Timer
-        if (this.currentSeason.endDate) {
-            const end = new Date(this.currentSeason.endDate);
-            const now = new Date();
-            const diff = end - now;
-            
-            // CORRECCIÓN: Cálculo correcto de días (dividir entre milisegundos en un día)
-            const daysRemaining = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-            
-            if(document.getElementById('bpSeasonTimer')) {
-                document.getElementById('bpSeasonTimer').textContent = `${daysRemaining} días restantes`;
+        // 4. Timer — usa la fecha de fin del ciclo dinámico en lugar de la fecha hardcoded de seasonsData
+        {
+            const { end } = this.getSeasonWindowDates();
+            const daysRemaining = Math.max(0, Math.ceil((end.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+            const timerEl = document.getElementById('bpSeasonTimer');
+            if (timerEl) {
+                timerEl.textContent = `${daysRemaining} día${daysRemaining !== 1 ? 's' : ''} restante${daysRemaining !== 1 ? 's' : ''}`;
             }
         }
 
@@ -568,6 +569,72 @@ const BattlePassManager = {
         this.render(); // Redibuja la lista
     },
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // SISTEMA DE CICLO AUTOMÁTICO DE TEMPORADA
+    // Cada SEASON_DURATION_DAYS días desde SEASON_ANCHOR_DATE se inicia un
+    // nuevo ciclo: el progreso del jugador se reinicia (nivel, XP, reclamados).
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Devuelve el índice de ciclo actual (0 = primer mes, 1 = segundo mes, …).
+     * Se calcula de forma puramente local; no requiere red.
+     */
+    getCurrentSeasonCycle: function() {
+        const anchor = new Date(
+            (typeof SEASON_CONFIG !== 'undefined' ? SEASON_CONFIG.SEASON_ANCHOR_DATE : null)
+            || '2026-01-01T00:00:00Z'
+        );
+        const durationMs = ((typeof SEASON_CONFIG !== 'undefined' ? SEASON_CONFIG.SEASON_DURATION_DAYS : 28) || 28)
+            * 24 * 60 * 60 * 1000;
+        const elapsed = Date.now() - anchor.getTime();
+        return Math.max(0, Math.floor(elapsed / durationMs));
+    },
+
+    /**
+     * Devuelve {start: Date, end: Date} de la ventana del ciclo actual.
+     * Se usa para el temporizador "X días restantes" del header.
+     */
+    getSeasonWindowDates: function() {
+        const anchor = new Date(
+            (typeof SEASON_CONFIG !== 'undefined' ? SEASON_CONFIG.SEASON_ANCHOR_DATE : null)
+            || '2026-01-01T00:00:00Z'
+        );
+        const durationMs = ((typeof SEASON_CONFIG !== 'undefined' ? SEASON_CONFIG.SEASON_DURATION_DAYS : 28) || 28)
+            * 24 * 60 * 60 * 1000;
+        const cycle = this.getCurrentSeasonCycle();
+        const start = new Date(anchor.getTime() + cycle * durationMs);
+        const end   = new Date(start.getTime() + durationMs - 1000); // -1s para no solapar el siguiente
+        return { start, end };
+    },
+
+    /**
+     * Comprueba si el ciclo almacenado en el progreso del usuario difiere del
+     * ciclo actual. Si es así, reinicia nivel, XP, reclamados y pase premium.
+     * Se llama tras cargar userProgress en loadAllData().
+     */
+    checkAndResetIfNeeded: async function() {
+        if (!this.userProgress) return;
+
+        const currentCycle = this.getCurrentSeasonCycle();
+        // season_cycle puede ser undefined en registros viejos → tratar como -1
+        const storedCycle  = (this.userProgress.season_cycle !== undefined && this.userProgress.season_cycle !== null)
+            ? Number(this.userProgress.season_cycle)
+            : -1;
+
+        if (currentCycle !== storedCycle) {
+            console.log(`[BattlePassManager] Nuevo ciclo detectado: ${storedCycle} → ${currentCycle}. Reiniciando pase de batalla.`);
+            this.userProgress.current_level    = 1;
+            this.userProgress.current_xp       = 0;
+            this.userProgress.claimed_rewards  = [];
+            this.userProgress.is_premium       = false;
+            this.userProgress.season_cycle     = currentCycle;
+            await this.saveUserProgress();
+            if (typeof showToast === 'function') {
+                showToast('¡Nueva temporada del Pase de Batalla! El progreso se ha reiniciado.', 'info');
+            }
+        }
+    },
+
     saveUserProgress: async function() {
         try {
             if (!PlayerDataManager.currentPlayer?.auth_id) {
@@ -595,7 +662,8 @@ const BattlePassManager = {
                     claimed_rewards: this.userProgress.claimed_rewards || [],
                     current_level: this.userProgress.current_level || 1,
                     current_xp: this.userProgress.current_xp || 0,
-                    is_premium: this.userProgress.is_premium || false
+                    is_premium: this.userProgress.is_premium || false,
+                    season_cycle: this.userProgress.season_cycle ?? this.getCurrentSeasonCycle()
                 })
                 .eq('user_id', PlayerDataManager.currentPlayer.auth_id)
                 .eq('season_id', seasonId);

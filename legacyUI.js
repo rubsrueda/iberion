@@ -146,7 +146,7 @@ const LegacyUI = {
             return;
         }
 
-        // Crear un gráfico SVG simple
+        // ── Gráfico principal: poder total por jugador ──────────────────────
         const width = 900;
         const height = 400;
         const padding = 60;
@@ -154,49 +154,37 @@ const LegacyUI = {
         const maxScore = Math.max(1, ...(allValues.length > 0 ? allValues : [1]));
 
         let svg = `<svg width="${width}" height="${height}" class="legacy-chart">`;
-        
-        // Ejes
         svg += `<line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#fff" stroke-width="2"/>`;
         svg += `<line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" stroke="#fff" stroke-width="2"/>`;
 
-        // Eje X (turnos)
         const turnStep = Math.max(1, Math.ceil(safeTurns.length / 10));
         for (let i = 0; i < safeTurns.length; i += turnStep) {
             const x = padding + (i / Math.max(1, safeTurns.length - 1)) * (width - 2 * padding);
             svg += `<text x="${x}" y="${height - 30}" text-anchor="middle" fill="#aaa" font-size="10">T${safeTurns[i]}</text>`;
         }
-
-        // Eje Y (puntuación)
         for (let i = 0; i <= 5; i++) {
             const score = (maxScore / 5) * i;
             const y = height - padding - (i / 5) * (height - 2 * padding);
             svg += `<text x="${padding - 40}" y="${y}" text-anchor="end" fill="#aaa" font-size="10">${Math.floor(score)}</text>`;
         }
 
-        // Líneas de datos
         safeSeries.forEach(series => {
             const firstValue = Number.isFinite(series.data[0]) ? series.data[0] : 0;
             let pathData = `M ${padding} ${height - padding - (firstValue / maxScore) * (height - 2 * padding)}`;
-            
             for (let i = 1; i < series.data.length; i++) {
                 const x = padding + (i / Math.max(1, series.data.length - 1)) * (width - 2 * padding);
                 const value = Number.isFinite(series.data[i]) ? series.data[i] : 0;
                 const y = height - padding - (value / maxScore) * (height - 2 * padding);
                 pathData += ` L ${x} ${y}`;
             }
-
             svg += `<path d="${pathData}" fill="none" stroke="${series.color}" stroke-width="2" opacity="0.8"/>`;
-            
-            // Marcador de ganador
             if (series.isWinner) {
                 const lastValue = Number.isFinite(series.data[series.data.length - 1]) ? series.data[series.data.length - 1] : 0;
                 svg += `<circle cx="${width - padding}" cy="${height - padding - (lastValue / maxScore) * (height - 2 * padding)}" r="5" fill="${series.color}" stroke="#fff" stroke-width="2"/>`;
             }
         });
-
         svg += `</svg>`;
 
-        // Leyenda
         let legend = `<div class="legacy-legend">`;
         safeSeries.forEach(series => {
             legend += `<span style="color: ${series.color}; font-weight: ${series.isWinner ? 'bold' : 'normal'};">
@@ -205,14 +193,120 @@ const LegacyUI = {
         });
         legend += `</div>`;
 
-        const html = `
+        // ── Sección de desglose por rubro ──────────────────────────────────
+        const safeBreakdown = Array.isArray(graphData?.breakdown)
+            ? graphData.breakdown.filter(bd => bd && Array.isArray(bd.subSeries) && bd.subSeries.length > 0)
+            : [];
+
+        let breakdownHtml = '';
+        if (safeBreakdown.length > 0) {
+            const tabButtons = safeBreakdown.map((bd, i) =>
+                `<button class="breakdown-tab ${i === 0 ? 'active' : ''}" data-breakdown-idx="${i}"
+                    style="background: ${i === 0 ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)'}; border: 1px solid ${bd.color}; color: #eee; padding: 5px 12px; margin: 3px; border-radius: 4px; cursor: pointer; font-size: 0.82em;">
+                    <span style="color: ${bd.color};">■</span> ${bd.name}
+                </button>`
+            ).join('');
+
+            const firstBd = safeBreakdown[0];
+            breakdownHtml = `
+                <div class="breakdown-section" style="margin-top: 32px; border-top: 1px solid #444; padding-top: 20px;">
+                    <h3 style="margin-bottom: 6px;">⚖️ Desglose de poder por componente</h3>
+                    <p style="color: #aaa; font-size: 0.85em; margin-bottom: 10px;">
+                        Evolución de los distintos rubros de poder de cada jugador por turno.
+                        Las escalas están normalizadas para poder compararlos en la misma gráfica
+                        (Oro ÷10, Ciudades ×30, Territorio ×5).
+                    </p>
+                    <div class="breakdown-player-tabs" style="margin-bottom: 12px;">${tabButtons}</div>
+                    <div id="legacyBreakdownChart">${this._renderBreakdownChartHTML(firstBd.subSeries, safeTurns)}</div>
+                    <div id="legacyBreakdownLegend">${this._renderBreakdownLegendHTML(firstBd.subSeries)}</div>
+                </div>
+            `;
+        }
+
+        content.innerHTML = `
             <h3>📈 Evolución de cada imperio</h3>
             <p style="color: #aaa; font-size: 0.9em;">Serie histórica real por turno del poder militar total (tierra + naval) de cada jugador.</p>
             ${svg}
             ${legend}
+            ${breakdownHtml}
         `;
 
-        content.innerHTML = html;
+        // Listeners para los botones de selección de jugador en el desglose
+        if (safeBreakdown.length > 0) {
+            const tabs = content.querySelectorAll('.breakdown-tab[data-breakdown-idx]');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const idx = Number(tab.dataset.breakdownIdx);
+                    const bd = safeBreakdown[idx];
+                    if (!bd) return;
+                    const chartEl  = content.querySelector('#legacyBreakdownChart');
+                    const legendEl = content.querySelector('#legacyBreakdownLegend');
+                    if (chartEl)  chartEl.innerHTML  = this._renderBreakdownChartHTML(bd.subSeries, safeTurns);
+                    if (legendEl) legendEl.innerHTML = this._renderBreakdownLegendHTML(bd.subSeries);
+                    tabs.forEach(t => {
+                        t.style.background = t === tab ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)';
+                        t.classList.toggle('active', t === tab);
+                    });
+                });
+            });
+        }
+    },
+
+    /**
+     * Genera el SVG del gráfico de desglose para un jugador.
+     */
+    _renderBreakdownChartHTML: function(subSeries, turns) {
+        if (!Array.isArray(subSeries) || subSeries.length === 0) {
+            return '<div style="color: #777; padding: 10px 0;">Sin datos de desglose disponibles para este jugador.</div>';
+        }
+
+        const width = 900;
+        const height = 280;
+        const padding = 60;
+        const allValues = subSeries.flatMap(s => s.data).filter(v => Number.isFinite(v));
+        const maxVal = Math.max(1, ...(allValues.length > 0 ? allValues : [1]));
+
+        let svg = `<svg width="${width}" height="${height}" class="legacy-chart">`;
+        svg += `<line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#fff" stroke-width="1.5"/>`;
+        svg += `<line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" stroke="#fff" stroke-width="1.5"/>`;
+
+        const turnStep = Math.max(1, Math.ceil(turns.length / 10));
+        for (let i = 0; i < turns.length; i += turnStep) {
+            const x = padding + (i / Math.max(1, turns.length - 1)) * (width - 2 * padding);
+            svg += `<text x="${x}" y="${height - 30}" text-anchor="middle" fill="#aaa" font-size="10">T${turns[i]}</text>`;
+        }
+        for (let i = 0; i <= 5; i++) {
+            const val = (maxVal / 5) * i;
+            const y = height - padding - (i / 5) * (height - 2 * padding);
+            svg += `<text x="${padding - 10}" y="${y + 4}" text-anchor="end" fill="#aaa" font-size="10">${Math.floor(val)}</text>`;
+        }
+
+        subSeries.forEach(series => {
+            if (!series.data || series.data.length === 0) return;
+            const firstVal = Number.isFinite(series.data[0]) ? series.data[0] : 0;
+            let pathData = `M ${padding} ${height - padding - (firstVal / maxVal) * (height - 2 * padding)}`;
+            for (let i = 1; i < series.data.length; i++) {
+                const x = padding + (i / Math.max(1, series.data.length - 1)) * (width - 2 * padding);
+                const val = Number.isFinite(series.data[i]) ? series.data[i] : 0;
+                const y = height - padding - (val / maxVal) * (height - 2 * padding);
+                pathData += ` L ${x} ${y}`;
+            }
+            svg += `<path d="${pathData}" fill="none" stroke="${series.color}" stroke-width="2" opacity="0.9"/>`;
+        });
+
+        svg += `</svg>`;
+        return svg;
+    },
+
+    /**
+     * Genera el HTML de la leyenda del gráfico de desglose.
+     */
+    _renderBreakdownLegendHTML: function(subSeries) {
+        if (!Array.isArray(subSeries) || subSeries.length === 0) return '';
+        const items = subSeries.map(s =>
+            `<span style="color: ${s.color}; margin-right: 14px; white-space: nowrap;">— ${s.label}</span>`
+        ).join('');
+        return `<div class="legacy-legend" style="flex-wrap: wrap; gap: 6px; margin-top: 8px;">${items}</div>`;
     },
 
     /**

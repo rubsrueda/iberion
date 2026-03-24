@@ -72,7 +72,10 @@ const RAID_CONFIG = {
 const SEASON_CONFIG = {
     ACTIVE_SEASON_KEY: 'SEASON_1', // Cambia esto a 'SEASON_2', 'HALLOWEEN', etc.
     LEVEL_COST_GEMS: 200,          // Precio para comprar 1 nivel
-    SEASON_DURATION_DAYS: 28       // Duración estándar (28 días)
+    SEASON_DURATION_DAYS: 28,      // Duración estándar (28 días ≈ un mes)
+    // Punto de anclaje para calcular el ciclo actual de forma dinámica.
+    // El pase se reinicia automáticamente cada SEASON_DURATION_DAYS a partir de esta fecha.
+    SEASON_ANCHOR_DATE: '2026-01-01T00:00:00Z'
 };
 
 // Ciclo estacional de gameplay (independiente del Battle Pass).

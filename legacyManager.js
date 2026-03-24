@@ -151,6 +151,14 @@ const LegacyManager = {
             console.log('[LegacyManager._updateTimeline] Serie agregada:', series.name, 'Ganador?', series.isWinner);
         });
 
+        // Desglose por categoría: una entrada por jugador con subseries de métricas
+        graphData.breakdown = players.map(player => ({
+            playerId: player.playerId,
+            name: player.civilization || `Jugador ${player.playerId}`,
+            color: this._getPlayerColor(player.playerId),
+            subSeries: this._buildBreakdownSeries(player, totalTurns)
+        }));
+
         console.log('[LegacyManager._updateTimeline] GraphData completo:', graphData);
         LegacyUI.displayTimeline(graphData);
     },
@@ -222,6 +230,42 @@ const LegacyManager = {
                 return sum + (eventWeights[event.type] || 15);
             }, 0);
             return Math.round(progressBase * 0.8 + eventScore);
+        });
+    },
+
+    /**
+     * Construye series de desglose por categoría para un jugador.
+     * Usa la misma timeline del StatTracker que ya se captura cada turno.
+     * Las escalas aproximan cada métrica a unidades comparables con el poder militar.
+     */
+    _buildBreakdownSeries: function(player, totalTurns) {
+        if (!Array.isArray(player.timelineHistory) || player.timelineHistory.length === 0) {
+            return [];
+        }
+
+        const byTurn = new Map();
+        player.timelineHistory.forEach(p => {
+            const t = Number(p.turn);
+            if (Number.isFinite(t)) byTurn.set(t, p);
+        });
+
+        const CATEGORIES = [
+            { key: 'militaryPower', label: '⚔️ Ejército (tierra)', color: '#e57373',  scale: 1   },
+            { key: 'navyPower',     label: '⚓ Armada',             color: '#64b5f6',  scale: 1   },
+            { key: 'gold',          label: '💰 Oro ÷10',            color: '#ffd54f',  scale: 0.1 },
+            { key: 'cities',        label: '🏰 Ciudades ×30',       color: '#81c784',  scale: 30  },
+            { key: 'territory',     label: '🗺️ Territorio ×5',      color: '#ce93d8',  scale: 5   },
+        ];
+
+        return CATEGORIES.map(cat => {
+            let carry = 0;
+            const data = Array.from({ length: totalTurns }, (_, i) => {
+                const turn = i + 1;
+                const pt = byTurn.get(turn);
+                if (pt) carry = Number(pt[cat.key] || 0) * cat.scale;
+                return Math.round(Math.max(0, carry));
+            });
+            return { label: cat.label, color: cat.color, data };
         });
     },
 

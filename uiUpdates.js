@@ -1740,6 +1740,9 @@ const UIManager = {
         const graph = document.getElementById('miniPowerGraph');
         if (graph && normalizedSnapshots.length > 0) {
             const maxPower = Math.max(...myPowerSeries, ...enemyPowerSeries, 1);
+            // Usamos px en lugar de % porque la columna padre no tiene altura explícita
+            // y los porcentajes se resolverían a 0 en un flex item sin height definido.
+            const usableHeight = 58; // 70px container - 12px vertical padding
             normalizedSnapshots.forEach((snap, index) => {
                 const column = document.createElement('div');
                 column.style.flex = '1';
@@ -1750,12 +1753,12 @@ const UIManager = {
 
                 const ownBar = document.createElement('div');
                 ownBar.style.flex = '1';
-                ownBar.style.height = `${Math.max(5, ((myPowerSeries[index] || 0) / maxPower) * 100)}%`;
+                ownBar.style.height = `${Math.max(3, Math.round(((myPowerSeries[index] || 0) / maxPower) * usableHeight))}px`;
                 ownBar.style.background = '#4caf50';
 
                 const enemyBar = document.createElement('div');
                 enemyBar.style.flex = '1';
-                enemyBar.style.height = `${Math.max(5, ((enemyPowerSeries[index] || 0) / maxPower) * 100)}%`;
+                enemyBar.style.height = `${Math.max(3, Math.round(((enemyPowerSeries[index] || 0) / maxPower) * usableHeight))}px`;
                 enemyBar.style.background = '#e57373';
 
                 column.appendChild(ownBar);
