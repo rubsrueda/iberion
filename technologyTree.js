@@ -203,7 +203,7 @@ const TECHNOLOGY_TREE_DATA = {
         sprite: "🗺️", // Emoji de mapa
         cost: { researchPoints: 25 },
         unlocksUnits: ["Explorador"],
-        unlocksStructures: [],
+        unlocksStructures: ["Atalaya"],
         prerequisites: ["ORGANIZATION"],
         position: { x: 400, y: -120 }, // Lo ponemos a la derecha de ANIMAL_HUSBANDRY
         tier: 1

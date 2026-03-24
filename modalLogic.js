@@ -469,11 +469,20 @@ function openBuildStructureModal() {
                 } } 
             else {
                 console.log(`    - Hex está vacío. ¿Se puede construir "${structureId}" desde cero aquí (terreno "${hex.terrain}")?`);
-                if ((structureInfo.buildOrder || 999) === 1 && structureInfo.buildableOn?.includes(hex.terrain)) {
+                // Permitir construcción si:
+                // 1. Es una estructura base (buildOrder === 1), O
+                // 2. Es una estructura especial e independiente (buildOrder === 99, como Atalaya)
+                const isBaseStructure = (structureInfo.buildOrder || 999) === 1;
+                const isSpecialStructure = (structureInfo.buildOrder || 999) === 99;
+                const isIndependentStructure = structureInfo.requiresStructure === false || isSpecialStructure;
+                const hasValidTerrain = structureInfo.buildableOn?.includes(hex.terrain);
+                
+                if ((isBaseStructure || isIndependentStructure) && hasValidTerrain) {
                     isOptionForHex = true;
-                    console.log(`      -> SÍ. El terreno es compatible.`);
+                    const reason = isBaseStructure ? '(Estructura base)' : isSpecialStructure ? '(Estructura especial independiente)' : '(Estructura independiente)';
+                    console.log(`      -> SÍ. El terreno es compatible. ${reason}`);
                 } else {
-                     console.log(`      -> NO. Terreno no compatible. Requiere: ${structureInfo.buildableOn?.join(', ')}.`);
+                     console.log(`      -> NO. Terreno no compatible u otra restricción. Requiere: ${structureInfo.buildableOn?.join(', ')}.`);
                 }
             }
 

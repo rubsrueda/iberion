@@ -617,7 +617,8 @@ const STRUCTURE_TYPES = {
         canBeUpgraded: false,
         isCity: false,
         nextUpgrade: null,
-        buildOrder: 99
+        buildOrder: 99,
+        requiresStructure: false // Estructura especial: no depende de cadena de mejoras
     },
 };
 

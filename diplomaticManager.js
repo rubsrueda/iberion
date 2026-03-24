@@ -92,29 +92,30 @@ const DiplomaticManager = {
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
-                    padding: 10px;
+                    padding: 12px;
                     background: rgba(0, 243, 255, 0.05);
                     border: 1px solid rgba(0, 243, 255, 0.2);
                     border-radius: 4px;
-                    gap: 10px;
+                    gap: 8px;
+                    flex-wrap: wrap;
                 `;
 
                 const playerInfo = document.createElement('div');
-                playerInfo.style.cssText = 'flex: 1; min-width: 0;';
+                playerInfo.style.cssText = 'flex: 1; min-width: 150px;';
                 playerInfo.innerHTML = `
-                    <div style="display:flex; align-items:center; gap:8px; color: #00f3ff; font-weight: bold; font-size: 14px;">
+                    <div style="display:flex; align-items:center; gap:8px; color: #00f3ff; font-weight: bold; font-size: clamp(13px, 3vw, 14px);">
                         <span style="width:10px; height:10px; border-radius:50%; background:${playerColor}; box-shadow:0 0 6px ${playerColor}; display:inline-block;"></span>
                         👑 ${civilizationName}
                     </div>
-                    <div style="color: #888; font-size: 11px;">
+                    <div style="color: #888; font-size: clamp(10px, 2.5vw, 11px); margin-top: 4px;">
                         Jugador #${playerId} • ${nationality}
                     </div>
                 `;
 
                 const toggleBtn = document.createElement('button');
                 toggleBtn.style.cssText = `
-                    padding: 6px 12px;
-                    font-size: 11px;
+                    padding: 10px 14px;
+                    font-size: clamp(11px, 2.5vw, 12px);
                     font-weight: bold;
                     border: 1px solid ${isBlocked ? '#dc2626' : '#00f3ff'};
                     background: ${isBlocked ? 'rgba(220, 38, 38, 0.2)' : 'rgba(0, 243, 255, 0.1)'};
@@ -123,6 +124,12 @@ const DiplomaticManager = {
                     cursor: pointer;
                     white-space: nowrap;
                     transition: all 0.3s ease;
+                    min-height: 44px;
+                    min-width: 100px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    flex-shrink: 0;
                 `;
                 toggleBtn.textContent = isBlocked ? '🚫 BLOQUEADO' : '✅ PERMITIDO';
 
@@ -166,13 +173,41 @@ const DiplomaticManager = {
 document.addEventListener('DOMContentLoaded', () => {
     const closBtn = document.getElementById('closeDiplomacyBtn');
     if (closBtn) {
-        closBtn.addEventListener('click', () => DiplomaticManager.closeModal());
+        closBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            DiplomaticManager.closeModal();
+        });
+        closBtn.addEventListener('touchend', (e) => {
+            e.stopPropagation();
+            DiplomaticManager.closeModal();
+        });
     }
 
     const modal = document.getElementById('diplomacyModal');
     if (modal) {
+        // Cerrar al clickear fuera del contenido (en el fondo oscuro)
         modal.addEventListener('click', (e) => {
-            if (e.target === modal) DiplomaticManager.closeModal();
+            if (e.target === modal) {
+                DiplomaticManager.closeModal();
+            }
         });
+        
+        // Evitar cierre accidental al tocar el contenido en móvil
+        const modalContent = modal.querySelector('.modal-content');
+        if (modalContent) {
+            modalContent.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        }
     }
+
+    // Cerrar con tecla ESC
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('diplomacyModal');
+            if (modal && modal.style.display !== 'none') {
+                DiplomaticManager.closeModal();
+            }
+        }
+    });
 });

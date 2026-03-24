@@ -1520,35 +1520,47 @@ function updateTerritoryMetrics(playerEndingTurn) {
             // Si hay una unidad, y NO es del dueño del hexágono.
             if (unitOnHex && !isBankUnit && hex.owner !== null && unitOnHex.player !== hex.owner) {
                 const originalOwner = hex.owner;
-                
+
                 // Si la estabilidad es suficiente (umbral de 3), se reduce la nacionalidad.
                 if (hex.estabilidad >= 3) {
-                    if (hex.nacionalidad[originalOwner] > 0) {
-                        hex.nacionalidad[originalOwner]--;
+                    if (!hex.nacionalidad || typeof hex.nacionalidad !== 'object') {
+                        hex.nacionalidad = {};
+                    }
+
+                    const transferOwnershipToOccupier = () => {
+                        hex.owner = unitOnHex.player;
+                        hex.nacionalidad[unitOnHex.player] = Math.max(1, Number(hex.nacionalidad[unitOnHex.player] || 0));
+
+                        // Sincronizar ciudad si aplica (evita desajustes en comercio)
+                        if (hex.isCity) {
+                            const cityEntry = gameState.cities?.find(ci => ci.r === r && ci.c === c);
+                            const cityName = hex.cityName || cityEntry?.name || hex.structure || `Ciudad (${r},${c})`;
+                            if (cityEntry) {
+                                cityEntry.owner = unitOnHex.player;
+                                if (cityName) cityEntry.name = cityName;
+                            } else if (gameState.cities) {
+                                gameState.cities.push({ r, c, owner: unitOnHex.player, name: cityName, isCapital: false });
+                            }
+                        }
+
+                        // La estabilidad NO se resetea.
+                        renderSingleHexVisuals(r, c);
+                    };
+
+                    const ownerNationality = Number(hex.nacionalidad[originalOwner] || 0);
+
+                    // Si la nacionalidad ya está en 0 (o mal inicializada), capturar de inmediato.
+                    if (ownerNationality <= 0) {
+                        transferOwnershipToOccupier();
+                    } else {
+                        hex.nacionalidad[originalOwner] = Math.max(0, ownerNationality - 1);
                         //console.log(`Hex (${r},${c}): Estabilidad es ${hex.estabilidad}. Baja nación de J${originalOwner} a ${hex.nacionalidad[originalOwner]}`);
 
                         // Si la nacionalidad llega a 0, se produce la conquista.
                         if (hex.nacionalidad[originalOwner] === 0) {
-                            hex.owner = unitOnHex.player;
-                            hex.nacionalidad[unitOnHex.player] = 1;
-
-                            // Sincronizar ciudad si aplica (evita desajustes en comercio)
-                            if (hex.isCity) {
-                                const cityEntry = gameState.cities?.find(ci => ci.r === r && ci.c === c);
-                                const cityName = hex.cityName || cityEntry?.name || hex.structure || `Ciudad (${r},${c})`;
-                                if (cityEntry) {
-                                    cityEntry.owner = unitOnHex.player;
-                                    if (cityName) cityEntry.name = cityName;
-                                } else if (gameState.cities) {
-                                    gameState.cities.push({ r, c, owner: unitOnHex.player, name: cityName, isCapital: false });
-                                }
-                            }
-
-                            // La estabilidad NO se resetea.
-                            renderSingleHexVisuals(r, c);
+                            transferOwnershipToOccupier();
                         }
                     }
-                } else {
                 }
             }
 

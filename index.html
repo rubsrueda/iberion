@@ -2899,26 +2899,26 @@
     <script src="test-replay-system.js"></script>
 
     <!-- DIPLOMATIC RELATIONS MODAL -->
-    <div id="diplomacyModal" class="modal modal-themed" style="display: none; z-index: 10040;">
-        <div class="modal-content" style="max-width: 450px; max-height: 600px; display: flex; flex-direction: column;">
+    <div id="diplomacyModal" class="modal modal-themed diplomacy-modal" style="display: none; z-index: 10040;">
+        <div class="modal-content diplomacy-modal-content" style="display: flex; flex-direction: column;">
             
             <!-- HEADER -->
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid #334155;">
-                <h2 style="margin: 0; color: #00f3ff; font-size: 18px;">🤝 RELACIONES DIPLOMÁTICAS</h2>
-                <button id="closeDiplomacyBtn" class="close-button" style="cursor: pointer;">×</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-bottom: 1px solid #334155; flex-shrink: 0;">
+                <h2 style="margin: 0; color: #00f3ff; font-size: clamp(16px, 4vw, 18px);">🤝 DIPLOMACIA</h2>
+                <button id="closeDiplomacyBtn" class="close-button diplomacy-close-btn" style="cursor: pointer; font-size: clamp(24px, 6vw, 32px); padding: 4px 8px; min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center;">×</button>
             </div>
 
             <!-- CONTENT -->
-            <div style="flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-height: 0;">
                 <div id="diplomacyPlayersList" style="display: flex; flex-direction: column; gap: 8px;">
                     <!-- Populated by JS -->
-                    <p style="text-align: center; color: #888;">Cargando jugadores...</p>
+                    <p style="text-align: center; color: #888; font-size: 13px;">Cargando jugadores...</p>
                 </div>
             </div>
 
             <!-- FOOTER -->
-            <div style="padding: 12px; border-top: 1px solid #334155; text-align: center; font-size: 12px; color: #888;">
-                Haz clic en "Bloquear Comercio" para impedir que este jugador comercie contigo.
+            <div style="padding: 10px 12px; border-top: 1px solid #334155; text-align: center; font-size: clamp(11px, 2.5vw, 12px); color: #888; flex-shrink: 0;">
+                Toca bloquear/permitir comercio
             </div>
         </div>
     </div>

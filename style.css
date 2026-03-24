@@ -2720,14 +2720,65 @@ body {
     border-radius: 8px;
     box-shadow: 0 0 20px rgba(0,0,0,0.5);
     color: #ecf0f1;
-    width: 95vw;
+    width: 90vw;
     max-width: 500px; /* Un máximo razonable para la mayoría de los modales */
-    max-height: 90vh; /* Altura máxima para evitar scroll */
+    max-height: 85vh; /* Altura máxima para evitar scroll */
     padding: 0; /* Eliminamos el padding para tener control total */
     display: flex;
     flex-direction: column;
-    margin: 0 0 10px 0; /* Reducimos el margen inferior del título */
-    font-size: 1.1em; /* Un poco más pequeño para ser más compacto */
+    margin: 0 auto; /* Centrado automático */
+    font-size: 1em;
+}
+
+/* ---  OPTIMIZACIÓN PARA MÓVIL --- */
+@media (max-width: 768px) {
+    .modal-themed .modal-content {
+        width: 88vw;
+        max-height: 80vh;
+        font-size: 0.95em;
+    }
+}
+
+@media (max-width: 480px) {
+    .modal-themed .modal-content {
+        width: 85vw;
+        max-height: 75vh;
+        font-size: 0.9em;
+    }
+}
+
+/* --- DIPLOMACY MODAL ESPECÍFICO --- */
+.diplomacy-modal {
+    align-items: center;
+    justify-content: center;
+}
+
+.diplomacy-modal-content {
+    max-width: 420px;
+}
+
+@media (max-width: 480px) {
+    .diplomacy-modal-content {
+        max-width: 85vw;
+        max-height: 72vh;
+    }
+}
+
+@media (max-height: 600px) {
+    .diplomacy-modal-content {
+        max-height: 65vh;
+    }
+}
+
+/* --- BOTÓN CERRAR DIPLOMACIA --- */
+.diplomacy-close-btn {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 4px;
+}
+
+.diplomacy-close-btn:active {
+    background: rgba(255, 255, 255, 0.2) !important;
 }
 
 /* --- Estilo para la cabecera (reutilizable) --- */

@@ -1544,11 +1544,123 @@ const UIManager = {
         if (!modal) return;
 
         const myPlayerNumber = gameState.myPlayerNumber || 1;
-        const myPowerSeries = (gameState.matchSnapshots || []).map(snap => snap[`p${myPlayerNumber}`] ?? snap.p1 ?? 0);
-        const enemyPowerSeries = (gameState.matchSnapshots || []).map(snap => {
-            const enemyKey = Object.keys(snap).find(key => /^p\d+$/.test(key) && key !== `p${myPlayerNumber}`);
-            return enemyKey ? snap[enemyKey] : (myPlayerNumber === 1 ? (snap.p2 ?? 0) : (snap.p1 ?? 0));
-        });
+        const currentPowerForPlayer = (playerId) => {
+            if (!Array.isArray(units)) return 0;
+            return units
+                .filter(unit => (unit.player ?? unit.playerId) === playerId && !unit.isDefeated)
+                .reduce((sum, unit) => sum + (Number(unit.currentHealth) || 0), 0);
+        };
+
+        const pickMainRivalPlayer = () => {
+            const candidates = new Set();
+            const bankPlayerId = typeof BankManager !== 'undefined' ? BankManager.PLAYER_ID : 0;
+            const barbarianPlayerId = typeof BARBARIAN_PLAYER_ID !== 'undefined' ? BARBARIAN_PLAYER_ID : 9;
+
+            Object.keys(gameState.playerResources || {}).forEach(key => {
+                const playerId = Number(key);
+                if (!Number.isFinite(playerId)) return;
+                if (playerId === myPlayerNumber || playerId === bankPlayerId || playerId === barbarianPlayerId) return;
+                if (gameState.eliminatedPlayers?.includes(playerId)) return;
+                candidates.add(playerId);
+            });
+
+            Object.keys(StatTracker?.gameStats?.players || {}).forEach(key => {
+                const playerId = Number(key);
+                if (!Number.isFinite(playerId)) return;
+                if (playerId === myPlayerNumber || playerId === bankPlayerId || playerId === barbarianPlayerId) return;
+                if (gameState.eliminatedPlayers?.includes(playerId)) return;
+                candidates.add(playerId);
+            });
+
+            const rankedCandidates = Array.from(candidates).map(playerId => {
+                const statPlayer = StatTracker?.gameStats?.players?.[playerId];
+                const statPower = (statPlayer?.militaryPower || 0) + (statPlayer?.navyPower || 0);
+                const timeline = Array.isArray(statPlayer?.timelineHistory) ? statPlayer.timelineHistory : [];
+                const timelinePower = Number(timeline[timeline.length - 1]?.totalPower || 0);
+                const livePower = currentPowerForPlayer(playerId);
+                return {
+                    playerId,
+                    power: Math.max(statPower, timelinePower, livePower)
+                };
+            }).sort((a, b) => b.power - a.power);
+
+            return rankedCandidates[0]?.playerId || (myPlayerNumber === 1 ? 2 : 1);
+        };
+
+        const rivalPlayerNumber = pickMainRivalPlayer();
+        const rawSnapshots = Array.isArray(gameState.matchSnapshots) ? gameState.matchSnapshots.filter(Boolean) : [];
+
+        const buildSnapshotsFromStatTracker = () => {
+            const myTimeline = Array.isArray(StatTracker?.gameStats?.players?.[myPlayerNumber]?.timelineHistory)
+                ? StatTracker.gameStats.players[myPlayerNumber].timelineHistory
+                : [];
+            const rivalTimeline = Array.isArray(StatTracker?.gameStats?.players?.[rivalPlayerNumber]?.timelineHistory)
+                ? StatTracker.gameStats.players[rivalPlayerNumber].timelineHistory
+                : [];
+
+            const turns = new Set();
+            myTimeline.forEach(point => turns.add(Number(point.turn)));
+            rivalTimeline.forEach(point => turns.add(Number(point.turn)));
+
+            const orderedTurns = Array.from(turns)
+                .filter(Number.isFinite)
+                .sort((a, b) => a - b);
+
+            if (orderedTurns.length === 0) return [];
+
+            let carryMyPower = 0;
+            let carryRivalPower = 0;
+
+            return orderedTurns.map(turn => {
+                const myPoint = myTimeline.find(point => Number(point.turn) === turn);
+                const rivalPoint = rivalTimeline.find(point => Number(point.turn) === turn);
+
+                if (myPoint) carryMyPower = Number(myPoint.totalPower || 0);
+                if (rivalPoint) carryRivalPower = Number(rivalPoint.totalPower || 0);
+
+                return {
+                    turn,
+                    [`p${myPlayerNumber}`]: carryMyPower,
+                    [`p${rivalPlayerNumber}`]: carryRivalPower
+                };
+            });
+        };
+
+        let normalizedSnapshots = rawSnapshots.map((snap, index) => ({
+            ...snap,
+            turn: Number(snap.turn || index + 1)
+        }));
+
+        const rawHasUsableSeries = normalizedSnapshots.some(snap => Number.isFinite(snap[`p${myPlayerNumber}`]) || Number.isFinite(snap[`p${rivalPlayerNumber}`]));
+        if (!rawHasUsableSeries) {
+            normalizedSnapshots = buildSnapshotsFromStatTracker();
+        }
+
+        if (normalizedSnapshots.length === 0) {
+            normalizedSnapshots = [{
+                turn: Number(gameState.turnNumber || 1),
+                [`p${myPlayerNumber}`]: currentPowerForPlayer(myPlayerNumber),
+                [`p${rivalPlayerNumber}`]: currentPowerForPlayer(rivalPlayerNumber)
+            }];
+        } else {
+            const finalSnapshot = {
+                turn: Number(gameState.turnNumber || normalizedSnapshots.length || 1),
+                [`p${myPlayerNumber}`]: currentPowerForPlayer(myPlayerNumber),
+                [`p${rivalPlayerNumber}`]: currentPowerForPlayer(rivalPlayerNumber)
+            };
+            const lastSnapshot = normalizedSnapshots[normalizedSnapshots.length - 1];
+            const shouldAppendFinalSnapshot = !lastSnapshot
+                || Number(lastSnapshot.turn) !== finalSnapshot.turn
+                || Number(lastSnapshot[`p${myPlayerNumber}`] || 0) !== finalSnapshot[`p${myPlayerNumber}`]
+                || Number(lastSnapshot[`p${rivalPlayerNumber}`] || 0) !== finalSnapshot[`p${rivalPlayerNumber}`];
+
+            if (shouldAppendFinalSnapshot) {
+                normalizedSnapshots.push(finalSnapshot);
+            }
+        }
+
+        const myPowerSeries = normalizedSnapshots.map(snap => Number(snap[`p${myPlayerNumber}`] ?? 0));
+        const enemyPowerSeries = normalizedSnapshots.map(snap => Number(snap[`p${rivalPlayerNumber}`] ?? 0));
         const finalOwnPower = myPowerSeries[myPowerSeries.length - 1] || 0;
         const finalEnemyPower = enemyPowerSeries[enemyPowerSeries.length - 1] || 0;
 
@@ -1626,9 +1738,9 @@ const UIManager = {
 
         // 4. DIBUJAR GRÁFICO (Con protección contra nulos)
         const graph = document.getElementById('miniPowerGraph');
-        if (graph && gameState.matchSnapshots && gameState.matchSnapshots.length > 0) {
+        if (graph && normalizedSnapshots.length > 0) {
             const maxPower = Math.max(...myPowerSeries, ...enemyPowerSeries, 1);
-            gameState.matchSnapshots.forEach((snap, index) => {
+            normalizedSnapshots.forEach((snap, index) => {
                 const column = document.createElement('div');
                 column.style.flex = '1';
                 column.style.display = 'flex';
