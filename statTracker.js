@@ -53,6 +53,7 @@ const StatTracker = {
                 activeRegiments: 0,
                 
                 // Timeline
+                timelineHistory: [],
                 importantEvents: [],
                 battles: []
             };
@@ -70,65 +71,102 @@ const StatTracker = {
         if (!this.isEnabled) return;
         
         this.gameStats.currentTurn = turnNumber;
-        
-        // Capturar estado actual del jugador
-        if (this.gameStats.players[currentPlayerId]) {
-            const player = this.gameStats.players[currentPlayerId];
-            
-            // Oro actual
-            player.gold = gameState.playerResources?.[currentPlayerId]?.oro || 0;
-            
-            // Contar ciudades y población
-            let cityCount = 0;
-            let totalPopulation = 0;
-            let territoryCount = 0;
-            
-            for (let r = 0; r < board.length; r++) {
-                for (let c = 0; c < board[r].length; c++) {
-                    const hex = board[r][c];
-                    if (hex?.owner === currentPlayerId) {
-                        territoryCount++;
 
-                        if (hex.isCity) {
-                            cityCount++;
-                            totalPopulation += this._getCityPopulationFromHex(hex);
-                        }
+        // Capturar snapshot real para TODOS los jugadores en cada turno.
+        // Esto permite una serie histórica precisa en la pantalla de victoria.
+        Object.keys(this.gameStats.players).forEach((playerKey) => {
+            const playerId = Number(playerKey);
+            if (!Number.isFinite(playerId)) return;
+
+            const player = this.gameStats.players[playerId];
+            if (!player) return;
+
+            this._refreshPlayerStats(playerId, player);
+            this._saveTimelinePoint(player, turnNumber);
+        });
+    },
+
+    _refreshPlayerStats: function(playerId, player) {
+        // Oro actual
+        player.gold = gameState.playerResources?.[playerId]?.oro || 0;
+
+        // Contar ciudades, población y territorio
+        let cityCount = 0;
+        let totalPopulation = 0;
+        let territoryCount = 0;
+
+        for (let r = 0; r < board.length; r++) {
+            for (let c = 0; c < board[r].length; c++) {
+                const hex = board[r][c];
+                if (hex?.owner === playerId) {
+                    territoryCount++;
+                    if (hex.isCity) {
+                        cityCount++;
+                        totalPopulation += this._getCityPopulationFromHex(hex);
                     }
                 }
             }
-            
-            player.cities = cityCount;
-            player.population = totalPopulation;
-            player.territory = territoryCount;
-            
-            // Contar unidades militares
-            let unitCount = 0;
-            let militaryPowerLand = 0;
-            let militaryPowerNaval = 0;
-            
-            units.forEach(unit => {
-                const unitOwner = unit.player ?? unit.playerId;
-                if (unitOwner === currentPlayerId && !unit.isDefeated) {
-                    unitCount++;
-                    const attack = unit.regiments?.reduce((sum, r) => sum + (r.attack || 0), 0) || 0;
-                    const defense = unit.regiments?.reduce((sum, r) => sum + (r.defense || 0), 0) || 0;
-                    const power = attack + defense;
-                    
-                    if (unit.type === 'naval') {
-                        militaryPowerNaval += power;
-                    } else {
-                        militaryPowerLand += power;
-                    }
-                }
-            });
-            
-            player.militaryUnits = unitCount;
-            player.militaryPower = militaryPowerLand;
-            player.navyPower = militaryPowerNaval;
-            
-            // Calcular puntuación (fórmula simple: balance de factores clave)
-            player.score = this._calculateScore(player);
         }
+
+        player.cities = cityCount;
+        player.population = totalPopulation;
+        player.territory = territoryCount;
+
+        // Contar unidades y poder militar
+        let unitCount = 0;
+        let militaryPowerLand = 0;
+        let militaryPowerNaval = 0;
+
+        units.forEach(unit => {
+            const unitOwner = unit.player ?? unit.playerId;
+            if (unitOwner !== playerId || unit.isDefeated) return;
+
+            unitCount++;
+            const attack = unit.regiments?.reduce((sum, r) => {
+                const baseAtk = REGIMENT_TYPES?.[r.type]?.attack;
+                return sum + (Number.isFinite(baseAtk) ? baseAtk : (r.attack || 0));
+            }, 0) || 0;
+            const defense = unit.regiments?.reduce((sum, r) => {
+                const baseDef = REGIMENT_TYPES?.[r.type]?.defense;
+                return sum + (Number.isFinite(baseDef) ? baseDef : (r.defense || 0));
+            }, 0) || 0;
+            const power = attack + defense;
+
+            const isNaval = unit.regiments?.some(reg => REGIMENT_TYPES?.[reg.type]?.is_naval) || unit.type === 'naval';
+            if (isNaval) militaryPowerNaval += power;
+            else militaryPowerLand += power;
+        });
+
+        player.militaryUnits = unitCount;
+        player.militaryPower = militaryPowerLand;
+        player.navyPower = militaryPowerNaval;
+
+        // Puntuación compuesta (para ranking)
+        player.score = this._calculateScore(player);
+    },
+
+    _saveTimelinePoint: function(player, turnNumber) {
+        if (!Array.isArray(player.timelineHistory)) player.timelineHistory = [];
+        const turn = Math.max(1, Number(turnNumber || 1));
+        const totalPower = (player.militaryPower || 0) + (player.navyPower || 0);
+
+        const snapshot = {
+            turn: turn,
+            totalPower: totalPower,
+            militaryPower: player.militaryPower || 0,
+            navyPower: player.navyPower || 0,
+            score: player.score || 0,
+            gold: player.gold || 0,
+            cities: player.cities || 0,
+            territory: player.territory || 0
+        };
+
+        // Si ya existe snapshot para este turno, se actualiza (evita duplicados)
+        const existingIdx = player.timelineHistory.findIndex(p => p.turn === turn);
+        if (existingIdx >= 0) player.timelineHistory[existingIdx] = snapshot;
+        else player.timelineHistory.push(snapshot);
+
+        player.timelineHistory.sort((a, b) => a.turn - b.turn);
     },
 
     /**

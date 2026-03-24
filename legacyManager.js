@@ -75,11 +75,13 @@ const LegacyManager = {
      */
     _updateTimeline: function(winnerPlayerId) {
         console.log('[LegacyManager._updateTimeline] Iniciando...', winnerPlayerId);
-        
-        const stats = StatTracker.gameStats;
+
+        const stats = (typeof StatTracker !== 'undefined' && StatTracker.gameStats)
+            ? StatTracker.gameStats
+            : null;
         console.log('[LegacyManager._updateTimeline] Stats:', stats);
-        
-        if (!stats || !stats.players) {
+
+        if (!stats) {
             console.error('[LegacyManager._updateTimeline] No hay estadísticas disponibles');
             // Mostrar una versión por defecto
             LegacyUI.displayTimeline({
@@ -93,8 +95,35 @@ const LegacyManager = {
             });
             return;
         }
-        
-        const players = Object.values(stats.players);
+
+        let players = stats.players ? Object.values(stats.players) : [];
+
+        // Fallback: reconstruir jugadores desde gameState cuando StatTracker quedó incompleto
+        if (!Array.isArray(players) || players.length === 0) {
+            const fallbackIds = new Set();
+            Object.keys(gameState?.playerCivilizations || {}).forEach(key => {
+                const id = Number(String(key).replace('player', ''));
+                if (Number.isFinite(id) && id > 0 && id !== BankManager.PLAYER_ID && id !== 9) {
+                    fallbackIds.add(id);
+                }
+            });
+
+            players = Array.from(fallbackIds).sort((a, b) => a - b).map(id => ({
+                playerId: id,
+                civilization: CIVILIZATIONS[gameState.playerCivilizations?.[id]]?.name || `Jugador ${id}`,
+                score: gameState.playerResources?.[id]?.oro || 0,
+                cities: gameState.cities?.filter(c => c.owner === id).length || 0,
+                territory: this._estimateTerritory(id),
+                militaryPower: this._estimateMilitaryPower(id),
+                navyPower: 0,
+                population: 0,
+                unitsDestroyed: 0,
+                buildingsConstructed: 0,
+                technologiesDiscovered: 0,
+                importantEvents: []
+            }));
+        }
+
         console.log('[LegacyManager._updateTimeline] Jugadores encontrados:', players.length);
 
         // Preparar datos para gráfico (timeline por turno)
@@ -104,7 +133,7 @@ const LegacyManager = {
         };
 
         // Eje X: turnos
-        const totalTurns = stats.currentTurn || gameState.turnNumber || 10;
+        const totalTurns = Math.max(1, Number(stats.currentTurn || gameState.turnNumber || 1));
         for (let t = 1; t <= totalTurns; t++) {
             graphData.turns.push(t);
         }
@@ -126,7 +155,53 @@ const LegacyManager = {
         LegacyUI.displayTimeline(graphData);
     },
 
+    _estimateTerritory: function(playerId) {
+        if (!Array.isArray(board)) return 0;
+        let count = 0;
+        for (let r = 0; r < board.length; r++) {
+            for (let c = 0; c < (board[r]?.length || 0); c++) {
+                if (board[r]?.[c]?.owner === playerId) count++;
+            }
+        }
+        return count;
+    },
+
+    _estimateMilitaryPower: function(playerId) {
+        if (!Array.isArray(units)) return 0;
+        return units
+            .filter(unit => (unit.player ?? unit.playerId) === playerId)
+            .reduce((sum, unit) => {
+                const regiments = Array.isArray(unit.regiments) ? unit.regiments : [];
+                const regPower = regiments.reduce((acc, reg) => {
+                    const def = REGIMENT_TYPES?.[reg.type]?.defense || reg.defense || 0;
+                    const atk = REGIMENT_TYPES?.[reg.type]?.attack || reg.attack || 0;
+                    return acc + atk + def;
+                }, 0);
+                return sum + regPower;
+            }, 0);
+    },
+
     _buildTimelineSeries: function(player, totalTurns) {
+        // 1) Prioridad: serie histórica real por turno (capturada en StatTracker).
+        if (Array.isArray(player.timelineHistory) && player.timelineHistory.length > 0) {
+            const pointsByTurn = new Map();
+            player.timelineHistory.forEach(point => {
+                const t = Number(point.turn);
+                if (!Number.isFinite(t)) return;
+                pointsByTurn.set(t, Number(point.totalPower || 0));
+            });
+
+            let carry = 0;
+            return Array.from({ length: totalTurns }, (_, index) => {
+                const turn = index + 1;
+                if (pointsByTurn.has(turn)) {
+                    carry = pointsByTurn.get(turn) || 0;
+                }
+                return Math.round(Math.max(0, carry));
+            });
+        }
+
+        // 2) Fallback: reconstrucción aproximada si no hay histórico.
         const finalScore = this._calculateLegacyEmpireScore(player);
         const eventWeights = {
             build: 50,

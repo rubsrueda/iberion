@@ -1,3 +1,5 @@
+ANALISIS_GAMEFEEL_Y_RENDIMIENTO.md
+
 # Analisis de game feel, ritmo y rendimiento (Iberion)
 
 Fecha: 2026-03-18

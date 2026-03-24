@@ -75,6 +75,17 @@ const SEASON_CONFIG = {
     SEASON_DURATION_DAYS: 28       // Duración estándar (28 días)
 };
 
+// Ciclo estacional de gameplay (independiente del Battle Pass).
+const GAMEPLAY_SEASON_CONFIG = {
+    TURNS_PER_SEASON: 10,
+    CYCLE: [
+        { key: 'spring', name: 'Primavera', movementMultiplier: 1.0, attritionMultiplier: 1.0 },
+        { key: 'summer', name: 'Verano', movementMultiplier: 1.1, attritionMultiplier: 0.9 },
+        { key: 'autumn', name: 'Otono', movementMultiplier: 0.95, attritionMultiplier: 1.1 },
+        { key: 'winter', name: 'Invierno', movementMultiplier: 0.8, attritionMultiplier: 1.4 }
+    ]
+};
+
 const HEX_WIDTH = 50;
 const HEX_HEIGHT = 57.73; // HEX_WIDTH * sqrt(3) / 2 * 2 (simplificado a HEX_WIDTH * 1.1547)
 const HEX_VERT_SPACING = HEX_HEIGHT * 0.75;

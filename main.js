@@ -807,7 +807,11 @@ function initApp() {
         // --- LLAMAR LA FUNCIÓN UNIFICADA PARA CARGAR Y APLICAR SETTINGS ---
         // Esta función maneja localStorage, perfil Supabase y fallbacks
         if (typeof loadAndApplySettings === 'function') {
-            loadAndApplySettings();
+            const settings = loadAndApplySettings();
+            // Aplicar graphics mode desde las configuraciones cargadas
+            if (typeof applyGraphicsMode === 'function' && settings && settings.graphicsMode) {
+                applyGraphicsMode(settings.graphicsMode);
+            }
         } else {
             // Fallback por si la función no está lista
             const savedSettings = JSON.parse(localStorage.getItem('iberion_settings'));
@@ -816,8 +820,16 @@ function initApp() {
                     savedSettings.music ? 0.3 : 0, 
                     savedSettings.sfx ? 0.7 : 0
                 );
+                // Aplicar graphics mode desde localStorage fallback
+                if (typeof applyGraphicsMode === 'function' && savedSettings.graphicsMode) {
+                    applyGraphicsMode(savedSettings.graphicsMode);
+                }
             } else {
                 AudioManager.setVolume(0.3, 0.7);
+                // Aplicar default graphics mode
+                if (typeof applyGraphicsMode === 'function') {
+                    applyGraphicsMode('balanced');
+                }
             }
         }
     }

@@ -48,6 +48,9 @@ function resetGameStateForIberiaMagna() {
         eliminatedPlayers: [], // (NUEVO) Array para rastrear jugadores derrotados
         currentPhase: "deployment", // O "play" si quieres empezar directamente
         turnNumber: 1,
+        currentSeasonKey: 'spring',
+        currentSeasonName: 'Primavera',
+        currentSeasonEffects: { movementMultiplier: 1.0, attritionMultiplier: 1.0 },
         playerTypes: {},
         playerCivilizations: {},
         activeCommanders: {},
@@ -103,6 +106,9 @@ function resetGameStateVariables(playerCount = 2, turnDuration = Infinity, gameM
         eliminatedPlayers: [],
         currentPhase: "deployment",
         turnNumber: 1,
+        currentSeasonKey: 'spring',
+        currentSeasonName: 'Primavera',
+        currentSeasonEffects: { movementMultiplier: 1.0, attritionMultiplier: 1.0 },
         playerTypes: {},
         playerAiLevels: {},
         playerCivilizations: {},
@@ -209,6 +215,9 @@ async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaign
         currentPlayer: 1,
         eliminatedPlayers: [],
         turnNumber: 0,
+        currentSeasonKey: 'spring',
+        currentSeasonName: 'Primavera',
+        currentSeasonEffects: { movementMultiplier: 1.0, attritionMultiplier: 1.0 },
         playerResources: {
             1: initialP1Resources,
             2: initialP2Resources
@@ -301,6 +310,9 @@ function resetGameStateForIberiaMagna() {
         eliminatedPlayers: [], // (NUEVO) Array para rastrear jugadores derrotados
         currentPhase: "deployment", // O directamente "play" si no hay fase de despliegue
         turnNumber: 1,
+        currentSeasonKey: 'spring',
+        currentSeasonName: 'Primavera',
+        currentSeasonEffects: { movementMultiplier: 1.0, attritionMultiplier: 1.0 },
         
         // Estructuras de datos para N jugadores
         playerTypes: {},

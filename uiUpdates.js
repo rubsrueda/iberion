@@ -464,7 +464,8 @@ const UIManager = {
             case "gameOver": phaseText = "Fin de Partida"; break;
         }
         const playerType = gameState.playerTypes?.[`player${gameState.currentPlayer}`] === 'human' ? 'Humano' : `IA (${gameState.playerAiLevels?.[`player${gameState.currentPlayer}`] || 'Normal'})`;
-        if(this._domElements.floatingMenuTitle) this._domElements.floatingMenuTitle.innerHTML = `Fase: ${phaseText}<br>Turno ${gameState.turnNumber} - Jugador ${gameState.currentPlayer} (${playerType})`;
+        const seasonLabel = gameState.currentSeasonName || 'Primavera';
+        if(this._domElements.floatingMenuTitle) this._domElements.floatingMenuTitle.innerHTML = `Fase: ${phaseText}<br>Turno ${gameState.turnNumber} - Jugador ${gameState.currentPlayer} (${playerType})<br>Estacion: ${seasonLabel}`;
 
         const resources = gameState.playerResources?.[gameState.currentPlayer];
         const resourceSpans = document.querySelectorAll('#playerResourcesGrid_float .resource-values span[data-resource]');
@@ -1349,7 +1350,8 @@ const UIManager = {
             const playerType = gameState.playerTypes && gameState.playerTypes[`player${gameState.currentPlayer}`] 
                             ? (gameState.playerTypes[`player${gameState.currentPlayer}`].includes('ai') ? 'IA' : 'Humano') 
                             : 'Desconocido';
-            phaseTurnEl.textContent = `Fase: ${gameState.currentPhase} | Turno: ${gameState.turnNumber} | J${gameState.currentPlayer} (${playerType})`;
+            const seasonLabel = gameState.currentSeasonName || 'Primavera';
+            phaseTurnEl.textContent = `Fase: ${gameState.currentPhase} | Turno: ${gameState.turnNumber} | Estacion: ${seasonLabel} | J${gameState.currentPlayer} (${playerType})`;
         }
         
         // --- 3. CORRECCIÓN: RUTA A LOS RECURSOS ---

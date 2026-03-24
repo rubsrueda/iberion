@@ -6,6 +6,56 @@ let tutorialScenarioData = null; // Almacena los datos del escenario de tutorial
 const MAX_STABILITY = 5; // Definimos la constante aquí para que la función la reconozca.
 const MAX_NACIONALIDAD = 5; // Valor máximo para la lealtad de un hexágono.
 
+function getGameplaySeasonConfigSafe() {
+    if (typeof GAMEPLAY_SEASON_CONFIG !== 'undefined' && GAMEPLAY_SEASON_CONFIG) {
+        return GAMEPLAY_SEASON_CONFIG;
+    }
+
+    return {
+        TURNS_PER_SEASON: 10,
+        CYCLE: [
+            { key: 'spring', name: 'Primavera', movementMultiplier: 1.0, attritionMultiplier: 1.0 },
+            { key: 'summer', name: 'Verano', movementMultiplier: 1.1, attritionMultiplier: 0.9 },
+            { key: 'autumn', name: 'Otono', movementMultiplier: 0.95, attritionMultiplier: 1.1 },
+            { key: 'winter', name: 'Invierno', movementMultiplier: 0.8, attritionMultiplier: 1.4 }
+        ]
+    };
+}
+
+function getSeasonForTurn(turnNumber) {
+    const config = getGameplaySeasonConfigSafe();
+    const cycle = Array.isArray(config.CYCLE) && config.CYCLE.length > 0
+        ? config.CYCLE
+        : [{ key: 'spring', name: 'Primavera', movementMultiplier: 1.0, attritionMultiplier: 1.0 }];
+    const turnsPerSeason = Math.max(1, Number(config.TURNS_PER_SEASON) || 10);
+    const safeTurn = Math.max(1, Number(turnNumber) || 1);
+    const index = Math.floor((safeTurn - 1) / turnsPerSeason) % cycle.length;
+    return cycle[index];
+}
+
+function getCurrentSeasonState() {
+    const turn = Math.max(1, Number(gameState?.turnNumber) || 1);
+    return getSeasonForTurn(turn);
+}
+
+function syncSeasonState(logOnChange = false) {
+    if (!gameState) return;
+
+    const season = getCurrentSeasonState();
+    const previousKey = gameState.currentSeasonKey;
+
+    gameState.currentSeasonKey = season.key;
+    gameState.currentSeasonName = season.name;
+    gameState.currentSeasonEffects = {
+        movementMultiplier: season.movementMultiplier,
+        attritionMultiplier: season.attritionMultiplier
+    };
+
+    if (logOnChange && previousKey && previousKey !== season.key) {
+        logMessage(`Cambio de estacion: ${season.name}. Mov ${Math.round(season.movementMultiplier * 100)}% | Atricion ${Math.round(season.attritionMultiplier * 100)}%.`, 'important');
+    }
+}
+
 /**
  * Comprueba si una unidad está totalmente rodeada (6 hexágonos hostiles).
  */
@@ -236,6 +286,9 @@ function handleUnitUpkeep(playerNum) {
     const playerRes = gameState.playerResources[playerNum];
     let totalGoldUpkeep = 0;
     
+    const seasonEffects = getCurrentSeasonState();
+    const seasonalAttritionMultiplier = Math.max(0.5, Number(seasonEffects?.attritionMultiplier) || 1);
+
     playerUnits.forEach(unit => {
         console.groupCollapsed(`-> Procesando unidad: ${unit.name}`);
         let maxMoraleBonus = 0;
@@ -303,7 +356,7 @@ function handleUnitUpkeep(playerNum) {
             }
         } else {
             // Regla 2 y 5: Pérdida por incomunicación
-            const moraleLoss = 10;
+            const moraleLoss = Math.max(1, Math.round(10 * seasonalAttritionMultiplier));
             
             unit.morale = Math.max(0, (unit.morale || 50) - moraleLoss);
             logMessage(`¡${unit.name} está incomunicada y pierde moral!`, 'warning');
@@ -502,6 +555,10 @@ function resetUnitsForNewTurn(playerNumber) {
                         });
                     }
                 }
+            const seasonEffects = getCurrentSeasonState();
+            const seasonalMovementMultiplier = Math.max(0.5, Number(seasonEffects?.movementMultiplier) || 1);
+            unit.currentMovement = Math.max(1, Math.round((unit.currentMovement || unit.movement || 1) * seasonalMovementMultiplier));
+
             unit.hasMoved = false;
             unit.hasAttacked = false;
             unit.isFlanked = false; // Se resetea el estado de flanqueo al inicio de su turno
@@ -1811,6 +1868,8 @@ let handleEndTurnCallCount = 0; // Se pondría fuera de la función
 
 async function handleEndTurn(isHostProcessing = false) {
     try {
+
+    syncSeasonState(false);
     
     // ESCUDO: Si por algún motivo el cajón no existe, lo creamos ahora mismo
     if (!gameState.matchSnapshots) gameState.matchSnapshots = [];
@@ -1858,6 +1917,7 @@ async function handleEndTurn(isHostProcessing = false) {
         // 2. SALTAR EL TURNO DE LA IA COMPLETAMENTE
         gameState.currentPlayer = 1;
         gameState.turnNumber++;
+        syncSeasonState(true);
 
         // <<== REGISTRAR ESTADÍSTICAS DEL TURNO ==>>
         if (typeof StatTracker !== 'undefined') {
@@ -1973,6 +2033,7 @@ async function handleEndTurn(isHostProcessing = false) {
             gameState.currentPhase = "play";
             gameState.currentPlayer = 1; 
             gameState.turnNumber = 1;
+            syncSeasonState(true);
             
             // 🎬 INICIAR SISTEMA DE REPLAY
             if (typeof ReplayEngine !== 'undefined' && ReplayEngine.initialize) {
@@ -2005,6 +2066,7 @@ async function handleEndTurn(isHostProcessing = false) {
             // 2. Si volvemos al jugador 1, es una nueva ronda. (Se comprueba solo al principio del ciclo)
             if (nextPlayer === 1 && attempts === 0) { 
                 gameState.turnNumber++;
+                syncSeasonState(true);
                 
                 // <<== REGISTRAR ESTADÍSTICAS DEL TURNO ==>>
                 if (typeof StatTracker !== 'undefined') {

@@ -21,6 +21,7 @@ domElements.settingMusicToggle = null;
 domElements.settingSfxToggle = null;
 domElements.settingGoldConfirm = null;
 domElements.settingHints = null;
+domElements.settingGraphicsMode = null;
 domElements.resetHintsBtn = null;
 
 domElements.domElementsInitialized = false; 
@@ -248,6 +249,7 @@ function initializeDomElements() {
     domElements.settingSfxToggle = document.getElementById('settingSfxToggle');
     domElements.settingGoldConfirm = document.getElementById('settingGoldConfirm');
     domElements.settingHints = document.getElementById('settingHints');
+    domElements.settingGraphicsMode = document.getElementById('settingGraphicsMode');
     domElements.resetHintsBtn = document.getElementById('resetHintsBtn');    
 
     // Ranking general:

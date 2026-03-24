@@ -7089,3 +7089,45 @@ input:checked + .slider:before {
 #campaignScenarioList::-webkit-scrollbar-thumb:hover {
     background: #00bfff;
 }
+
+/* ===== GRAPHICS MODE SELECTOR ===== */
+/* COMPLETE MODE: All animations at 100% */
+body.graphics-mode-complete {
+    --animation-duration: 0.6s;
+    --animation-intensity: 1;
+    --dust-opacity: 1;
+    --transition-duration: 0.4s;
+}
+
+/* BALANCED MODE: ~60% animations (DEFAULT) */
+body.graphics-mode-balanced {
+    --animation-duration: 0.35s;
+    --animation-intensity: 0.6;
+    --dust-opacity: 0.6;
+    --transition-duration: 0.25s;
+}
+
+/* PERFORMANCE MODE: ~20% animations */
+body.graphics-mode-performance {
+    --animation-duration: 0.12s;
+    --animation-intensity: 0.2;
+    --dust-opacity: 0.2;
+    --transition-duration: 0.08s;
+}
+
+/* Reduce animations based on graphics mode */
+body.graphics-mode-performance * {
+    animation-duration: var(--animation-duration) !important;
+    transition-duration: var(--transition-duration) !important;
+}
+
+/* Unit movement animation respects graphics mode */
+body.graphics-mode-performance .unit-selected,
+body.graphics-mode-performance .hex:hover {
+    opacity: 0.8;
+}
+
+/* Dust effect opacity */
+.dust-particle {
+    opacity: var(--dust-opacity);
+}

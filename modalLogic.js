@@ -3797,7 +3797,8 @@ const DEFAULT_SETTINGS = {
     music: true,
     sfx: true,
     goldConfirm: true,
-    hints: true
+    hints: true,
+    graphicsMode: 'balanced'  // 'complete', 'balanced', 'performance'
 };
 
 /**
@@ -3861,6 +3862,9 @@ function openSettingsModal() {
     domElements.settingSfxToggle.checked = currentSettings.sfx;
     domElements.settingGoldConfirm.checked = currentSettings.goldConfirm;
     domElements.settingHints.checked = currentSettings.hints;
+    if (domElements.settingGraphicsMode) {
+        domElements.settingGraphicsMode.value = currentSettings.graphicsMode || 'balanced';
+    }
 
     // AGREGAR EVENT LISTENERS A LOS TOGGLES PARA APLICAR CAMBIOS INMEDIATAMENTE
     // Si ya existen listeners, no agreguemos duplicados
@@ -3880,6 +3884,10 @@ function openSettingsModal() {
         domElements.settingHints.addEventListener('change', applySettingsInRealTime);
         domElements.settingHints._hasListener = true;
     }
+    if (domElements.settingGraphicsMode && !domElements.settingGraphicsMode._hasListener) {
+        domElements.settingGraphicsMode.addEventListener('change', applySettingsInRealTime);
+        domElements.settingGraphicsMode._hasListener = true;
+    }
 
     domElements.settingsModal.style.display = 'flex';
 }
@@ -3893,7 +3901,8 @@ function applySettingsInRealTime() {
         music: domElements.settingMusicToggle.checked,
         sfx: domElements.settingSfxToggle.checked,
         goldConfirm: domElements.settingGoldConfirm.checked,
-        hints: domElements.settingHints.checked
+        hints: domElements.settingHints.checked,
+        graphicsMode: domElements.settingGraphicsMode ? domElements.settingGraphicsMode.value : 'balanced'
     };
 
     // APLICAR CAMBIOS INMEDIATAMENTE AL AUDIO
@@ -3912,6 +3921,11 @@ function applySettingsInRealTime() {
         if (!newSettings.music && AudioManager.currentMusic) {
             AudioManager.stopMusic();
         }
+    }
+
+    // Aplicar classe de graphics mode
+    if (newSettings.graphicsMode) {
+        applyGraphicsMode(newSettings.graphicsMode);
     }
 
     // GUARDAR AUTOMÁTICAMENTE EN BACKGROUND (sin mostrar mensaje)
@@ -3943,7 +3957,8 @@ function saveSettings() {
         music: domElements.settingMusicToggle.checked,
         sfx: domElements.settingSfxToggle.checked,
         goldConfirm: domElements.settingGoldConfirm.checked,
-        hints: domElements.settingHints.checked
+        hints: domElements.settingHints.checked,
+        graphicsMode: domElements.settingGraphicsMode ? domElements.settingGraphicsMode.value : 'balanced'
     };
 
     // 2. YA ESTÁN APLICADOS POR applySettingsInRealTime(), 
@@ -3954,12 +3969,39 @@ function saveSettings() {
             newSettings.sfx ? 0.7 : 0
         );
     }
+    
+    // Aplicar graphics mode
+    if (newSettings.graphicsMode) {
+        applyGraphicsMode(newSettings.graphicsMode);
+    }
 
     // 3. PERSISTENCIA
     saveSettingsInBackground(newSettings);
 
     logMessage("Configuración guardada.", "success");
     domElements.settingsModal.style.display = 'none';
+}
+
+/**
+ * Aplica el modo gráfico enviando clases CSS al document.body
+ * Modos: 'complete', 'balanced', 'performance'
+ */
+function applyGraphicsMode(mode) {
+    // Remover todas las clases de graphics mode
+    document.body.classList.remove('graphics-mode-complete', 'graphics-mode-balanced', 'graphics-mode-performance');
+    
+    // Agregar la clase del nuevo modo
+    if (mode === 'complete') {
+        document.body.classList.add('graphics-mode-complete');
+        console.log('[Graphics] Modo Gráfico: Completo (todas las animaciones)');
+    } else if (mode === 'performance') {
+        document.body.classList.add('graphics-mode-performance');
+        console.log('[Graphics] Modo Gráfico: Rendimiento (mínimas animaciones)');
+    } else {
+        // Default: balanced
+        document.body.classList.add('graphics-mode-balanced');
+        console.log('[Graphics] Modo Gráfico: Equilibrado (animaciones reducidas)');
+    }
 }
 
 function resetHints() {

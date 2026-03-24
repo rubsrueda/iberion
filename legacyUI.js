@@ -130,11 +130,28 @@ const LegacyUI = {
             return;
         }
 
+        const safeTurns = Array.isArray(graphData?.turns) && graphData.turns.length > 0
+            ? graphData.turns
+            : [1];
+        const safeSeries = Array.isArray(graphData?.series)
+            ? graphData.series.filter(s => s && Array.isArray(s.data))
+            : [];
+
+        if (safeSeries.length === 0) {
+            content.innerHTML = `
+                <h3>📈 Evolución de cada imperio</h3>
+                <p style="color: #aaa; font-size: 0.9em;">No hay suficientes datos de turnos para dibujar la gráfica en esta partida.</p>
+                <div style="height: 180px; display:flex; align-items:center; justify-content:center; border:1px solid #444; background:rgba(0,0,0,0.3); color:#888;">Sin datos de timeline</div>
+            `;
+            return;
+        }
+
         // Crear un gráfico SVG simple
         const width = 900;
         const height = 400;
         const padding = 60;
-        const maxScore = Math.max(...graphData.series.flatMap(s => s.data)) || 1000;
+        const allValues = safeSeries.flatMap(s => s.data).filter(v => Number.isFinite(v));
+        const maxScore = Math.max(1, ...(allValues.length > 0 ? allValues : [1]));
 
         let svg = `<svg width="${width}" height="${height}" class="legacy-chart">`;
         
@@ -143,10 +160,10 @@ const LegacyUI = {
         svg += `<line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" stroke="#fff" stroke-width="2"/>`;
 
         // Eje X (turnos)
-        const turnStep = Math.ceil(graphData.turns.length / 10);
-        for (let i = 0; i < graphData.turns.length; i += turnStep) {
-            const x = padding + (i / graphData.turns.length) * (width - 2 * padding);
-            svg += `<text x="${x}" y="${height - 30}" text-anchor="middle" fill="#aaa" font-size="10">T${graphData.turns[i]}</text>`;
+        const turnStep = Math.max(1, Math.ceil(safeTurns.length / 10));
+        for (let i = 0; i < safeTurns.length; i += turnStep) {
+            const x = padding + (i / Math.max(1, safeTurns.length - 1)) * (width - 2 * padding);
+            svg += `<text x="${x}" y="${height - 30}" text-anchor="middle" fill="#aaa" font-size="10">T${safeTurns[i]}</text>`;
         }
 
         // Eje Y (puntuación)
@@ -157,12 +174,14 @@ const LegacyUI = {
         }
 
         // Líneas de datos
-        graphData.series.forEach(series => {
-            let pathData = `M ${padding} ${height - padding - ((series.data[0] || 0) / maxScore) * (height - 2 * padding)}`;
+        safeSeries.forEach(series => {
+            const firstValue = Number.isFinite(series.data[0]) ? series.data[0] : 0;
+            let pathData = `M ${padding} ${height - padding - (firstValue / maxScore) * (height - 2 * padding)}`;
             
             for (let i = 1; i < series.data.length; i++) {
-                const x = padding + (i / series.data.length) * (width - 2 * padding);
-                const y = height - padding - ((series.data[i] || 0) / maxScore) * (height - 2 * padding);
+                const x = padding + (i / Math.max(1, series.data.length - 1)) * (width - 2 * padding);
+                const value = Number.isFinite(series.data[i]) ? series.data[i] : 0;
+                const y = height - padding - (value / maxScore) * (height - 2 * padding);
                 pathData += ` L ${x} ${y}`;
             }
 
@@ -170,7 +189,8 @@ const LegacyUI = {
             
             // Marcador de ganador
             if (series.isWinner) {
-                svg += `<circle cx="${width - padding}" cy="${height - padding - ((series.data[series.data.length-1] || 0) / maxScore) * (height - 2 * padding)}" r="5" fill="${series.color}" stroke="#fff" stroke-width="2"/>`;
+                const lastValue = Number.isFinite(series.data[series.data.length - 1]) ? series.data[series.data.length - 1] : 0;
+                svg += `<circle cx="${width - padding}" cy="${height - padding - (lastValue / maxScore) * (height - 2 * padding)}" r="5" fill="${series.color}" stroke="#fff" stroke-width="2"/>`;
             }
         });
 
@@ -178,7 +198,7 @@ const LegacyUI = {
 
         // Leyenda
         let legend = `<div class="legacy-legend">`;
-        graphData.series.forEach(series => {
+        safeSeries.forEach(series => {
             legend += `<span style="color: ${series.color}; font-weight: ${series.isWinner ? 'bold' : 'normal'};">
                 ${series.name} ${series.isWinner ? '👑' : ''}
             </span>`;
@@ -187,7 +207,7 @@ const LegacyUI = {
 
         const html = `
             <h3>📈 Evolución de cada imperio</h3>
-            <p style="color: #aaa; font-size: 0.9em;">Serie compuesta por expansion, poder militar, ciudades, poblacion e hitos. No recompensa simplemente guardar oro.</p>
+            <p style="color: #aaa; font-size: 0.9em;">Serie histórica real por turno del poder militar total (tierra + naval) de cada jugador.</p>
             ${svg}
             ${legend}
         `;
