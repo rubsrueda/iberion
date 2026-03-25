@@ -1545,6 +1545,9 @@ function updateTerritoryMetrics(playerEndingTurn) {
 
                         // La estabilidad NO se resetea.
                         renderSingleHexVisuals(r, c);
+                        if (typeof window !== 'undefined' && window.GameFeelFX) {
+                            window.GameFeelFX.conquest(r, c, unitOnHex, hex.isCity ? 'CIUDAD CAE' : 'LEALTAD QUEBRADA');
+                        }
                     };
 
                     const ownerNationality = Number(hex.nacionalidad[originalOwner] || 0);

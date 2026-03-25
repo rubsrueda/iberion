@@ -51,33 +51,96 @@ const ActionValidator = {
     }
 };
 
-function showFloatingDamage(target, damageAmount) {
-    // Verificación robusta. gameBoard se obtiene directamente del DOM por seguridad.
-    const gameBoardElement = document.getElementById('gameBoard');
-    if (!target?.element || !gameBoardElement) {
-        console.error("showFloatingDamage: No se puede mostrar el daño. Target, su elemento, o el gameBoard no existen.");
-        return;
-    }
-
-    const damageText = document.createElement('span');
-    damageText.className = 'damage-dealt-text';
-    damageText.textContent = `-${damageAmount}`;
-
-    // Lo añadimos al gameBoard para que se posicione relativo a él.
-    gameBoardElement.appendChild(damageText);
-
-    // Obtenemos el centro de la unidad atacada, relativo al gameBoard
-    const unitCenterX = target.element.offsetLeft + target.element.offsetWidth / 2;
-    const unitCenterY = target.element.offsetTop + target.element.offsetHeight / 2;
-
-    // Ahora que está en el DOM, su `offsetWidth` es válido. Centramos el texto.
-    damageText.style.left = `${unitCenterX - damageText.offsetWidth / 2}px`;
-    damageText.style.top = `${unitCenterY - damageText.offsetHeight / 2}px`;
-
-    // La animación CSS se encarga del resto. Lo eliminamos después.
+function _retriggerTimedClass(element, className, duration = 600) {
+    if (!element) return;
+    element.classList.remove(className);
+    void element.offsetWidth;
+    element.classList.add(className);
     setTimeout(() => {
-        damageText.remove();
-    }, 1200); // Duración de la animación.
+        element.classList.remove(className);
+    }, duration);
+}
+
+const GameFeelFX = {
+    floatText(target, value, tone = 'damage') {
+        const gameBoardElement = document.getElementById('gameBoard');
+        if (!target?.element || !gameBoardElement) {
+            console.error("showFloatingDamage: No se puede mostrar el feedback. Target, su elemento, o el gameBoard no existen.");
+            return;
+        }
+
+        const floatText = document.createElement('span');
+        floatText.className = `damage-dealt-text tone-${tone}`;
+        if (typeof value === 'number') {
+            const prefix = tone === 'damage' || tone === 'critical' ? '-' : '+';
+            floatText.textContent = `${prefix}${value}`;
+        } else {
+            floatText.textContent = String(value);
+        }
+
+        gameBoardElement.appendChild(floatText);
+
+        const centerX = target.element.offsetLeft + target.element.offsetWidth / 2;
+        const centerY = target.element.offsetTop + target.element.offsetHeight / 2;
+        floatText.style.left = `${centerX - floatText.offsetWidth / 2}px`;
+        floatText.style.top = `${centerY - floatText.offsetHeight / 2}px`;
+
+        setTimeout(() => {
+            floatText.remove();
+        }, 1300);
+    },
+
+    pulseHex(r, c, className = 'hit-effect', duration = 550) {
+        const hexEl = board?.[r]?.[c]?.element;
+        if (!hexEl) return;
+        _retriggerTimedClass(hexEl, className, duration);
+    },
+
+    pulseUnit(unit, className = 'unit-hit-emphasis', duration = 450) {
+        if (!unit?.element) return;
+        _retriggerTimedClass(unit.element, className, duration);
+    },
+
+    boardPulse(className = 'board-impact', duration = 320) {
+        const gameBoardElement = document.getElementById('gameBoard');
+        if (!gameBoardElement) return;
+        _retriggerTimedClass(gameBoardElement, className, duration);
+    },
+
+    battle(attackerDivision, defenderDivision, damageAmount = 0) {
+        if (attackerDivision?.element) this.pulseUnit(attackerDivision, 'attacking', 280);
+        if (defenderDivision?.element) this.pulseUnit(defenderDivision, 'hit', 380);
+        if (Number.isFinite(defenderDivision?.r) && Number.isFinite(defenderDivision?.c)) {
+            this.pulseHex(defenderDivision.r, defenderDivision.c, 'hit-effect', 380);
+        }
+        if ((Number(damageAmount) || 0) >= 120) {
+            this.boardPulse('board-impact', 340);
+        }
+    },
+
+    move(unit, r, c) {
+        if (unit?.element) this.pulseUnit(unit, 'unit-move-glow', 520);
+        if (Number.isFinite(r) && Number.isFinite(c)) {
+            this.pulseHex(r, c, 'hex-arrival', 620);
+        }
+    },
+
+    conquest(r, c, unit, label = 'CONQUISTA') {
+        this.pulseHex(r, c, 'owner-change-effect', 700);
+        this.pulseHex(r, c, 'hex-conquest-burst', 1100);
+        if (unit?.element) this.pulseUnit(unit, 'unit-victory', 900);
+        const hexEl = board?.[r]?.[c]?.element;
+        if (hexEl) this.floatText({ element: hexEl }, label, 'conquest');
+        this.boardPulse('board-conquest', 520);
+    }
+};
+
+if (typeof window !== 'undefined') {
+    window.GameFeelFX = GameFeelFX;
+}
+
+function showFloatingDamage(target, damageAmount, tone = 'damage') {
+    GameFeelFX.floatText(target, damageAmount, tone);
 }
 
 function getHexDistance(startCoords, endCoords) {
@@ -1000,6 +1063,7 @@ async function moveUnit(unit, toR, toC) {
                 logMessage(`¡La ciudad neutral '${city.name}' se une a tu imperio!`);
             }
             renderSingleHexVisuals(toR, toC);
+            GameFeelFX.conquest(toR, toC, unit, 'FRONTERA TOMADA');
 
             if (typeof Chronicle !== 'undefined') {
                 Chronicle.logEvent('conquest', { unit: unit, toR: toR, toC: toC });
@@ -1039,6 +1103,8 @@ async function moveUnit(unit, toR, toC) {
     if (gameState.currentPhase === 'play' && typeof checkVictory === "function") {
         if (checkVictory()) return;
     }
+
+    GameFeelFX.move(unit, toR, toC);
     
     // Si la unidad que se movió sigue siendo la unidad seleccionada,
     if (selectedUnit && selectedUnit.id === unit.id) {
@@ -1354,6 +1420,7 @@ async function attackUnit(attackerDivision, defenderDivision) {
     try {
         if (!attackerDivision || !defenderDivision) return;
         logMessage(`¡COMBATE! ${attackerDivision.name} (J${attackerDivision.player}) vs ${defenderDivision.name} (J${defenderDivision.player})`);
+        GameFeelFX.battle(attackerDivision, defenderDivision, 0);
         
         // === PROTECCIÓN PARA RAIDS: Bloquear actualizaciones durante combate ===
         if (gameState.isRaid && defenderDivision.isBoss && typeof RaidManager !== 'undefined') {
@@ -2139,7 +2206,8 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
 
     console.log(`%c>> DAÑO REAL: ${actualDamage}. Salud restante: ${targetRegiment.health}`, 'background: #333; color: #ff9999;');
     
-    showFloatingDamage(targetDivision, actualDamage);
+    showFloatingDamage(targetDivision, actualDamage, actualDamage >= 120 ? 'critical' : 'damage');
+    GameFeelFX.battle(attackerDivision, targetDivision, actualDamage);
     console.groupEnd();
     
     return actualDamage;
@@ -3589,6 +3657,7 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
             const city = gameState.cities.find(ci => ci.r === toR && ci.c === toC);
             if (city?.owner === null) { city.owner = unit.player; }
             renderSingleHexVisuals(toR, toC);
+            GameFeelFX.conquest(toR, toC, unit, 'AVANCE');
         }
         // B. Captura de Ciudad BÁRBARA/INDEPENDIENTE (NUEVO - BOOST EXPLOSIVO)
         // Usamos la constante BARBARIAN_PLAYER_ID (o el número 9 directamente si no definiste la constante)
@@ -3631,12 +3700,12 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
 
             // 4. Feedback Visual
             if (typeof showFloatingDamage === 'function') {
-                // Usamos la función de daño flotante para mostrar texto positivo
-                showFloatingDamage(unit, "¡CONQUISTA!", "heal"); 
+                showFloatingDamage(unit, 'BOTIN', 'reward');
             }
             logMessage(`Botín de guerra: ${lootGold} Oro, ${lootResearch} Ciencia.`, "success");
 
             renderSingleHexVisuals(toR, toC);
+            GameFeelFX.conquest(toR, toC, unit, 'CIUDAD SOMETIDA');
         }
         // C. Captura de territorio de otro jugador Humano/IA (Opcional, si quieres lógica estándar aquí)
         else if (targetHexData.owner !== null && targetHexData.owner !== unit.player) {
@@ -3688,6 +3757,7 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
     logMessage(`${unit.name} movida. Mov. restante: ${unit.currentMovement}.`);
 
     positionUnitElement(unit);
+    GameFeelFX.move(unit, toR, toC);
     
     // <<== CAPTURA DE EVENTO PARA REPLAY ==>>
     if (typeof ReplayIntegration !== 'undefined') {

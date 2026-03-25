@@ -811,6 +811,18 @@ function initApp() {
             // Aplicar graphics mode desde las configuraciones cargadas
             if (typeof applyGraphicsMode === 'function' && settings && settings.graphicsMode) {
                 applyGraphicsMode(settings.graphicsMode);
+                if (!window.__graphicsViewportListenerBound) {
+                    const reapplyGraphicsProfile = () => {
+                        if (!document?.body) return;
+                        let activeMode = 'balanced';
+                        if (document.body.classList.contains('graphics-mode-complete')) activeMode = 'complete';
+                        else if (document.body.classList.contains('graphics-mode-performance')) activeMode = 'performance';
+                        applyGraphicsMode(activeMode);
+                    };
+                    window.addEventListener('resize', reapplyGraphicsProfile, { passive: true });
+                    window.addEventListener('orientationchange', reapplyGraphicsProfile, { passive: true });
+                    window.__graphicsViewportListenerBound = true;
+                }
             }
         } else {
             // Fallback por si la función no está lista

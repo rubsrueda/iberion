@@ -3996,14 +3996,35 @@ function saveSettings() {
  * Modos: 'complete', 'balanced', 'performance'
  */
 function applyGraphicsMode(mode) {
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1280;
+    const isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+
+    let formFactor = 'desktop';
+    if (viewportWidth <= 767) {
+        formFactor = 'phone';
+    } else if (viewportWidth <= 1199) {
+        formFactor = 'tablet';
+    }
+
+    document.body.classList.remove('graphics-form-phone', 'graphics-form-tablet', 'graphics-form-desktop', 'graphics-touch', 'graphics-no-touch');
+    document.body.classList.add(`graphics-form-${formFactor}`);
+    document.body.classList.add(isTouch ? 'graphics-touch' : 'graphics-no-touch');
+
+    let resolvedMode = mode || 'balanced';
+    if (resolvedMode === 'auto') {
+        if (formFactor === 'phone') resolvedMode = 'performance';
+        else if (formFactor === 'tablet') resolvedMode = 'balanced';
+        else resolvedMode = 'complete';
+    }
+
     // Remover todas las clases de graphics mode
     document.body.classList.remove('graphics-mode-complete', 'graphics-mode-balanced', 'graphics-mode-performance');
     
     // Agregar la clase del nuevo modo
-    if (mode === 'complete') {
+    if (resolvedMode === 'complete') {
         document.body.classList.add('graphics-mode-complete');
         console.log('[Graphics] Modo Gráfico: Completo (todas las animaciones)');
-    } else if (mode === 'performance') {
+    } else if (resolvedMode === 'performance') {
         document.body.classList.add('graphics-mode-performance');
         console.log('[Graphics] Modo Gráfico: Rendimiento (mínimas animaciones)');
     } else {
