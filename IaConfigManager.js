@@ -21,9 +21,13 @@ const IaConfigManager = {
         console.group("%c[IaConfig] Cargando configuración", "color: #4CAF50; font-weight: bold;");
         
         try {
-            const response = await fetch('/ia_config.json');
+            // Intentar cargar desde raíz local PRIMERO
+            let response = await fetch('/ia_config.json');
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                console.warn(`[IaConfig] No encontrado en /ia_config.json (${response.status}), intentando fallback`);
+                // Si no está en raíz, usar defaults inline en lugar de fallar
+                this._loadDefaults();
+                return true;
             }
             
             const rawConfig = await response.json();
@@ -35,8 +39,10 @@ const IaConfigManager = {
                 console.error("[IaConfig] Errores de validación:");
                 validationErrors.forEach(err => console.error(`  ✗ ${err}`));
                 this.errors = validationErrors;
+                console.warn("[IaConfig] Usando defaults como fallback");
+                this._loadDefaults();
                 console.groupEnd();
-                return false;
+                return true;
             }
             
             this.config = rawConfig;
@@ -47,10 +53,38 @@ const IaConfigManager = {
             
         } catch (error) {
             console.error("[IaConfig] Error cargando archivo:", error.message);
+            console.warn("[IaConfig] Usando configuración por defecto");
+            this._loadDefaults();
             this.errors = [error.message];
             console.groupEnd();
-            return false;
+            return true; // Retorna true porque usamos defaults
         }
+    },
+
+    /**
+     * Carga configuración por defecto inline (fallback)
+     */
+    _loadDefaults() {
+        this.config = {
+            version: "1.0",
+            max_misiones_por_turno: 6,
+            penalizacion_distancia: 0.1,
+            penalizacion_riesgo: 0.5,
+            multiplicadores: {
+                economia: 1.2,
+                supervivencia: 2.0,
+                sabotaje: 0.9,
+                control: 0.7
+            },
+            umbrales: {
+                economia_critica: 400,
+                ataque_ofensivo: 1000,
+                salud_critica_unidad: 35,
+                ratio_asedio_sin_artilleria: 2.5
+            }
+        };
+        this.isLoaded = true;
+        console.log("[IaConfig] ✓ Configuración por defecto loaded");
     },
 
     /**

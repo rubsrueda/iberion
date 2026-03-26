@@ -54,22 +54,26 @@ const IaIntegration = {
                 AiGameplayManager._lastNodeList[playerNumber] = this.nodosCache;
             }
 
-            // Log de situación
-            if (decision.recomendacion) {
+            // Log de situación (defensive checks)
+            if (decision && decision.recomendacion) {
                 console.log(`[IaIntegration] ✓ Decisión: ${decision.recomendacion.tipo} - ${decision.recomendacion.razon_texto}`);
             }
 
-            if (decision.criteriosActivados.capitalAmenazada) {
-                console.log(`[IaIntegration] ⚠️ Capital bajo amenaza - Aplicar protocolo`);
+            if (decision && decision.criteriosActivados) {
+                if (decision.criteriosActivados.capitalAmenazada) {
+                    console.log(`[IaIntegration] ⚠️ Capital bajo amenaza - Aplicar protocolo`);
+                }
+
+                if (decision.criteriosActivados.crisisEconomica) {
+                    console.log(`[IaIntegration] ⚠️ Crisis económica - Priorizar recursos`);
+                }
             }
 
-            if (decision.criteriosActivados.crisisEconomica) {
-                console.log(`[IaIntegration] ⚠️ Crisis económica - Priorizar recursos`);
+            if (decision && decision.prioritarios && decision.prioritarios.length > 0) {
+                console.log(`[IaIntegration] Top 3 prioridades:`, decision.prioritarios.slice(0, 3).map(n => 
+                    `${n.tipo}(${IaNodoValor.calcularPesoNodo(n, gameState, IaConfigManager.get()).toFixed(1)})`
+                ).join(' > '));
             }
-
-            console.log(`[IaIntegration] Top 3 prioridades:`, decision.prioritarios.slice(0, 3).map(n => 
-                `${n.tipo}(${IaNodoValor.calcularPesoNodo(n, gameState, IaConfigManager.get()).toFixed(1)})`
-            ).join(' > '));
 
             return decision;
 

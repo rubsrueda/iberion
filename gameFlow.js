@@ -1275,8 +1275,15 @@ function _processBattlePassRewards(isWinner) {
  * Inicia el turno de despliegue para un jugador de IA.
  * Es una función simple que llama al manager de despliegue.
  */
-function simpleAiDeploymentTurn() {
+async function simpleAiDeploymentTurn() {
     const aiPlayerNumber = gameState.currentPlayer;
+    
+    console.log(`%c[simpleAiDeploymentTurn] TURNO ${gameState.turnNumber} Despliegue | Jugador: ${aiPlayerNumber}`, 'color: #FF9900');
+    
+    // Cargar config IA también en despliegue
+    if (typeof initializeIaConfig === 'function' && (!IaConfigManager?.isLoaded)) {
+        await initializeIaConfig();
+    }
 
     const useArchipelagoDeployment = gameState.gameMode === 'invasion' || !!gameState.setupTempSettings?.navalMap;
 
