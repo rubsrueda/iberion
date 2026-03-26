@@ -959,10 +959,30 @@ const AiGameplayManager = {
                         name: nodo.tipo,
                         target: { r: nodo.r, c: nodo.c },
                         nodoTipo: nodo.tipo,
+                        destinoTipo: nodo.destino_tipo || null,
                         prioridad: nodo.peso || 0
                     });
                 }
             }
+
+            // Si no entró en top-4, inyectar al menos un objetivo de sabotaje económico.
+            const sabotageNode = (motorDecision.nodos || []).find(n => n.tipo === 'camino_enemigo_critico');
+            if (sabotageNode && sabotageNode.r !== undefined && sabotageNode.c !== undefined) {
+                const yaExisteSabotaje = AiGameplayManager.strategicAxes.some(a => a.nodoTipo === 'camino_enemigo_critico' && a.target.r === sabotageNode.r && a.target.c === sabotageNode.c);
+                if (!yaExisteSabotaje) {
+                    const prioSabotaje = (typeof IaNodoValor !== 'undefined' && typeof IaNodoValor.calcularPesoNodo === 'function')
+                        ? IaNodoValor.calcularPesoNodo(sabotageNode, { playerNumber, gameState, config: IaConfigManager.get() }, IaConfigManager.get())
+                        : 200;
+                    AiGameplayManager.strategicAxes.push({
+                        name: 'camino_enemigo_critico',
+                        target: { r: sabotageNode.r, c: sabotageNode.c },
+                        nodoTipo: 'camino_enemigo_critico',
+                        prioridad: prioSabotaje
+                    });
+                    console.log(`[IA SABOTAJE TRACE] objetivo agregado en (${sabotageNode.r},${sabotageNode.c}) prio=${Math.round(prioSabotaje)}`);
+                }
+            }
+
             const hayNodosFuertes = AiGameplayManager.strategicAxes.some(a => a.nodoTipo && (a.prioridad || 0) >= 150);
             if (hayNodosFuertes) {
                 AiGameplayManager.strategicAxes = AiGameplayManager.strategicAxes.filter(a => a.nodoTipo || (a.prioridad || 0) > 0);
@@ -975,6 +995,44 @@ const AiGameplayManager = {
     },
 
     assignUnitsToAxes: function(playerNumber, unitsToAssign) {
+        const corridorStatus = gameState.ai_corridor_status?.[playerNumber];
+        const forceBankCorridor = gameState.turnNumber <= 6 && !corridorStatus?.operational;
+        const bankCorridorAxis = AiGameplayManager.strategicAxes
+            .filter(a => a.nodoTipo === 'corredor_comercial' && (a.destinoTipo === 'banca' || !a.destinoTipo))
+            .sort((a, b) => (b.prioridad || 0) - (a.prioridad || 0))[0];
+        const sabotageAxis = AiGameplayManager.strategicAxes
+            .filter(a => a.nodoTipo === 'camino_enemigo_critico')
+            .sort((a, b) => (b.prioridad || 0) - (a.prioridad || 0))[0];
+
+        let reservedSaboteurId = null;
+        if (forceBankCorridor && bankCorridorAxis && sabotageAxis && unitsToAssign.length >= 2) {
+            const sortedForSabotage = unitsToAssign
+                .slice()
+                .sort((a, b) => {
+                    const da = hexDistance(a.r, a.c, sabotageAxis.target.r, sabotageAxis.target.c);
+                    const db = hexDistance(b.r, b.c, sabotageAxis.target.r, sabotageAxis.target.c);
+                    return da - db;
+                });
+            const saboteur = sortedForSabotage[0];
+            if (saboteur) {
+                reservedSaboteurId = saboteur.id;
+                AiGameplayManager.missionAssignments.set(saboteur.id, {
+                    type: 'IA_NODE',
+                    objective: sabotageAxis.target,
+                    nodoTipo: 'camino_enemigo_critico',
+                    axisName: 'FORCED_SABOTAGE_CORRIDOR_OPENING'
+                });
+                AiGameplayManager._trace('assign_unit_axis_forced_sabotage', {
+                    playerNumber,
+                    unitId: saboteur.id,
+                    unitName: saboteur.name,
+                    objective: { r: sabotageAxis.target.r, c: sabotageAxis.target.c },
+                    nodoTipo: 'camino_enemigo_critico',
+                    reason: 'sabotear_camino_humano_en_paralelo'
+                });
+            }
+        }
+
         // FIXED: Asignar TODOS los tipos de unidad, no solo exploradores
         const explorers = unitsToAssign.filter(u => AiGameplayManager.unitRoles.get(u.id) === 'explorer');
         const others = unitsToAssign.filter(u => !AiGameplayManager.unitRoles.has(u.id) || AiGameplayManager.unitRoles.get(u.id) !== 'explorer');
@@ -984,6 +1042,29 @@ const AiGameplayManager = {
         const assignUnit = (unit, preferDistant) => {
             const existingMission = AiGameplayManager.missionAssignments.get(unit.id);
             if (existingMission && ['OCCUPY_THEN_BUILD', 'URGENT_DEFENSE', 'CONSOLIDATE_FORCES', 'AWAIT_REINFORCEMENTS'].includes(existingMission.type)) {
+                return;
+            }
+
+            if (reservedSaboteurId && unit.id === reservedSaboteurId) {
+                return;
+            }
+
+            if (forceBankCorridor && bankCorridorAxis) {
+                AiGameplayManager.missionAssignments.set(unit.id, {
+                    type: 'IA_NODE',
+                    objective: bankCorridorAxis.target,
+                    nodoTipo: bankCorridorAxis.nodoTipo,
+                    axisName: `${bankCorridorAxis.name}_FORCED_BANK_CORRIDOR`
+                });
+                AiGameplayManager._trace('assign_unit_axis_forced_corridor', {
+                    playerNumber,
+                    unitId: unit.id,
+                    unitName: unit.name,
+                    objective: { r: bankCorridorAxis.target.r, c: bankCorridorAxis.target.c },
+                    nodoTipo: bankCorridorAxis.nodoTipo,
+                    forceBankCorridor,
+                    reason: 'apertura_objetivo_persistente'
+                });
                 return;
             }
 

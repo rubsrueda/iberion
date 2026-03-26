@@ -113,6 +113,10 @@ const AiDeploymentManager = {
         const enemyPlayer = playerNumber === 1 ? 2 : 1;
         const valuableResources = [], defensivePoints = [], availableSpots = [];
         const humanThreats = units.filter(u => u.player === enemyPlayer && u.currentHealth > 0);
+        const capital = gameState.cities?.find(c => c.owner === playerNumber && c.isCapital) || null;
+        const bankHex = board.flat().find(h => h && h.isBank) || null;
+        const barbarianCities = gameState.cities?.filter(c => c.owner === 0 && c.hasBarbarianGarrison) || [];
+        const citySites = board.flat().filter(h => h && h.owner === null && h.terrain === 'plains' && !h.unit && !h.structure).slice(0, 8);
         
         board.forEach(row => row.forEach(hex => {
             if (!hex.unit && hex.terrain !== 'water') availableSpots.push(hex);
@@ -122,10 +126,11 @@ const AiDeploymentManager = {
         valuableResources.sort((a, b) => b.priority - a.priority);
         defensivePoints.sort((a, b) => b.priority - a.priority);
 
-        return { valuableResources, defensivePoints, humanThreats, availableSpots };
+        return { valuableResources, defensivePoints, humanThreats, availableSpots, capital, bankHex, barbarianCities, citySites };
     },
     
     determineDeploymentStrategy: function(analysis) {
+        if (gameState.turnNumber <= 2) return 'economic_network_bootstrap';
         const { humanThreats, valuableResources, defensivePoints } = analysis;
         if (humanThreats.length === 0) return 'proactive_expansion';
         const isTargetingPois = humanThreats.some(threat => [...valuableResources, ...defensivePoints].some(poi => hexDistance(threat.r, threat.c, poi.hex.r, poi.hex.c) <= 2));
@@ -134,9 +139,46 @@ const AiDeploymentManager = {
     },
 
     generateMissionList: function(strategy, analysis) {
-        const { valuableResources, defensivePoints } = analysis;
+        const { valuableResources, defensivePoints, capital, bankHex, barbarianCities, citySites } = analysis;
         let missionList = [];
         switch (strategy) {
+            case 'economic_network_bootstrap': {
+                const bankBuildable = capital && bankHex && this._isRoadPathConstructible(capital, bankHex);
+                if (bankBuildable) {
+                    missionList = [
+                        { type: 'BOOTSTRAP_BANK_CORRIDOR', objectiveHex: bankHex, priority: 1000 },
+                        { type: 'BOOTSTRAP_BANK_CORRIDOR', objectiveHex: bankHex, priority: 990 },
+                        { type: 'BOOTSTRAP_BANK_CORRIDOR', objectiveHex: bankHex, priority: 980 }
+                    ];
+                    break;
+                }
+
+                if (barbarianCities.length > 0) {
+                    const objetivoBarbaro = barbarianCities.slice().sort((a, b) => {
+                        const da = capital ? hexDistance(capital.r, capital.c, a.r, a.c) : 0;
+                        const db = capital ? hexDistance(capital.r, capital.c, b.r, b.c) : 0;
+                        return da - db;
+                    })[0];
+                    missionList = [
+                        { type: 'CONQUISTAR_BARBARA', objectiveHex: board[objetivoBarbaro.r]?.[objetivoBarbaro.c] || objetivoBarbaro, priority: 920 },
+                        { type: 'CONQUISTAR_BARBARA', objectiveHex: board[objetivoBarbaro.r]?.[objetivoBarbaro.c] || objetivoBarbaro, priority: 910 }
+                    ];
+                    break;
+                }
+
+                if (citySites.length > 0) {
+                    const site = citySites.slice().sort((a, b) => {
+                        const da = capital ? hexDistance(capital.r, capital.c, a.r, a.c) : 0;
+                        const db = capital ? hexDistance(capital.r, capital.c, b.r, b.c) : 0;
+                        return da - db;
+                    })[0];
+                    missionList = [{ type: 'FUNDAR_CIUDAD', objectiveHex: site, priority: 850 }];
+                    break;
+                }
+
+                missionList = valuableResources.map(res => ({ type: 'CAPTURAR_RECURSO', objectiveHex: res.hex, priority: res.priority })).slice(0, 5);
+                break;
+            }
             case 'proactive_expansion': case 'max_expansion': case 'compete_expansionist':
                 missionList = valuableResources.map(res => ({ type: 'CAPTURAR_RECURSO', objectiveHex: res.hex, priority: res.priority })).slice(0, 5);
                 break;
@@ -178,6 +220,33 @@ const AiDeploymentManager = {
 
     defineUnitForMission: function(mission, humanThreats, playerResources) {
         let compositionTypes = [], role = 'explorer', name = 'Tropa';
+        if (mission.type === 'BOOTSTRAP_BANK_CORRIDOR') {
+            // Unidad barata y funcional para ocupar hex de corredor desde turno 1.
+            compositionTypes = playerResources.oro >= ((REGIMENT_TYPES['Infantería Ligera']?.cost?.oro) || 150)
+                ? ['Infantería Ligera']
+                : ['Pueblo'];
+            role = 'builder';
+            name = 'Pionero de Corredor';
+        }
+        if (mission.type === 'CONQUISTAR_BARBARA') {
+            compositionTypes = ['Infantería Pesada', 'Arqueros'];
+            role = 'conqueror';
+            name = 'Expedición Bárbara';
+        }
+        if (mission.type === 'FUNDAR_CIUDAD') {
+            compositionTypes = ['Pueblo'];
+            role = 'defender';
+            name = 'Núcleo de Fundación';
+        }
+
+        if (compositionTypes.length > 0) {
+            const budgetFitFast = this.fitCompositionToBudget(compositionTypes, playerResources.oro, ['Infantería Ligera', 'Pueblo']);
+            if (budgetFitFast) {
+                const fullRegiments = budgetFitFast.compositionTypes.map(type => ({...REGIMENT_TYPES[type], type}));
+                return { regiments: fullRegiments, cost: budgetFitFast.cost, role, name };
+            }
+        }
+
         const enemyRegimentsNearTarget = humanThreats.filter(threat => hexDistance(threat.r, threat.c, mission.objectiveHex.r, mission.objectiveHex.c) <= 3).reduce((sum, unit) => sum + (unit.regiments?.length || 1), 0);
         const isContested = enemyRegimentsNearTarget > 0;
         const objectiveTerrain = board[mission.objectiveHex.r]?.[mission.objectiveHex.c]?.terrain;
@@ -274,11 +343,28 @@ const AiDeploymentManager = {
 
     findBestSpotForMission: function(mission, availableSpots, unitDefinition, playerNumber, isFirstUnit = false, humanThreats = []) {
         const targetHex = mission.objectiveHex;
+        const economicBootstrap = ['BOOTSTRAP_BANK_CORRIDOR', 'CONQUISTAR_BARBARA', 'FUNDAR_CIUDAD'].includes(mission.type);
         
         // SALVAGUARDA CRÍTICA: Primera unidad debe estar ALEJADA del frente
-        if (isFirstUnit) {
+        if (isFirstUnit && !economicBootstrap) {
             console.log(`[IA DEPLOY] 🛡️ PRIMERA UNIDAD - Buscando posición DEFENSIVA LEJANA del enemigo`);
             return this.findSafeDefensiveSpot(availableSpots, unitDefinition, playerNumber, humanThreats);
+        }
+
+        if (economicBootstrap && gameState.turnNumber <= 2) {
+            // En apertura económica, desplegar todo orientado al objetivo comercial.
+            const capital = gameState.cities?.find(c => c.owner === playerNumber && c.isCapital);
+            const sorted = availableSpots
+                .filter(spot => {
+                    const t = board[spot.r]?.[spot.c]?.terrain;
+                    return t && t !== 'water';
+                })
+                .sort((a, b) => {
+                    const da = hexDistance(a.r, a.c, targetHex.r, targetHex.c) + (capital ? hexDistance(a.r, a.c, capital.r, capital.c) * 0.6 : 0);
+                    const db = hexDistance(b.r, b.c, targetHex.r, targetHex.c) + (capital ? hexDistance(b.r, b.c, capital.r, capital.c) * 0.6 : 0);
+                    return da - db;
+                });
+            if (sorted.length > 0) return sorted[0];
         }
         
         // Para otras unidades: comportamiento normal (adyacente al objetivo)
@@ -341,6 +427,32 @@ const AiDeploymentManager = {
         });
         
         return validAdjacentSpots[0];
+    },
+
+    _isRoadPathConstructible: function(origen, destino) {
+        if (!origen || !destino) return false;
+        const queue = [{ r: origen.r, c: origen.c }];
+        const visited = new Set([`${origen.r},${origen.c}`]);
+        let guard = 0;
+
+        while (queue.length > 0 && guard < 1200) {
+            guard++;
+            const cur = queue.shift();
+            if (cur.r === destino.r && cur.c === destino.c) return true;
+
+            for (const n of getHexNeighbors(cur.r, cur.c)) {
+                const key = `${n.r},${n.c}`;
+                if (visited.has(key)) continue;
+                const hex = board[n.r]?.[n.c];
+                if (!hex) continue;
+                if (hex.terrain === 'water' || hex.terrain === 'forest') continue;
+                if (TERRAIN_TYPES[hex.terrain]?.isImpassableForLand) continue;
+                visited.add(key);
+                queue.push({ r: n.r, c: n.c });
+            }
+        }
+
+        return false;
     },
 
     /**
