@@ -46,7 +46,11 @@ const IaNodoValor = {
         }
 
         // Paso 2: Aplicar multiplicadores por eje de valor
-        const multiplicadores = config.multiplicadores || {};
+        const contextoActual = config.contexto_actual || {};
+        const multiplicadores = {
+            ...(config.multiplicadores || {}),
+            ...(contextoActual.multiplicadores || {})
+        };
         const base = (nodoConfig?.peso_base ?? nodo.valor_base ?? 0);
         const econ = (nodo.valor_economico || 0) * (multiplicadores.economia || 1);
         const surv = (nodo.valor_supervivencia || 0) * (multiplicadores.supervivencia || 1);
@@ -55,8 +59,8 @@ const IaNodoValor = {
 
         // Paso 3: Factores moduladores
         const penalizaciones = {
-            distancia: config.penalizacion_distancia || 0.1,
-            riesgo: config.penalizacion_riesgo || 0.5
+            distancia: contextoActual.penalizacion_distancia ?? config.penalizacion_distancia ?? 0.1,
+            riesgo: contextoActual.penalizacion_riesgo ?? config.penalizacion_riesgo ?? 0.5
         };
 
         const distancia = nodo.distancia || 0;
@@ -66,7 +70,11 @@ const IaNodoValor = {
         const factorRiesgo = 1 - (riesgo * penalizaciones.riesgo);
 
         // Paso 4: Fórmula final
-        const suma = base + econ + surv + sab + ctrl;
+        const bonusTipos = contextoActual.bonus_tipos || {};
+        const penalizacionTipos = contextoActual.penalizacion_tipos || {};
+        const ajusteTipo = (bonusTipos[nodo.tipo] || 0) - (penalizacionTipos[nodo.tipo] || 0);
+
+        const suma = base + econ + surv + sab + ctrl + ajusteTipo;
         const pesoFinal = suma * factorDistancia * factorRiesgo;
 
         return Math.max(0, pesoFinal);

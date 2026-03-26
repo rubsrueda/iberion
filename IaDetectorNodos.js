@@ -347,7 +347,7 @@ const IaDetectorNodos = {
         // Caravanas enemigas
         const enemyPlayer = playerNumber === 1 ? 2 : 1;
         const caravanasEnemiga = units.filter(u => 
-            u.player === enemyPlayer && u.regiments?.some(r => r.type === 'Caravana')
+            u.player === enemyPlayer && (u.tradeRoute || u.regiments?.some(r => r.type === 'Caravana'))
         );
 
         for (const caravana of caravanasEnemiga) {

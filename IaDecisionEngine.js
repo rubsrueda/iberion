@@ -63,11 +63,18 @@ const IaDecisionEngine = {
                 console.log(`[IaDecision] ⚠️ CRISIS: Oro=${snapshot.oro} < umbral=${umbralEconomica}`);
             }
 
+            const contextoEstrategico = this._construirContextoEstrategico(snapshot, {
+                capitalAmenazada,
+                crisisEconomica: estaEnCrisisEconomica
+            });
+            const configEvaluacion = this._construirConfigContextual(config, contextoEstrategico);
+            console.log(`[IaDecision] Contexto=${contextoEstrategico.fase} mult={econ:${configEvaluacion.contexto_actual.multiplicadores.economia}, sab:${configEvaluacion.contexto_actual.multiplicadores.sabotaje}, surv:${configEvaluacion.contexto_actual.multiplicadores.supervivencia}}`);
+
             // B3. Identificar nodos de valor
             console.log("[IaDecision] B3. Identificando Nodos de Valor...");
-            const nodosDetectados = IaDetectorNodos.detectarNodosDeValor(playerNumber, config);
-            const nodosConCorredor = this._agregarNodoDerivadoCorredor(nodosDetectados, playerNumber, config);
-            const nodos = this._agregarNodoCrearCaravana(nodosConCorredor, playerNumber, config);
+            const nodosDetectados = IaDetectorNodos.detectarNodosDeValor(playerNumber, configEvaluacion);
+            const nodosConCorredor = this._agregarNodoDerivadoCorredor(nodosDetectados, playerNumber, configEvaluacion, contextoEstrategico);
+            const nodos = this._agregarNodoCrearCaravana(nodosConCorredor, playerNumber, configEvaluacion, contextoEstrategico);
             if (nodos.length === 0) {
                 console.warn("[IaDecision] ⚠️ No se detectaron nodos de valor");
                 console.groupEnd();
@@ -90,14 +97,15 @@ const IaDecisionEngine = {
             const nodosTop = nodos.slice(0, maxMisiones);
             const nodosTopConPeso = nodosTop.map(nodo => ({
                 ...nodo,
-                peso: IaNodoValor.calcularPesoNodo(nodo, { playerNumber, gameState, config }, config)
+                peso: IaNodoValor.calcularPesoNodo(nodo, { playerNumber, gameState, config: configEvaluacion, contextoEstrategico }, configEvaluacion)
             }));
             console.log(`[IaDecision] C2. Generando misiones de top-${nodosTop.length} nodos`);
             
             // C3. Generar recomendación principal
             const nodoPrincipal = this._seleccionarNodoPrincipal(nodosTopConPeso, {
                 capitalAmenazada,
-                crisisEconomica: estaEnCrisisEconomica
+                crisisEconomica: estaEnCrisisEconomica,
+                fase: contextoEstrategico.fase
             });
             const recomendacionPrincipal = this._generarMisionDesdeNodo(nodoPrincipal, playerNumber);
 
@@ -116,6 +124,7 @@ const IaDecisionEngine = {
                 nodos,
                 prioritarios: nodosTopConPeso,
                 snapshot,
+                contextoEstrategico,
                 criteriosActivados: {
                     capitalAmenazada,
                     crisisEconomica: estaEnCrisisEconomica
@@ -209,7 +218,7 @@ const IaDecisionEngine = {
             // Metadata
             turnCreated: gameState.turnNumber,
             prioridad: this._calcularPrioridad(nodo),
-            peso: IaNodoValor.calcularPesoNodo(nodo, gameState, IaConfigManager.get())
+            peso: IaNodoValor.calcularPesoNodo(nodo, { playerNumber, gameState, config: IaConfigManager.get() }, IaConfigManager.get())
         };
     },
 
@@ -253,7 +262,7 @@ const IaDecisionEngine = {
         return 'BAJA';
     },
 
-    _agregarNodoDerivadoCorredor(nodos, playerNumber, config) {
+    _agregarNodoDerivadoCorredor(nodos, playerNumber, config, contextoEstrategico = null) {
         if (!Array.isArray(nodos) || nodos.length === 0) return nodos || [];
 
         const topN = Math.min(5, nodos.length);
@@ -266,15 +275,16 @@ const IaDecisionEngine = {
         const yaConectados = distancia <= 2;
         if (yaConectados) return nodos;
 
+        const faseApertura = contextoEstrategico?.fase === 'apertura';
         const pesoBase = config?.nodos?.corredor_comercial?.peso_base ?? 170;
         const corredor = IaNodoValor.crearNodo({
             tipo: 'corredor_comercial',
             propietario: playerNumber,
-            valor_base: pesoBase,
-            valor_economico: 150,
+            valor_base: pesoBase + (faseApertura ? 60 : 0),
+            valor_economico: 150 + (faseApertura ? 90 : 0),
             valor_supervivencia: 20,
             valor_sabotaje: 0,
-            valor_control: 120,
+            valor_control: 120 + (faseApertura ? 40 : 0),
             r: economia.r,
             c: economia.c,
             origen: { r: capital.r, c: capital.c },
@@ -285,7 +295,7 @@ const IaDecisionEngine = {
         return IaNodoValor.ordenarNodosPorPeso([...nodos, corredor], { playerNumber, gameState, config }, config);
     },
 
-    _agregarNodoCrearCaravana(nodos, playerNumber, config) {
+    _agregarNodoCrearCaravana(nodos, playerNumber, config, contextoEstrategico = null) {
         if (!Array.isArray(nodos) || nodos.length === 0) return nodos || [];
 
         const corredor = gameState.ai_corridor_status?.[playerNumber];
@@ -303,8 +313,8 @@ const IaDecisionEngine = {
         const crearCaravana = IaNodoValor.crearNodo({
             tipo: 'crear_caravana',
             propietario: playerNumber,
-            valor_base: config?.nodos?.crear_caravana?.peso_base ?? 190,
-            valor_economico: 220,
+            valor_base: (config?.nodos?.crear_caravana?.peso_base ?? 190) + (contextoEstrategico?.fase === 'apertura' ? 40 : 0),
+            valor_economico: 220 + (contextoEstrategico?.crisisEconomica ? 40 : 0),
             valor_supervivencia: 10,
             valor_sabotaje: 0,
             valor_control: 90,
@@ -323,7 +333,7 @@ const IaDecisionEngine = {
         const corredor = nodosTop.find(n => n.tipo === 'corredor_comercial');
         const crearCaravana = nodosTop.find(n => n.tipo === 'crear_caravana');
 
-        if (contexto?.crisisEconomica && !contexto?.capitalAmenazada) {
+        if (contexto?.fase === 'apertura' && contexto?.crisisEconomica && !contexto?.capitalAmenazada) {
             if (crearCaravana) return crearCaravana;
             if (corredor && (capital?.valor_supervivencia || 0) < 220) return corredor;
         }
@@ -333,6 +343,65 @@ const IaDecisionEngine = {
         }
 
         return nodosTop[0];
+    },
+
+    _construirContextoEstrategico(snapshot, flags) {
+        const fase = snapshot.turnNumber <= 5 ? 'apertura' : snapshot.turnNumber <= 10 ? 'temprano' : 'medio';
+        return {
+            fase,
+            capitalAmenazada: !!flags?.capitalAmenazada,
+            crisisEconomica: !!flags?.crisisEconomica,
+            turno: snapshot.turnNumber
+        };
+    },
+
+    _construirConfigContextual(configBase, contextoEstrategico) {
+        const contextual = JSON.parse(JSON.stringify(configBase || {}));
+        const baseMultiplicadores = contextual.multiplicadores || {};
+        const bonusTipos = {};
+        const penalizacionTipos = {};
+        let multiplicadores = { ...baseMultiplicadores };
+
+        if (contextoEstrategico?.fase === 'apertura') {
+            multiplicadores = {
+                ...multiplicadores,
+                economia: 2.2,
+                sabotaje: 1.8,
+                control: 1.0,
+                supervivencia: contextoEstrategico.capitalAmenazada ? 2.5 : 0.8
+            };
+            bonusTipos.corredor_comercial = 260;
+            bonusTipos.banca = 140;
+            bonusTipos.ciudad_libre = 100;
+            bonusTipos.camino_enemigo_critico = 160;
+            bonusTipos.caravana_enemiga = 180;
+            bonusTipos.crear_caravana = 150;
+            penalizacionTipos.ciudad_natal_propia = contextoEstrategico.capitalAmenazada ? 0 : 220;
+            contextual.penalizacion_distancia = 0.08;
+        }
+
+        if (contextoEstrategico?.crisisEconomica) {
+            multiplicadores.economia = Math.max(multiplicadores.economia || 1, 2.4);
+            bonusTipos.corredor_comercial = (bonusTipos.corredor_comercial || 0) + 120;
+            bonusTipos.banca = (bonusTipos.banca || 0) + 80;
+            bonusTipos.crear_caravana = (bonusTipos.crear_caravana || 0) + 120;
+        }
+
+        if (contextoEstrategico?.capitalAmenazada) {
+            penalizacionTipos.ciudad_natal_propia = 0;
+            bonusTipos.ciudad_natal_propia = 240;
+        }
+
+        contextual.contexto_actual = {
+            fase: contextoEstrategico?.fase || 'normal',
+            multiplicadores,
+            bonus_tipos: bonusTipos,
+            penalizacion_tipos: penalizacionTipos,
+            penalizacion_distancia: contextual.penalizacion_distancia,
+            penalizacion_riesgo: contextual.penalizacion_riesgo
+        };
+
+        return contextual;
     }
 
 };
