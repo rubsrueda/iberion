@@ -305,6 +305,7 @@ const IaDecisionEngine = {
 
         const faseApertura = contextoEstrategico?.fase === 'apertura';
         const pesoBase = config?.nodos?.corredor_comercial?.peso_base ?? 170;
+        const destinoTipo = economia.tipo;
         const corredor = IaNodoValor.crearNodo({
             tipo: 'corredor_comercial',
             propietario: playerNumber,
@@ -317,6 +318,7 @@ const IaDecisionEngine = {
             c: economia.c,
             origen: { r: capital.r, c: capital.c },
             destino: { r: economia.r, c: economia.c },
+            destino_tipo: destinoTipo,
             razon_texto: `Corredor comercial: ${capital.tipo} -> ${economia.tipo}`
         });
 
@@ -329,9 +331,15 @@ const IaDecisionEngine = {
         const distancia = hexDistance(capital.r, capital.c, nodoEconomico.r, nodoEconomico.c);
         const rutasActivas = units.filter(u => u.player === playerNumber && !!u.tradeRoute).length;
         const ciudadesPropias = gameState.cities?.filter(c => c.owner === playerNumber).length || 0;
+        const rutaConstruible = this._isRoadPathConstructible(
+            { r: capital.r, c: capital.c },
+            { r: nodoEconomico.r, c: nodoEconomico.c }
+        );
+        if (!rutaConstruible) return -99999;
+
         const baseTipo = nodoEconomico.tipo === 'banca'
-            ? (rutasActivas === 0 ? 300 : 90)
-            : (ciudadesPropias < 2 ? 300 : 230);
+            ? (rutasActivas === 0 ? 620 : 160)
+            : (ciudadesPropias < 2 ? 320 : 240);
         const bonusApertura = contextoEstrategico?.fase === 'apertura' ? 120 : 0;
         const bonusPersistencia = rutasActivas > 0 && nodoEconomico.tipo === 'ciudad_libre' ? 120 : 0;
         return baseTipo + bonusApertura + bonusPersistencia - distancia * 12 + (nodoEconomico.valor_control || 0) * 0.5;
@@ -376,6 +384,21 @@ const IaDecisionEngine = {
         const capital = nodosTop.find(n => n.tipo === 'ciudad_natal_propia');
         const corredor = nodosTop.find(n => n.tipo === 'corredor_comercial');
         const crearCaravana = nodosTop.find(n => n.tipo === 'crear_caravana');
+        const ciudadBarbara = nodosTop.find(n => n.tipo === 'ciudad_barbara');
+        const sitioAldea = nodosTop.find(n => n.tipo === 'sitio_aldea');
+
+        // Jerarquía económica dura en apertura:
+        // 1) Si la banca es conectable por camino construible, construir corredor a banca.
+        // 2) Si no, conquistar ciudad bárbara.
+        // 3) Si no, fundar ciudad (sitio_aldea).
+        // 4) Después, activar/expandir rutas comerciales.
+        if (contexto?.fase === 'apertura' && !contexto?.capitalAmenazada) {
+            if (corredor && corredor.destino_tipo === 'banca') return corredor;
+            if (ciudadBarbara) return ciudadBarbara;
+            if (sitioAldea) return sitioAldea;
+            if (crearCaravana) return crearCaravana;
+            if (corredor) return corredor;
+        }
 
         if (contexto?.fase === 'apertura' && contexto?.crisisEconomica && !contexto?.capitalAmenazada) {
             if (crearCaravana) return crearCaravana;
@@ -387,6 +410,39 @@ const IaDecisionEngine = {
         }
 
         return nodosTop[0];
+    },
+
+    _isRoadPathConstructible(origen, destino) {
+        if (!origen || !destino) return false;
+
+        const startKey = `${origen.r},${origen.c}`;
+        const goalKey = `${destino.r},${destino.c}`;
+        const queue = [{ r: origen.r, c: origen.c }];
+        const visited = new Set([startKey]);
+        let safety = 0;
+
+        while (queue.length > 0 && safety < 1200) {
+            safety++;
+            const cur = queue.shift();
+            const curKey = `${cur.r},${cur.c}`;
+            if (curKey === goalKey) return true;
+
+            const neighbors = typeof getHexNeighbors === 'function' ? getHexNeighbors(cur.r, cur.c) : [];
+            for (const next of neighbors) {
+                const key = `${next.r},${next.c}`;
+                if (visited.has(key)) continue;
+
+                const hex = board[next.r]?.[next.c];
+                if (!hex) continue;
+                if (hex.terrain === 'forest' || hex.terrain === 'water') continue;
+                if (TERRAIN_TYPES?.[hex.terrain]?.isImpassableForLand) continue;
+
+                visited.add(key);
+                queue.push({ r: next.r, c: next.c });
+            }
+        }
+
+        return false;
     },
 
     _construirContextoEstrategico(snapshot, flags) {
