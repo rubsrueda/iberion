@@ -1437,7 +1437,9 @@ const AiGameplayManager = {
                     return;
                 }
                 // Moverse hacia el objetivo (económico, posición estratégica, etc.)
-                const pathToNode = this.findPathToTarget(unit, tgt.r, tgt.c);
+                const pathToNode = (mission.nodoTipo === 'corredor_comercial')
+                    ? this._findCorridorBuildablePath(unit.r, unit.c, tgt.r, tgt.c)
+                    : this.findPathToTarget(unit, tgt.r, tgt.c);
                 if (pathToNode && pathToNode.length > 1) {
                     const steps = unit.currentMovement || unit.movement || 1;
                     const moveHex = pathToNode[Math.min(steps, pathToNode.length - 1)];
@@ -1458,12 +1460,12 @@ const AiGameplayManager = {
                 }
                 // Sin camino libre en misión de corredor: no forzar combate, reposicionar.
                 if (mission.nodoTipo === 'corredor_comercial') {
-                    await AiGameplayManager._executeExpansionLogic(unit);
+                    const repositioned = await this._attemptCorridorBuildableStep(unit, tgt);
                     AiGameplayManager._trace('unit_decision_result', {
                         unitId: unit.id,
                         unitName: unit.name,
                         missionType: mission.type,
-                        result: 'corridor_reposition_no_path',
+                        result: repositioned ? 'corridor_reposition_buildable' : 'corridor_hold_no_buildable_step',
                         target: { r: tgt.r, c: tgt.c },
                         nodoTipo: mission.nodoTipo || null
                     });
@@ -1535,7 +1537,7 @@ const AiGameplayManager = {
         const merged = getUnitById(mergeTarget.id);
         if (!merged || merged.currentHealth <= 0) return false;
 
-        const path = this.findPathToTarget(merged, tgt.r, tgt.c);
+        const path = this._findCorridorBuildablePath(merged.r, merged.c, tgt.r, tgt.c);
         if (path && path.length > 1) {
             const steps = merged.currentMovement || merged.movement || 1;
             const moveHex = path[Math.min(steps, path.length - 1)];
@@ -1604,6 +1606,66 @@ const AiGameplayManager = {
             splitTo: { r: splitHex.r, c: splitHex.c },
             target: { r: tgt.r, c: tgt.c }
         });
+        return true;
+    },
+
+    _findCorridorBuildablePath: function(startR, startC, targetR, targetC) {
+        const startKey = `${startR},${startC}`;
+        const goalKey = `${targetR},${targetC}`;
+        const queue = [{ r: startR, c: startC }];
+        const visited = new Set([startKey]);
+        const prev = new Map();
+        let guard = 0;
+
+        while (queue.length > 0 && guard < 3500) {
+            guard++;
+            const cur = queue.shift();
+            const curKey = `${cur.r},${cur.c}`;
+            if (curKey === goalKey) break;
+
+            for (const next of getHexNeighbors(cur.r, cur.c)) {
+                const key = `${next.r},${next.c}`;
+                if (visited.has(key)) continue;
+                const hex = board[next.r]?.[next.c];
+                if (!hex) continue;
+                if (TERRAIN_TYPES[hex.terrain]?.isImpassableForLand) continue;
+
+                const isGoal = key === goalKey;
+                if (!isGoal) {
+                    if (!this._canBuildRoadOnHex(hex)) continue;
+                    if (hex.isCity) continue;
+                }
+
+                visited.add(key);
+                prev.set(key, curKey);
+                queue.push({ r: next.r, c: next.c });
+            }
+        }
+
+        if (!visited.has(goalKey)) return null;
+
+        const path = [];
+        let walk = goalKey;
+        while (walk) {
+            const [r, c] = walk.split(',').map(Number);
+            path.push({ r, c });
+            walk = prev.get(walk);
+        }
+        path.reverse();
+        return path;
+    },
+
+    _attemptCorridorBuildableStep: async function(unit, tgt) {
+        const currentDist = hexDistance(unit.r, unit.c, tgt.r, tgt.c);
+        const candidates = getHexNeighbors(unit.r, unit.c)
+            .map(n => board[n.r]?.[n.c])
+            .filter(h => h && !h.unit && !h.isCity && this._canBuildRoadOnHex(h))
+            .filter(h => hexDistance(h.r, h.c, tgt.r, tgt.c) < currentDist)
+            .sort((a, b) => hexDistance(a.r, a.c, tgt.r, tgt.c) - hexDistance(b.r, b.c, tgt.r, tgt.c));
+
+        const step = candidates[0];
+        if (!step) return false;
+        await _executeMoveUnit(unit, step.r, step.c);
         return true;
     },
 
