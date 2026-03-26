@@ -265,15 +265,42 @@ const IaDecisionEngine = {
     _agregarNodoDerivadoCorredor(nodos, playerNumber, config, contextoEstrategico = null) {
         if (!Array.isArray(nodos) || nodos.length === 0) return nodos || [];
 
-        const topN = Math.min(5, nodos.length);
-        const top = nodos.slice(0, topN);
-        const capital = top.find(n => n.tipo === 'ciudad_natal_propia');
-        const economia = top.find(n => n.tipo === 'banca' || n.tipo === 'ciudad_libre');
-        if (!capital || !economia) return nodos;
+        const capitalCity = gameState.cities?.find(c => c.isCapital && c.owner === playerNumber);
+        if (!capitalCity) return nodos;
+
+        const capital = nodos.find(n => n.tipo === 'ciudad_natal_propia') || IaNodoValor.crearNodo({
+            tipo: 'ciudad_natal_propia',
+            propietario: playerNumber,
+            valor_base: 10,
+            valor_economico: 0,
+            valor_supervivencia: 0,
+            valor_sabotaje: 0,
+            valor_control: 0,
+            r: capitalCity.r,
+            c: capitalCity.c,
+            razon_texto: `Capital propia (${capitalCity.name || 'Capital'})`
+        });
+
+        const candidatosEconomicos = nodos.filter(n => n.tipo === 'banca' || n.tipo === 'ciudad_libre');
+        if (candidatosEconomicos.length === 0) {
+            console.log('[IaDecision] Corredor comercial descartado: sin candidatos economicos');
+            return nodos;
+        }
+
+        const economia = candidatosEconomicos
+            .slice()
+            .sort((a, b) => this._scoreEconomicTargetForCorridor(b, capital, contextoEstrategico) - this._scoreEconomicTargetForCorridor(a, capital, contextoEstrategico))[0];
+        if (!economia) {
+            console.log('[IaDecision] Corredor comercial descartado: sin objetivo economico elegido');
+            return nodos;
+        }
 
         const distancia = hexDistance(capital.r, capital.c, economia.r, economia.c);
         const yaConectados = distancia <= 2;
-        if (yaConectados) return nodos;
+        if (yaConectados) {
+            console.log(`[IaDecision] Corredor comercial descartado: capital ya conectada a ${economia.tipo} en dist=${distancia}`);
+            return nodos;
+        }
 
         const faseApertura = contextoEstrategico?.fase === 'apertura';
         const pesoBase = config?.nodos?.corredor_comercial?.peso_base ?? 170;
@@ -292,7 +319,16 @@ const IaDecisionEngine = {
             razon_texto: `Corredor comercial: ${capital.tipo} -> ${economia.tipo}`
         });
 
+        console.log(`[IaDecision] Corredor comercial generado: destino=${economia.tipo} (${economia.r},${economia.c}) dist=${distancia} fase=${contextoEstrategico?.fase || 'normal'}`);
+
         return IaNodoValor.ordenarNodosPorPeso([...nodos, corredor], { playerNumber, gameState, config }, config);
+    },
+
+    _scoreEconomicTargetForCorridor(nodoEconomico, capital, contextoEstrategico) {
+        const distancia = hexDistance(capital.r, capital.c, nodoEconomico.r, nodoEconomico.c);
+        const baseTipo = nodoEconomico.tipo === 'banca' ? 260 : 180;
+        const bonusApertura = contextoEstrategico?.fase === 'apertura' ? 120 : 0;
+        return baseTipo + bonusApertura - distancia * 12 + (nodoEconomico.valor_control || 0) * 0.5;
     },
 
     _agregarNodoCrearCaravana(nodos, playerNumber, config, contextoEstrategico = null) {
@@ -376,6 +412,7 @@ const IaDecisionEngine = {
             bonusTipos.camino_enemigo_critico = 160;
             bonusTipos.caravana_enemiga = 180;
             bonusTipos.crear_caravana = 150;
+            penalizacionTipos.recurso_estrategico = 180;
             penalizacionTipos.ciudad_natal_propia = contextoEstrategico.capitalAmenazada ? 0 : 220;
             contextual.penalizacion_distancia = 0.08;
         }
@@ -384,7 +421,9 @@ const IaDecisionEngine = {
             multiplicadores.economia = Math.max(multiplicadores.economia || 1, 2.4);
             bonusTipos.corredor_comercial = (bonusTipos.corredor_comercial || 0) + 120;
             bonusTipos.banca = (bonusTipos.banca || 0) + 80;
+            bonusTipos.ciudad_libre = (bonusTipos.ciudad_libre || 0) + 60;
             bonusTipos.crear_caravana = (bonusTipos.crear_caravana || 0) + 120;
+            penalizacionTipos.recurso_estrategico = (penalizacionTipos.recurso_estrategico || 0) + 60;
         }
 
         if (contextoEstrategico?.capitalAmenazada) {
