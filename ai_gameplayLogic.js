@@ -48,35 +48,41 @@ const AiGameplayManager = {
     
     executeTurn: async function(playerNumber) {
         AiGameplayManager.missionAssignments = new Map();
-        console.group(`%c[IA Turn] INICIO para Jugador IA ${playerNumber}`, "background: #333; color: #98fb98; font-size: 1.1em;");
+        console.group(`%c[IA Turn] INICIO para Jugador IA ${playerNumber} | Turno ${gameState.turnNumber}`, "background: #333; color: #98fb98; font-size: 1.1em;");
+        console.log(`[IA DEBUG] ownedHexPercentage=${AiGameplayManager.ownedHexPercentage(playerNumber)}`);
 
             // --- FASE 1: CREACIÓN DE UNIDADES (APERTURA) ---
-            
-            // Si es el turno 1, se ejecuta la Gran Apertura primero. El 'await' asegura que termine
-            // antes de que el código continúe. No hay 'return'.
         if (gameState.turnNumber === 1 && AiGameplayManager.ownedHexPercentage(playerNumber) < 0.2) {
                 console.log(`[IA STRATEGY] Ejecutando Gran Apertura...`);
             await AiGameplayManager._executeGrandOpening_v20(playerNumber);
+        }
         }
 
         // --- FASE 1b: EVALUACIÓN ESTRATÉGICA CON MOTOR DE DECISIONES (FASE 2c) ---
         // Inicializa el módulo de integración con la decisión actual
         AiGameplayManager._currentMotorDecision = null;
+        console.log(`[IA DEBUG] IaIntegration disponible: ${typeof IaIntegration !== 'undefined'}`);
+        console.log(`[IA DEBUG] IaDecisionEngine disponible: ${typeof IaDecisionEngine !== 'undefined'}`);
+        
         if (typeof IaIntegration !== 'undefined') {
-            const decision = await IaIntegration.inicializarTurnoConDecision(playerNumber);
-            if (decision) {
-                AiGameplayManager._currentMotorDecision = decision; // GUARDAR PARA planStrategicObjectives
-                this._registrarDecisionMotor(playerNumber, {
-                    ...decision,
-                    nivel: decision.criteriosActivados?.capitalAmenazada ? 0 : decision.criteriosActivados?.crisisEconomica ? 2 : 1,
-                    accion: decision.recomendacion?.accion || decision.recomendacion?.tipo,
-                    nodo: decision.recomendacion?.nodo_tipo || decision.recomendacion?.tipo,
-                    prioridad: decision.recomendacion?.prioridad,
-                    razon_texto: decision.recomendacion?.razon_texto
-                });
-                console.log(`[IA DEBUG] Motor decision cacheada: ${decision.prioritarios?.length || 0} nodos prioritarios`);
-            } else {
-                console.warn(`[IA DEBUG] Motor decision NULL - fallback a estrategia estándar`);
+            try {
+                const decision = await IaIntegration.inicializarTurnoConDecision(playerNumber);
+                if (decision) {
+                    AiGameplayManager._currentMotorDecision = decision; // GUARDAR PARA planStrategicObjectives
+                    this._registrarDecisionMotor(playerNumber, {
+                        ...decision,
+                        nivel: decision.criteriosActivados?.capitalAmenazada ? 0 : decision.criteriosActivados?.crisisEconomica ? 2 : 1,
+                        accion: decision.recomendacion?.accion || decision.recomendacion?.tipo,
+                        nodo: decision.recomendacion?.nodo_tipo || decision.recomendacion?.tipo,
+                        prioridad: decision.recomendacion?.prioridad,
+                        razon_texto: decision.recomendacion?.razon_texto
+                    });
+                    console.log(`[IA DEBUG] ✓ Motor decision cacheada: ${decision.prioritarios?.length || 0} nodos prioritarios`);
+                } else {
+                    console.warn(`[IA DEBUG] ✗ Motor decision NULL`);
+                }
+            } catch (e) {
+                console.error(`[IA DEBUG] ERROR en inicializarTurnoConDecision: ${e.message}`);
             }
         }
             

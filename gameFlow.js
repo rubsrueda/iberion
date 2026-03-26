@@ -1314,6 +1314,8 @@ async function simpleAiTurn() {
     const aiLevel = gameState.playerAiLevels?.[aiPlayerIdString] || 'normal';
     const aiPlayerType = gameState.playerTypes?.[aiPlayerIdString];
 
+    console.log(`%c[simpleAiTurn] TURNO ${gameState.turnNumber} | Fase: ${gameState.currentPhase} | Jugador: ${aiActualPlayerNumber} | Tipo: ${aiPlayerType}`, 'color: #FF6600');
+
     // Verificación robusta: Solo procede si realmente es el turno de la IA.
     if (gameState.currentPhase !== 'play' || !aiPlayerType?.startsWith('ai_')) {
         console.warn(`[simpleAiTurn] Bloqueado | fase=${gameState.currentPhase} | jugador=${aiActualPlayerNumber} | tipo=${aiPlayerType || 'undefined'}`);
