@@ -3814,8 +3814,15 @@ function handleConfirmBuildStructure(actionData) {
     const isOwner = hexData.owner === playerId;
 
     if (!isOwner) {
-        if (isPlayerAction) logMessage("No puedes construir fuera de tu territorio.", "error");
-        console.warn(`[handleConfirmBuildStructure] Territorio no propio en (${r},${c}).`);
+        if (isPlayerAction) {
+            logMessage("No puedes construir fuera de tu territorio.", "error");
+            console.warn(`[handleConfirmBuildStructure] Territorio no propio en (${r},${c}).`);
+        } else {
+            // PUNTO 4: Warning enriquecido para IA
+            const aiDecision = typeof AiGameplayManager !== 'undefined' ? AiGameplayManager._lastDecisionLog[playerId] : null;
+            const aiReason = aiDecision ? `(nodo: ${aiDecision.nodo}, acción: ${aiDecision.accion})` : '(sin decisión motor)';
+            console.warn(`%c[IA BUILD REJECT] TURNO=${gameState.turnNumber} JUGADOR=${playerId} ESTR=${structureType} (${r},${c}) DUENO=${hexData.owner} MOTIVO=No propietario ${aiReason}`, "color: #FF6B6B; background: #FFE5E5; padding: 5px;");
+        }
         return;
     }
 

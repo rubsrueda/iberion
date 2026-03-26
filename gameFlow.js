@@ -1335,14 +1335,15 @@ async function simpleAiTurn() {
     }
 
     // Ahora busca AiGameplayManager en lugar de AiManager.
-   /* if (typeof AiGameplayManager === 'undefined' || typeof AiGameplayManager.executeTurn !== 'function') {
+    if (typeof AiGameplayManager === 'undefined' || typeof AiGameplayManager.executeTurn !== 'function') {
         console.error("[simpleAiTurn] AiGameplayManager no está definido. Revisa que ai_gameplayLogic.js esté cargado. Forzando fin de turno.");
         logMessage("Error crítico: Módulo de IA de juego no disponible. Pasando turno.");
-        // Como fallback de emergencia, aquí sí llamamos a handleEndTurn
-        setTimeout(() => handleEndTurn(), 500);
+        // Fallback de emergencia para no bloquear la partida.
+        setTimeout(() => {
+            if (typeof handleEndTurn === 'function') handleEndTurn();
+        }, 500);
         return;
     }
-    */
    
     const useArchipelagoAI = gameState.gameMode === 'invasion' || !!gameState.setupTempSettings?.navalMap;
     if (useArchipelagoAI && typeof IAArchipielago !== 'undefined' && typeof IAArchipielago.ejecutarTurno === 'function') {
@@ -1358,8 +1359,8 @@ async function simpleAiTurn() {
     }
 
     logMessage(`IA (Jugador ${aiActualPlayerNumber}, Nivel: ${aiLevel}) inicia su turno... (Usando AiGameplayManager)`);
-    // Y aquí se llama al método del objeto correcto.
-    AiGameplayManager.executeTurn(aiActualPlayerNumber, aiLevel);
+    // Esperar para capturar errores asíncronos del turno IA.
+    await AiGameplayManager.executeTurn(aiActualPlayerNumber, aiLevel);
 }
 
 function initializeTutorialState() {

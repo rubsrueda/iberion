@@ -12,6 +12,8 @@ const AiGameplayManager = {
     _lastNodeList: {},
     _lastDecisionLog: {},
     _config: null,
+    _constructionQueue: new Map(), // playerNumber -> { hex: {r,c}, structureType, turnoCreado, nodoRazon }
+    _occupyThenBuildMissions: new Map(), // unitId -> { targetR, targetC, structureType, turnsActive }
 
     _registrarDecisionMotor: function(playerNumber, payload) {
         if (!payload) return;
@@ -55,7 +57,6 @@ const AiGameplayManager = {
         if (gameState.turnNumber === 1 && AiGameplayManager.ownedHexPercentage(playerNumber) < 0.2) {
                 console.log(`[IA STRATEGY] Ejecutando Gran Apertura...`);
             await AiGameplayManager._executeGrandOpening_v20(playerNumber);
-        }
         }
 
         // --- FASE 1b: EVALUACIÓN ESTRATÉGICA CON MOTOR DE DECISIONES (FASE 2c) ---
@@ -190,6 +191,13 @@ const AiGameplayManager = {
         }
 
         console.log("[DIAGNÓSTICO] Entrando en _handle_BOA_Construction (v5 All-in-One).");
+        
+        // PUNTO 1: Limpiar cola de construcción si pasaron 2+ turnos
+        const playerQueue = AiGameplayManager._constructionQueue.get(playerNumber);
+        if (playerQueue && (gameState.turnNumber - playerQueue.turnoCreado) >= 2) {
+            console.log(`[IA CONSTRUCCIÓN] Limpiando cola de construcción desactualizada (creada en turno ${playerQueue.turnoCreado})`);
+            AiGameplayManager._constructionQueue.delete(playerNumber);
+        }
 
         const playerRes = gameState.playerResources[playerNumber];
         const playerTechs = playerRes.researchedTechnologies || [];
@@ -226,6 +234,38 @@ const AiGameplayManager = {
             const hexToBuild = board[location.r]?.[location.c];
             if (!hexToBuild) return;
 
+            // PUNTO 1: VALIDACIÓN GUARDRAIL: ¿La IA posee este hex?
+            if (hexToBuild.owner !== playerNumber) {
+                console.warn(`%c[IA CONSTRUCCIÓN] ⚠️ GUARDRAIL ACTIVADO: Hex (${location.r},${location.c}) NO pertenece a la IA (dueño: ${hexToBuild.owner}).`, "color: #FF6B6B; background: #FFE5E5; padding: 5px;");
+                // PUNTO 2: Crear misión OCCUPY_THEN_BUILD en lugar de intentar construir
+                const nearestUnit = units.filter(u => u.player === playerNumber && u.currentHealth > 0)
+                    .sort((a, b) => hexDistance(a.r, a.c, location.r, location.c) - hexDistance(b.r, b.c, location.r, location.c))[0];
+                if (nearestUnit) {
+                    console.log(`[IA CONSTRUCCIÓN] 📍 Creando misión OCCUPY_THEN_BUILD para ${nearestUnit.name}`);
+                    AiGameplayManager.missionAssignments.set(nearestUnit.id, {
+                        type: 'OCCUPY_THEN_BUILD',
+                        objective: location,
+                        structureType: 'Camino',
+                        nodoRazon: 'BOA_CONSTRUCTION'
+                    });
+                    AiGameplayManager._constructionQueue.set(playerNumber, {
+                        r: location.r,
+                        c: location.c,
+                        structureType: 'Fortaleza',
+                        turnoCreado: gameState.turnNumber,
+                        nodoRazon: 'BOA_CONSTRUCTION'
+                    });
+                }
+                return;
+            }
+
+            // PUNTO 3: TRAZABILIDAD - Logging completo antes de construir
+            const capitalDist = gameState.cities.find(c => c.isCapital && c.owner === playerNumber)
+                ? hexDistance(location.r, location.c, gameState.cities.find(c => c.isCapital && c.owner === playerNumber).r, gameState.cities.find(c => c.isCapital && c.owner === playerNumber).c)
+                : -1;
+            
+            console.log(`%c[IA BUILD DECISION] TURNO=${gameState.turnNumber} FASE=${gameState.currentPhase} JUGADOR=${playerNumber} ESTR=Camino (${location.r},${location.c}) DUENO=${hexToBuild.owner} RAZON=BOA_CONSTRUCTION DIST=${capitalDist}`, "color: #4CAF50; font-weight: bold;");
+
             // <<== LÓGICA DE CONSTRUCCIÓN SECUENCIAL SIN RETORNOS ==>>
 
             // 2.1: Construir CAMINO si es necesario.
@@ -245,6 +285,7 @@ const AiGameplayManager = {
                 const fortCost = STRUCTURE_TYPES['Fortaleza'].cost;
                 if (playerRes.oro >= fortCost.oro && playerRes.piedra >= fortCost.piedra && playerRes.hierro >= fortCost.hierro) {
                     console.log(`%c      -> ¡EJECUTANDO PASO 2! Mejora a Fortaleza en (${location.r}, ${location.c}).`, "color: lightgreen");
+                    console.log(`%c[IA BUILD DECISION] TURNO=${gameState.turnNumber} FASE=${gameState.currentPhase} JUGADOR=${playerNumber} ESTR=Fortaleza (${location.r},${location.c}) DUENO=${playerNumber} RAZON=BOA_CONSTRUCTION DIST=${capitalDist}`, "color: #4CAF50; font-weight: bold;");
                     handleConfirmBuildStructure({ playerId: playerNumber, r: location.r, c: location.c, structureType: 'Fortaleza' });
                     await new Promise(resolve => setTimeout(resolve, 20)); // Pequeña pausa
                     
@@ -348,6 +389,36 @@ const AiGameplayManager = {
 
     fortressCount: function(playerNumber){
         return board.flat().filter(h => h && h.owner === playerNumber && h.structure === 'Fortaleza').length;
+    },
+    
+    // PUNTO 2: Método helper para intentar construcción con trazabilidad enriquecida
+    attemptConstructionAtHex: function(playerNumber, r, c, structureType, nodoRazon) {
+        const hex = board[r]?.[c];
+        if (!hex) {
+            console.error(`[IA CONSTRUCCIÓN] Hex inválido: (${r},${c})`);
+            return false;
+        }
+        
+        // VALIDACIÓN: ¿La IA posee el hex?
+        if (hex.owner !== playerNumber) {
+            console.warn(`%c[IA BUILD DECISION - RECHAZADA] TURNO=${gameState.turnNumber} FASE=${gameState.currentPhase} JUGADOR=${playerNumber} ESTR=${structureType} (${r},${c}) DUENO=${hex.owner} RAZON=${nodoRazon} MOTIVO=No es propietario`, "color: #FF6B6B; background: #FFE5E5; padding: 5px;");
+            return false;
+        }
+        
+        const playerRes = gameState.playerResources[playerNumber];
+        const structCost = STRUCTURE_TYPES[structureType].cost;
+        
+        // Verificar recursos
+        if (playerRes.oro < structCost.oro || playerRes.piedra < structCost.piedra) {
+            console.warn(`%c[IA BUILD DECISION - RECHAZADA] TURNO=${gameState.turnNumber} FASE=${gameState.currentPhase} JUGADOR=${playerNumber} ESTR=${structureType} (${r},${c}) DUENO=${playerNumber} RAZON=${nodoRazon} MOTIVO=Recursos insuficientes`, "color: #FFA500; background: #FFE0B2; padding: 5px;");
+            return false;
+        }
+        
+        // TRAZABILIDAD: Logging del éxito
+        console.log(`%c[IA BUILD DECISION - EJECUTADA] TURNO=${gameState.turnNumber} FASE=${gameState.currentPhase} JUGADOR=${playerNumber} ESTR=${structureType} (${r},${c}) DUENO=${playerNumber} RAZON=${nodoRazon}`, "color: #4CAF50; font-weight: bold; background: #E8F5E9; padding: 5px;");
+        
+        handleConfirmBuildStructure({ playerId: playerNumber, r: r, c: c, structureType: structureType });
+        return true;
     },
 
     planRoadProject: function(playerNumber, newFortress) {
@@ -610,6 +681,36 @@ const AiGameplayManager = {
         
         console.groupCollapsed(`Decidiendo para ${unit.name} (Misión: ${mission.type}) - ${razonAccion}`);
         try {
+            // PUNTO 2: Manejar OCCUPY_THEN_BUILD
+            if (mission.type === 'OCCUPY_THEN_BUILD') {
+                const tgt = mission.objective;
+                const hex = board[tgt.r]?.[tgt.c];
+                
+                if (hex && hex.owner === unit.player) {
+                    // El hex ya es nuestro → construir
+                    console.log(`[IA OCCUPY_THEN_BUILD] ${unit.name} en (${tgt.r},${tgt.c}) YA construido. Estructura: ${mission.structureType}`);
+                    if (typeof AiGameplayManager.attemptConstructionAtHex === 'function') {
+                        AiGameplayManager.attemptConstructionAtHex(unit.player, tgt.r, tgt.c, mission.structureType, mission.nodoRazon);
+                    }
+                    AiGameplayManager._occupyThenBuildMissions.delete(unit.id);
+                    return;
+                } else {
+                    // El hex NO es nuestro → ocupar primero
+                    console.log(`[IA OCCUPY_THEN_BUILD] ${unit.name} → ocupa (${tgt.r},${tgt.c}) ANTES de construir ${mission.structureType}`);
+                    const pathToOccupy = AiGameplayManager.findPathToTarget(unit, tgt.r, tgt.c);
+                    if (pathToOccupy && pathToOccupy.length > 1) {
+                        const steps = unit.currentMovement || unit.movement || 1;
+                        const moveHex = pathToOccupy[Math.min(steps, pathToOccupy.length - 1)];
+                        if (!getUnitOnHex(moveHex.r, moveHex.c)) {
+                            await _executeMoveUnit(unit, moveHex.r, moveHex.c);
+                            // Mantener la misión para próximo turno
+                            AiGameplayManager.missionAssignments.set(unit.id, mission);
+                            return;
+                        }
+                    }
+                }
+            }
+            
             if (mission.type === 'URGENT_DEFENSE') {
                 const threat = getUnitById(mission.objective.id);
                 const validThreat = threat && threat.currentHealth > 0;
