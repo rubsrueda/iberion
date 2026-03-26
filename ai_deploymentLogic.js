@@ -25,19 +25,19 @@ const AiDeploymentManager = {
 
             let deployedCount = 0;
             let tempOccupiedSpots = new Set();
+            const isFreeDeployment = gameState.currentPhase === 'deployment';
             
             // GARANTIZAR al menos 1 unidad para evitar derrota inmediata
-            for (const mission of missionList) {
+            if (missionList.length > 0) {
+                for (let missionIdx = 0; missionIdx < missionList.length || deployedCount < unitsToPlaceCount; missionIdx++) {
+                    const mission = missionList[missionIdx % missionList.length];
                 if (deployedCount >= unitsToPlaceCount) break;
-                
-                // Si ya tenemos 1+ unidades, verificar oro mínimo (80 = costo Pueblo)
-                if (deployedCount > 0 && playerResources.oro < 80) break;
                 
                 const unitDefinition = this.defineUnitForMission(mission, analysis.humanThreats, playerResources);
                 if (!unitDefinition) continue;
                 
                 // Si no tenemos oro para esta unidad pero NO hemos desplegado nada, usar fallback
-                if (playerResources.oro < unitDefinition.cost) {
+                if (!isFreeDeployment && playerResources.oro < unitDefinition.cost) {
                     if (deployedCount === 0) {
                         console.warn(`[IA DEPLOY] ⚠️ Oro insuficiente (${playerResources.oro}). Usando unidad de emergencia (Pueblo).`);
                         const fallbackUnit = this.createFallbackUnit(playerResources);
@@ -57,7 +57,9 @@ const AiDeploymentManager = {
                 const placementSpot = this.findBestSpotForMission(mission, currentAvailableSpots, unitDefinition, playerNumber, isFirstUnit, analysis.humanThreats);
                 if (!placementSpot) continue;
 
-                playerResources.oro -= unitDefinition.cost;
+                if (!isFreeDeployment) {
+                    playerResources.oro -= unitDefinition.cost;
+                }
                 const newUnitData = this.createUnitObject(unitDefinition, playerNumber, placementSpot);
                 placeFinalizedDivision(newUnitData, placementSpot.r, placementSpot.c);
                 
@@ -68,6 +70,7 @@ const AiDeploymentManager = {
 
                 tempOccupiedSpots.add(`${placementSpot.r},${placementSpot.c}`);
                 deployedCount++;
+            }
             }
         } finally {
             console.groupEnd();
@@ -220,9 +223,10 @@ const AiDeploymentManager = {
 
     defineUnitForMission: function(mission, humanThreats, playerResources) {
         let compositionTypes = [], role = 'explorer', name = 'Tropa';
+        const isFreeDeployment = gameState.currentPhase === 'deployment';
         if (mission.type === 'BOOTSTRAP_BANK_CORRIDOR') {
             // Unidad barata y funcional para ocupar hex de corredor desde turno 1.
-            compositionTypes = playerResources.oro >= ((REGIMENT_TYPES['Infantería Ligera']?.cost?.oro) || 150)
+            compositionTypes = (isFreeDeployment || playerResources.oro >= ((REGIMENT_TYPES['Infantería Ligera']?.cost?.oro) || 150))
                 ? ['Infantería Ligera']
                 : ['Pueblo'];
             role = 'builder';
@@ -240,7 +244,7 @@ const AiDeploymentManager = {
         }
 
         if (compositionTypes.length > 0) {
-            const budgetFitFast = this.fitCompositionToBudget(compositionTypes, playerResources.oro, ['Infantería Ligera', 'Pueblo']);
+            const budgetFitFast = this.fitCompositionToBudget(compositionTypes, isFreeDeployment ? Number.POSITIVE_INFINITY : playerResources.oro, ['Infantería Ligera', 'Pueblo']);
             if (budgetFitFast) {
                 const fullRegiments = budgetFitFast.compositionTypes.map(type => ({...REGIMENT_TYPES[type], type}));
                 return { regiments: fullRegiments, cost: budgetFitFast.cost, role, name };
@@ -284,7 +288,7 @@ const AiDeploymentManager = {
             ? ['Infantería Ligera', 'Arqueros', 'Pueblo']
             : ['Ingenieros', 'Columna de Suministro', 'Explorador', 'Pueblo'];
 
-        const budgetFit = this.fitCompositionToBudget(compositionTypes, playerResources.oro, preferredFallbacks);
+        const budgetFit = this.fitCompositionToBudget(compositionTypes, isFreeDeployment ? Number.POSITIVE_INFINITY : playerResources.oro, preferredFallbacks);
         if (!budgetFit) {
             console.warn(`[IA DEPLOY] No hay oro suficiente para ninguna unidad. Oro actual: ${playerResources.oro}.`);
             return null;
