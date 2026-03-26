@@ -15,6 +15,22 @@ const AiGameplayManager = {
     _constructionQueue: new Map(), // playerNumber -> { hex: {r,c}, structureType, turnoCreado, nodoRazon }
     _occupyThenBuildMissions: new Map(), // unitId -> { targetR, targetC, structureType, turnsActive }
 
+    _trace: function(event, payload = {}) {
+        try {
+            const trace = {
+                event,
+                turn: gameState?.turnNumber,
+                phase: gameState?.currentPhase,
+                currentPlayer: gameState?.currentPlayer,
+                ts: Date.now(),
+                ...payload
+            };
+            console.log(`[IA TRACE] ${JSON.stringify(trace)}`);
+        } catch (e) {
+            console.warn(`[IA TRACE] Error serializando traza '${event}': ${e.message}`);
+        }
+    },
+
     _registrarDecisionMotor: function(playerNumber, payload) {
         if (!payload) return;
 
@@ -52,6 +68,10 @@ const AiGameplayManager = {
         AiGameplayManager.missionAssignments = new Map();
         console.group(`%c[IA Turn] INICIO para Jugador IA ${playerNumber} | Turno ${gameState.turnNumber}`, "background: #333; color: #98fb98; font-size: 1.1em;");
         console.log(`[IA DEBUG] ownedHexPercentage=${AiGameplayManager.ownedHexPercentage(playerNumber)}`);
+        AiGameplayManager._trace('turn_start', {
+            playerNumber,
+            ownedHexPercentage: AiGameplayManager.ownedHexPercentage(playerNumber)
+        });
 
             // --- FASE 1: CREACIÓN DE UNIDADES (APERTURA) ---
         if (gameState.turnNumber === 1 && AiGameplayManager.ownedHexPercentage(playerNumber) < 0.2) {
@@ -70,6 +90,13 @@ const AiGameplayManager = {
                 const decision = await IaIntegration.inicializarTurnoConDecision(playerNumber);
                 if (decision) {
                     AiGameplayManager._currentMotorDecision = decision; // GUARDAR PARA planStrategicObjectives
+                    AiGameplayManager._trace('motor_decision', {
+                        playerNumber,
+                        accion: decision?.recomendacion?.accion || decision?.recomendacion?.tipo || 'N/A',
+                        nodo: decision?.recomendacion?.nodo_tipo || decision?.recomendacion?.tipo || 'N/A',
+                        prioridad: decision?.recomendacion?.prioridad || 'N/A',
+                        prioritarios: decision?.prioritarios?.slice(0, 5).map(n => ({ tipo: n.tipo, r: n.r, c: n.c, peso: n.peso })) || []
+                    });
                     this._registrarDecisionMotor(playerNumber, {
                         ...decision,
                         nivel: decision.criteriosActivados?.capitalAmenazada ? 0 : decision.criteriosActivados?.crisisEconomica ? 2 : 1,
@@ -81,9 +108,11 @@ const AiGameplayManager = {
                     console.log(`[IA DEBUG] ✓ Motor decision cacheada: ${decision.prioritarios?.length || 0} nodos prioritarios`);
                 } else {
                     console.warn(`[IA DEBUG] ✗ Motor decision NULL`);
+                    AiGameplayManager._trace('motor_decision_null', { playerNumber });
                 }
             } catch (e) {
                 console.error(`[IA DEBUG] ERROR en inicializarTurnoConDecision: ${e.message}`);
+                AiGameplayManager._trace('motor_decision_error', { playerNumber, error: e.message });
             }
         }
             
@@ -98,6 +127,10 @@ const AiGameplayManager = {
             // se incluyan en la lista de acciones de este turno.
         const unitsToAction = units.filter(u => u.player === playerNumber && u.currentHealth > 0 && !u.hasMoved);
             console.log(`[IA PLANNER] ${unitsToAction.length} unidades listas para actuar este turno.`);
+        AiGameplayManager._trace('planner_units_to_action', {
+            playerNumber,
+            units: unitsToAction.map(u => ({ id: u.id, name: u.name, r: u.r, c: u.c, regs: u.regiments?.length || 0 }))
+        });
 
             // 1. Primero, se intenta activar el protocolo de consolidación.
             //    Esta función "marca" a las unidades necesarias con misiones de CONSOLIDATE/AWAIT.
@@ -110,6 +143,17 @@ const AiGameplayManager = {
             //    SOLAMENTE a aquellas unidades que AÚN NO tienen una misión asignada.
         const unassignedUnits = unitsToAction.filter(u => !this.missionAssignments.has(u.id));
         this.assignUnitsToAxes(playerNumber, unassignedUnits);
+        AiGameplayManager._trace('planner_assignments_ready', {
+            playerNumber,
+            assignedCount: this.missionAssignments.size,
+            assignments: Array.from(this.missionAssignments.entries()).map(([unitId, m]) => ({
+                unitId,
+                type: m?.type,
+                objective: m?.objective ? { r: m.objective.r, c: m.objective.c } : null,
+                nodoTipo: m?.nodoTipo || null,
+                axisName: m?.axisName || null
+            }))
+        });
         
             // <<== FIN DE LA LÓGICA CORREGIDA ==>>
 
@@ -148,6 +192,11 @@ const AiGameplayManager = {
         if (typeof IaIntegration !== 'undefined') {
             IaIntegration.limpiarCache();
         }
+
+        AiGameplayManager._trace('turn_end', {
+            playerNumber,
+            actedUnits: unitsToAction.length
+        });
         
         console.groupEnd();
     },
@@ -545,6 +594,16 @@ const AiGameplayManager = {
                     nodoTipo: bestAxis.nodoTipo || null,
                     axisName: bestAxis.name
                 });
+                AiGameplayManager._trace('assign_unit_axis', {
+                    playerNumber,
+                    unitId: unit.id,
+                    unitName: unit.name,
+                    missionType: bestAxis.nodoTipo ? 'IA_NODE' : 'AXIS_ADVANCE',
+                    preferDistant,
+                    objective: { r: bestAxis.target.r, c: bestAxis.target.c },
+                    axisName: bestAxis.name,
+                    nodoTipo: bestAxis.nodoTipo || null
+                });
             }
         };
 
@@ -680,6 +739,14 @@ const AiGameplayManager = {
         }
         
         console.groupCollapsed(`Decidiendo para ${unit.name} (Misión: ${mission.type}) - ${razonAccion}`);
+        AiGameplayManager._trace('unit_decision_start', {
+            unitId: unit.id,
+            unitName: unit.name,
+            from: { r: unit.r, c: unit.c },
+            missionType: mission.type,
+            missionObjective: mission.objective ? { r: mission.objective.r, c: mission.objective.c } : null,
+            reason: razonAccion
+        });
         try {
             // PUNTO 2: Manejar OCCUPY_THEN_BUILD
             if (mission.type === 'OCCUPY_THEN_BUILD') {
@@ -693,6 +760,14 @@ const AiGameplayManager = {
                         AiGameplayManager.attemptConstructionAtHex(unit.player, tgt.r, tgt.c, mission.structureType, mission.nodoRazon);
                     }
                     AiGameplayManager._occupyThenBuildMissions.delete(unit.id);
+                    AiGameplayManager._trace('unit_decision_result', {
+                        unitId: unit.id,
+                        unitName: unit.name,
+                        missionType: mission.type,
+                        result: 'build_attempted',
+                        target: { r: tgt.r, c: tgt.c },
+                        structureType: mission.structureType
+                    });
                     return;
                 } else {
                     // El hex NO es nuestro → ocupar primero
@@ -705,6 +780,14 @@ const AiGameplayManager = {
                             await _executeMoveUnit(unit, moveHex.r, moveHex.c);
                             // Mantener la misión para próximo turno
                             AiGameplayManager.missionAssignments.set(unit.id, mission);
+                            AiGameplayManager._trace('unit_decision_result', {
+                                unitId: unit.id,
+                                unitName: unit.name,
+                                missionType: mission.type,
+                                result: 'moved_to_occupy',
+                                to: { r: moveHex.r, c: moveHex.c },
+                                target: { r: tgt.r, c: tgt.c }
+                            });
                             return;
                         }
                     }
@@ -717,6 +800,14 @@ const AiGameplayManager = {
                 if (validThreat) {
                     console.log(`[IA URGENT DEFENSE] ${unit.name} tiene orden de atacar a ${threat.name}.`);
                     await this._executeCombatLogic(unit, [threat]);
+                    AiGameplayManager._trace('unit_decision_result', {
+                        unitId: unit.id,
+                        unitName: unit.name,
+                        missionType: mission.type,
+                        result: 'urgent_defense_combat',
+                        targetUnitId: threat.id,
+                        targetName: threat.name
+                    });
                     return;
                 }
             }
@@ -729,6 +820,14 @@ const AiGameplayManager = {
                     // Hay enemigo en el objetivo (sabotaje, defensa): atacar
                     console.log(`[IA NODE] ${unit.name} → ataca en (${tgt.r},${tgt.c}) nodo:${mission.nodoTipo}`);
                     await this._executeCombatLogic(unit, [unitEnTgt]);
+                    AiGameplayManager._trace('unit_decision_result', {
+                        unitId: unit.id,
+                        unitName: unit.name,
+                        missionType: mission.type,
+                        result: 'node_combat',
+                        target: { r: tgt.r, c: tgt.c },
+                        nodoTipo: mission.nodoTipo || null
+                    });
                     return;
                 }
                 // Moverse hacia el objetivo (económico, posición estratégica, etc.)
@@ -739,6 +838,15 @@ const AiGameplayManager = {
                     if (!getUnitOnHex(moveHex.r, moveHex.c)) {
                         console.log(`[IA NODE] ${unit.name} → mueve a (${moveHex.r},${moveHex.c}) nodo:${mission.nodoTipo}`);
                         await _executeMoveUnit(unit, moveHex.r, moveHex.c);
+                        AiGameplayManager._trace('unit_decision_result', {
+                            unitId: unit.id,
+                            unitName: unit.name,
+                            missionType: mission.type,
+                            result: 'node_move',
+                            to: { r: moveHex.r, c: moveHex.c },
+                            target: { r: tgt.r, c: tgt.c },
+                            nodoTipo: mission.nodoTipo || null
+                        });
                         return;
                     }
                 }
@@ -750,9 +858,32 @@ const AiGameplayManager = {
 
             const enemyPlayer = unit.player === 1 ? 2 : 1;
             const enemies = units.filter(u => u.player === enemyPlayer && u.currentHealth > 0);
-            if (enemies.length > 0) { await AiGameplayManager._executeCombatLogic(unit, enemies); } 
-            else { await AiGameplayManager.executeGeneralMovement(unit); }
-        } catch(e) { console.error(`Error procesando ${unit.name}:`, e); } 
+            if (enemies.length > 0) {
+                await AiGameplayManager._executeCombatLogic(unit, enemies);
+                AiGameplayManager._trace('unit_decision_result', {
+                    unitId: unit.id,
+                    unitName: unit.name,
+                    missionType: mission.type,
+                    result: 'fallback_combat'
+                });
+            } else {
+                await AiGameplayManager.executeGeneralMovement(unit);
+                AiGameplayManager._trace('unit_decision_result', {
+                    unitId: unit.id,
+                    unitName: unit.name,
+                    missionType: mission.type,
+                    result: 'fallback_move'
+                });
+            }
+        } catch(e) {
+            console.error(`Error procesando ${unit.name}:`, e);
+            AiGameplayManager._trace('unit_decision_error', {
+                unitId: unit.id,
+                unitName: unit.name,
+                missionType: mission.type,
+                error: e.message
+            });
+        } 
         finally { console.groupEnd(); }
     },
 
