@@ -1884,6 +1884,10 @@ let handleEndTurnCallCount = 0; // Se pondría fuera de la función
 async function handleEndTurn(isHostProcessing = false) {
     try {
 
+    if (typeof UIManager !== 'undefined' && UIManager.clearEndTurnPendingWarning) {
+        UIManager.clearEndTurnPendingWarning();
+    }
+
     syncSeasonState(false);
     
     // ESCUDO: Si por algún motivo el cajón no existe, lo creamos ahora mismo

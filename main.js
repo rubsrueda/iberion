@@ -1181,6 +1181,7 @@ function initApp() {
 
     if (domElements.floatingBuildBtn) {
         domElements.floatingBuildBtn.addEventListener('click', (event) => {
+            if (UIManager) UIManager.clearEndTurnPendingWarning();
             event.stopPropagation();
             if (selectedUnit) {
                 hexToBuildOn = { r: selectedUnit.r, c: selectedUnit.c };
@@ -1570,6 +1571,27 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
 
     if (domElements.floatingEndTurnBtn) { 
     domElements.floatingEndTurnBtn.addEventListener('click', () => { 
+        const getCheapestRecruitGoldCost = () => {
+            const allCosts = Object.values(REGIMENT_TYPES || {})
+                .map(reg => Number(reg?.cost?.oro || 0))
+                .filter(cost => Number.isFinite(cost) && cost > 0);
+            return allCosts.length > 0 ? Math.min(...allCosts) : 200;
+        };
+
+        const hasUnitsWithMovement = () => {
+            if (!Array.isArray(units)) return false;
+            return units.some(unit => {
+                if ((unit.player ?? unit.playerId) !== gameState.currentPlayer) return false;
+                if (unit.isDefeated || unit.currentHealth <= 0) return false;
+                return (Number(unit.currentMovement) || 0) > 0 && !unit.hasMoved;
+            });
+        };
+
+        const currentResources = gameState.playerResources?.[gameState.currentPlayer] || {};
+        const minRecruitGold = getCheapestRecruitGoldCost();
+        const hasRecruitGold = Number(currentResources.oro || 0) >= minRecruitGold;
+        const hasPendingActions = hasUnitsWithMovement() || hasRecruitGold;
+
         //Lógica para Raid
         if (gameState.isRaid) {
             if (gameState.currentPhase === 'deployment') {
@@ -1597,6 +1619,18 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
                 logMessage("Turno finalizado. Puntos de acción recargados.");
             }
             return; // Cortar aquí, no ejecutar la lógica estándar de turnos
+        }
+
+        if (UIManager && hasPendingActions && !UIManager.hasPendingEndTurnWarning()) {
+            UIManager.setEndTurnPendingWarning('Acciones pendientes');
+            if (typeof showToast === 'function') {
+                showToast('Acciones pendientes', 'warning');
+            }
+            return;
+        }
+
+        if (UIManager) {
+            UIManager.clearEndTurnPendingWarning();
         }
 
         if (typeof handleEndTurn === "function") {
@@ -1642,6 +1676,7 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
 
     if (domElements.floatingSplitBtn) {
         domElements.floatingSplitBtn.addEventListener('click', (event) => {
+            if (UIManager) UIManager.clearEndTurnPendingWarning();
             event.stopPropagation();
 
             if (UIManager && UIManager._autoCloseTimeout) {
@@ -1785,6 +1820,7 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
         domElements.floatingCreateDivisionBtn = newBtn;
 
         domElements.floatingCreateDivisionBtn.addEventListener('click', () => {
+            if (UIManager) UIManager.clearEndTurnPendingWarning();
             
             // 1. Validaciones de seguridad
             if (!gameState || typeof gameState.deploymentUnitLimit === 'undefined') return;
@@ -1934,6 +1970,7 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
 
     if (domElements.floatingReinforceBtn) {
         domElements.floatingReinforceBtn.addEventListener('click', (event) => {
+            if (UIManager) UIManager.clearEndTurnPendingWarning();
             event.stopPropagation();
 
             // Obtenemos las coordenadas de la última unidad sobre la que se mostró el panel.

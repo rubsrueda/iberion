@@ -41,6 +41,7 @@ const UIManager = {
     _restoreTimeout: null,
     _autoCloseTimeout: null,
     _suppressRadialHideUntil: 0,
+    _pendingEndTurnConfirmation: false,
     _lastShownInfo: { type: null, data: null }, // Para recordar qué se mostró por última vez
     _reopenBtn: null, // Guardará la referencia al botón ▲
     
@@ -96,6 +97,7 @@ const UIManager = {
         newBtn.innerHTML = "►";
         newBtn.title = "Finalizar Turno";
         newBtn.classList.remove('tutorial-highlight');
+        this.clearEndTurnPendingWarning();
         
         // 3. <<== LÓGICA DE RESTAURACIÓN INTELIGENTE ==>>
         // Si HEMOS guardado un listener original (porque el tutorial se usó), lo restauramos.
@@ -111,6 +113,28 @@ const UIManager = {
         } else {
             console.error("CRÍTICO: no se puede restaurar el listener del botón Fin de Turno porque handleEndTurn no está definido.");
         }
+    },
+
+    setEndTurnPendingWarning: function(message = 'Acciones pendientes') {
+        const btn = this._domElements?.floatingEndTurnBtn;
+        if (!btn) return;
+        this._pendingEndTurnConfirmation = true;
+        btn.classList.add('end-turn-warning');
+        btn.dataset.pendingTooltip = message;
+        btn.title = message;
+    },
+
+    clearEndTurnPendingWarning: function() {
+        const btn = this._domElements?.floatingEndTurnBtn;
+        this._pendingEndTurnConfirmation = false;
+        if (!btn) return;
+        btn.classList.remove('end-turn-warning');
+        delete btn.dataset.pendingTooltip;
+        btn.title = 'Finalizar Turno';
+    },
+
+    hasPendingEndTurnWarning: function() {
+        return !!this._pendingEndTurnConfirmation;
     },
 
 

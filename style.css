@@ -7576,6 +7576,38 @@ body.graphics-touch .radial-btn:active {
     transform: none !important;
 }
 
+#floatingEndTurnBtn.end-turn-warning {
+    background: linear-gradient(180deg, #f3d15e, #c99a1a) !important;
+    border-color: #fff0a6 !important;
+    color: #2e2205 !important;
+    box-shadow: 0 0 0 2px rgba(243, 209, 94, 0.18), 0 10px 22px rgba(0,0,0,0.28) !important;
+}
+
+#floatingEndTurnBtn.end-turn-warning::after {
+    content: attr(data-pending-tooltip);
+    position: absolute;
+    right: 56px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(34, 24, 6, 0.96);
+    color: #f7e7bf;
+    border: 1px solid rgba(243, 209, 94, 0.65);
+    border-radius: 10px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 20;
+}
+
+body.graphics-form-phone #floatingEndTurnBtn.end-turn-warning::after {
+    right: 48px;
+    font-size: 11px;
+    padding: 5px 8px;
+}
+
 /* Baseline móvil único: 320x620 (sin distinguir "compacto" vs "grande"). */
 body.graphics-form-phone .modal-themed .modal-content,
 body.graphics-form-phone #gameModesModal .modal-content,

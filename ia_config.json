@@ -1,0 +1,185 @@
+{
+  "version": "1.0",
+  "max_misiones_por_turno": 6,
+  "penalizacion_distancia": 0.1,
+  "penalizacion_riesgo": 0.5,
+  "comentarios": {
+    "_info": "Archivo de configuración centralizado para el motor IA unificado. Especificación en IA_UNIFICACION_ESPECIFICACION_TECNICA.md §5",
+    "_actualizacion": "2026-03-26 - v1.0 Valores iniciales extraídos de ai_gameplayLogic.js y especificación"
+  },
+  "multiplicadores": {
+    "economia": 1.2,
+    "supervivencia": 2.0,
+    "sabotaje": 0.9,
+    "control": 0.7
+  },
+  "umbrales": {
+    "economia_critica": 400,
+    "ataque_ofensivo": 1000,
+    "salud_critica_unidad": 35,
+    "ratio_asedio_sin_artilleria": 2.5
+  },
+  "nodos": {
+    "ciudad_natal_propia": {
+      "peso_base": 500,
+      "peso_economico": 100,
+      "peso_supervivencia": 500,
+      "peso_sabotaje": 0,
+      "peso_control": 80,
+      "comentario": "Ciudad capital propia - defensa máxima"
+    },
+    "ultima_unidad_propia": {
+      "peso_base": 400,
+      "peso_economico": 0,
+      "peso_supervivencia": 400,
+      "peso_sabotaje": 0,
+      "peso_control": 0,
+      "comentario": "Única unidad viva - preservación crítica"
+    },
+    "ciudad_propia_conectada": {
+      "peso_base": 120,
+      "peso_economico": 80,
+      "peso_supervivencia": 0,
+      "peso_sabotaje": 0,
+      "peso_control": 60,
+      "comentario": "Ciudad propia con ruta activa a Banca"
+    },
+    "ciudad_propia_desconectada": {
+      "peso_base": 80,
+      "peso_economico": 20,
+      "peso_supervivencia": 50,
+      "peso_sabotaje": 0,
+      "peso_control": 40,
+      "comentario": "Ciudad propia sin ruta activa - necesita reconexión"
+    },
+    "banca": {
+      "peso_base": 200,
+      "peso_economico": 200,
+      "peso_supervivencia": 0,
+      "peso_sabotaje": 0,
+      "peso_control": 50,
+      "comentario": "Acceso a oro pasivo - motor económico"
+    },
+    "ciudad_libre": {
+      "peso_base": 60,
+      "peso_economico": 60,
+      "peso_supervivencia": 0,
+      "peso_sabotaje": 0,
+      "peso_control": 80,
+      "comentario": "Ciudad neutral - captura económica + control"
+    },
+    "camino_propio_critico": {
+      "peso_base": 90,
+      "peso_economico": 90,
+      "peso_supervivencia": 30,
+      "peso_sabotaje": 0,
+      "peso_control": 20,
+      "comentario": "Casilla de camino crítica que corta red propia si cae"
+    },
+    "camino_enemigo_critico": {
+      "peso_base": 0,
+      "peso_economico": 0,
+      "peso_supervivencia": 0,
+      "peso_sabotaje": 80,
+      "peso_control": 0,
+      "comentario": "Casilla de camino enemiga que corta su red"
+    },
+    "caravana_propia": {
+      "peso_base": 100,
+      "peso_economico": 100,
+      "peso_supervivencia": 20,
+      "peso_sabotaje": 0,
+      "peso_control": 0,
+      "comentario": "Caravana propia activa - defensa económica"
+    },
+    "caravana_enemiga": {
+      "peso_base": 0,
+      "peso_economico": 0,
+      "peso_supervivencia": 0,
+      "peso_sabotaje": 90,
+      "peso_control": 0,
+      "comentario": "Caravana enemiga activa - sabotaje"
+    },
+    "recurso_estrategico": {
+      "peso_base": 60,
+      "peso_economico": 100,
+      "peso_supervivencia": 0,
+      "peso_sabotaje": 0,
+      "peso_control": 40,
+      "comentario": "Recurso mineral o especial en el mapa"
+    },
+    "ciudad_enemiga": {
+      "peso_base": 30,
+      "peso_economico": 30,
+      "peso_supervivencia": 0,
+      "peso_sabotaje": 0,
+      "peso_control": 100,
+      "comentario": "Ciudad enemiga - asedio final"
+    },
+    "cuello_botella": {
+      "peso_base": 40,
+      "peso_economico": 40,
+      "peso_supervivencia": 10,
+      "peso_sabotaje": 20,
+      "peso_control": 50,
+      "comentario": "Paso geográfico crítico con ≤1 alternativa"
+    },
+    "sitio_aldea": {
+      "peso_base": 60,
+      "peso_economico": 70,
+      "peso_supervivencia": 0,
+      "peso_sabotaje": 0,
+      "peso_control": 60,
+      "comentario": "Ubicación para fundar aldea con colono"
+    },
+    "sitio_desembarco": {
+      "peso_base": 50,
+      "peso_economico": 50,
+      "peso_supervivencia": 0,
+      "peso_sabotaje": 0,
+      "peso_control": 80,
+      "comentario": "Hexágono costero para operación anfibia"
+    },
+    "fortaleza_a_construir": {
+      "peso_base": 50,
+      "peso_economico": 50,
+      "peso_supervivencia": 20,
+      "peso_sabotaje": 0,
+      "peso_control": 60,
+      "comentario": "Ubicación para construir fortaleza"
+    },
+    "ciudad_barbara": {
+      "peso_base": 70,
+      "peso_economico": 70,
+      "peso_supervivencia": 0,
+      "peso_sabotaje": 0,
+      "peso_control": 80,
+      "comentario": "Ciudad bárbara neutra - objetivo de expedición"
+    }
+  },
+  "victoria_puntos": {
+    "puntos_por_ciudad": 100,
+    "puntos_por_unidad_destruida": 20,
+    "puntos_por_tecnologia": 35,
+    "multiplicador_recurso_comida": 0.5,
+    "multiplicador_recurso_hierro": 0.8,
+    "multiplicador_recurso_oro": 1.2,
+    "comentario": "Pesos para cálculo de puntuación final"
+  },
+  "protocolo_defensa_capital": {
+    "distancia_amenaza": 2,
+    "ratio_fusion_minimo": 1.2,
+    "comentario": "Parámetros para ejecutar protocolo de defensa capital"
+  },
+  "gran_apertura": {
+    "oleada_1_tipo": "Infantería Ligera",
+    "oleada_1_coste": 2,
+    "oleada_1_cantidad": 18,
+    "oleada_2_tipo": "Infantería Ligera",
+    "oleada_2_coste": 1,
+    "oleada_2_cantidad": 24,
+    "oleada_3_tipo": "Caballería Ligera",
+    "oleada_3_cantidad": 6,
+    "comentario": "Configuración de la Gran Apertura estratégica"
+  }
+}
