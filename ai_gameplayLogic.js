@@ -1303,6 +1303,12 @@ const AiGameplayManager = {
      * @returns {boolean} - Devuelve true si el protocolo de consolidación se activó.
      */
     _checkForConsolidationProtocol: function(playerNumber) {
+        // Early game: evitar secuestrar expansión económica por consolidación prematura.
+        if (gameState.turnNumber <= 2) {
+            console.log(`[IA CONSOLIDATION] SKIP turno ${gameState.turnNumber}: early-game, priorizar expansión.`);
+            return false;
+        }
+
         const aiUnits = units.filter(u => u.player === playerNumber && u.currentHealth > 0);
         if (aiUnits.length < 2) return false; // No se puede consolidar con menos de 2 unidades
 
@@ -1316,7 +1322,13 @@ const AiGameplayManager = {
 
         // CONDICIÓN DE ACTIVACIÓN: Si la unidad más grande del enemigo es significativamente más grande
         // que la unidad más grande de la IA (ej: más del doble de regimientos).
-        if (biggestEnemyUnit.regiments.length > biggestAiUnit.regiments.length * 2) {
+        const enemyNearCapital = (() => {
+            const aiCapital = gameState.cities.find(c => c.isCapital && c.owner === playerNumber);
+            if (!aiCapital) return false;
+            return enemyUnits.some(e => hexDistance(e.r, e.c, aiCapital.r, aiCapital.c) <= 4);
+        })();
+
+        if (biggestEnemyUnit.regiments.length > biggestAiUnit.regiments.length * 2 && enemyNearCapital) {
             console.log(`%c[IA CONSOLIDATION] ¡PROTOCOLO DE CONSOLIDACIÓN ACTIVADO! Amenaza principal: ${biggestEnemyUnit.name} (${biggestEnemyUnit.regiments.length} regs).`, "color: orange; font-size: 1.2em; font-weight: bold;");
             
             // Designar a la unidad más fuerte de la IA como el punto de reunión (ancla)
@@ -1336,6 +1348,10 @@ const AiGameplayManager = {
                 }
             });
             return true; // Protocolo activado
+        }
+
+        if (biggestEnemyUnit.regiments.length > biggestAiUnit.regiments.length * 2 && !enemyNearCapital) {
+            console.log(`[IA CONSOLIDATION] SKIP: superioridad enemiga detectada pero sin amenaza cercana a capital.`);
         }
 
         return false; // No se necesita consolidación

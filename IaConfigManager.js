@@ -197,6 +197,16 @@ const IaConfigManager = {
             console.warn(`[IaConfig] Config no cargada. Retornando valor por defecto para '${path}'`);
             return defaultValue;
         }
+
+        // Permitir acceso al objeto completo cuando no se especifica ruta.
+        if (typeof path === 'undefined' || path === null || path === '') {
+            return this.config;
+        }
+
+        if (typeof path !== 'string') {
+            console.warn(`[IaConfig] Ruta inválida (${typeof path}). Retornando valor por defecto.`);
+            return defaultValue;
+        }
         
         const keys = path.split('.');
         let value = this.config;
