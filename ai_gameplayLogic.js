@@ -1528,14 +1528,53 @@ const AiGameplayManager = {
                 return da - db;
             });
 
-        if (adjacentMovedAllies.length === 0) return false;
-        const mergeTarget = adjacentMovedAllies[0];
+        const adjacentFreshAllies = units
+            .filter(a =>
+                a.player === unit.player &&
+                a.id !== unit.id &&
+                a.currentHealth > 0 &&
+                a.hasMoved === false &&
+                hexDistance(a.r, a.c, unit.r, unit.c) <= 1
+            )
+            .filter(a => ((a.regiments?.length || 0) + (unit.regiments?.length || 0)) <= MAX_REGIMENTS_PER_DIVISION)
+            .sort((a, b) => {
+                const da = hexDistance(a.r, a.c, tgt.r, tgt.c);
+                const db = hexDistance(b.r, b.c, tgt.r, tgt.c);
+                return da - db;
+            });
+
+        const mergeTarget = adjacentMovedAllies[0] || adjacentFreshAllies[0];
+        if (!mergeTarget) {
+            AiGameplayManager._trace('corridor_relay_skip_no_adjacent', {
+                unitId: unit.id,
+                unitName: unit.name,
+                at: { r: unit.r, c: unit.c },
+                target: { r: tgt.r, c: tgt.c }
+            });
+            return false;
+        }
+
+        AiGameplayManager._trace('corridor_relay_merge_target', {
+            unitId: unit.id,
+            unitName: unit.name,
+            mergeTargetId: mergeTarget.id,
+            mergeTargetName: mergeTarget.name,
+            mergeTargetHasMoved: !!mergeTarget.hasMoved,
+            target: { r: tgt.r, c: tgt.c }
+        });
 
         if (typeof RequestMergeUnits !== 'function') return false;
         await RequestMergeUnits(unit, mergeTarget, true);
 
         const merged = getUnitById(mergeTarget.id);
-        if (!merged || merged.currentHealth <= 0) return false;
+        if (!merged || merged.currentHealth <= 0) {
+            AiGameplayManager._trace('corridor_relay_skip_merge_failed', {
+                unitId: unit.id,
+                mergeTargetId: mergeTarget.id,
+                target: { r: tgt.r, c: tgt.c }
+            });
+            return false;
+        }
 
         const path = this._findCorridorBuildablePath(merged.r, merged.c, tgt.r, tgt.c);
         if (path && path.length > 1) {
