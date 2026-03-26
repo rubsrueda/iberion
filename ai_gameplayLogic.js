@@ -182,6 +182,29 @@ const AiGameplayManager = {
         }
         
         // Una vez que todas las unidades han actuado, la IA finaliza su turno.
+        // --- RELAY AFTERMATH PASS ---
+        // Units spawned by relay-splits during this turn were not in the original unitsToAction snapshot.
+        // Give them a chance to act (e.g., chain a second relay or build a road).
+        const originalIds = new Set(unitsToAction.map(u => u.id));
+        const relaySpawned = units.filter(u =>
+            u.player === playerNumber &&
+            u.currentHealth > 0 &&
+            !u.hasMoved &&
+            !originalIds.has(u.id) &&
+            AiGameplayManager.missionAssignments.has(u.id)
+        );
+        if (relaySpawned.length > 0) {
+            AiGameplayManager._trace('relay_aftermath_pass', { playerNumber, count: relaySpawned.length, unitIds: relaySpawned.map(u => u.id) });
+        }
+        for (const unit of relaySpawned) {
+            const unitInMem = getUnitById(unit.id);
+            if (unitInMem?.currentHealth > 0 && !unitInMem.hasMoved) {
+                if (typeof centerMapOn === 'function') centerMapOn(unitInMem.r, unitInMem.c);
+                await AiGameplayManager.decideAndExecuteUnitAction(unitInMem);
+                await new Promise(resolve => setTimeout(resolve, 200));
+            }
+        }
+
         console.log(`[IA Gameplay] Todas las unidades han actuado. Finalizando turno de la IA en 1.5 segundos...`);
         
         setTimeout(() => {
@@ -881,6 +904,10 @@ const AiGameplayManager = {
         console.log(`%c[IA BUILD DECISION - EJECUTADA] TURNO=${gameState.turnNumber} FASE=${gameState.currentPhase} JUGADOR=${playerNumber} ESTR=${structureType} (${r},${c}) DUENO=${playerNumber} RAZON=${nodoRazon}`, "color: #4CAF50; font-weight: bold; background: #E8F5E9; padding: 5px;");
         
         handleConfirmBuildStructure({ playerId: playerNumber, r: r, c: c, structureType: structureType });
+
+        if (structureType === 'Camino' && (nodoRazon === 'CORREDOR_COMERCIAL' || nodoRazon === 'BOA_CONSTRUCTION')) {
+            this._checkAndActivateCorridorEconomy(playerNumber);
+        }
         return true;
     },
 
@@ -1564,7 +1591,27 @@ const AiGameplayManager = {
         });
 
         if (typeof RequestMergeUnits !== 'function') return false;
+        // Capture positions BEFORE merge so we can build roads on vacated hexes
+        const _vacR = unit.r;
+        const _vacC = unit.c;
+        const _relayPlayer = unit.player;
+
         await RequestMergeUnits(unit, mergeTarget, true);
+
+        // Build Camino on vacated corridor hexes after relay transitions
+        const _tryBuildRoadOnVacated = (r, c, playerId) => {
+            const h = board[r]?.[c];
+            if (!h || h.owner !== playerId || h.unit || h.structure) return;
+            if (!AiGameplayManager._canBuildRoadOnHex(h)) return;
+            const roadCost = STRUCTURE_TYPES['Camino']?.cost || {};
+            const res = gameState.playerResources[playerId] || {};
+            if (Object.keys(roadCost).every(k => (res[k] || 0) >= (roadCost[k] || 0))) {
+                handleConfirmBuildStructure({ playerId, r, c, structureType: 'Camino' });
+                AiGameplayManager._trace('corridor_relay_road_built', { r, c, playerId });
+                this._checkAndActivateCorridorEconomy(playerId);
+            }
+        };
+        _tryBuildRoadOnVacated(_vacR, _vacC, _relayPlayer);
 
         const merged = getUnitById(mergeTarget.id);
         if (!merged || merged.currentHealth <= 0) {
@@ -1581,7 +1628,12 @@ const AiGameplayManager = {
             const steps = merged.currentMovement || merged.movement || 1;
             const moveHex = path[Math.min(steps, path.length - 1)];
             if (!getUnitOnHex(moveHex.r, moveHex.c)) {
+                // Capture merge-target position before move so we can build road on it
+                const _beforeMoveR = merged.r;
+                const _beforeMoveC = merged.c;
                 await _executeMoveUnit(merged, moveHex.r, moveHex.c);
+                // Merge-target hex is now vacated — build Camino if it was a corridor hex
+                _tryBuildRoadOnVacated(_beforeMoveR, _beforeMoveC, _relayPlayer);
             }
         }
 
@@ -1645,7 +1697,30 @@ const AiGameplayManager = {
             splitTo: { r: splitHex.r, c: splitHex.c },
             target: { r: tgt.r, c: tgt.c }
         });
+
+        // After relay, check if the corridor is now fully operational and activate economy
+        this._checkAndActivateCorridorEconomy(_relayPlayer);
+
         return true;
+    },
+
+    _checkAndActivateCorridorEconomy: function(playerNumber) {
+        const corridorAxis = (AiGameplayManager.strategicAxes || [])
+            .filter(a => a.nodoTipo === 'corredor_comercial' && a.target)
+            .sort((a, b) => (b.prioridad || 0) - (a.prioridad || 0))[0];
+        if (!corridorAxis) return;
+
+        const capital = gameState.cities?.find(c => c.owner === playerNumber && c.isCapital);
+        if (!capital) return;
+
+        const corridorPath = this._buildCommercialCorridorPath(playerNumber, capital, corridorAxis.target);
+        if (!corridorPath || corridorPath.length < 2) return;
+
+        const corridorStatus = this._updateCommercialCorridorState(playerNumber, corridorAxis, corridorPath);
+        if (corridorStatus.operational) {
+            console.log(`[IA CORREDOR] ¡Corredor operativo en turno ${gameState.turnNumber}! Activando economía.`);
+            this._activateCommercialEconomy(playerNumber, corridorStatus);
+        }
     },
 
     _findCorridorBuildablePath: function(startR, startC, targetR, targetC) {
