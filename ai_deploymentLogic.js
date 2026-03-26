@@ -156,14 +156,51 @@ const AiDeploymentManager = {
         const isDeploymentPhase = gameState.currentPhase === 'deployment';
         
         if (isDeploymentPhase && strategy === 'economic_network_bootstrap') {
-            // ÚNICA MISIÓN EN DEPLOYMENT: OCUPAR HEXES HACIA BANCA (3 unidades)
+            // ÚNICA MISIÓN EN DEPLOYMENT: ocupar casillas de la ruta corta capital->banca
+            if (capital && bankHex) {
+                const roadPath = this._computeShortestRoadPath(capital, bankHex);
+                const buildableRoadTerrains = new Set(STRUCTURE_TYPES?.Camino?.buildableOn || ['plains', 'hills']);
+                const deployPathHexes = (roadPath || [])
+                    .slice(1, -1) // excluir capital y banca
+                    .filter(p => {
+                        const hex = board[p.r]?.[p.c];
+                        return hex && !hex.isCity && buildableRoadTerrains.has(hex.terrain);
+                    })
+                    .slice(0, 3);
+
+                if (deployPathHexes.length > 0) {
+                    missionList = deployPathHexes.map((hex, idx) => ({
+                        type: 'BOOTSTRAP_BANK_CORRIDOR',
+                        objectiveHex: hex,
+                        priority: 1000 - (idx * 10)
+                    }));
+
+                    while (missionList.length < 3) {
+                        missionList.push({
+                            type: 'BOOTSTRAP_BANK_CORRIDOR',
+                            objectiveHex: deployPathHexes[deployPathHexes.length - 1],
+                            priority: 1000 - (missionList.length * 10)
+                        });
+                    }
+                    return missionList;
+                }
+            }
+
+            // Fallback: si no hay path elegible, apuntar al entorno de banca pero nunca a la ciudad
             if (bankHex) {
-                missionList = [
-                    { type: 'BOOTSTRAP_BANK_CORRIDOR', objectiveHex: bankHex, priority: 1000 },
-                    { type: 'BOOTSTRAP_BANK_CORRIDOR', objectiveHex: bankHex, priority: 990 },
-                    { type: 'BOOTSTRAP_BANK_CORRIDOR', objectiveHex: bankHex, priority: 980 }
-                ];
-                return missionList;
+                const buildableRoadTerrains = new Set(STRUCTURE_TYPES?.Camino?.buildableOn || ['plains', 'hills']);
+                const nearBank = getHexNeighbors(bankHex.r, bankHex.c)
+                    .map(n => board[n.r]?.[n.c])
+                    .filter(h => h && !h.isCity && buildableRoadTerrains.has(h.terrain));
+
+                if (nearBank.length > 0) {
+                    missionList = [0, 1, 2].map(i => ({
+                        type: 'BOOTSTRAP_BANK_CORRIDOR',
+                        objectiveHex: nearBank[i % nearBank.length],
+                        priority: 1000 - (i * 10)
+                    }));
+                    return missionList;
+                }
             }
         }
         
@@ -371,16 +408,29 @@ const AiDeploymentManager = {
         }
 
         if (economicBootstrap && gameState.turnNumber <= 2) {
+            // Si el objetivo ya es una casilla válida de despliegue, ocuparla directamente.
+            if (mission.type === 'BOOTSTRAP_BANK_CORRIDOR') {
+                const exactSpot = availableSpots.find(s => s.r === targetHex.r && s.c === targetHex.c);
+                if (exactSpot) {
+                    const terrain = board[exactSpot.r]?.[exactSpot.c]?.terrain;
+                    const buildableRoadTerrains = new Set(STRUCTURE_TYPES?.Camino?.buildableOn || ['plains', 'hills']);
+                    if (buildableRoadTerrains.has(terrain)) {
+                        return exactSpot;
+                    }
+                }
+            }
+
             // En apertura económica, desplegar todo orientado al objetivo comercial.
             const capital = gameState.cities?.find(c => c.owner === playerNumber && c.isCapital);
             const sorted = availableSpots
                 .filter(spot => {
                     const t = board[spot.r]?.[spot.c]?.terrain;
-                    return t && t !== 'water';
+                    const buildableRoadTerrains = new Set(STRUCTURE_TYPES?.Camino?.buildableOn || ['plains', 'hills']);
+                    return t && buildableRoadTerrains.has(t) && !spot.isCity;
                 })
                 .sort((a, b) => {
-                    const da = hexDistance(a.r, a.c, targetHex.r, targetHex.c) + (capital ? hexDistance(a.r, a.c, capital.r, capital.c) * 0.6 : 0);
-                    const db = hexDistance(b.r, b.c, targetHex.r, targetHex.c) + (capital ? hexDistance(b.r, b.c, capital.r, capital.c) * 0.6 : 0);
+                    const da = hexDistance(a.r, a.c, targetHex.r, targetHex.c) + (capital ? hexDistance(a.r, a.c, capital.r, capital.c) * 0.15 : 0);
+                    const db = hexDistance(b.r, b.c, targetHex.r, targetHex.c) + (capital ? hexDistance(b.r, b.c, capital.r, capital.c) * 0.15 : 0);
                     return da - db;
                 });
             if (sorted.length > 0) return sorted[0];
@@ -472,6 +522,54 @@ const AiDeploymentManager = {
         }
 
         return false;
+    },
+
+    _computeShortestRoadPath: function(origen, destino) {
+        if (!origen || !destino) return null;
+
+        const buildableRoadTerrains = new Set(STRUCTURE_TYPES?.Camino?.buildableOn || ['plains', 'hills']);
+        const startKey = `${origen.r},${origen.c}`;
+        const targetKey = `${destino.r},${destino.c}`;
+
+        const queue = [{ r: origen.r, c: origen.c }];
+        const visited = new Set([startKey]);
+        const prev = new Map();
+        let guard = 0;
+
+        while (queue.length > 0 && guard < 3000) {
+            guard++;
+            const cur = queue.shift();
+            const curKey = `${cur.r},${cur.c}`;
+            if (curKey === targetKey) break;
+
+            for (const n of getHexNeighbors(cur.r, cur.c)) {
+                const key = `${n.r},${n.c}`;
+                if (visited.has(key)) continue;
+                const hex = board[n.r]?.[n.c];
+                if (!hex) continue;
+
+                // Permitimos entrar en origen/destino aunque sean ciudad; el resto debe ser apto para camino.
+                const isEndpoint = key === startKey || key === targetKey;
+                if (!isEndpoint && (!buildableRoadTerrains.has(hex.terrain) || hex.isCity)) continue;
+                if (TERRAIN_TYPES[hex.terrain]?.isImpassableForLand) continue;
+
+                visited.add(key);
+                prev.set(key, curKey);
+                queue.push({ r: n.r, c: n.c });
+            }
+        }
+
+        if (!visited.has(targetKey)) return null;
+
+        const path = [];
+        let walk = targetKey;
+        while (walk) {
+            const [r, c] = walk.split(',').map(Number);
+            path.push({ r, c });
+            walk = prev.get(walk);
+        }
+        path.reverse();
+        return path;
     },
 
     /**
