@@ -111,17 +111,26 @@ const IaDetectorNodos = {
         const capital = gameState.cities?.find(c => c.isCapital && c.owner === playerNumber);
         if (capital) {
             const cfg = nodosConfig.ciudad_natal_propia || {};
+            const enemigos = units.filter(u => u.player !== playerNumber && u.currentHealth > 0);
+            let amenazaCapital = 0;
+            for (const enemigo of enemigos) {
+                const dist = hexDistance(capital.r, capital.c, enemigo.r, enemigo.c);
+                if (dist <= 2) amenazaCapital += 180;
+                else if (dist <= 4) amenazaCapital += 80;
+                else if (dist <= 6) amenazaCapital += 25;
+            }
+            const amenazaNormalizada = Math.min(500, Math.max(0, amenazaCapital));
             nodos.push(IaNodoValor.crearNodo({
                 tipo: 'ciudad_natal_propia',
                 propietario: playerNumber,
-                valor_base: cfg.peso_base ?? 500,
-                valor_economico: 100,
-                valor_supervivencia: 500,
+                valor_base: Math.min(cfg.peso_base ?? 500, 40 + Math.floor(amenazaNormalizada * 0.2)),
+                valor_economico: amenazaNormalizada > 0 ? 30 : 0,
+                valor_supervivencia: amenazaNormalizada,
                 valor_sabotaje: 0,
-                valor_control: 80,
+                valor_control: amenazaNormalizada > 0 ? 60 : 10,
                 r: capital.r,
                 c: capital.c,
-                razon_texto: `Capital propia (${capital.name || 'Capital'}) - DEFENSA CRÍTICA`
+                razon_texto: `Capital propia (${capital.name || 'Capital'}) - Amenaza=${amenazaNormalizada}`
             }));
         }
 
@@ -281,24 +290,25 @@ const IaDetectorNodos = {
      */
     _detectarCaravanas(playerNumber, config) {
         const nodos = [];
+        const corredorOperativo = !!gameState.ai_corridor_status?.[playerNumber]?.operational;
 
         // Caravanas propias
         const caravanasPropia = units.filter(u => 
-            u.player === playerNumber && u.regiments?.some(r => r.type === 'Caravana')
+            u.player === playerNumber && (u.tradeRoute || u.regiments?.some(r => r.type === 'Caravana'))
         );
 
         for (const caravana of caravanasPropia) {
             nodos.push(IaNodoValor.crearNodo({
                 tipo: 'caravana_propia',
                 propietario: playerNumber,
-                valor_base: (config?.nodos?.caravana_propia?.peso_base ?? 100),
-                valor_economico: 100,
-                valor_supervivencia: 20,
+                valor_base: (config?.nodos?.caravana_propia?.peso_base ?? 100) + (corredorOperativo ? 80 : 0),
+                valor_economico: 100 + (corredorOperativo ? 120 : 0),
+                valor_supervivencia: 20 + (corredorOperativo ? 40 : 0),
                 valor_sabotaje: 0,
-                valor_control: 0,
+                valor_control: corredorOperativo ? 40 : 0,
                 r: caravana.r,
                 c: caravana.c,
-                razon_texto: `Caravana propia "${caravana.name}" - Defensa económica`
+                razon_texto: `Caravana propia "${caravana.name}" - Defensa económica${corredorOperativo ? ' (corredor operativo)' : ''}`
             }));
         }
 

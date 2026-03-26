@@ -251,6 +251,52 @@ const AiGameplayManager = {
         const playerRes = gameState.playerResources[playerNumber];
         const playerTechs = playerRes.researchedTechnologies || [];
 
+        // Integración IA nodal: convertir corredor_comercial en tareas OCCUPY_THEN_BUILD.
+        if (typeof IaDecisionEngine !== 'undefined' && typeof IaDecisionEngine.evaluarEstadoYTomarDecision === 'function') {
+            try {
+                const decision = this._currentMotorDecision || await IaDecisionEngine.evaluarEstadoYTomarDecision(playerNumber);
+                const nodoCorredor = decision?.prioritarios?.find(n => n.tipo === 'corredor_comercial');
+                if (nodoCorredor?.origen && nodoCorredor?.destino) {
+                    const path = this._buildCommercialCorridorPath(playerNumber, nodoCorredor.origen, nodoCorredor.destino);
+                    const corridorStatus = this._updateCommercialCorridorState(playerNumber, nodoCorredor, path);
+                    if (corridorStatus.operational) {
+                        this._activateCommercialEconomy(playerNumber, corridorStatus);
+                    }
+                    if (!path || path.length === 0) {
+                        this._assignFallbackEconomicMission(playerNumber, nodoCorredor.origen, 'SIN_RUTA_CORREDOR');
+                    }
+                    const faltantes = path
+                        .map((p, idx) => ({ ...p, idx }))
+                        .filter(p => {
+                            const hex = board[p.r]?.[p.c];
+                            return hex && hex.owner !== playerNumber && this._canBuildRoadOnHex(hex);
+                        });
+                    if (faltantes.length > 0) {
+                        faltantes.sort((a, b) => a.idx - b.idx);
+                        const objetivo = faltantes[0];
+                        const nearestUnit = units.filter(u => u.player === playerNumber && u.currentHealth > 0)
+                            .sort((a, b) => {
+                                const da = hexDistance(a.r, a.c, objetivo.r, objetivo.c) + (a.currentMovement || a.movement || 1) * -0.05;
+                                const db = hexDistance(b.r, b.c, objetivo.r, objetivo.c) + (b.currentMovement || b.movement || 1) * -0.05;
+                                return da - db;
+                            })[0];
+                        if (nearestUnit) {
+                            AiGameplayManager.missionAssignments.set(nearestUnit.id, {
+                                type: 'OCCUPY_THEN_BUILD',
+                                objective: { r: objetivo.r, c: objetivo.c },
+                                structureType: 'Camino',
+                                nodoRazon: 'CORREDOR_COMERCIAL'
+                            });
+                        }
+                    } else {
+                        this._assignFallbackEconomicMission(playerNumber, nodoCorredor.origen, 'CORREDOR_SIN_HEX_VALIDOS');
+                    }
+                }
+            } catch (e) {
+                console.warn('[IA CORREDOR] No se pudo generar misión de corredor_comercial:', e?.message || e);
+            }
+        }
+
         // --- FASE 1: INVESTIGACIÓN ---
         // Si no tiene la tecnología, la investiga y el código CONTINÚA.
         if (!playerTechs.includes('FORTIFICATIONS')) {
@@ -344,6 +390,252 @@ const AiGameplayManager = {
         } else {
             console.log("[DIAGNÓSTICO] Fin: Aún no tiene la tecnología de fortificaciones tras la fase de investigación (probablemente por falta de puntos).");
         }
+    },
+
+    _buildCommercialCorridorPath: function(playerNumber, origen, destino) {
+        const startHex = board[origen.r]?.[origen.c];
+        const endHex = board[destino.r]?.[destino.c];
+        if (!startHex || !endHex) return [];
+
+        const startKey = `${origen.r},${origen.c}`;
+        const goalKey = `${destino.r},${destino.c}`;
+        const queue = [{ r: origen.r, c: origen.c }];
+        const visited = new Set([startKey]);
+        const prev = new Map();
+
+        while (queue.length > 0) {
+            const cur = queue.shift();
+            const curKey = `${cur.r},${cur.c}`;
+            if (curKey === goalKey) break;
+
+            for (const next of getHexNeighbors(cur.r, cur.c)) {
+                const key = `${next.r},${next.c}`;
+                if (visited.has(key)) continue;
+                const hex = board[next.r]?.[next.c];
+                if (!hex || !this._canBuildRoadOnHex(hex)) continue;
+                visited.add(key);
+                prev.set(key, curKey);
+                queue.push({ r: next.r, c: next.c });
+            }
+        }
+
+        if (!visited.has(goalKey)) return [];
+
+        const path = [];
+        let walk = goalKey;
+        while (walk) {
+            const [r, c] = walk.split(',').map(Number);
+            path.push({ r, c });
+            walk = prev.get(walk);
+        }
+        path.reverse();
+        return path;
+    },
+
+    _canBuildRoadOnHex: function(hex) {
+        if (!hex) return false;
+        if (hex.terrain === 'forest' || hex.terrain === 'water') return false;
+        if (TERRAIN_TYPES[hex.terrain]?.isImpassableForLand) return false;
+        return true;
+    },
+
+    _assignFallbackEconomicMission: function(playerNumber, origen, reason) {
+        const candidates = [];
+
+        const bancos = board.flat().filter(h => h && h.isBank && h.owner === 0);
+        for (const b of bancos) {
+            candidates.push({
+                tipo: 'banca',
+                r: b.r,
+                c: b.c,
+                score: 120
+            });
+        }
+
+        const ciudadesLibres = (gameState.cities || []).filter(c => c.owner === null || c.owner === 0);
+        for (const ciudad of ciudadesLibres) {
+            candidates.push({
+                tipo: 'ciudad_libre',
+                r: ciudad.r,
+                c: ciudad.c,
+                score: 100
+            });
+        }
+
+        if (candidates.length === 0) return false;
+
+        const unidades = units.filter(u => u.player === playerNumber && u.currentHealth > 0);
+        if (unidades.length === 0) return false;
+
+        const evaluados = [];
+        for (const cand of candidates) {
+            const unit = unidades
+                .slice()
+                .sort((a, b) => hexDistance(a.r, a.c, cand.r, cand.c) - hexDistance(b.r, b.c, cand.r, cand.c))
+                .find(u => {
+                    const p = this.findPathToTarget(u, cand.r, cand.c);
+                    return p && p.length > 1;
+                });
+
+            if (!unit) continue;
+
+            const distOrigen = origen ? hexDistance(origen.r, origen.c, cand.r, cand.c) : 0;
+            const distUnidad = hexDistance(unit.r, unit.c, cand.r, cand.c);
+            const utilidad = cand.score - distOrigen * 3 - distUnidad * 2;
+            evaluados.push({ cand, unit, utilidad });
+        }
+
+        if (evaluados.length === 0) return false;
+        evaluados.sort((a, b) => b.utilidad - a.utilidad);
+        const elegido = evaluados[0];
+
+        AiGameplayManager.missionAssignments.set(elegido.unit.id, {
+            type: 'IA_NODE',
+            objective: { r: elegido.cand.r, c: elegido.cand.c },
+            nodoRazon: `CORREDOR_FALLBACK_${reason}`,
+            fallbackTipo: elegido.cand.tipo
+        });
+
+        console.log(`[IA CORREDOR] Fallback activado (${reason}): ${elegido.cand.tipo} en (${elegido.cand.r},${elegido.cand.c})`);
+        return true;
+    },
+
+    _updateCommercialCorridorState: function(playerNumber, nodoCorredor, path) {
+        if (!gameState.ai_corridor_status) gameState.ai_corridor_status = {};
+        const operational = this._isCommercialCorridorOperational(playerNumber, path);
+        const status = {
+            operational,
+            turnNumber: gameState.turnNumber,
+            origen: nodoCorredor?.origen || null,
+            destino: nodoCorredor?.destino || null,
+            targetR: nodoCorredor?.r,
+            targetC: nodoCorredor?.c,
+            pathLength: path?.length || 0
+        };
+        gameState.ai_corridor_status[playerNumber] = status;
+        return status;
+    },
+
+    _isCommercialCorridorOperational: function(playerNumber, path) {
+        if (!Array.isArray(path) || path.length < 2) return false;
+
+        return path.every((p, idx) => {
+            const hex = board[p.r]?.[p.c];
+            if (!hex) return false;
+
+            const isEndpoint = idx === 0 || idx === path.length - 1;
+            const city = this._getCityAtHex(p.r, p.c);
+
+            if (isEndpoint) {
+                if (city) return city.owner === playerNumber || city.owner === 0;
+                return hex.owner === playerNumber || hex.owner === 0;
+            }
+
+            if (!this._canBuildRoadOnHex(hex)) return false;
+            if (hex.owner !== playerNumber) return false;
+            if (city && city.owner === playerNumber) return true;
+
+            return ['Camino', 'Fortaleza', 'Fortaleza con Muralla', 'Aldea', 'Ciudad', 'Metrópoli'].includes(hex.structure);
+        });
+    },
+
+    _activateCommercialEconomy: function(playerNumber, corridorStatus) {
+        if (this._tryEstablishTradeRouteForCorridor(playerNumber, corridorStatus)) {
+            console.log('[IA CORREDOR] Corredor operativo: ruta comercial activada.');
+            return true;
+        }
+
+        const ownCaravan = units.find(u => u.player === playerNumber && (u.tradeRoute || u.regiments?.some(r => r.type === 'Caravana')));
+        if (!ownCaravan) return false;
+
+        const escort = units
+            .filter(u => u.player === playerNumber && u.id !== ownCaravan.id && !u.tradeRoute && u.currentHealth > 0)
+            .sort((a, b) => hexDistance(a.r, a.c, ownCaravan.r, ownCaravan.c) - hexDistance(b.r, b.c, ownCaravan.r, ownCaravan.c))[0];
+
+        if (!escort) return false;
+
+        this.missionAssignments.set(escort.id, {
+            type: 'IA_NODE',
+            objective: { r: ownCaravan.r, c: ownCaravan.c },
+            nodoRazon: 'ESCOLTAR_CARAVANA_CORREDOR'
+        });
+        return true;
+    },
+
+    _tryEstablishTradeRouteForCorridor: function(playerNumber, corridorStatus) {
+        if (!corridorStatus?.operational) return false;
+        if (units.some(u => u.player === playerNumber && !!u.tradeRoute)) return false;
+        if (typeof findInfrastructurePath !== 'function') return false;
+
+        const origin = this._resolveTradeCityForCorridor(playerNumber, corridorStatus.origen, true);
+        const destination = this._resolveTradeCityForCorridor(playerNumber, corridorStatus.destino, false);
+        if (!origin || !destination) return false;
+
+        const infraPath = findInfrastructurePath(origin, destination, { allowForeignInfrastructure: true });
+        if (!infraPath || infraPath.length === 0) return false;
+
+        let supplyUnit = units.find(u =>
+            u.player === playerNumber &&
+            !u.tradeRoute &&
+            u.r === origin.r && u.c === origin.c &&
+            u.regiments?.some(reg => (REGIMENT_TYPES[reg.type]?.abilities || []).includes('provide_supply'))
+        );
+
+        if (!supplyUnit) {
+            supplyUnit = this.produceUnit(playerNumber, ['Columna de Suministro'], 'trader', 'Columna de Suministro', origin);
+        }
+
+        if (!supplyUnit) return false;
+        if (supplyUnit.r !== origin.r || supplyUnit.c !== origin.c) return false;
+
+        return this._requestEstablishTradeRoute(supplyUnit, origin, destination, infraPath);
+    },
+
+    _resolveTradeCityForCorridor: function(playerNumber, point, requireOwn) {
+        const cities = gameState.cities || [];
+        const exact = point ? cities.find(c => c.r === point.r && c.c === point.c) : null;
+        if (exact) {
+            if (requireOwn && exact.owner === playerNumber) return exact;
+            if (!requireOwn && (exact.owner === playerNumber || exact.owner === 0)) return exact;
+        }
+
+        if (requireOwn) {
+            return cities.find(c => c.isCapital && c.owner === playerNumber) || cities.find(c => c.owner === playerNumber) || null;
+        }
+
+        return cities.find(c => c.owner === 0) || cities.find(c => c.owner === playerNumber && (!point || (c.r !== point.r || c.c !== point.c))) || null;
+    },
+
+    _requestEstablishTradeRoute: function(unit, origin, destination, path) {
+        if (!unit) return false;
+        const action = {
+            type: 'establishTradeRoute',
+            actionId: `trade_${unit.id}_${Date.now()}`,
+            payload: { unitId: unit.id, origin, destination, path }
+        };
+
+        if (typeof isNetworkGame === 'function' && isNetworkGame()) {
+            if (typeof NetworkManager !== 'undefined' && NetworkManager.esAnfitrion && typeof processActionRequest === 'function') {
+                processActionRequest(action);
+                return true;
+            }
+            if (typeof NetworkManager !== 'undefined' && NetworkManager.enviarDatos) {
+                NetworkManager.enviarDatos({ type: 'actionRequest', action });
+                return true;
+            }
+            return false;
+        }
+
+        if (typeof _executeEstablishTradeRoute === 'function') {
+            _executeEstablishTradeRoute(action.payload);
+            return true;
+        }
+
+        return false;
+    },
+
+    _getCityAtHex: function(r, c) {
+        return (gameState.cities || []).find(city => city.r === r && city.c === c) || null;
     },
 
     _handle_BOA_Production: async function(playerNumber) {

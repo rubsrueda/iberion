@@ -65,7 +65,9 @@ const IaDecisionEngine = {
 
             // B3. Identificar nodos de valor
             console.log("[IaDecision] B3. Identificando Nodos de Valor...");
-            const nodos = IaDetectorNodos.detectarNodosDeValor(playerNumber, config);
+            const nodosDetectados = IaDetectorNodos.detectarNodosDeValor(playerNumber, config);
+            const nodosConCorredor = this._agregarNodoDerivadoCorredor(nodosDetectados, playerNumber, config);
+            const nodos = this._agregarNodoCrearCaravana(nodosConCorredor, playerNumber, config);
             if (nodos.length === 0) {
                 console.warn("[IaDecision] ⚠️ No se detectaron nodos de valor");
                 console.groupEnd();
@@ -219,6 +221,7 @@ const IaDecisionEngine = {
             'camino_propio_critico': 'DEFENDER',
             'camino_enemigo_critico': 'SABOTAJE',
             'caravana_propia': 'ESCUNDAR',
+            'crear_caravana': 'COMERCIAR',
             'caravana_enemiga': 'DESTRUIR',
             'recurso_estrategico': 'MINAR',
             'ciudad_enemiga': 'ASEDIAR',
@@ -236,10 +239,74 @@ const IaDecisionEngine = {
      * @private
      */
     _calcularPrioridad(nodo) {
+        if (nodo.tipo === 'crear_caravana') return 'ALTA';
         if (nodo.valor_supervivencia > 400) return 'CRÍTICA';
         if (nodo.valor_supervivencia > 50 || nodo.valor_control > 80) return 'ALTA';
         if (nodo.valor_economico > 80 || nodo.valor_sabotaje > 70) return 'MEDIA';
         return 'BAJA';
+    },
+
+    _agregarNodoDerivadoCorredor(nodos, playerNumber, config) {
+        if (!Array.isArray(nodos) || nodos.length === 0) return nodos || [];
+
+        const topN = Math.min(5, nodos.length);
+        const top = nodos.slice(0, topN);
+        const capital = top.find(n => n.tipo === 'ciudad_natal_propia');
+        const economia = top.find(n => n.tipo === 'banca' || n.tipo === 'ciudad_libre');
+        if (!capital || !economia) return nodos;
+
+        const distancia = hexDistance(capital.r, capital.c, economia.r, economia.c);
+        const yaConectados = distancia <= 2;
+        if (yaConectados) return nodos;
+
+        const pesoBase = config?.nodos?.corredor_comercial?.peso_base ?? 170;
+        const corredor = IaNodoValor.crearNodo({
+            tipo: 'corredor_comercial',
+            propietario: playerNumber,
+            valor_base: pesoBase,
+            valor_economico: 150,
+            valor_supervivencia: 20,
+            valor_sabotaje: 0,
+            valor_control: 120,
+            r: economia.r,
+            c: economia.c,
+            origen: { r: capital.r, c: capital.c },
+            destino: { r: economia.r, c: economia.c },
+            razon_texto: `Corredor comercial: ${capital.tipo} -> ${economia.tipo}`
+        });
+
+        return IaNodoValor.ordenarNodosPorPeso([...nodos, corredor], { playerNumber, gameState, config }, config);
+    },
+
+    _agregarNodoCrearCaravana(nodos, playerNumber, config) {
+        if (!Array.isArray(nodos) || nodos.length === 0) return nodos || [];
+
+        const corredor = gameState.ai_corridor_status?.[playerNumber];
+        if (!corredor?.operational) return nodos;
+
+        const yaTieneRuta = units.some(u => u.player === playerNumber && !!u.tradeRoute);
+        if (yaTieneRuta) return nodos;
+
+        const capital = gameState.cities?.find(c => c.isCapital && c.owner === playerNumber);
+        const banco = gameState.cities?.find(c => c.owner === 0);
+        const ciudadesPropias = gameState.cities?.filter(c => c.owner === playerNumber) || [];
+        const tieneDestinoComercial = !!banco || ciudadesPropias.length >= 2;
+        if (!capital || !tieneDestinoComercial) return nodos;
+
+        const crearCaravana = IaNodoValor.crearNodo({
+            tipo: 'crear_caravana',
+            propietario: playerNumber,
+            valor_base: config?.nodos?.crear_caravana?.peso_base ?? 190,
+            valor_economico: 220,
+            valor_supervivencia: 10,
+            valor_sabotaje: 0,
+            valor_control: 90,
+            r: capital.r,
+            c: capital.c,
+            razon_texto: 'Corredor operativo - activar nueva caravana comercial'
+        });
+
+        return IaNodoValor.ordenarNodosPorPeso([...nodos, crearCaravana], { playerNumber, gameState, config }, config);
     }
 
 };
