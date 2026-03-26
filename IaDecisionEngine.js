@@ -38,9 +38,10 @@ const IaDecisionEngine = {
                 playerNumber,
                 oro: gameState.playerResources?.[playerNumber]?.oro || 0,
                 unidades: units.filter(u => u.player === playerNumber && u.currentHealth > 0).length,
-                ciudades: gameState.cities?.filter(c => c.owner === playerNumber).length || 0
+                ciudades: gameState.cities?.filter(c => c.owner === playerNumber).length || 0,
+                rutasComerciales: units.filter(u => u.player === playerNumber && !!u.tradeRoute).length
             };
-            console.log(`[IaDecision] Snapshot: oro=${snapshot.oro}, unidades=${snapshot.unidades}, ciudades=${snapshot.ciudades}`);
+            console.log(`[IaDecision] Snapshot: oro=${snapshot.oro}, unidades=${snapshot.unidades}, ciudades=${snapshot.ciudades}, rutas=${snapshot.rutasComerciales}`);
 
             // FASE B: Evaluación estratégica
             console.log("[IaDecision] === FASE B: Evaluación Estratégica ===");
@@ -289,7 +290,7 @@ const IaDecisionEngine = {
 
         const economia = candidatosEconomicos
             .slice()
-            .sort((a, b) => this._scoreEconomicTargetForCorridor(b, capital, contextoEstrategico) - this._scoreEconomicTargetForCorridor(a, capital, contextoEstrategico))[0];
+            .sort((a, b) => this._scoreEconomicTargetForCorridor(playerNumber, b, capital, contextoEstrategico) - this._scoreEconomicTargetForCorridor(playerNumber, a, capital, contextoEstrategico))[0];
         if (!economia) {
             console.log('[IaDecision] Corredor comercial descartado: sin objetivo economico elegido');
             return nodos;
@@ -324,11 +325,16 @@ const IaDecisionEngine = {
         return IaNodoValor.ordenarNodosPorPeso([...nodos, corredor], { playerNumber, gameState, config }, config);
     },
 
-    _scoreEconomicTargetForCorridor(nodoEconomico, capital, contextoEstrategico) {
+    _scoreEconomicTargetForCorridor(playerNumber, nodoEconomico, capital, contextoEstrategico) {
         const distancia = hexDistance(capital.r, capital.c, nodoEconomico.r, nodoEconomico.c);
-        const baseTipo = nodoEconomico.tipo === 'banca' ? 260 : 180;
+        const rutasActivas = units.filter(u => u.player === playerNumber && !!u.tradeRoute).length;
+        const ciudadesPropias = gameState.cities?.filter(c => c.owner === playerNumber).length || 0;
+        const baseTipo = nodoEconomico.tipo === 'banca'
+            ? (rutasActivas === 0 ? 300 : 90)
+            : (ciudadesPropias < 2 ? 300 : 230);
         const bonusApertura = contextoEstrategico?.fase === 'apertura' ? 120 : 0;
-        return baseTipo + bonusApertura - distancia * 12 + (nodoEconomico.valor_control || 0) * 0.5;
+        const bonusPersistencia = rutasActivas > 0 && nodoEconomico.tipo === 'ciudad_libre' ? 120 : 0;
+        return baseTipo + bonusApertura + bonusPersistencia - distancia * 12 + (nodoEconomico.valor_control || 0) * 0.5;
     },
 
     _agregarNodoCrearCaravana(nodos, playerNumber, config, contextoEstrategico = null) {
@@ -337,12 +343,14 @@ const IaDecisionEngine = {
         const corredor = gameState.ai_corridor_status?.[playerNumber];
         if (!corredor?.operational) return nodos;
 
-        const yaTieneRuta = units.some(u => u.player === playerNumber && !!u.tradeRoute);
-        if (yaTieneRuta) return nodos;
+        const ciudadesPropias = gameState.cities?.filter(c => c.owner === playerNumber) || [];
+        const banco = gameState.cities?.find(c => c.owner === 0);
+        const endpoints = ciudadesPropias.length + (banco ? 1 : 0);
+        const maxRutasPosibles = endpoints >= 2 ? (endpoints * (endpoints - 1)) / 2 : 0;
+        const rutasActivas = units.filter(u => u.player === playerNumber && !!u.tradeRoute).length;
+        if (rutasActivas >= maxRutasPosibles) return nodos;
 
         const capital = gameState.cities?.find(c => c.isCapital && c.owner === playerNumber);
-        const banco = gameState.cities?.find(c => c.owner === 0);
-        const ciudadesPropias = gameState.cities?.filter(c => c.owner === playerNumber) || [];
         const tieneDestinoComercial = !!banco || ciudadesPropias.length >= 2;
         if (!capital || !tieneDestinoComercial) return nodos;
 
@@ -387,7 +395,9 @@ const IaDecisionEngine = {
             fase,
             capitalAmenazada: !!flags?.capitalAmenazada,
             crisisEconomica: !!flags?.crisisEconomica,
-            turno: snapshot.turnNumber
+            turno: snapshot.turnNumber,
+            ciudades: snapshot.ciudades,
+            rutasComerciales: snapshot.rutasComerciales
         };
     },
 
@@ -409,12 +419,25 @@ const IaDecisionEngine = {
             bonusTipos.corredor_comercial = 260;
             bonusTipos.banca = 140;
             bonusTipos.ciudad_libre = 100;
+            bonusTipos.sitio_aldea = 140;
             bonusTipos.camino_enemigo_critico = 160;
             bonusTipos.caravana_enemiga = 180;
             bonusTipos.crear_caravana = 150;
             penalizacionTipos.recurso_estrategico = 180;
             penalizacionTipos.ciudad_natal_propia = contextoEstrategico.capitalAmenazada ? 0 : 220;
             contextual.penalizacion_distancia = 0.08;
+        }
+
+        if ((contextoEstrategico?.ciudades || 0) < 2) {
+            bonusTipos.ciudad_libre = (bonusTipos.ciudad_libre || 0) + 160;
+            bonusTipos.sitio_aldea = (bonusTipos.sitio_aldea || 0) + 120;
+        }
+
+        if ((contextoEstrategico?.rutasComerciales || 0) > 0) {
+            bonusTipos.ciudad_libre = (bonusTipos.ciudad_libre || 0) + 100;
+            bonusTipos.sitio_aldea = (bonusTipos.sitio_aldea || 0) + 80;
+            bonusTipos.crear_caravana = (bonusTipos.crear_caravana || 0) + 100;
+            bonusTipos.banca = Math.max(0, (bonusTipos.banca || 0) - 80);
         }
 
         if (contextoEstrategico?.crisisEconomica) {

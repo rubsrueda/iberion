@@ -569,19 +569,15 @@ const AiGameplayManager = {
             console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=corredor_no_operativo`);
             return false;
         }
-        if (units.some(u => u.player === playerNumber && !!u.tradeRoute)) {
-            console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=ruta_ya_existente`);
-            return false;
-        }
         if (typeof findInfrastructurePath !== 'function') {
             console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=findInfrastructurePath_no_disponible`);
             return false;
         }
 
         const origin = this._resolveTradeCityForCorridor(playerNumber, corridorStatus.origen, true);
-        const destination = this._resolveTradeCityForCorridor(playerNumber, corridorStatus.destino, false);
+        const destination = this._selectTradeRouteDestination(playerNumber, origin, corridorStatus.destino);
         if (!origin || !destination) {
-            console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=ciudad_origen_destino_invalida`);
+            console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=ciudad_origen_destino_invalida_o_sin_ruta_disponible`);
             return false;
         }
 
@@ -629,6 +625,61 @@ const AiGameplayManager = {
         }
 
         return cities.find(c => c.owner === 0) || cities.find(c => c.owner === playerNumber && (!point || (c.r !== point.r || c.c !== point.c))) || null;
+    },
+
+    _selectTradeRouteDestination: function(playerNumber, origin, preferredPoint) {
+        if (!origin) return null;
+
+        const existingPairs = this._getExistingTradeRoutePairs(playerNumber);
+        const cities = (gameState.cities || []).filter(c => c && (c.owner === 0 || c.owner === playerNumber));
+        const preferredCity = preferredPoint ? cities.find(c => c.r === preferredPoint.r && c.c === preferredPoint.c) : null;
+
+        const orderedCandidates = [
+            ...(preferredCity ? [preferredCity] : []),
+            ...cities.filter(c => !preferredCity || c.r !== preferredCity.r || c.c !== preferredCity.c)
+        ].filter(c => !(c.r === origin.r && c.c === origin.c));
+
+        const rutasActivas = units.filter(u => u.player === playerNumber && !!u.tradeRoute).length;
+        orderedCandidates.sort((a, b) => {
+            const aIsBank = a.owner === 0 ? 1 : 0;
+            const bIsBank = b.owner === 0 ? 1 : 0;
+            const aBankBias = rutasActivas === 0 ? aIsBank * 100 : aIsBank * -40;
+            const bBankBias = rutasActivas === 0 ? bIsBank * 100 : bIsBank * -40;
+            const aOwnBias = a.owner === playerNumber ? 60 : 0;
+            const bOwnBias = b.owner === playerNumber ? 60 : 0;
+            const aDist = hexDistance(origin.r, origin.c, a.r, a.c);
+            const bDist = hexDistance(origin.r, origin.c, b.r, b.c);
+            return (bBankBias + bOwnBias - bDist * 8) - (aBankBias + aOwnBias - aDist * 8);
+        });
+
+        for (const city of orderedCandidates) {
+            const pairKey = this._getTradePairKey(origin, city);
+            if (!pairKey || existingPairs.has(pairKey)) continue;
+            const infraPath = findInfrastructurePath(origin, city, { allowForeignInfrastructure: true });
+            if (infraPath && infraPath.length > 0) {
+                return city;
+            }
+        }
+
+        return null;
+    },
+
+    _getExistingTradeRoutePairs: function(playerNumber) {
+        const pairs = new Set();
+        for (const unit of units) {
+            if (unit.player !== playerNumber || !unit.tradeRoute?.origin || !unit.tradeRoute?.destination) continue;
+            const key = this._getTradePairKey(unit.tradeRoute.origin, unit.tradeRoute.destination);
+            if (key) pairs.add(key);
+        }
+        return pairs;
+    },
+
+    _getTradePairKey: function(a, b) {
+        if (!a || !b) return null;
+        const aKey = Number.isInteger(a.r) && Number.isInteger(a.c) ? `${a.r},${a.c}` : a.name;
+        const bKey = Number.isInteger(b.r) && Number.isInteger(b.c) ? `${b.r},${b.c}` : b.name;
+        if (!aKey || !bKey) return null;
+        return [aKey, bKey].sort().join('|');
     },
 
     _requestEstablishTradeRoute: function(unit, origin, destination, path) {
