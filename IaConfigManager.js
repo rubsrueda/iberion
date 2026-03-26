@@ -21,6 +21,14 @@ const IaConfigManager = {
         console.group("%c[IaConfig] Cargando configuración", "color: #4CAF50; font-weight: bold;");
         
         try {
+            // En GitHub Pages este recurso puede no publicarse en raíz; evitar 404 ruidoso.
+            if (typeof location !== 'undefined' && location.hostname.includes('github.io')) {
+                console.log("[IaConfig] Entorno GitHub Pages detectado. Usando configuración por defecto local.");
+                this._loadDefaults();
+                console.groupEnd();
+                return true;
+            }
+
             // Intentar cargar desde raíz local PRIMERO
             let response = await fetch('/ia_config.json');
             if (!response.ok) {
