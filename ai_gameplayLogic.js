@@ -73,10 +73,18 @@ const AiGameplayManager = {
             ownedHexPercentage: AiGameplayManager.ownedHexPercentage(playerNumber)
         });
 
-            // --- FASE 1: CREACIÓN DE UNIDADES (APERTURA) ---
+            // --- FASE 1: CREACIÓN DE UNIDADES (APERTURA LEGACY) ---
+        const ownUnitsAtTurnStart = units.filter(u => u.player === playerNumber && u.currentHealth > 0);
+        const deployedCount = gameState.unitsPlacedByPlayer?.[playerNumber] || 0;
+        const hasDeployedOpeningForce = deployedCount > 0 || ownUnitsAtTurnStart.some(u => (u.name || '').includes('Pionero de Corredor'));
+
         if (gameState.turnNumber === 1 && AiGameplayManager.ownedHexPercentage(playerNumber) < 0.2) {
+            if (hasDeployedOpeningForce) {
+                console.log(`[IA STRATEGY] Gran Apertura SKIP: ya existe fuerza de despliegue inicial (${ownUnitsAtTurnStart.length} unidades, placed=${deployedCount}).`);
+            } else {
                 console.log(`[IA STRATEGY] Ejecutando Gran Apertura...`);
-            await AiGameplayManager._executeGrandOpening_v20(playerNumber);
+                await AiGameplayManager._executeGrandOpening_v20(playerNumber);
+            }
         }
 
         // --- FASE 1b: EVALUACIÓN ESTRATÉGICA CON MOTOR DE DECISIONES (FASE 2c) ---
