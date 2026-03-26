@@ -162,3 +162,10 @@ El "Fantasma" del Turno Anterior
 ​Impacto: Ayuda al cerebro del jugador a procesar la amenaza de inmediato ("¡Ah, este regimiento viene del norte!") sin tener que revisar la Crónica.
 
 busca la fricción. Que el mapa sea un lugar peligroso donde cada decisión sea un riesgo. 
+
+No ha funcionado el intercambio de comida a piedra.
+
+Las divisiones de la IA se están moviendo sin respetar las reglas, por ejemplo una división salta una casilla y cae en otra, siendo que las casillas son de tipo montaña o Bosque, donde solo pueden moverse una casilla.
+
+la banca está creando caravanas sin que exista caminos. 
+

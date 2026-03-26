@@ -42,13 +42,12 @@ const IaNodoValor = {
         // Paso 1: Obtener pesos base según tipo de nodo
         const nodoConfig = config.nodos?.[nodo.tipo];
         if (!nodoConfig) {
-            console.warn(`[IaNodoValor] Tipo de nodo no configurado: '${nodo.tipo}'`);
-            return 0;
+            console.warn(`[IaNodoValor] Tipo de nodo no configurado: '${nodo.tipo}'. Usando fallback por valor_base.`);
         }
 
         // Paso 2: Aplicar multiplicadores por eje de valor
         const multiplicadores = config.multiplicadores || {};
-        const base = nodoConfig.peso_base || 0;
+        const base = (nodoConfig?.peso_base ?? nodo.valor_base ?? 0);
         const econ = (nodo.valor_economico || 0) * (multiplicadores.economia || 1);
         const surv = (nodo.valor_supervivencia || 0) * (multiplicadores.supervivencia || 1);
         const sab = (nodo.valor_sabotaje || 0) * (multiplicadores.sabotaje || 1);
@@ -127,6 +126,8 @@ const IaNodoValor = {
             'fortaleza_a_construir': 6,
             'sitio_aldea': 7,
             'caravana_propia': 8,
+            'corredor_comercial': 8.5,
+            'crear_caravana': 8.6,
             'ciudad_libre': 9,
             'ciudad_barbara': 10,
             'camino_enemigo_critico': 11,
@@ -213,7 +214,7 @@ const IaNodoValor = {
             'ciudad_propia_desconectada', 'banca', 'ciudad_libre', 'camino_propio_critico',
             'camino_enemigo_critico', 'caravana_propia', 'caravana_enemiga', 'recurso_estrategico',
             'ciudad_enemiga', 'cuello_botella', 'sitio_aldea', 'sitio_desembarco',
-            'fortaleza_a_construir', 'ciudad_barbara'
+            'fortaleza_a_construir', 'ciudad_barbara', 'corredor_comercial', 'crear_caravana'
         ];
         if (!tiposValidos.includes(nodo.tipo)) {
             errores.push(`Tipo de nodo inválido: '${nodo.tipo}'`);

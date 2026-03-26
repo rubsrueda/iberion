@@ -234,11 +234,6 @@ const AiGameplayManager = {
     },
     
     _handle_BOA_Construction: async function(playerNumber) {
-        // <<== CORRECCIÓN #1: La condición correcta es '>= 6' para que se ejecute EN el turno 6.
-        if (gameState.turnNumber < 6 || AiGameplayManager.fortressCount(playerNumber) >= 2) {
-            return;
-        }
-
         console.log("[DIAGNÓSTICO] Entrando en _handle_BOA_Construction (v5 All-in-One).");
         
         // PUNTO 1: Limpiar cola de construcción si pasaron 2+ turnos
@@ -295,6 +290,11 @@ const AiGameplayManager = {
             } catch (e) {
                 console.warn('[IA CORREDOR] No se pudo generar misión de corredor_comercial:', e?.message || e);
             }
+        }
+
+        // Programa BOA de fortificaciones: se mantiene desde turno 6.
+        if (gameState.turnNumber < 6 || AiGameplayManager.fortressCount(playerNumber) >= 2) {
+            return;
         }
 
         // --- FASE 1: INVESTIGACIÓN ---
@@ -864,6 +864,11 @@ const AiGameplayManager = {
         console.log(`[IA DEBUG] assignUnitsToAxes: ${explorers.length} explorers, ${others.length} otros (total ${unitsToAssign.length}). Ejes: ${AiGameplayManager.strategicAxes.length}`);
 
         const assignUnit = (unit, preferDistant) => {
+            const existingMission = AiGameplayManager.missionAssignments.get(unit.id);
+            if (existingMission && ['OCCUPY_THEN_BUILD', 'URGENT_DEFENSE', 'CONSOLIDATE_FORCES', 'AWAIT_REINFORCEMENTS'].includes(existingMission.type)) {
+                return;
+            }
+
             let bestAxis = null;
             let minDist = Infinity;
             let maxDist = -Infinity;

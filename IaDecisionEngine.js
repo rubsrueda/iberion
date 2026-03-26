@@ -88,10 +88,14 @@ const IaDecisionEngine = {
             // C2. Generar misiones desde nodos top-N
             const maxMisiones = config.max_misiones_por_turno || 6;
             const nodosTop = nodos.slice(0, maxMisiones);
+            const nodosTopConPeso = nodosTop.map(nodo => ({
+                ...nodo,
+                peso: IaNodoValor.calcularPesoNodo(nodo, { playerNumber, gameState, config }, config)
+            }));
             console.log(`[IaDecision] C2. Generando misiones de top-${nodosTop.length} nodos`);
             
             // C3. Generar recomendación principal
-            const nodoPrincipal = nodosTop[0];
+            const nodoPrincipal = nodosTopConPeso[0];
             const recomendacionPrincipal = this._generarMisionDesdeNodo(nodoPrincipal, playerNumber);
 
             // FASE D: Ejecución (se delega a AiGameplayManager, no aquí)
@@ -107,7 +111,7 @@ const IaDecisionEngine = {
             return {
                 recomendacion: recomendacionPrincipal,
                 nodos,
-                prioritarios: nodosTop,
+                prioritarios: nodosTopConPeso,
                 snapshot,
                 criteriosActivados: {
                     capitalAmenazada,
