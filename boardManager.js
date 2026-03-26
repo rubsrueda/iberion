@@ -300,6 +300,7 @@ function generateProceduralMap(B_ROWS, B_COLS, resourceLevel, isNavalMap = false
     addCityToBoardData(bankCityR, bankCityC, BankManager.PLAYER_ID, bankCityName, true);
     const bankHex = board[bankCityR]?.[bankCityC];
     if (bankHex) {
+        bankHex.isBank = true;
         bankHex.terrain = 'plains';
         bankHex.structure = 'Metrópoli';
     }
@@ -433,6 +434,7 @@ function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel, gameMode = '
     if (bankPos) {
         addCityToBoardData(bankPos.r, bankPos.c, BankManager.PLAYER_ID, "La Banca", true);
         if (board[bankPos.r]?.[bankPos.c]) {
+            board[bankPos.r][bankPos.c].isBank = true;
             board[bankPos.r][bankPos.c].structure = 'Metrópoli';
             board[bankPos.r][bankPos.c].terrain = 'plains';
         }

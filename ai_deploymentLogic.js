@@ -117,7 +117,14 @@ const AiDeploymentManager = {
         const valuableResources = [], defensivePoints = [], availableSpots = [];
         const humanThreats = units.filter(u => u.player === enemyPlayer && u.currentHealth > 0);
         const capital = gameState.cities?.find(c => c.owner === playerNumber && c.isCapital) || null;
-        const bankHex = board.flat().find(h => h && h.isBank) || null;
+        const bankCity = gameState.cities?.find(c =>
+            c && (
+                c.isBank === true ||
+                c.owner === (typeof BankManager !== 'undefined' ? BankManager.PLAYER_ID : 0) ||
+                (typeof c.name === 'string' && c.name.toLowerCase().includes('banca'))
+            )
+        ) || null;
+        const bankHex = board.flat().find(h => h && h.isBank) || (bankCity ? board[bankCity.r]?.[bankCity.c] : null) || null;
         const barbarianCities = gameState.cities?.filter(c => c.owner === 0 && c.hasBarbarianGarrison) || [];
         const citySites = board.flat().filter(h => h && h.owner === null && h.terrain === 'plains' && !h.unit && !h.structure).slice(0, 8);
         
