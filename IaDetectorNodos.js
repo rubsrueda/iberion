@@ -113,24 +113,56 @@ const IaDetectorNodos = {
             const cfg = nodosConfig.ciudad_natal_propia || {};
             const enemigos = units.filter(u => u.player !== playerNumber && u.currentHealth > 0);
             let amenazaCapital = 0;
+            let nearestEnemyDist = Infinity;
+            let enemigosMuyCerca = 0;
             for (const enemigo of enemigos) {
                 const dist = hexDistance(capital.r, capital.c, enemigo.r, enemigo.c);
-                if (dist <= 2) amenazaCapital += 180;
-                else if (dist <= 4) amenazaCapital += 80;
-                else if (dist <= 6) amenazaCapital += 25;
+                nearestEnemyDist = Math.min(nearestEnemyDist, dist);
+                if (dist <= 2) {
+                    amenazaCapital += 220;
+                    enemigosMuyCerca++;
+                } else if (dist === 3) {
+                    amenazaCapital += 55;
+                } else if (dist === 4) {
+                    amenazaCapital += 15;
+                }
             }
+            if (enemigosMuyCerca >= 2) amenazaCapital += 80;
+
             const amenazaNormalizada = Math.min(500, Math.max(0, amenazaCapital));
+            const amenazaCritica = nearestEnemyDist <= 2 || amenazaNormalizada >= 220;
+            const amenazaMedia = !amenazaCritica && nearestEnemyDist <= 3;
+            const amenazaBaja = !amenazaCritica && !amenazaMedia && nearestEnemyDist <= 4;
+
+            let valorSupervivencia = 5;
+            let valorBase = 10;
+            let valorControl = 0;
+
+            if (amenazaCritica) {
+                valorSupervivencia = 320 + Math.min(160, amenazaNormalizada);
+                valorBase = Math.min(cfg.peso_base ?? 500, 140 + Math.floor(amenazaNormalizada * 0.12));
+                valorControl = 70;
+            } else if (amenazaMedia) {
+                valorSupervivencia = 70 + Math.floor(amenazaNormalizada * 0.2);
+                valorBase = 30;
+                valorControl = 20;
+            } else if (amenazaBaja) {
+                valorSupervivencia = 20;
+                valorBase = 15;
+                valorControl = 5;
+            }
+
             nodos.push(IaNodoValor.crearNodo({
                 tipo: 'ciudad_natal_propia',
                 propietario: playerNumber,
-                valor_base: Math.min(cfg.peso_base ?? 500, 40 + Math.floor(amenazaNormalizada * 0.2)),
-                valor_economico: amenazaNormalizada > 0 ? 30 : 0,
-                valor_supervivencia: amenazaNormalizada,
+                valor_base: valorBase,
+                valor_economico: amenazaCritica ? 20 : 0,
+                valor_supervivencia: valorSupervivencia,
                 valor_sabotaje: 0,
-                valor_control: amenazaNormalizada > 0 ? 60 : 10,
+                valor_control: valorControl,
                 r: capital.r,
                 c: capital.c,
-                razon_texto: `Capital propia (${capital.name || 'Capital'}) - Amenaza=${amenazaNormalizada}`
+                razon_texto: `Capital propia (${capital.name || 'Capital'}) - Amenaza=${amenazaNormalizada} distMin=${Number.isFinite(nearestEnemyDist) ? nearestEnemyDist : 'inf'}`
             }));
         }
 

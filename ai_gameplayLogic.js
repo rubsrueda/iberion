@@ -254,6 +254,8 @@ const AiGameplayManager = {
                 if (nodoCorredor?.origen && nodoCorredor?.destino) {
                     const path = this._buildCommercialCorridorPath(playerNumber, nodoCorredor.origen, nodoCorredor.destino);
                     const corridorStatus = this._updateCommercialCorridorState(playerNumber, nodoCorredor, path);
+                    const corridorDebug = this._describeCommercialCorridor(playerNumber, path);
+                    console.log(`[IA CORREDOR TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} peso=${Math.round(nodoCorredor.peso || 0)} path=${path?.length || 0} oper=${corridorStatus.operational} faltantes=${corridorDebug.missingCount} bloqueados=${corridorDebug.blockedCount} candidatos=${corridorDebug.candidateCount} detalle=${corridorDebug.summary}`);
                     if (corridorStatus.operational) {
                         this._activateCommercialEconomy(playerNumber, corridorStatus);
                     }
@@ -563,16 +565,31 @@ const AiGameplayManager = {
     },
 
     _tryEstablishTradeRouteForCorridor: function(playerNumber, corridorStatus) {
-        if (!corridorStatus?.operational) return false;
-        if (units.some(u => u.player === playerNumber && !!u.tradeRoute)) return false;
-        if (typeof findInfrastructurePath !== 'function') return false;
+        if (!corridorStatus?.operational) {
+            console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=corredor_no_operativo`);
+            return false;
+        }
+        if (units.some(u => u.player === playerNumber && !!u.tradeRoute)) {
+            console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=ruta_ya_existente`);
+            return false;
+        }
+        if (typeof findInfrastructurePath !== 'function') {
+            console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=findInfrastructurePath_no_disponible`);
+            return false;
+        }
 
         const origin = this._resolveTradeCityForCorridor(playerNumber, corridorStatus.origen, true);
         const destination = this._resolveTradeCityForCorridor(playerNumber, corridorStatus.destino, false);
-        if (!origin || !destination) return false;
+        if (!origin || !destination) {
+            console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=ciudad_origen_destino_invalida`);
+            return false;
+        }
 
         const infraPath = findInfrastructurePath(origin, destination, { allowForeignInfrastructure: true });
-        if (!infraPath || infraPath.length === 0) return false;
+        if (!infraPath || infraPath.length === 0) {
+            console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=infraPath_vacio origen=(${origin.r},${origin.c}) destino=(${destination.r},${destination.c})`);
+            return false;
+        }
 
         let supplyUnit = units.find(u =>
             u.player === playerNumber &&
@@ -585,10 +602,18 @@ const AiGameplayManager = {
             supplyUnit = this.produceUnit(playerNumber, ['Columna de Suministro'], 'trader', 'Columna de Suministro', origin);
         }
 
-        if (!supplyUnit) return false;
-        if (supplyUnit.r !== origin.r || supplyUnit.c !== origin.c) return false;
+        if (!supplyUnit) {
+            console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=no_hay_columna_suministro`);
+            return false;
+        }
+        if (supplyUnit.r !== origin.r || supplyUnit.c !== origin.c) {
+            console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=columna_fuera_origen unidad=${supplyUnit.name} pos=(${supplyUnit.r},${supplyUnit.c}) origen=(${origin.r},${origin.c})`);
+            return false;
+        }
 
-        return this._requestEstablishTradeRoute(supplyUnit, origin, destination, infraPath);
+        const ok = this._requestEstablishTradeRoute(supplyUnit, origin, destination, infraPath);
+        console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=${ok ? 'ruta_solicitada' : 'fallo_request'} unidad=${supplyUnit.name} path=${infraPath.length}`);
+        return ok;
     },
 
     _resolveTradeCityForCorridor: function(playerNumber, point, requireOwn) {
@@ -636,6 +661,44 @@ const AiGameplayManager = {
 
     _getCityAtHex: function(r, c) {
         return (gameState.cities || []).find(city => city.r === r && city.c === c) || null;
+    },
+
+    _describeCommercialCorridor: function(playerNumber, path) {
+        if (!Array.isArray(path) || path.length === 0) {
+            return { missingCount: 0, blockedCount: 0, candidateCount: 0, summary: 'sin_ruta' };
+        }
+
+        const missing = [];
+        const blocked = [];
+        const candidates = [];
+
+        path.forEach((p, idx) => {
+            const hex = board[p.r]?.[p.c];
+            if (!hex) {
+                blocked.push(`${idx}:void(${p.r},${p.c})`);
+                return;
+            }
+            if (!this._canBuildRoadOnHex(hex)) {
+                blocked.push(`${idx}:${hex.terrain}(${p.r},${p.c})`);
+                return;
+            }
+            if (hex.owner !== playerNumber) {
+                missing.push(`${idx}:owner${hex.owner}(${p.r},${p.c})`);
+                candidates.push({ r: p.r, c: p.c });
+            }
+        });
+
+        const summaryParts = [];
+        if (missing.length > 0) summaryParts.push(`faltan=${missing.slice(0, 4).join('|')}`);
+        if (blocked.length > 0) summaryParts.push(`bloq=${blocked.slice(0, 4).join('|')}`);
+        if (summaryParts.length === 0) summaryParts.push('ruta_lista');
+
+        return {
+            missingCount: missing.length,
+            blockedCount: blocked.length,
+            candidateCount: candidates.length,
+            summary: summaryParts.join(' ; ')
+        };
     },
 
     _handle_BOA_Production: async function(playerNumber) {
@@ -849,6 +912,10 @@ const AiGameplayManager = {
                     });
                 }
             }
+            const hayNodosFuertes = AiGameplayManager.strategicAxes.some(a => a.nodoTipo && (a.prioridad || 0) >= 150);
+            if (hayNodosFuertes) {
+                AiGameplayManager.strategicAxes = AiGameplayManager.strategicAxes.filter(a => a.nodoTipo || (a.prioridad || 0) > 0);
+            }
             AiGameplayManager.strategicAxes.sort((a, b) => (b.prioridad || 0) - (a.prioridad || 0));
             console.log(`[IA PLANNER] Ejes activos: ${AiGameplayManager.strategicAxes.map(a => `${a.name}(${a.prioridad||0})`).join(', ')}`);
         } else {
@@ -870,19 +937,27 @@ const AiGameplayManager = {
             }
 
             let bestAxis = null;
-            let minDist = Infinity;
-            let maxDist = -Infinity;
+            let bestScore = -Infinity;
+            const axisScores = [];
             
             for (const axis of AiGameplayManager.strategicAxes) {
                 const dist = hexDistance(unit.r, unit.c, axis.target.r, axis.target.c);
-                if (preferDistant && dist > maxDist && dist > 2) {
-                    maxDist = dist;
-                    bestAxis = axis;
-                } else if (!preferDistant && dist < minDist) {
-                    minDist = dist;
+                const score = this._scoreAxisForUnit(axis, unit, dist, preferDistant);
+                axisScores.push({
+                    name: axis.name,
+                    nodoTipo: axis.nodoTipo || 'GENERIC',
+                    dist,
+                    priority: axis.prioridad || 0,
+                    score
+                });
+                if (score > bestScore) {
+                    bestScore = score;
                     bestAxis = axis;
                 }
             }
+
+            axisScores.sort((a, b) => b.score - a.score);
+            console.log(`[IA AXIS TRACE] unidad=${unit.name} preferDistant=${preferDistant} top=${axisScores.slice(0, 4).map(a => `${a.nodoTipo}@${a.name}:score=${Math.round(a.score)}:dist=${a.dist}:prio=${Math.round(a.priority)}`).join(' ; ')}`);
             
             if(bestAxis) {
                 AiGameplayManager.missionAssignments.set(unit.id, {
@@ -897,6 +972,7 @@ const AiGameplayManager = {
                     unitName: unit.name,
                     missionType: bestAxis.nodoTipo ? 'IA_NODE' : 'AXIS_ADVANCE',
                     preferDistant,
+                    axisScore: bestScore,
                     objective: { r: bestAxis.target.r, c: bestAxis.target.c },
                     axisName: bestAxis.name,
                     nodoTipo: bestAxis.nodoTipo || null
@@ -910,6 +986,43 @@ const AiGameplayManager = {
         for(const unit of others) {
             assignUnit(unit, false);
         }
+    },
+
+    _scoreAxisForUnit: function(axis, unit, dist, preferDistant) {
+        const priority = axis.prioridad || 0;
+        const isNodeAxis = !!axis.nodoTipo;
+        let score = priority;
+
+        if (isNodeAxis) {
+            score += 120;
+            score -= dist * 18;
+        } else {
+            score -= dist * (preferDistant ? 4 : 10);
+        }
+
+        if (preferDistant && !isNodeAxis) {
+            score += Math.min(dist, 8) * 5;
+        }
+
+        if (axis.nodoTipo === 'corredor_comercial') {
+            score += 260;
+            score -= dist * 6;
+        }
+
+        if (axis.nodoTipo === 'crear_caravana') {
+            score += 220;
+            score -= dist * 8;
+        }
+
+        if (axis.nodoTipo === 'ciudad_libre' || axis.nodoTipo === 'banca') {
+            score += 90;
+        }
+
+        if (axis.nodoTipo === 'ciudad_natal_propia' && (axis.prioridad || 0) < 500) {
+            score -= 120;
+        }
+
+        return score;
     },
 
     _executeGrandOpening_v20: async function(playerNumber) {

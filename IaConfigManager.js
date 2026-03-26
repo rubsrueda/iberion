@@ -101,6 +101,8 @@ const IaConfigManager = {
                 camino_enemigo_critico:    { peso_base: 0,   peso_economico: 0,   peso_supervivencia: 0,   peso_sabotaje: 80, peso_control: 0   },
                 caravana_propia:           { peso_base: 100, peso_economico: 100, peso_supervivencia: 20,  peso_sabotaje: 0,  peso_control: 0   },
                 caravana_enemiga:          { peso_base: 0,   peso_economico: 0,   peso_supervivencia: 0,   peso_sabotaje: 90, peso_control: 0   },
+                corredor_comercial:        { peso_base: 220, peso_economico: 180, peso_supervivencia: 20,  peso_sabotaje: 0,  peso_control: 140 },
+                crear_caravana:            { peso_base: 210, peso_economico: 220, peso_supervivencia: 10,  peso_sabotaje: 0,  peso_control: 90  },
                 recurso_estrategico:       { peso_base: 60,  peso_economico: 100, peso_supervivencia: 0,   peso_sabotaje: 0,  peso_control: 40  },
                 ciudad_enemiga:            { peso_base: 30,  peso_economico: 30,  peso_supervivencia: 0,   peso_sabotaje: 0,  peso_control: 100 },
                 cuello_botella:            { peso_base: 40,  peso_economico: 40,  peso_supervivencia: 10,  peso_sabotaje: 20, peso_control: 50  },
@@ -180,7 +182,7 @@ const IaConfigManager = {
             const requiredNodeTypes = [
                 'ciudad_natal_propia', 'ultima_unidad_propia', 'ciudad_propia_conectada',
                 'ciudad_propia_desconectada', 'banca', 'ciudad_libre', 'camino_propio_critico',
-                'camino_enemigo_critico', 'caravana_propia', 'caravana_enemiga', 'recurso_estrategico',
+                'camino_enemigo_critico', 'caravana_propia', 'caravana_enemiga', 'corredor_comercial', 'crear_caravana', 'recurso_estrategico',
                 'ciudad_enemiga', 'cuello_botella'
             ];
             for (const nodeType of requiredNodeTypes) {

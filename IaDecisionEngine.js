@@ -95,7 +95,10 @@ const IaDecisionEngine = {
             console.log(`[IaDecision] C2. Generando misiones de top-${nodosTop.length} nodos`);
             
             // C3. Generar recomendación principal
-            const nodoPrincipal = nodosTopConPeso[0];
+            const nodoPrincipal = this._seleccionarNodoPrincipal(nodosTopConPeso, {
+                capitalAmenazada,
+                crisisEconomica: estaEnCrisisEconomica
+            });
             const recomendacionPrincipal = this._generarMisionDesdeNodo(nodoPrincipal, playerNumber);
 
             // FASE D: Ejecución (se delega a AiGameplayManager, no aquí)
@@ -311,6 +314,25 @@ const IaDecisionEngine = {
         });
 
         return IaNodoValor.ordenarNodosPorPeso([...nodos, crearCaravana], { playerNumber, gameState, config }, config);
+    },
+
+    _seleccionarNodoPrincipal(nodosTop, contexto) {
+        if (!Array.isArray(nodosTop) || nodosTop.length === 0) return null;
+
+        const capital = nodosTop.find(n => n.tipo === 'ciudad_natal_propia');
+        const corredor = nodosTop.find(n => n.tipo === 'corredor_comercial');
+        const crearCaravana = nodosTop.find(n => n.tipo === 'crear_caravana');
+
+        if (contexto?.crisisEconomica && !contexto?.capitalAmenazada) {
+            if (crearCaravana) return crearCaravana;
+            if (corredor && (capital?.valor_supervivencia || 0) < 220) return corredor;
+        }
+
+        if (corredor && capital && (capital.valor_supervivencia || 0) < 180 && (corredor.peso || 0) >= (capital.peso || 0) * 0.7) {
+            return corredor;
+        }
+
+        return nodosTop[0];
     }
 
 };
