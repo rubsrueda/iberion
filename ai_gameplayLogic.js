@@ -402,8 +402,30 @@ const AiGameplayManager = {
             if (neutralHexesInQuad.length > 5) {
                 const avgR = Math.round(neutralHexesInQuad.reduce((sum, h) => sum + h.r, 0) / neutralHexesInQuad.length);
                 const avgC = Math.round(neutralHexesInQuad.reduce((sum, h) => sum + h.c, 0) / neutralHexesInQuad.length);
-                AiGameplayManager.strategicAxes.push({ name: quadName, target: { r: avgR, c: avgC } });
+                AiGameplayManager.strategicAxes.push({ name: quadName, target: { r: avgR, c: avgC }, prioridad: 0 });
             }
+        }
+
+        // Inyectar nodos prioritarios del motor de decisiones como ejes reales
+        if (typeof IaIntegration !== 'undefined' && IaIntegration.currentDecision?.prioritarios?.length > 0) {
+            const nodosMotor = IaIntegration.currentDecision.prioritarios.slice(0, 4);
+            for (const nodo of nodosMotor) {
+                if (nodo.r === undefined || nodo.c === undefined) continue;
+                const yaExiste = AiGameplayManager.strategicAxes.some(
+                    a => a.target.r === nodo.r && a.target.c === nodo.c
+                );
+                if (!yaExiste) {
+                    AiGameplayManager.strategicAxes.push({
+                        name: nodo.tipo,
+                        target: { r: nodo.r, c: nodo.c },
+                        nodoTipo: nodo.tipo,
+                        prioridad: nodo.peso || 0
+                    });
+                }
+            }
+            // Ordenar: los nodos de mayor peso del motor van primero
+            AiGameplayManager.strategicAxes.sort((a, b) => (b.prioridad || 0) - (a.prioridad || 0));
+            console.log(`[IA PLANNER] Ejes activos: ${AiGameplayManager.strategicAxes.map(a => `${a.name}(${a.prioridad||0})`).join(', ')}`);
         }
     },
 
@@ -423,7 +445,11 @@ const AiGameplayManager = {
             }
             
             if(bestAxis) {
-                AiGameplayManager.missionAssignments.set(unit.id, { type: 'AXIS_ADVANCE', objective: bestAxis.target });
+                AiGameplayManager.missionAssignments.set(unit.id, {
+                    type: bestAxis.nodoTipo ? 'IA_NODE' : 'AXIS_ADVANCE',
+                    objective: bestAxis.target,
+                    nodoTipo: bestAxis.nodoTipo || null
+                });
             }
         }
     },
@@ -558,9 +584,33 @@ const AiGameplayManager = {
                 const validThreat = threat && threat.currentHealth > 0;
                 if (validThreat) {
                     console.log(`[IA URGENT DEFENSE] ${unit.name} tiene orden de atacar a ${threat.name}.`);
-                    await this._executeCombatLogic(unit, [threat]); // Forzar combate solo contra esa amenaza
-                    return; // Acción completada
+                    await this._executeCombatLogic(unit, [threat]);
+                    return;
                 }
+            }
+
+            // Misión del motor de decisiones: nodo prioritario específico
+            if (mission.type === 'IA_NODE' && mission.objective) {
+                const tgt = mission.objective;
+                const unitEnTgt = getUnitOnHex(tgt.r, tgt.c);
+                if (unitEnTgt && unitEnTgt.player !== unit.player) {
+                    // Hay enemigo en el objetivo (sabotaje, defensa): atacar
+                    console.log(`[IA NODE] ${unit.name} → ataca en (${tgt.r},${tgt.c}) nodo:${mission.nodoTipo}`);
+                    await this._executeCombatLogic(unit, [unitEnTgt]);
+                    return;
+                }
+                // Moverse hacia el objetivo (económico, posición estratégica, etc.)
+                const pathToNode = this.findPathToTarget(unit, tgt.r, tgt.c);
+                if (pathToNode && pathToNode.length > 1) {
+                    const steps = unit.currentMovement || unit.movement || 1;
+                    const moveHex = pathToNode[Math.min(steps, pathToNode.length - 1)];
+                    if (!getUnitOnHex(moveHex.r, moveHex.c)) {
+                        console.log(`[IA NODE] ${unit.name} → mueve a (${moveHex.r},${moveHex.c}) nodo:${mission.nodoTipo}`);
+                        await _executeMoveUnit(unit, moveHex.r, moveHex.c);
+                        return;
+                    }
+                }
+                // Sin camino libre: caer al comportamiento general
             }
 
             if (AiGameplayManager.codeRed_rallyPoint && unit.id !== AiGameplayManager.codeRed_rallyPoint.anchorId) { await AiGameplayManager.moveToRallyPoint(unit); return; }
