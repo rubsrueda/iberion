@@ -205,5 +205,23 @@ const IaConfigManager = {
     }
 };
 
-// Auto-cargar al iniciar aplicación
-console.log("[IaConfig] Módulo inicializado. Esperando inicialización de la app...");
+/**
+ * Inicializa el módulo (debe llamarse una sola vez desde initApp)
+ * @static
+ * @returns {Promise<void>}
+ */
+async function initializeIaConfig() {
+    if (IaConfigManager.isLoaded || IaConfigManager._initializationInProgress) {
+        return; // Ya está cargada o se está cargando
+    }
+    
+    IaConfigManager._initializationInProgress = true;
+    console.log("[IaConfig] Iniciando carga de configuración del motor IA...");
+    await IaConfigManager.loadConfig();
+    IaConfigManager._initializationInProgress = false;
+}
+
+// Marca de control para evitar cargas duplicadas
+IaConfigManager._initializationInProgress = false;
+
+console.log("[IaConfig] Módulo inicializado. Llamar a initializeIaConfig() desde main.js/gameFlow.js.");

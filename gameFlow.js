@@ -1308,7 +1308,7 @@ function simpleAiDeploymentTurn() {
     
 }
 
-function simpleAiTurn() {
+async function simpleAiTurn() {
     const aiPlayerIdString = `player${gameState.currentPlayer}`;
     const aiActualPlayerNumber = gameState.currentPlayer;
     const aiLevel = gameState.playerAiLevels?.[aiPlayerIdString] || 'normal';
@@ -1318,6 +1318,11 @@ function simpleAiTurn() {
     if (gameState.currentPhase !== 'play' || !aiPlayerType?.startsWith('ai_')) {
         console.warn(`[simpleAiTurn] Bloqueado | fase=${gameState.currentPhase} | jugador=${aiActualPlayerNumber} | tipo=${aiPlayerType || 'undefined'}`);
         return;
+    }
+
+    // FASE 2 REFACTOR: Asegurar que la configuración IA está cargada
+    if (typeof initializeIaConfig === 'function' && (!IaConfigManager.isLoaded)) {
+        await initializeIaConfig();
     }
 
     // Ahora busca AiGameplayManager en lugar de AiManager.
