@@ -61,9 +61,11 @@ const AiGameplayManager = {
 
         // --- FASE 1b: EVALUACIÓN ESTRATÉGICA CON MOTOR DE DECISIONES (FASE 2c) ---
         // Inicializa el módulo de integración con la decisión actual
+        AiGameplayManager._currentMotorDecision = null;
         if (typeof IaIntegration !== 'undefined') {
             const decision = await IaIntegration.inicializarTurnoConDecision(playerNumber);
             if (decision) {
+                AiGameplayManager._currentMotorDecision = decision; // GUARDAR PARA planStrategicObjectives
                 this._registrarDecisionMotor(playerNumber, {
                     ...decision,
                     nivel: decision.criteriosActivados?.capitalAmenazada ? 0 : decision.criteriosActivados?.crisisEconomica ? 2 : 1,
@@ -72,6 +74,9 @@ const AiGameplayManager = {
                     prioridad: decision.recomendacion?.prioridad,
                     razon_texto: decision.recomendacion?.razon_texto
                 });
+                console.log(`[IA DEBUG] Motor decision cacheada: ${decision.prioritarios?.length || 0} nodos prioritarios`);
+            } else {
+                console.warn(`[IA DEBUG] Motor decision NULL - fallback a estrategia estándar`);
             }
         }
             
@@ -407,8 +412,11 @@ const AiGameplayManager = {
         }
 
         // Inyectar nodos prioritarios del motor de decisiones como ejes reales
-        if (typeof IaIntegration !== 'undefined' && IaIntegration.currentDecision?.prioritarios?.length > 0) {
-            const nodosMotor = IaIntegration.currentDecision.prioritarios.slice(0, 4);
+        // FIXED: Usar AiGameplayManager._currentMotorDecision en lugar de IaIntegration.currentDecision
+        const motorDecision = AiGameplayManager._currentMotorDecision || (typeof IaIntegration !== 'undefined' ? IaIntegration.currentDecision : null);
+        if (motorDecision?.prioritarios?.length > 0) {
+            const nodosMotor = motorDecision.prioritarios.slice(0, 4);
+            console.log(`[IA DEBUG] Inyectando ${nodosMotor.length} nodos del motor`);
             for (const nodo of nodosMotor) {
                 if (nodo.r === undefined || nodo.c === undefined) continue;
                 const yaExiste = AiGameplayManager.strategicAxes.some(
@@ -423,23 +431,32 @@ const AiGameplayManager = {
                     });
                 }
             }
-            // Ordenar: los nodos de mayor peso del motor van primero
             AiGameplayManager.strategicAxes.sort((a, b) => (b.prioridad || 0) - (a.prioridad || 0));
             console.log(`[IA PLANNER] Ejes activos: ${AiGameplayManager.strategicAxes.map(a => `${a.name}(${a.prioridad||0})`).join(', ')}`);
+        } else {
+            console.warn(`[IA DEBUG] Sin nodos del motor`);
         }
     },
 
     assignUnitsToAxes: function(playerNumber, unitsToAssign) {
-        const explorers = unitsToAssign.filter(u => (AiGameplayManager.unitRoles.get(u.id) === 'explorer' || !AiGameplayManager.unitRoles.has(u.id)) );
+        // FIXED: Asignar TODOS los tipos de unidad, no solo exploradores
+        const explorers = unitsToAssign.filter(u => AiGameplayManager.unitRoles.get(u.id) === 'explorer');
+        const others = unitsToAssign.filter(u => !AiGameplayManager.unitRoles.has(u.id) || AiGameplayManager.unitRoles.get(u.id) !== 'explorer');
         
-        for(const unit of explorers) {
+        console.log(`[IA DEBUG] assignUnitsToAxes: ${explorers.length} explorers, ${others.length} otros (total ${unitsToAssign.length}). Ejes: ${AiGameplayManager.strategicAxes.length}`);
+
+        const assignUnit = (unit, preferDistant) => {
             let bestAxis = null;
-            let minDistance = Infinity;
+            let minDist = Infinity;
+            let maxDist = -Infinity;
             
             for (const axis of AiGameplayManager.strategicAxes) {
                 const dist = hexDistance(unit.r, unit.c, axis.target.r, axis.target.c);
-                if(dist < minDistance) {
-                    minDistance = dist;
+                if (preferDistant && dist > maxDist && dist > 2) {
+                    maxDist = dist;
+                    bestAxis = axis;
+                } else if (!preferDistant && dist < minDist) {
+                    minDist = dist;
                     bestAxis = axis;
                 }
             }
@@ -448,9 +465,17 @@ const AiGameplayManager = {
                 AiGameplayManager.missionAssignments.set(unit.id, {
                     type: bestAxis.nodoTipo ? 'IA_NODE' : 'AXIS_ADVANCE',
                     objective: bestAxis.target,
-                    nodoTipo: bestAxis.nodoTipo || null
+                    nodoTipo: bestAxis.nodoTipo || null,
+                    axisName: bestAxis.name
                 });
             }
+        };
+
+        for(const unit of explorers) {
+            assignUnit(unit, true);
+        }
+        for(const unit of others) {
+            assignUnit(unit, false);
         }
     },
 
