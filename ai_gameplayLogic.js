@@ -1012,6 +1012,54 @@ const AiGameplayManager = {
             .filter(a => a.nodoTipo === 'camino_enemigo_critico')
             .sort((a, b) => (b.prioridad || 0) - (a.prioridad || 0))[0];
 
+        // Guardarraíl: asegurar 1 unidad en misión OCCUPY_THEN_BUILD para corredor.
+        if (forceBankCorridor && bankCorridorAxis && unitsToAssign.length > 0) {
+            const hasCorridorBuilder = Array.from(AiGameplayManager.missionAssignments.values())
+                .some(m => m && m.type === 'OCCUPY_THEN_BUILD' && m.nodoRazon === 'CORREDOR_COMERCIAL');
+
+            if (!hasCorridorBuilder) {
+                const ownCapital = gameState.cities?.find(c => c.owner === playerNumber && c.isCapital);
+                const corridorPath = ownCapital
+                    ? this._buildCommercialCorridorPath(playerNumber, ownCapital, bankCorridorAxis.target)
+                    : [];
+
+                const missingHex = (corridorPath || []).find((p, idx) => {
+                    const hex = board[p.r]?.[p.c];
+                    const isEndpoint = idx === 0 || idx === corridorPath.length - 1;
+                    if (!hex || isEndpoint) return false;
+                    if (hex.isCity) return false;
+                    return hex.owner !== playerNumber && this._canBuildRoadOnHex(hex);
+                });
+
+                if (missingHex) {
+                    const builder = unitsToAssign
+                        .slice()
+                        .sort((a, b) => {
+                            const aPioneer = (a.name || '').includes('Pionero') ? -1 : 0;
+                            const bPioneer = (b.name || '').includes('Pionero') ? -1 : 0;
+                            if (aPioneer !== bPioneer) return aPioneer - bPioneer;
+                            return hexDistance(a.r, a.c, missingHex.r, missingHex.c) - hexDistance(b.r, b.c, missingHex.r, missingHex.c);
+                        })[0];
+
+                    if (builder) {
+                        AiGameplayManager.missionAssignments.set(builder.id, {
+                            type: 'OCCUPY_THEN_BUILD',
+                            objective: { r: missingHex.r, c: missingHex.c },
+                            structureType: 'Camino',
+                            nodoRazon: 'CORREDOR_COMERCIAL'
+                        });
+                        AiGameplayManager._trace('assign_unit_corridor_builder', {
+                            playerNumber,
+                            unitId: builder.id,
+                            unitName: builder.name,
+                            objective: { r: missingHex.r, c: missingHex.c },
+                            reason: 'garantizar_construccion_corredor'
+                        });
+                    }
+                }
+            }
+        }
+
         let reservedSaboteurId = null;
         if (forceBankCorridor && bankCorridorAxis && sabotageAxis && unitsToAssign.length >= 2) {
             const sortedForSabotage = unitsToAssign
@@ -1365,6 +1413,14 @@ const AiGameplayManager = {
             // Misión del motor de decisiones: nodo prioritario específico
             if (mission.type === 'IA_NODE' && mission.objective) {
                 const tgt = mission.objective;
+
+                if (mission.nodoTipo === 'corredor_comercial') {
+                    const relayAdvanced = await this._attemptCorridorRelayAdvance(unit, tgt);
+                    if (relayAdvanced) {
+                        return;
+                    }
+                }
+
                 const unitEnTgt = getUnitOnHex(tgt.r, tgt.c);
                 if (unitEnTgt && unitEnTgt.player !== unit.player) {
                     // Hay enemigo en el objetivo (sabotaje, defensa): atacar
@@ -1399,6 +1455,19 @@ const AiGameplayManager = {
                         });
                         return;
                     }
+                }
+                // Sin camino libre en misión de corredor: no forzar combate, reposicionar.
+                if (mission.nodoTipo === 'corredor_comercial') {
+                    await AiGameplayManager._executeExpansionLogic(unit);
+                    AiGameplayManager._trace('unit_decision_result', {
+                        unitId: unit.id,
+                        unitName: unit.name,
+                        missionType: mission.type,
+                        result: 'corridor_reposition_no_path',
+                        target: { r: tgt.r, c: tgt.c },
+                        nodoTipo: mission.nodoTipo || null
+                    });
+                    return;
                 }
                 // Sin camino libre: caer al comportamiento general
             }
@@ -1435,6 +1504,107 @@ const AiGameplayManager = {
             });
         } 
         finally { console.groupEnd(); }
+    },
+
+    _attemptCorridorRelayAdvance: async function(unit, tgt) {
+        if (!unit || !tgt) return false;
+        if (gameState.currentPhase !== 'play') return false;
+        if (unit.hasMoved || (unit.currentMovement || 0) <= 0) return false;
+
+        const adjacentMovedAllies = units
+            .filter(a =>
+                a.player === unit.player &&
+                a.id !== unit.id &&
+                a.currentHealth > 0 &&
+                a.hasMoved === true &&
+                hexDistance(a.r, a.c, unit.r, unit.c) <= 1
+            )
+            .filter(a => ((a.regiments?.length || 0) + (unit.regiments?.length || 0)) <= MAX_REGIMENTS_PER_DIVISION)
+            .sort((a, b) => {
+                const da = hexDistance(a.r, a.c, tgt.r, tgt.c);
+                const db = hexDistance(b.r, b.c, tgt.r, tgt.c);
+                return da - db;
+            });
+
+        if (adjacentMovedAllies.length === 0) return false;
+        const mergeTarget = adjacentMovedAllies[0];
+
+        if (typeof RequestMergeUnits !== 'function') return false;
+        await RequestMergeUnits(unit, mergeTarget, true);
+
+        const merged = getUnitById(mergeTarget.id);
+        if (!merged || merged.currentHealth <= 0) return false;
+
+        const path = this.findPathToTarget(merged, tgt.r, tgt.c);
+        if (path && path.length > 1) {
+            const steps = merged.currentMovement || merged.movement || 1;
+            const moveHex = path[Math.min(steps, path.length - 1)];
+            if (!getUnitOnHex(moveHex.r, moveHex.c)) {
+                await _executeMoveUnit(merged, moveHex.r, moveHex.c);
+            }
+        }
+
+        if (typeof buildAutomaticSplitPlan !== 'function' || typeof prepareSplitAction !== 'function' || typeof RequestSplitUnit !== 'function') {
+            AiGameplayManager._trace('corridor_relay_merge_only', {
+                unitId: unit.id,
+                mergedUnitId: merged.id,
+                mergedName: merged.name,
+                target: { r: tgt.r, c: tgt.c }
+            });
+            return true;
+        }
+
+        const splitPlan = buildAutomaticSplitPlan(merged, 'average');
+        if (!splitPlan) {
+            AiGameplayManager._trace('corridor_relay_no_split_plan', {
+                unitId: unit.id,
+                mergedUnitId: merged.id,
+                mergedName: merged.name,
+                target: { r: tgt.r, c: tgt.c }
+            });
+            return true;
+        }
+
+        const splitCandidates = getHexNeighbors(merged.r, merged.c)
+            .map(n => board[n.r]?.[n.c])
+            .filter(h => h && !h.unit && !h.isCity && this._canBuildRoadOnHex(h))
+            .filter(h => hexDistance(h.r, h.c, tgt.r, tgt.c) < hexDistance(merged.r, merged.c, tgt.r, tgt.c))
+            .sort((a, b) => hexDistance(a.r, a.c, tgt.r, tgt.c) - hexDistance(b.r, b.c, tgt.r, tgt.c));
+
+        const splitHex = splitCandidates[0];
+        if (!splitHex) {
+            AiGameplayManager._trace('corridor_relay_no_split_hex', {
+                unitId: unit.id,
+                mergedUnitId: merged.id,
+                mergedName: merged.name,
+                at: { r: merged.r, c: merged.c },
+                target: { r: tgt.r, c: tgt.c }
+            });
+            return true;
+        }
+
+        if (!prepareSplitAction(merged, splitPlan)) return true;
+        RequestSplitUnit(merged, splitHex.r, splitHex.c);
+        gameState.preparingAction = null;
+
+        const newForwardUnit = getUnitOnHex(splitHex.r, splitHex.c);
+        if (newForwardUnit && newForwardUnit.player === unit.player) {
+            AiGameplayManager.missionAssignments.set(newForwardUnit.id, {
+                type: 'IA_NODE',
+                objective: { r: tgt.r, c: tgt.c },
+                nodoTipo: 'corredor_comercial',
+                axisName: 'corredor_comercial_RELAY_SPLIT'
+            });
+        }
+
+        AiGameplayManager._trace('corridor_relay_executed', {
+            originalUnitId: unit.id,
+            mergeTargetId: mergeTarget.id,
+            mergedUnitId: merged.id,
+            splitTo: { r: splitHex.r, c: splitHex.c },
+            target: { r: tgt.r, c: tgt.c }
+        });
+        return true;
     },
 
     _executeCombatLogic: async function(unit, enemies) {

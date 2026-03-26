@@ -165,11 +165,33 @@ const AiDeploymentManager = {
                     .filter(p => {
                         const hex = board[p.r]?.[p.c];
                         return hex && !hex.isCity && buildableRoadTerrains.has(hex.terrain);
-                    })
-                    .slice(0, 3);
+                    });
 
-                if (deployPathHexes.length > 0) {
-                    missionList = deployPathHexes.map((hex, idx) => ({
+                // Patrón de relevo: evitar línea 1-2-3 consecutiva.
+                const relayOrderedHexes = [];
+                const used = new Set();
+                const preferredRelayOrder = [0, 2, 1, 4, 3, 5];
+                for (const idx of preferredRelayOrder) {
+                    const hex = deployPathHexes[idx];
+                    if (!hex) continue;
+                    const key = `${hex.r},${hex.c}`;
+                    if (used.has(key)) continue;
+                    used.add(key);
+                    relayOrderedHexes.push(hex);
+                    if (relayOrderedHexes.length >= 3) break;
+                }
+                if (relayOrderedHexes.length < 3) {
+                    for (const hex of deployPathHexes) {
+                        const key = `${hex.r},${hex.c}`;
+                        if (used.has(key)) continue;
+                        used.add(key);
+                        relayOrderedHexes.push(hex);
+                        if (relayOrderedHexes.length >= 3) break;
+                    }
+                }
+
+                if (relayOrderedHexes.length > 0) {
+                    missionList = relayOrderedHexes.map((hex, idx) => ({
                         type: 'BOOTSTRAP_BANK_CORRIDOR',
                         objectiveHex: hex,
                         priority: 1000 - (idx * 10)
@@ -178,7 +200,7 @@ const AiDeploymentManager = {
                     while (missionList.length < 3) {
                         missionList.push({
                             type: 'BOOTSTRAP_BANK_CORRIDOR',
-                            objectiveHex: deployPathHexes[deployPathHexes.length - 1],
+                            objectiveHex: relayOrderedHexes[relayOrderedHexes.length - 1],
                             priority: 1000 - (missionList.length * 10)
                         });
                     }
