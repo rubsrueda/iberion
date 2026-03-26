@@ -144,9 +144,27 @@ const AiDeploymentManager = {
     generateMissionList: function(strategy, analysis) {
         const { valuableResources, defensivePoints, capital, bankHex, barbarianCities, citySites } = analysis;
         let missionList = [];
+        
+        // EN DEPLOYMENT: SOLO OCUPAR HACIA BANCA. NADA MAS.
+        const isDeploymentPhase = gameState.currentPhase === 'deployment';
+        
+        if (isDeploymentPhase && strategy === 'economic_network_bootstrap') {
+            // ÚNICA MISIÓN EN DEPLOYMENT: OCUPAR HEXES HACIA BANCA (3 unidades)
+            if (bankHex) {
+                missionList = [
+                    { type: 'BOOTSTRAP_BANK_CORRIDOR', objectiveHex: bankHex, priority: 1000 },
+                    { type: 'BOOTSTRAP_BANK_CORRIDOR', objectiveHex: bankHex, priority: 990 },
+                    { type: 'BOOTSTRAP_BANK_CORRIDOR', objectiveHex: bankHex, priority: 980 }
+                ];
+                return missionList;
+            }
+        }
+        
+        // Para gameplay (después de deployment), otras estrategias
         switch (strategy) {
             case 'economic_network_bootstrap': {
                 const bankBuildable = capital && bankHex && this._isRoadPathConstructible(capital, bankHex);
+                
                 if (bankBuildable) {
                     missionList = [
                         { type: 'BOOTSTRAP_BANK_CORRIDOR', objectiveHex: bankHex, priority: 1000 },
@@ -166,16 +184,6 @@ const AiDeploymentManager = {
                         { type: 'CONQUISTAR_BARBARA', objectiveHex: board[objetivoBarbaro.r]?.[objetivoBarbaro.c] || objetivoBarbaro, priority: 920 },
                         { type: 'CONQUISTAR_BARBARA', objectiveHex: board[objetivoBarbaro.r]?.[objetivoBarbaro.c] || objetivoBarbaro, priority: 910 }
                     ];
-                    break;
-                }
-
-                if (citySites.length > 0) {
-                    const site = citySites.slice().sort((a, b) => {
-                        const da = capital ? hexDistance(capital.r, capital.c, a.r, a.c) : 0;
-                        const db = capital ? hexDistance(capital.r, capital.c, b.r, b.c) : 0;
-                        return da - db;
-                    })[0];
-                    missionList = [{ type: 'FUNDAR_CIUDAD', objectiveHex: site, priority: 850 }];
                     break;
                 }
 
