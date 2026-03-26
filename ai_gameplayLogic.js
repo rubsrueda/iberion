@@ -22,6 +22,12 @@ const AiGameplayManager = {
                 console.log(`[IA STRATEGY] Ejecutando Gran Apertura...`);
             await AiGameplayManager._executeGrandOpening_v20(playerNumber);
         }
+
+        // --- FASE 1b: EVALUACIÓN ESTRATÉGICA CON MOTOR DE DECISIONES (FASE 2c) ---
+        // Inicializa el módulo de integración con la decisión actual
+        if (typeof IaIntegration !== 'undefined') {
+            await IaIntegration.inicializarTurnoConDecision(playerNumber);
+        }
             
             // La gestión del imperio (construcción, investigación, producción normal) se ejecuta DESPUÉS
             // de la Gran Apertura o en su lugar en turnos posteriores.
@@ -79,6 +85,11 @@ const AiGameplayManager = {
                 }
             }
         }, 1500); // Espera 1.5 segundos para que la última animación se vea.
+        
+        // Limpiar cache de integración (FASE 2c)
+        if (typeof IaIntegration !== 'undefined') {
+            IaIntegration.limpiarCache();
+        }
         
         console.groupEnd();
     },
@@ -488,7 +499,13 @@ const AiGameplayManager = {
 
     decideAndExecuteUnitAction: async function(unit) {
         const mission = AiGameplayManager.missionAssignments.get(unit.id) || { type: 'DEFAULT' };
-        console.groupCollapsed(`Decidiendo para ${unit.name} (Misión: ${mission.type})`);
+        // --- INYECCIÓN razon_texto (FASE 2c) ---
+        let razonAccion = "Acción estratégica";
+        if (typeof IaIntegration !== 'undefined' && mission.target) {
+            razonAccion = IaIntegration.obtenerRazonAccion(mission.target.r, mission.target.c);
+        }
+        
+        console.groupCollapsed(`Decidiendo para ${unit.name} (Misión: ${mission.type}) - ${razonAccion}`);
         try {
             if (mission.type === 'URGENT_DEFENSE') {
                 const threat = getUnitById(mission.objective.id);
