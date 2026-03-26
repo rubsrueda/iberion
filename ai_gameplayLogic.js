@@ -9,6 +9,42 @@ const AiGameplayManager = {
     turn_targets: new Set(),
     strategicAxes: [], // Guardará los 4 puntos de objetivo para los ejes
     missionAssignments: new Map(), // Guardará misiones del tipo (unitId -> missionDetails)
+    _lastNodeList: {},
+    _lastDecisionLog: {},
+    _config: null,
+
+    _registrarDecisionMotor: function(playerNumber, payload) {
+        if (!payload) return;
+
+        this._config = IaConfigManager.get() || this._config;
+        this._lastNodeList[playerNumber] = payload.nodos || [];
+        this._lastDecisionLog[playerNumber] = {
+            turnNumber: gameState.turnNumber,
+            playerNumber,
+            nivel: payload.nivel || 'N/A',
+            accion: payload.accion || payload.recomendacion?.accion || payload.recomendacion?.tipo || 'SIN_ACCION',
+            nodo: payload.nodo || payload.recomendacion?.nodo_tipo || payload.recomendacion?.tipo || 'SIN_NODO',
+            prioridad: payload.prioridad || payload.recomendacion?.prioridad || 'N/A',
+            razon_texto: payload.razon_texto || payload.recomendacion?.razon_texto || 'Sin razon_texto',
+            snapshot: payload.snapshot || null
+        };
+
+        const log = this._lastDecisionLog[playerNumber];
+        console.log(
+            `[IA-MOTOR] TURNO:${log.turnNumber} JUGADOR:${playerNumber} NIVEL:${log.nivel} ACCION:${log.accion} NODO:${log.nodo} PRIORIDAD:${log.prioridad} RAZON:${log.razon_texto}`
+        );
+
+        if (typeof Chronicle !== 'undefined' && (log.nivel === 0 || log.nivel === 1 || log.prioridad === 'CRÍTICA' || log.prioridad === 'ALTA')) {
+            Chronicle.logEvent('ia_decision', {
+                playerNumber,
+                nivel: log.nivel,
+                accion: log.accion,
+                nodo: log.nodo,
+                prioridad: log.prioridad,
+                razon_texto: log.razon_texto
+            });
+        }
+    },
     
     executeTurn: async function(playerNumber) {
         AiGameplayManager.missionAssignments = new Map();
@@ -26,7 +62,17 @@ const AiGameplayManager = {
         // --- FASE 1b: EVALUACIÓN ESTRATÉGICA CON MOTOR DE DECISIONES (FASE 2c) ---
         // Inicializa el módulo de integración con la decisión actual
         if (typeof IaIntegration !== 'undefined') {
-            await IaIntegration.inicializarTurnoConDecision(playerNumber);
+            const decision = await IaIntegration.inicializarTurnoConDecision(playerNumber);
+            if (decision) {
+                this._registrarDecisionMotor(playerNumber, {
+                    ...decision,
+                    nivel: decision.criteriosActivados?.capitalAmenazada ? 0 : decision.criteriosActivados?.crisisEconomica ? 2 : 1,
+                    accion: decision.recomendacion?.accion || decision.recomendacion?.tipo,
+                    nodo: decision.recomendacion?.nodo_tipo || decision.recomendacion?.tipo,
+                    prioridad: decision.recomendacion?.prioridad,
+                    razon_texto: decision.recomendacion?.razon_texto
+                });
+            }
         }
             
             // La gestión del imperio (construcción, investigación, producción normal) se ejecuta DESPUÉS

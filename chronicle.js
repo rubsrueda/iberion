@@ -101,6 +101,9 @@ const Chronicle = {
             
             case 'consolidate':
                 return `🔄 ${year}: La división "${data.unit.name}" ha consolidado sus fuerzas, recuperando moral y reorganizando sus regimientos.`;
+
+            case 'ia_decision':
+                return `🧠 ${year}: La IA del Jugador ${data.playerNumber} prioriza ${data.accion || 'accion desconocida'} sobre ${data.nodo || 'objetivo no definido'} por: ${data.razon_texto || 'sin razon_texto'}.`;
             
             // Podemos añadir muchos más tipos de eventos aquí...
             

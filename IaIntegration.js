@@ -32,6 +32,10 @@ const IaIntegration = {
         console.log(`%c[IaIntegration] Inicializando turno ${gameState.turnNumber} para Jugador ${playerNumber}...`, "color: #FF8C00; font-weight: bold;");
         
         try {
+            if (typeof AiGameplayManager !== 'undefined') {
+                AiGameplayManager._config = IaConfigManager.get() || AiGameplayManager._config;
+            }
+
             // Asegurar que DecisionEngine está disponible
             if (typeof IaDecisionEngine === 'undefined') {
                 console.warn("[IaIntegration] DecisionEngine no disponible, continuando sin decisiones");
@@ -45,6 +49,10 @@ const IaIntegration = {
             this.currentDecision = decision;
             this.currentPlayerNumber = playerNumber;
             this.nodosCache = decision.nodos || [];
+
+            if (typeof AiGameplayManager !== 'undefined') {
+                AiGameplayManager._lastNodeList[playerNumber] = this.nodosCache;
+            }
 
             // Log de situación
             if (decision.recomendacion) {
