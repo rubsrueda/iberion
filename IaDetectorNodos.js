@@ -34,6 +34,13 @@ const IaDetectorNodos = {
             return [];
         }
 
+        // Guardia: si config llegó sin nodos (fallback incompleto), recargar defaults
+        if (!config.nodos) {
+            console.warn("[IaDetector] config.nodos ausente — recargando defaults");
+            IaConfigManager._loadDefaults();
+            config = IaConfigManager.get();
+        }
+
         const nodos = [];
         const estado = { playerNumber, gameState, config };
 
@@ -98,14 +105,16 @@ const IaDetectorNodos = {
      */
     _detectarCapitalYUltimaUnidad(playerNumber, config) {
         const nodos = [];
-        
+        const nodosConfig = config?.nodos || {};
+
         // Capital propia
         const capital = gameState.cities?.find(c => c.isCapital && c.owner === playerNumber);
         if (capital) {
+            const cfg = nodosConfig.ciudad_natal_propia || {};
             nodos.push(IaNodoValor.crearNodo({
                 tipo: 'ciudad_natal_propia',
                 propietario: playerNumber,
-                valor_base: config.nodos.ciudad_natal_propia.peso_base,
+                valor_base: cfg.peso_base ?? 500,
                 valor_economico: 100,
                 valor_supervivencia: 500,
                 valor_sabotaje: 0,
@@ -120,10 +129,11 @@ const IaDetectorNodos = {
         const unidadesVivas = units.filter(u => u.player === playerNumber && u.currentHealth > 0);
         if (unidadesVivas.length === 1) {
             const ultimaUnidad = unidadesVivas[0];
+            const cfg = nodosConfig.ultima_unidad_propia || {};
             nodos.push(IaNodoValor.crearNodo({
                 tipo: 'ultima_unidad_propia',
                 propietario: playerNumber,
-                valor_base: config.nodos.ultima_unidad_propia.peso_base,
+                valor_base: cfg.peso_base ?? 400,
                 valor_economico: 0,
                 valor_supervivencia: 400,
                 valor_sabotaje: 0,
@@ -153,7 +163,7 @@ const IaDetectorNodos = {
             nodos.push(IaNodoValor.crearNodo({
                 tipo: tipoConectividad,
                 propietario: playerNumber,
-                valor_base: config.nodos[tipoConectividad].peso_base,
+                valor_base: (config?.nodos?.[tipoConectividad]?.peso_base ?? 80),
                 valor_economico: tipoConectividad === 'ciudad_propia_conectada' ? 80 : 20,
                 valor_supervivencia: tipoConectividad === 'ciudad_propia_desconectada' ? 50 : 0,
                 valor_sabotaje: 0,
@@ -181,7 +191,7 @@ const IaDetectorNodos = {
             nodos.push(IaNodoValor.crearNodo({
                 tipo: 'banca',
                 propietario: 0,
-                valor_base: config.nodos.banca.peso_base,
+                valor_base: (config?.nodos?.banca?.peso_base ?? 200),
                 valor_economico: 200,
                 valor_supervivencia: 0,
                 valor_sabotaje: 0,
@@ -198,7 +208,7 @@ const IaDetectorNodos = {
             nodos.push(IaNodoValor.crearNodo({
                 tipo: 'ciudad_libre',
                 propietario: 0,
-                valor_base: config.nodos.ciudad_libre.peso_base,
+                valor_base: (config?.nodos?.ciudad_libre?.peso_base ?? 60),
                 valor_economico: 60,
                 valor_supervivencia: 0,
                 valor_sabotaje: 0,
@@ -230,7 +240,7 @@ const IaDetectorNodos = {
                 nodos.push(IaNodoValor.crearNodo({
                     tipo: 'camino_propio_critico',
                     propietario: playerNumber,
-                    valor_base: config.nodos.camino_propio_critico.peso_base,
+                    valor_base: (config?.nodos?.camino_propio_critico?.peso_base ?? 90),
                     valor_economico: 90,
                     valor_supervivencia: 30,
                     valor_sabotaje: 0,
@@ -251,7 +261,7 @@ const IaDetectorNodos = {
             nodos.push(IaNodoValor.crearNodo({
                 tipo: 'fortaleza_a_construir',
                 propietario: playerNumber,
-                valor_base: config.nodos.fortaleza_a_construir.peso_base,
+                valor_base: (config?.nodos?.fortaleza_a_construir?.peso_base ?? 50),
                 valor_economico: 50,
                 valor_supervivencia: 20,
                 valor_sabotaje: 0,
@@ -281,7 +291,7 @@ const IaDetectorNodos = {
             nodos.push(IaNodoValor.crearNodo({
                 tipo: 'caravana_propia',
                 propietario: playerNumber,
-                valor_base: config.nodos.caravana_propia.peso_base,
+                valor_base: (config?.nodos?.caravana_propia?.peso_base ?? 100),
                 valor_economico: 100,
                 valor_supervivencia: 20,
                 valor_sabotaje: 0,
@@ -302,7 +312,7 @@ const IaDetectorNodos = {
             nodos.push(IaNodoValor.crearNodo({
                 tipo: 'caravana_enemiga',
                 propietario: enemyPlayer,
-                valor_base: config.nodos.caravana_enemiga.peso_base,
+                valor_base: (config?.nodos?.caravana_enemiga?.peso_base ?? 0),
                 valor_economico: 0,
                 valor_supervivencia: 0,
                 valor_sabotaje: 90,
@@ -334,7 +344,7 @@ const IaDetectorNodos = {
                 nodos.push(IaNodoValor.crearNodo({
                     tipo: 'camino_enemigo_critico',
                     propietario: enemyPlayer,
-                    valor_base: config.nodos.camino_enemigo_critico.peso_base,
+                    valor_base: (config?.nodos?.camino_enemigo_critico?.peso_base ?? 0),
                     valor_economico: 0,
                     valor_supervivencia: 0,
                     valor_sabotaje: 80,
@@ -364,7 +374,7 @@ const IaDetectorNodos = {
             nodos.push(IaNodoValor.crearNodo({
                 tipo: 'ciudad_enemiga',
                 propietario: enemyPlayer,
-                valor_base: config.nodos.ciudad_enemiga.peso_base,
+                valor_base: (config?.nodos?.ciudad_enemiga?.peso_base ?? 30),
                 valor_economico: 30,
                 valor_supervivencia: 0,
                 valor_sabotaje: 0,
@@ -385,7 +395,7 @@ const IaDetectorNodos = {
             nodos.push(IaNodoValor.crearNodo({
                 tipo: 'recurso_estrategico',
                 propietario: 0,
-                valor_base: config.nodos.recurso_estrategico.peso_base,
+                valor_base: (config?.nodos?.recurso_estrategico?.peso_base ?? 60),
                 valor_economico: 100,
                 valor_supervivencia: 0,
                 valor_sabotaje: 0,
@@ -419,7 +429,7 @@ const IaDetectorNodos = {
             nodos.push(IaNodoValor.crearNodo({
                 tipo: 'sitio_aldea',
                 propietario: 0,
-                valor_base: config.nodos.sitio_aldea.peso_base,
+                valor_base: (config?.nodos?.sitio_aldea?.peso_base ?? 60),
                 valor_economico: 70,
                 valor_supervivencia: 0,
                 valor_sabotaje: 0,
@@ -436,7 +446,7 @@ const IaDetectorNodos = {
             nodos.push(IaNodoValor.crearNodo({
                 tipo: 'ciudad_barbara',
                 propietario: 0,
-                valor_base: config.nodos.ciudad_barbara.peso_base,
+                valor_base: (config?.nodos?.ciudad_barbara?.peso_base ?? 70),
                 valor_economico: 70,
                 valor_supervivencia: 0,
                 valor_sabotaje: 0,
@@ -457,7 +467,7 @@ const IaDetectorNodos = {
             nodos.push(IaNodoValor.crearNodo({
                 tipo: 'sitio_desembarco',
                 propietario: 0,
-                valor_base: config.nodos.sitio_desembarco.peso_base,
+                valor_base: (config?.nodos?.sitio_desembarco?.peso_base ?? 50),
                 valor_economico: 50,
                 valor_supervivencia: 0,
                 valor_sabotaje: 0,
@@ -524,7 +534,7 @@ const IaDetectorNodos = {
             nodos.push(IaNodoValor.crearNodo({
                 tipo: 'cuello_botella',
                 propietario: 0,
-                valor_base: config.nodos.cuello_botella.peso_base,
+                valor_base: (config?.nodos?.cuello_botella?.peso_base ?? 40),
                 valor_economico: 40,
                 valor_supervivencia: 10,
                 valor_sabotaje: 20,

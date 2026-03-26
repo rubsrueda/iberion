@@ -89,10 +89,37 @@ const IaConfigManager = {
                 ataque_ofensivo: 1000,
                 salud_critica_unidad: 35,
                 ratio_asedio_sin_artilleria: 2.5
+            },
+            nodos: {
+                ciudad_natal_propia:       { peso_base: 500, peso_economico: 100, peso_supervivencia: 500, peso_sabotaje: 0,  peso_control: 80  },
+                ultima_unidad_propia:      { peso_base: 400, peso_economico: 0,   peso_supervivencia: 400, peso_sabotaje: 0,  peso_control: 0   },
+                ciudad_propia_conectada:   { peso_base: 120, peso_economico: 80,  peso_supervivencia: 0,   peso_sabotaje: 0,  peso_control: 60  },
+                ciudad_propia_desconectada:{ peso_base: 80,  peso_economico: 20,  peso_supervivencia: 50,  peso_sabotaje: 0,  peso_control: 40  },
+                banca:                     { peso_base: 200, peso_economico: 200, peso_supervivencia: 0,   peso_sabotaje: 0,  peso_control: 50  },
+                ciudad_libre:              { peso_base: 60,  peso_economico: 60,  peso_supervivencia: 0,   peso_sabotaje: 0,  peso_control: 80  },
+                camino_propio_critico:     { peso_base: 90,  peso_economico: 90,  peso_supervivencia: 30,  peso_sabotaje: 0,  peso_control: 20  },
+                camino_enemigo_critico:    { peso_base: 0,   peso_economico: 0,   peso_supervivencia: 0,   peso_sabotaje: 80, peso_control: 0   },
+                caravana_propia:           { peso_base: 100, peso_economico: 100, peso_supervivencia: 20,  peso_sabotaje: 0,  peso_control: 0   },
+                caravana_enemiga:          { peso_base: 0,   peso_economico: 0,   peso_supervivencia: 0,   peso_sabotaje: 90, peso_control: 0   },
+                recurso_estrategico:       { peso_base: 60,  peso_economico: 100, peso_supervivencia: 0,   peso_sabotaje: 0,  peso_control: 40  },
+                ciudad_enemiga:            { peso_base: 30,  peso_economico: 30,  peso_supervivencia: 0,   peso_sabotaje: 0,  peso_control: 100 },
+                cuello_botella:            { peso_base: 40,  peso_economico: 40,  peso_supervivencia: 10,  peso_sabotaje: 20, peso_control: 50  },
+                sitio_aldea:               { peso_base: 60,  peso_economico: 70,  peso_supervivencia: 0,   peso_sabotaje: 0,  peso_control: 60  },
+                sitio_desembarco:          { peso_base: 50,  peso_economico: 50,  peso_supervivencia: 0,   peso_sabotaje: 0,  peso_control: 80  },
+                fortaleza_a_construir:     { peso_base: 50,  peso_economico: 50,  peso_supervivencia: 20,  peso_sabotaje: 0,  peso_control: 60  },
+                ciudad_barbara:            { peso_base: 70,  peso_economico: 70,  peso_supervivencia: 0,   peso_sabotaje: 0,  peso_control: 80  }
+            },
+            victoria_puntos: {
+                puntos_por_ciudad: 100,
+                puntos_por_unidad_destruida: 20,
+                puntos_por_tecnologia: 35,
+                multiplicador_recurso_comida: 0.5,
+                multiplicador_recurso_hierro: 0.8,
+                multiplicador_recurso_oro: 1.2
             }
         };
         this.isLoaded = true;
-        console.log("[IaConfig] ✓ Configuración por defecto loaded");
+        console.log("[IaConfig] ✓ Configuración por defecto loaded (con nodos completos)");
     },
 
     /**
