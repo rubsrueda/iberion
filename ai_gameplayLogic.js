@@ -248,9 +248,12 @@ const AiGameplayManager = {
 
         // SI NO HAY AMENAZA EN LA CAPITAL, CONTINÚA CON LA LÓGICA NORMAL:
 
-        // TAREA CONTINUA: Sistema orgánico de comercio (independiente de cualquier motor de decisión).
-        // Si el jugador posee todas las casillas entre dos ciudades, construye caminos y activa caravanas.
+        // TAREA CONTINUA: Flujos orgánicos autónomos (independientes del motor de decisión).
+        // Camino + Caravana se ejecutan sin ponderación y por pares válidos.
         AiGameplayManager._ensureTradeInfrastructureOrganic(playerNumber);
+
+        // TAREA CONTINUA: Evolución orgánica de asentamientos.
+        AiGameplayManager._ensureCityExpansionOrganic(playerNumber);
 
         await AiGameplayManager._handle_BOA_Construction(playerNumber);
 
@@ -1410,101 +1413,116 @@ const AiGameplayManager = {
     },
 
     /**
-     * Sistema orgánico de comercio.
-     * Se ejecuta cada turno sin depender del motor de decisiones.
-     * Para cada par ciudad_propia/banca cuyos hexes intermedios son todos propios:
-     *   1. Si faltan caminos → construir uno (si hay recursos).
-     *   2. Si el corredor ya tiene infraestructura completa y no hay caravana → crear columna + caravana.
+     * Sistema orgánico de comercio (autónomo y sin ponderación).
+     * Flujos:
+     *   1. Creación de caminos: por cada par ciudad propia -> nodo válido, construye camino en tramos propios pendientes.
+     *   2. Creación de caravanas: por cada par con ruta de infraestructura válida, crea/usa columna y solicita ruta.
      */
     _ensureTradeInfrastructureOrganic: function(playerNumber) {
-        const ownCities = (gameState.cities || []).filter(c => c.owner === playerNumber);
-        if (ownCities.length === 0) return;
+        const pairs = this._getOrganicTradePairs(playerNumber);
+        if (pairs.length === 0) return;
 
-        // Nodos de destino: todas las ciudades del mapa (propias, neutrales, de otros jugadores, Banca)
+        this._runOrganicRoadCreationFlow(playerNumber, pairs);
+        this._runOrganicCaravanCreationFlow(playerNumber, pairs);
+    },
+
+    _getOrganicTradePairs: function(playerNumber) {
+        const ownCities = (gameState.cities || []).filter(c => c.owner === playerNumber);
+        if (ownCities.length === 0) return [];
+
+        // Nodos de destino: ciudades del mapa + Banca (si existe fuera de cities).
         const bankCity = this._getBankCity ? this._getBankCity() : null;
         const allCities = (gameState.cities || []).slice();
-        // Añadir la Banca si no está ya en gameState.cities
         const bankAlreadyInCities = bankCity && allCities.some(c => c.r === bankCity.r && c.c === bankCity.c);
         const tradeNodes = bankCity && !bankAlreadyInCities ? [...allCities, bankCity] : [...allCities];
 
-        // Pares únicos: ciudad_propia como origen, cualquier otro nodo como destino
         const pairs = [];
+        const seen = new Set();
+
         ownCities.forEach(origin => {
             tradeNodes.forEach(dest => {
                 if (dest.r === origin.r && dest.c === origin.c) return;
 
-                // Reglas diplomáticas:
-                // - Ciudad libre (owner === null): siempre permitida.
-                // - Ciudad de cualquier jugador (incluida Banca, owner === 0 o > 0):
-                //   permitida salvo que exista bloqueo comercial activo.
-                const destOwner = dest.owner;
-                if (destOwner !== null && destOwner !== undefined) {
-                    const blocked = typeof isTradeBlockedBetweenPlayers === 'function'
-                        ? isTradeBlockedBetweenPlayers(playerNumber, destOwner)
-                        : false;
-                    if (blocked) return;
-                }
+                if (!this._isOrganicTradeDestinationAllowed(playerNumber, dest)) return;
 
-                // Evitar duplicados inversos
-                const key = [origin.r + ',' + origin.c, dest.r + ',' + dest.c].sort().join('|');
-                if (!pairs.find(p => p.key === key)) {
-                    pairs.push({ key, origin, dest });
-                }
+                const key = `${origin.r},${origin.c}|${dest.r},${dest.c}`;
+                if (seen.has(key)) return;
+                seen.add(key);
+
+                pairs.push({ key, origin, dest });
             });
         });
 
+        return pairs;
+    },
+
+    _isOrganicTradeDestinationAllowed: function(playerNumber, destinationCity) {
+        if (!destinationCity) return false;
+        const owner = destinationCity.owner;
+
+        // Libre / neutral / banca siempre permitido.
+        if (owner === null || owner === undefined || owner === 0) return true;
+        if (owner === playerNumber) return true;
+
+        // Ciudad de otro jugador: respetar bloqueo diplomático si existe.
+        if (typeof isTradeBlockedBetweenPlayers === 'function') {
+            return !isTradeBlockedBetweenPlayers(playerNumber, owner);
+        }
+        return true;
+    },
+
+    _findFirstMissingOwnedRoadSegment: function(playerNumber, path) {
+        const roadReady = new Set(['Camino', 'Fortaleza', 'Fortaleza con Muralla', 'Aldea', 'Ciudad', 'Metrópoli']);
+
+        for (let i = 1; i < path.length - 1; i++) {
+            const p = path[i];
+            const hex = board[p.r]?.[p.c];
+            if (!hex || hex.isCity) continue;
+            if (hex.owner !== playerNumber) continue;
+            if (!this._canBuildRoadOnHex(hex)) continue;
+            if (!roadReady.has(hex.structure)) {
+                return { r: p.r, c: p.c };
+            }
+        }
+        return null;
+    },
+
+    _runOrganicRoadCreationFlow: function(playerNumber, pairs) {
         const roadReady = new Set(['Camino', 'Fortaleza', 'Fortaleza con Muralla', 'Aldea', 'Ciudad', 'Metrópoli']);
         const playerRes = gameState.playerResources[playerNumber];
+        if (!playerRes) return;
 
         for (const { origin, dest } of pairs) {
-            // Ruta desde origin hasta dest pasando solo por BFS sin requisito de infraestructura
             const rawPath = this._buildCommercialCorridorPath(playerNumber, origin, dest);
             if (!rawPath || rawPath.length < 2) continue;
 
-            // Comprobar que TODOS los hexes intermedios son propios (o del banco)
-            const allOwned = rawPath.slice(1, -1).every(p => {
-                const hex = board[p.r]?.[p.c];
-                if (!hex) return false;
-                return hex.owner === playerNumber || hex.owner === (bankCity ? bankCity.owner : -1) || hex.isCity;
-            });
-            if (!allOwned) continue; // No están todos en propiedad del jugador: saltamos
+            const missingRoad = this._findFirstMissingOwnedRoadSegment(playerNumber, rawPath);
+            if (!missingRoad) continue;
 
-            // 1. Comprobar si falta algún camino en hex propio
-            const missingRoad = rawPath.slice(1, -1).find(p => {
-                const hex = board[p.r]?.[p.c];
-                if (!hex || hex.isCity || hex.owner !== playerNumber) return false;
-                const city = (gameState.cities || []).find(c => c.r === p.r && c.c === p.c);
-                if (city) return false; // Ciudad ya cuenta como infraestructura
-                return !roadReady.has(hex.structure);
-            });
+            const hex = board[missingRoad.r]?.[missingRoad.c];
+            if (!hex || hex.owner !== playerNumber || hex.isCity || roadReady.has(hex.structure)) continue;
+            if (getUnitOnHex(missingRoad.r, missingRoad.c)) continue;
 
-            if (missingRoad) {
-                // Construir un camino (máximo 1 por llamada para no gastar todos los recursos)
-                if (getUnitOnHex(missingRoad.r, missingRoad.c)) continue; // Ocupado, esperar
-                const cost = STRUCTURE_TYPES['Camino']?.cost || {};
-                const canAfford = Object.keys(cost).every(r => r === 'Colono' || (playerRes[r] || 0) >= (cost[r] || 0));
-                if (canAfford) {
-                    console.log(`[IA COMERCIO ORGÁNICO] J${playerNumber}: construyendo Camino en (${missingRoad.r},${missingRoad.c}) para ruta ${origin.name}→${dest.name}`);
-                    handleConfirmBuildStructure({ playerId: playerNumber, r: missingRoad.r, c: missingRoad.c, structureType: 'Camino' });
-                }
-                // Solo construye uno por par por turno; ya que los recursos son limitados
-                continue;
-            }
+            const cost = STRUCTURE_TYPES['Camino']?.cost || {};
+            const canAfford = Object.keys(cost).every(r => r === 'Colono' || (playerRes[r] || 0) >= (cost[r] || 0));
+            if (!canAfford) continue;
 
-            // 2. Corredor completo → comprobar si ya existe caravana para este par
-            const pairKey = this._getTradePairKey ? this._getTradePairKey(origin, dest) : null;
-            const alreadyHasRoute = pairKey && units.some(u => {
-                if (u.player !== playerNumber || !u.tradeRoute?.origin || !u.tradeRoute?.destination) return false;
-                const k = this._getTradePairKey(u.tradeRoute.origin, u.tradeRoute.destination);
-                return k === pairKey;
-            });
-            if (alreadyHasRoute) continue;
+            console.log(`[IA ORG CAMINO] J${playerNumber}: Camino en (${missingRoad.r},${missingRoad.c}) para ${origin.name || 'origen'}→${dest.name || 'destino'}`);
+            handleConfirmBuildStructure({ playerId: playerNumber, r: missingRoad.r, c: missingRoad.c, structureType: 'Camino' });
+        }
+    },
 
-            // 3. Intentar establecer ruta (produce columna si no hay y lanza _executeEstablishTradeRoute)
+    _runOrganicCaravanCreationFlow: function(playerNumber, pairs) {
+        const existingPairs = this._getExistingTradeRoutePairs(playerNumber);
+
+        for (const { origin, dest } of pairs) {
+            const pairKey = this._getTradePairKey(origin, dest);
+            if (!pairKey || existingPairs.has(pairKey)) continue;
+
+            if (typeof findInfrastructurePath !== 'function') continue;
             const infraPath = findInfrastructurePath(origin, dest, { allowForeignInfrastructure: true });
             if (!infraPath || infraPath.length === 0) continue;
 
-            // Buscar columna de suministro existente en la ciudad origen
             let supplyUnit = units.find(u =>
                 u.player === playerNumber &&
                 !u.tradeRoute &&
@@ -1512,30 +1530,19 @@ const AiGameplayManager = {
                 u.regiments?.some(reg => (REGIMENT_TYPES[reg.type]?.abilities || []).includes('provide_supply'))
             );
 
-            // Si el origen está ocupado por una unidad propia no comercial, intentar despejarlo.
             if (!supplyUnit) {
                 const blocker = getUnitOnHex(origin.r, origin.c);
                 if (blocker && blocker.player === playerNumber && !blocker.tradeRoute && blocker.currentHealth > 0) {
-                    const moved = (typeof this._tryRelocateUnitFromCityCenter === 'function')
-                        ? this._tryRelocateUnitFromCityCenter(blocker, origin)
-                        : false;
-                    if (moved) {
-                        console.log(`[IA COMERCIO ORGÁNICO] J${playerNumber}: origen ${origin.name} despejado para crear columna.`);
+                    if (typeof this._tryRelocateUnitFromCityCenter === 'function') {
+                        this._tryRelocateUnitFromCityCenter(blocker, origin);
                     }
                 }
             }
 
-            // Si no hay, producirla en la ciudad origen.
             if (!supplyUnit) {
                 supplyUnit = this.produceUnit(playerNumber, ['Columna de Suministro'], 'trader', 'Columna de Suministro', origin);
             }
 
-            // Fallback 1: producir en cualquier centro propio libre.
-            if (!supplyUnit) {
-                supplyUnit = this.produceUnit(playerNumber, ['Columna de Suministro'], 'trader', 'Columna de Suministro');
-            }
-
-            // Fallback 2: reutilizar cualquier columna propia sin ruta activa.
             if (!supplyUnit) {
                 supplyUnit = units.find(u =>
                     u.player === playerNumber &&
@@ -1545,12 +1552,8 @@ const AiGameplayManager = {
                 ) || null;
             }
 
-            if (!supplyUnit) {
-                console.log(`[IA COMERCIO ORGÁNICO] J${playerNumber}: no se pudo obtener Columna de Suministro para ${origin.name}→${dest.name} (recursos o centros ocupados).`);
-                continue;
-            }
+            if (!supplyUnit) continue;
 
-            // Convertir en caravana (vía request de IA cuando esté disponible).
             let routed = false;
             if (typeof this._requestEstablishTradeRoute === 'function') {
                 routed = this._requestEstablishTradeRoute(supplyUnit, origin, dest, infraPath);
@@ -1559,9 +1562,76 @@ const AiGameplayManager = {
             }
 
             if (routed) {
-                console.log(`[IA COMERCIO ORGÁNICO] J${playerNumber}: caravana activada ${origin.name}→${dest.name}`);
+                existingPairs.add(pairKey);
+                console.log(`[IA ORG CARAVANA] J${playerNumber}: caravana ${origin.name || `${origin.r},${origin.c}`}→${dest.name || `${dest.r},${dest.c}`}`);
             }
         }
+    },
+
+    _ensureCityExpansionOrganic: function(playerNumber) {
+        const playerRes = gameState.playerResources[playerNumber];
+        if (!playerRes) return;
+
+        const hasFort = board.flat().some(h => h && h.owner === playerNumber && h.structure === 'Fortaleza');
+        if (!hasFort) return;
+
+        const hasResourceExcess =
+            (playerRes.oro || 0) >= 6000 &&
+            (playerRes.piedra || 0) >= 2000 &&
+            (playerRes.madera || 0) >= 800 &&
+            (playerRes.hierro || 0) >= 400 &&
+            (playerRes.puntosReclutamiento || 0) >= 200;
+
+        if (!hasResourceExcess) return;
+
+        const fortifiedToUpgrade = board.flat().find(h =>
+            h && h.owner === playerNumber && h.structure === 'Fortaleza' && !h.isCity && !getUnitOnHex(h.r, h.c)
+        );
+
+        if (fortifiedToUpgrade) {
+            const costMuralla = STRUCTURE_TYPES['Fortaleza con Muralla']?.cost || {};
+            const canUpgradeMuralla = Object.keys(costMuralla).every(r => r === 'Colono' || (playerRes[r] || 0) >= (costMuralla[r] || 0));
+            if (canUpgradeMuralla) {
+                console.log(`[IA ORG CIUDAD] J${playerNumber}: mejorando Fortaleza con Muralla en (${fortifiedToUpgrade.r},${fortifiedToUpgrade.c})`);
+                handleConfirmBuildStructure({
+                    playerId: playerNumber,
+                    r: fortifiedToUpgrade.r,
+                    c: fortifiedToUpgrade.c,
+                    structureType: 'Fortaleza con Muralla'
+                });
+            }
+        }
+
+        const candidateAldeaHex = board.flat().find(h =>
+            h && h.owner === playerNumber && h.structure === 'Fortaleza con Muralla' && !h.isCity
+        );
+        if (!candidateAldeaHex) return;
+
+        let settlerUnit = getUnitOnHex(candidateAldeaHex.r, candidateAldeaHex.c);
+        const hasSettlerOnHex = !!(settlerUnit && settlerUnit.player === playerNumber && settlerUnit.regiments?.some(reg => reg.type === 'Colono'));
+
+        if (!hasSettlerOnHex) {
+            settlerUnit = this.produceUnit(playerNumber, ['Colono'], 'settler', 'Colono Fundador', candidateAldeaHex);
+        }
+
+        const nowSettler = getUnitOnHex(candidateAldeaHex.r, candidateAldeaHex.c);
+        const canSettle = !!(nowSettler && nowSettler.player === playerNumber && nowSettler.regiments?.some(reg => reg.type === 'Colono'));
+        if (!canSettle) return;
+
+        const costAldea = STRUCTURE_TYPES['Aldea']?.cost || {};
+        const canAffordAldea = Object.keys(costAldea).every(r => {
+            if (r === 'Colono') return true;
+            return (playerRes[r] || 0) >= (costAldea[r] || 0);
+        });
+        if (!canAffordAldea) return;
+
+        console.log(`[IA ORG CIUDAD] J${playerNumber}: creando Aldea en (${candidateAldeaHex.r},${candidateAldeaHex.c})`);
+        handleConfirmBuildStructure({
+            playerId: playerNumber,
+            r: candidateAldeaHex.r,
+            c: candidateAldeaHex.c,
+            structureType: 'Aldea'
+        });
     },
     
     // PUNTO 2: Método helper para intentar construcción con trazabilidad enriquecida
@@ -2732,6 +2802,7 @@ const AiGameplayManager = {
             experience: 0,
             morale: 50,
             maxMorale: 125,
+            isSettler: definition.regiments.some(r => REGIMENT_TYPES[r.type]?.isSettler === true),
         };
         
         // PASO 2: Se calculan los stats MÁXIMOS (attack, defense, maxHealth...)

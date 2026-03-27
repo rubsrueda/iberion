@@ -1969,6 +1969,13 @@ function generateBarbarianCities(rows, cols, density) {
 
                 // Usamos la función existente, pasando el ID 9
                 addCityToBoardData(r, c, BARBARIAN_PLAYER_ID, cityName, false);
+
+                // Marcador persistente: permite que la micro-IA identifique y recupere ciudades bárbaras perdidas.
+                const trackedCity = gameState.cities.find(ci => ci.r === r && ci.c === c);
+                if (trackedCity) {
+                    trackedCity.isBarbarianCity = true;
+                    trackedCity.isBarbaric = true;
+                }
                 
                 // Forzamos la estructura y estadísticas
                 hex.structure = structureType;
