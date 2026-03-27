@@ -1,6 +1,88 @@
 Mejoras: 
 
+## ✅ FLUJOS ORGÁNICOS AUTÓNOMOS DE IA (IMPLEMENTADO)
 
+### Descripción
+Tres flujos independientes que la IA ejecuta sin ponderación ni límite turno:
+- **Solo limitados por RECURSOS** (piedra, madera, oro, hierro, puntosReclutamiento)
+- **Sin prioridades complejas** que bloqueen entre sí
+- **Se ejecutan siempre en manageEmpire()**, después de defensa capital
+
+### Flujo 1: Creación Autónoma de Caminos
+**Dónde**: `_runOrganicRoadCreationFlow()` en ai_gameplayLogic.js
+**Cómo funciona**:
+1. Obtén todos los pares ciudad_propia → nodo_válido (otra ciudad, libre, banco, etc.)
+2. Para cada par, calcula ruta BFS
+3. Identifica el PRIMER segmento en terreno propio que está SIN CAMINO
+4. Si hay recursos (piedra + madera), construye camino inmediatamente
+5. Repite cada turno → acumula infraestructura según $ disponible
+
+**Resultado esperado**: La IA va armando red de caminos lentamente pero seguro.
+
+---
+
+### Flujo 2: Creación Autónoma de Caravanas
+**Dónde**: `_runOrganicCaravanCreationFlow()` en ai_gameplayLogic.js
+**Cómo funciona**:
+1. Itera pares ciudad_propia → nodo_válido nuevamente
+2. Omite pares que YA tengan ruta comercial activa
+3. Busca infraestructura path (findInfrastructurePath) entre par
+4. Si no hay Columna de Suministro en origen → produce una (si hay recursos)
+5. Ejecuta `_requestEstablishTradeRoute()` / `_executeEstablishTradeRoute()`
+6. Caravana inicia movimiento y genera ingresos pasivos
+
+**Resultado esperado**: Las caravanas se multiplican según oferta de rutas + ingresos.
+
+---
+
+### Flujo 3: Evolución Orgánica de Ciudades (NUEVO)
+**Dónde**: `_ensureCityExpansionOrganic()` en ai_gameplayLogic.js
+**Cómo funciona**:
+1. Valida: ¿IA tiene Fortaleza? ¿Exceso de recursos?
+   - Oro >= 6000, Piedra >= 2000, Madera >= 800, Hierro >= 400, PuntosReclutamiento >= 200
+2. Si sí → busca primera Fortaleza que no sea ciudad
+3. Mejora: Fortaleza → Fortaleza con Muralla (si hay recursos y sin unidad encima)
+4. Produce Colono en ese nodo (marca con `isSettler` flag)
+5. Usa Colono para construir Aldea
+
+**Encadenamiento**: Fortaleza → Muralla → Colono → Aldea (sin pasos intermedios bloqueantes)
+**Resultado esperado**: Gradualmente las Fortalezas fronterizas se convierten en ciudades defensivas.
+
+---
+
+### Integración en manageEmpire()
+```javascript
+// Línea ~235 en ai_gameplayLogic.js
+manageEmpire: async function(playerNumber) {
+    // ... Defensa capital, etc. ...
+
+    // TAREA CONTINUA: Flujos orgánicos autónomos
+    AiGameplayManager._ensureTradeInfrastructureOrganic(playerNumber);
+    AiGameplayManager._ensureCityExpansionOrganic(playerNumber);
+    // ... resto de lógica BOA, producción, etc. ...
+}
+```
+
+---
+
+### Flujos auxiliares clave
+- `_getOrganicTradePairs()`: Calcula todos los pares válidos origen → destino
+- `_findFirstMissingOwnedRoadSegment()`: Identifica dónde construir camino siguiente
+- `_isOrganicTradeDestinationAllowed()`: Respeta bloqueos diplomáticos
+- `createUnitObject()`: Ahora marca `isSettler` para unidades tipo Colono
+
+---
+
+### Prueba rápida
+1. Inicia juego con IA nivel "normal"
+2. Dame 10-15 turnos para que acumule recursos
+3. Observa:
+   - ¿Ves más caminos conectando ciudades?
+   - ¿Las caravanas salen y generan ingresos?
+   - ¿Las Fortalezas evolucionan lentamente a Aldeas?
+4. Si alguno no funciona → revisar logs `[IA ORG CAMINO]`, `[IA ORG CARAVANA]`, `[IA ORG CIUDAD]`
+
+---
 
 El jugador debe poder responderte: "¿Es la partida diferente a la anterior?".
 Si la respuesta es "Sí, porque hubo una tormenta que me cortó los suministros y tuve una revuelta en el sur", entonces tienes un juego con personalidad propia.

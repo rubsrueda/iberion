@@ -1419,11 +1419,11 @@ const AiGameplayManager = {
      *   2. Creación de caravanas: por cada par con ruta de infraestructura válida, crea/usa columna y solicita ruta.
      */
     _ensureTradeInfrastructureOrganic: function(playerNumber) {
-        const pairs = this._getOrganicTradePairs(playerNumber);
+        const pairs = AiGameplayManager._getOrganicTradePairs(playerNumber);
         if (pairs.length === 0) return;
 
-        this._runOrganicRoadCreationFlow(playerNumber, pairs);
-        this._runOrganicCaravanCreationFlow(playerNumber, pairs);
+        AiGameplayManager._runOrganicRoadCreationFlow(playerNumber, pairs);
+        AiGameplayManager._runOrganicCaravanCreationFlow(playerNumber, pairs);
     },
 
     _getOrganicTradePairs: function(playerNumber) {
@@ -1431,7 +1431,7 @@ const AiGameplayManager = {
         if (ownCities.length === 0) return [];
 
         // Nodos de destino: ciudades del mapa + Banca (si existe fuera de cities).
-        const bankCity = this._getBankCity ? this._getBankCity() : null;
+        const bankCity = AiGameplayManager._getBankCity ? AiGameplayManager._getBankCity() : null;
         const allCities = (gameState.cities || []).slice();
         const bankAlreadyInCities = bankCity && allCities.some(c => c.r === bankCity.r && c.c === bankCity.c);
         const tradeNodes = bankCity && !bankAlreadyInCities ? [...allCities, bankCity] : [...allCities];
@@ -1443,7 +1443,7 @@ const AiGameplayManager = {
             tradeNodes.forEach(dest => {
                 if (dest.r === origin.r && dest.c === origin.c) return;
 
-                if (!this._isOrganicTradeDestinationAllowed(playerNumber, dest)) return;
+                if (!AiGameplayManager._isOrganicTradeDestinationAllowed(playerNumber, dest)) return;
 
                 const key = `${origin.r},${origin.c}|${dest.r},${dest.c}`;
                 if (seen.has(key)) return;
@@ -1479,7 +1479,7 @@ const AiGameplayManager = {
             const hex = board[p.r]?.[p.c];
             if (!hex || hex.isCity) continue;
             if (hex.owner !== playerNumber) continue;
-            if (!this._canBuildRoadOnHex(hex)) continue;
+            if (!AiGameplayManager._canBuildRoadOnHex(hex)) continue;
             if (!roadReady.has(hex.structure)) {
                 return { r: p.r, c: p.c };
             }
@@ -1493,10 +1493,10 @@ const AiGameplayManager = {
         if (!playerRes) return;
 
         for (const { origin, dest } of pairs) {
-            const rawPath = this._buildCommercialCorridorPath(playerNumber, origin, dest);
+            const rawPath = AiGameplayManager._buildCommercialCorridorPath(playerNumber, origin, dest);
             if (!rawPath || rawPath.length < 2) continue;
 
-            const missingRoad = this._findFirstMissingOwnedRoadSegment(playerNumber, rawPath);
+            const missingRoad = AiGameplayManager._findFirstMissingOwnedRoadSegment(playerNumber, rawPath);
             if (!missingRoad) continue;
 
             const hex = board[missingRoad.r]?.[missingRoad.c];
@@ -1513,10 +1513,10 @@ const AiGameplayManager = {
     },
 
     _runOrganicCaravanCreationFlow: function(playerNumber, pairs) {
-        const existingPairs = this._getExistingTradeRoutePairs(playerNumber);
+        const existingPairs = AiGameplayManager._getExistingTradeRoutePairs(playerNumber);
 
         for (const { origin, dest } of pairs) {
-            const pairKey = this._getTradePairKey(origin, dest);
+            const pairKey = AiGameplayManager._getTradePairKey(origin, dest);
             if (!pairKey || existingPairs.has(pairKey)) continue;
 
             if (typeof findInfrastructurePath !== 'function') continue;
@@ -1533,14 +1533,14 @@ const AiGameplayManager = {
             if (!supplyUnit) {
                 const blocker = getUnitOnHex(origin.r, origin.c);
                 if (blocker && blocker.player === playerNumber && !blocker.tradeRoute && blocker.currentHealth > 0) {
-                    if (typeof this._tryRelocateUnitFromCityCenter === 'function') {
-                        this._tryRelocateUnitFromCityCenter(blocker, origin);
+                    if (typeof AiGameplayManager._tryRelocateUnitFromCityCenter === 'function') {
+                        AiGameplayManager._tryRelocateUnitFromCityCenter(blocker, origin);
                     }
                 }
             }
 
             if (!supplyUnit) {
-                supplyUnit = this.produceUnit(playerNumber, ['Columna de Suministro'], 'trader', 'Columna de Suministro', origin);
+                supplyUnit = AiGameplayManager.produceUnit(playerNumber, ['Columna de Suministro'], 'trader', 'Columna de Suministro', origin);
             }
 
             if (!supplyUnit) {
@@ -1555,8 +1555,8 @@ const AiGameplayManager = {
             if (!supplyUnit) continue;
 
             let routed = false;
-            if (typeof this._requestEstablishTradeRoute === 'function') {
-                routed = this._requestEstablishTradeRoute(supplyUnit, origin, dest, infraPath);
+            if (typeof AiGameplayManager._requestEstablishTradeRoute === 'function') {
+                routed = AiGameplayManager._requestEstablishTradeRoute(supplyUnit, origin, dest, infraPath);
             } else if (typeof _executeEstablishTradeRoute === 'function') {
                 routed = !!_executeEstablishTradeRoute({ unitId: supplyUnit.id, origin, destination: dest, path: infraPath });
             }
@@ -1611,7 +1611,7 @@ const AiGameplayManager = {
         const hasSettlerOnHex = !!(settlerUnit && settlerUnit.player === playerNumber && settlerUnit.regiments?.some(reg => reg.type === 'Colono'));
 
         if (!hasSettlerOnHex) {
-            settlerUnit = this.produceUnit(playerNumber, ['Colono'], 'settler', 'Colono Fundador', candidateAldeaHex);
+            settlerUnit = AiGameplayManager.produceUnit(playerNumber, ['Colono'], 'settler', 'Colono Fundador', candidateAldeaHex);
         }
 
         const nowSettler = getUnitOnHex(candidateAldeaHex.r, candidateAldeaHex.c);

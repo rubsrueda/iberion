@@ -134,6 +134,27 @@ const IAArchipielago = {
     console.log(`[IA_ARCHIPIELAGO] Plan de acción completado.`);
     console.log(`========================================\n`);
 
+    // <<==== FLUJOS ORGÁNICOS AUTÓNOMOS ====>>
+    if (typeof AiGameplayManager !== 'undefined') {
+      console.log(`[IA_ARCHIPIELAGO] Iniciando flujos orgánicos autónomos...`);
+      if (typeof AiGameplayManager._ensureTradeInfrastructureOrganic === 'function') {
+        console.log(`[IA_ARCHIPIELAGO] Ejecutando: Infraestructura Comercial Orgánica (caminos + caravanas)`);
+        try {
+          AiGameplayManager._ensureTradeInfrastructureOrganic(myPlayer);
+        } catch (e) {
+          console.error(`[IA_ARCHIPIELAGO] Error en _ensureTradeInfrastructureOrganic:`, e);
+        }
+      }
+      if (typeof AiGameplayManager._ensureCityExpansionOrganic === 'function') {
+        console.log(`[IA_ARCHIPIELAGO] Ejecutando: Evolución de Ciudades Orgánica`);
+        try {
+          AiGameplayManager._ensureCityExpansionOrganic(myPlayer);
+        } catch (e) {
+          console.error(`[IA_ARCHIPIELAGO] Error en _ensureCityExpansionOrganic:`, e);
+        }
+      }
+    }
+
     if (typeof handleEndTurn === 'function') {
       console.log(`[IA_ARCHIPIELAGO] Llamando a handleEndTurn()`);
       setTimeout(() => handleEndTurn(), 1500);
