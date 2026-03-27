@@ -401,6 +401,13 @@ const AiGameplayManager = {
 
         const networkPlan = this._getCommercialNetworkPlan(playerNumber);
         if (!networkPlan.connections.length) {
+            console.warn(`[IA CORREDOR] sin_ruta jugador=${playerNumber} turn=${gameState.turnNumber} nodes=${networkPlan.nodes.length} (bank=${networkPlan.nodes.some(n => n?.isBank)})`);
+            AiGameplayManager._trace('corridor_no_route', {
+                playerNumber,
+                turnNumber: gameState.turnNumber,
+                nodeCount: networkPlan.nodes.length,
+                hasBankNode: networkPlan.nodes.some(n => n?.isBank)
+            });
             this._assignFallbackEconomicMission(playerNumber, nodeOrigen, 'SIN_RED_COMERCIAL');
             gameState.ai_corridor_controller[playerNumber] = { phase: 'sin_ruta', turnNumber: gameState.turnNumber };
             return null;
@@ -575,7 +582,10 @@ const AiGameplayManager = {
                 const key = `${next.r},${next.c}`;
                 if (visited.has(key)) continue;
                 const hex = board[next.r]?.[next.c];
-                if (!hex || !this._canBuildRoadOnHex(hex)) continue;
+                if (!hex) continue;
+                const isGoal = key === goalKey;
+                // Permitir llegar al objetivo aunque su hex no sea "construible" para camino.
+                if (!isGoal && !this._canBuildRoadOnHex(hex)) continue;
                 visited.add(key);
                 prev.set(key, curKey);
                 queue.push({ r: next.r, c: next.c });
@@ -772,7 +782,22 @@ const AiGameplayManager = {
     },
 
     _getBankCity: function() {
-        return (gameState.cities || []).find(c => c && c.owner === 0 && c.isBank) || null;
+        const bankFromCities = (gameState.cities || []).find(c => c && c.owner === 0 && c.isBank);
+        if (bankFromCities) return bankFromCities;
+
+        // Fallback robusto: en algunos escenarios la Banca existe en board pero no en gameState.cities.
+        const bankHex = board?.flat?.().find(h => h && h.owner === 0 && h.isBank);
+        if (!bankHex) return null;
+
+        return {
+            id: `bank-${bankHex.r}-${bankHex.c}`,
+            name: 'La Banca',
+            owner: 0,
+            isBank: true,
+            isCapital: false,
+            r: bankHex.r,
+            c: bankHex.c
+        };
     },
 
     _getCommercialNetworkNodes: function(playerNumber) {
