@@ -284,40 +284,66 @@ const AiGameplayManager = {
                 const nodoCorredor = decision?.prioritarios?.find(n => n.tipo === 'corredor_comercial');
                 if (nodoCorredor?.origen && nodoCorredor?.destino) {
                     const path = this._buildCommercialCorridorPath(playerNumber, nodoCorredor.origen, nodoCorredor.destino);
-                    const corridorStatus = this._updateCommercialCorridorState(playerNumber, nodoCorredor, path);
+                    let corridorStatus = this._updateCommercialCorridorState(playerNumber, nodoCorredor, path);
                     const corridorDebug = this._describeCommercialCorridor(playerNumber, path);
-                    console.log(`[IA CORREDOR TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} peso=${Math.round(nodoCorredor.peso || 0)} path=${path?.length || 0} oper=${corridorStatus.operational} faltantes=${corridorDebug.missingCount} bloqueados=${corridorDebug.blockedCount} candidatos=${corridorDebug.candidateCount} detalle=${corridorDebug.summary}`);
-                    if (corridorStatus.operational) {
-                        this._activateCommercialEconomy(playerNumber, corridorStatus);
-                    }
+                    console.log(`[IA CORREDOR TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} peso=${Math.round(nodoCorredor.peso || 0)} path=${path?.length || 0} oper=${corridorStatus.operational} faltantes=${corridorDebug.missingCount} sin_camino=${corridorDebug.roadMissingCount || 0} bloqueados=${corridorDebug.blockedCount} candidatos=${corridorDebug.candidateCount} detalle=${corridorDebug.summary}`);
+
                     if (!path || path.length === 0) {
                         this._assignFallbackEconomicMission(playerNumber, nodoCorredor.origen, 'SIN_RUTA_CORREDOR');
                     }
-                    const faltantes = path
-                        .map((p, idx) => ({ ...p, idx }))
-                        .filter(p => {
-                            const hex = board[p.r]?.[p.c];
-                            return hex && hex.owner !== playerNumber && this._canBuildRoadOnHex(hex);
+
+                    // Fase infraestructura: si el corredor ya es propio, construir Camino automáticamente (sin secuestrar unidades).
+                    const roadwork = await this._ensureOwnedCorridorRoadwork(playerNumber, path);
+                    if (roadwork?.built) {
+                        corridorStatus = this._updateCommercialCorridorState(playerNumber, nodoCorredor, path);
+                        AiGameplayManager._trace('corridor_roadwork_built', {
+                            playerNumber,
+                            at: roadwork.at,
+                            status: {
+                                operational: corridorStatus.operational,
+                                unownedCount: corridorStatus.unownedCount,
+                                roadMissingCount: corridorStatus.roadMissingCount
+                            }
                         });
-                    if (faltantes.length > 0) {
-                        faltantes.sort((a, b) => a.idx - b.idx);
-                        const objetivo = faltantes[0];
-                        const nearestUnit = units.filter(u => u.player === playerNumber && u.currentHealth > 0)
-                            .sort((a, b) => {
-                                const da = hexDistance(a.r, a.c, objetivo.r, objetivo.c) + (a.currentMovement || a.movement || 1) * -0.05;
-                                const db = hexDistance(b.r, b.c, objetivo.r, objetivo.c) + (b.currentMovement || b.movement || 1) * -0.05;
-                                return da - db;
-                            })[0];
-                        if (nearestUnit) {
-                            AiGameplayManager.missionAssignments.set(nearestUnit.id, {
-                                type: 'OCCUPY_THEN_BUILD',
-                                objective: { r: objetivo.r, c: objetivo.c },
-                                structureType: 'Camino',
-                                nodoRazon: 'CORREDOR_COMERCIAL'
+                    }
+
+                    if (corridorStatus.operational) {
+                        this._activateCommercialEconomy(playerNumber, corridorStatus);
+                    } else if ((corridorStatus.unownedCount || 0) > 0) {
+                        // Solo si faltan casillas por conquistar, asignar misión de ocupación.
+                        const faltantes = path
+                            .map((p, idx) => ({ ...p, idx }))
+                            .filter(p => {
+                                const hex = board[p.r]?.[p.c];
+                                return hex && hex.owner !== playerNumber && this._canBuildRoadOnHex(hex);
                             });
+
+                        if (faltantes.length > 0) {
+                            faltantes.sort((a, b) => a.idx - b.idx);
+                            const objetivo = faltantes[0];
+                            const nearestUnit = units.filter(u => u.player === playerNumber && u.currentHealth > 0)
+                                .sort((a, b) => {
+                                    const da = hexDistance(a.r, a.c, objetivo.r, objetivo.c) + (a.currentMovement || a.movement || 1) * -0.05;
+                                    const db = hexDistance(b.r, b.c, objetivo.r, objetivo.c) + (b.currentMovement || b.movement || 1) * -0.05;
+                                    return da - db;
+                                })[0];
+                            if (nearestUnit) {
+                                AiGameplayManager.missionAssignments.set(nearestUnit.id, {
+                                    type: 'OCCUPY_THEN_BUILD',
+                                    objective: { r: objetivo.r, c: objetivo.c },
+                                    structureType: 'Camino',
+                                    nodoRazon: 'CORREDOR_COMERCIAL'
+                                });
+                            }
                         }
                     } else {
-                        this._assignFallbackEconomicMission(playerNumber, nodoCorredor.origen, 'CORREDOR_SIN_HEX_VALIDOS');
+                        // Corredor ya conquistado: no forzar más misiones de ocupación.
+                        AiGameplayManager._trace('corridor_infrastructure_phase', {
+                            playerNumber,
+                            operational: corridorStatus.operational,
+                            unownedCount: corridorStatus.unownedCount,
+                            roadMissingCount: corridorStatus.roadMissingCount
+                        });
                     }
                 }
             } catch (e) {
@@ -533,9 +559,49 @@ const AiGameplayManager = {
         return true;
     },
 
+    _getCommercialCorridorProgress: function(path, playerNumber) {
+        if (!Array.isArray(path) || path.length < 2) {
+            return { unownedCount: 0, roadMissingCount: 0, blockedCount: 0 };
+        }
+
+        const roadReadyStructures = new Set(['Camino', 'Fortaleza', 'Fortaleza con Muralla', 'Aldea', 'Ciudad', 'Metrópoli']);
+        let unownedCount = 0;
+        let roadMissingCount = 0;
+        let blockedCount = 0;
+
+        path.forEach((p, idx) => {
+            const isEndpoint = idx === 0 || idx === path.length - 1;
+            if (isEndpoint) return;
+
+            const hex = board[p.r]?.[p.c];
+            if (!hex) {
+                blockedCount++;
+                return;
+            }
+            if (!this._canBuildRoadOnHex(hex)) {
+                blockedCount++;
+                return;
+            }
+            if (hex.owner !== playerNumber) {
+                unownedCount++;
+                return;
+            }
+
+            const city = this._getCityAtHex(p.r, p.c);
+            const hasRoadReadyStructure = roadReadyStructures.has(hex.structure);
+            const isOwnCity = !!(city && city.owner === playerNumber);
+            if (!hasRoadReadyStructure && !isOwnCity) {
+                roadMissingCount++;
+            }
+        });
+
+        return { unownedCount, roadMissingCount, blockedCount };
+    },
+
     _updateCommercialCorridorState: function(playerNumber, nodoCorredor, path) {
         if (!gameState.ai_corridor_status) gameState.ai_corridor_status = {};
         const operational = this._isCommercialCorridorOperational(playerNumber, path);
+        const progress = this._getCommercialCorridorProgress(path, playerNumber);
         const status = {
             operational,
             turnNumber: gameState.turnNumber,
@@ -543,7 +609,10 @@ const AiGameplayManager = {
             destino: nodoCorredor?.destino || null,
             targetR: nodoCorredor?.r,
             targetC: nodoCorredor?.c,
-            pathLength: path?.length || 0
+            pathLength: path?.length || 0,
+            unownedCount: progress.unownedCount,
+            roadMissingCount: progress.roadMissingCount,
+            blockedCount: progress.blockedCount
         };
         gameState.ai_corridor_status[playerNumber] = status;
         return status;
@@ -578,6 +647,12 @@ const AiGameplayManager = {
             return true;
         }
 
+        // Reintento inmediato: la primera llamada puede producir la columna y la segunda activar la ruta.
+        if (this._tryEstablishTradeRouteForCorridor(playerNumber, corridorStatus)) {
+            console.log('[IA CORREDOR] Corredor operativo: ruta comercial activada en reintento.');
+            return true;
+        }
+
         const ownCaravan = units.find(u => u.player === playerNumber && (u.tradeRoute || u.regiments?.some(r => r.type === 'Caravana')));
         if (!ownCaravan) return false;
 
@@ -593,6 +668,46 @@ const AiGameplayManager = {
             nodoRazon: 'ESCOLTAR_CARAVANA_CORREDOR'
         });
         return true;
+    },
+
+    _ensureOwnedCorridorRoadwork: async function(playerNumber, path) {
+        if (!Array.isArray(path) || path.length < 2) return { built: false, reason: 'sin_ruta' };
+
+        const roadReadyStructures = new Set(['Camino', 'Fortaleza', 'Fortaleza con Muralla', 'Aldea', 'Ciudad', 'Metrópoli']);
+
+        for (let idx = 1; idx < path.length - 1; idx++) {
+            const p = path[idx];
+            const hex = board[p.r]?.[p.c];
+            if (!hex) continue;
+            if (!this._canBuildRoadOnHex(hex)) continue;
+            if (hex.owner !== playerNumber) continue;
+
+            const city = this._getCityAtHex(p.r, p.c);
+            const isOwnCity = !!(city && city.owner === playerNumber);
+            if (isOwnCity || roadReadyStructures.has(hex.structure)) continue;
+
+            // Si hay unidad ocupando la casilla de construcción, intentar despejarla.
+            const occupant = getUnitOnHex(p.r, p.c);
+            if (occupant && occupant.player === playerNumber) {
+                const vacate = getHexNeighbors(p.r, p.c)
+                    .map(n => board[n.r]?.[n.c])
+                    .filter(h => h && !h.unit && h.owner === playerNumber && !TERRAIN_TYPES[h.terrain]?.isImpassableForLand)
+                    .sort((a, b) => hexDistance(a.r, a.c, p.r, p.c) - hexDistance(b.r, b.c, p.r, p.c))[0];
+
+                if (vacate && (occupant.currentMovement || occupant.movement || 0) > 0) {
+                    await _executeMoveUnit(occupant, vacate.r, vacate.c);
+                }
+            }
+
+            if (getUnitOnHex(p.r, p.c)) {
+                return { built: false, reason: 'casilla_ocupada', at: { r: p.r, c: p.c } };
+            }
+
+            const built = this.attemptConstructionAtHex(playerNumber, p.r, p.c, 'Camino', 'CORREDOR_COMERCIAL');
+            return { built: !!built, reason: built ? 'camino_construido' : 'fallo_build', at: { r: p.r, c: p.c } };
+        }
+
+        return { built: false, reason: 'sin_tramo_propio_sin_camino' };
     },
 
     _tryEstablishTradeRouteForCorridor: function(playerNumber, corridorStatus) {
@@ -789,14 +904,19 @@ const AiGameplayManager = {
 
     _describeCommercialCorridor: function(playerNumber, path) {
         if (!Array.isArray(path) || path.length === 0) {
-            return { missingCount: 0, blockedCount: 0, candidateCount: 0, summary: 'sin_ruta' };
+            return { missingCount: 0, blockedCount: 0, candidateCount: 0, roadMissingCount: 0, summary: 'sin_ruta' };
         }
 
         const missing = [];
         const blocked = [];
+        const roadMissing = [];
         const candidates = [];
+        const roadReadyStructures = new Set(['Camino', 'Fortaleza', 'Fortaleza con Muralla', 'Aldea', 'Ciudad', 'Metrópoli']);
 
         path.forEach((p, idx) => {
+            const isEndpoint = idx === 0 || idx === path.length - 1;
+            if (isEndpoint) return;
+
             const hex = board[p.r]?.[p.c];
             if (!hex) {
                 blocked.push(`${idx}:void(${p.r},${p.c})`);
@@ -809,11 +929,20 @@ const AiGameplayManager = {
             if (hex.owner !== playerNumber) {
                 missing.push(`${idx}:owner${hex.owner}(${p.r},${p.c})`);
                 candidates.push({ r: p.r, c: p.c });
+                return;
+            }
+
+            const city = this._getCityAtHex(p.r, p.c);
+            const hasRoadReadyStructure = roadReadyStructures.has(hex.structure);
+            const isOwnCity = !!(city && city.owner === playerNumber);
+            if (!hasRoadReadyStructure && !isOwnCity) {
+                roadMissing.push(`${idx}:no_road(${p.r},${p.c})`);
             }
         });
 
         const summaryParts = [];
         if (missing.length > 0) summaryParts.push(`faltan=${missing.slice(0, 4).join('|')}`);
+        if (roadMissing.length > 0) summaryParts.push(`sin_camino=${roadMissing.slice(0, 4).join('|')}`);
         if (blocked.length > 0) summaryParts.push(`bloq=${blocked.slice(0, 4).join('|')}`);
         if (summaryParts.length === 0) summaryParts.push('ruta_lista');
 
@@ -821,6 +950,7 @@ const AiGameplayManager = {
             missingCount: missing.length,
             blockedCount: blocked.length,
             candidateCount: candidates.length,
+            roadMissingCount: roadMissing.length,
             summary: summaryParts.join(' ; ')
         };
     },
@@ -1077,13 +1207,25 @@ const AiGameplayManager = {
 
     assignUnitsToAxes: function(playerNumber, unitsToAssign) {
         const corridorStatus = gameState.ai_corridor_status?.[playerNumber];
-        const forceBankCorridor = gameState.turnNumber <= 6 && !corridorStatus?.operational;
         const bankCorridorAxis = AiGameplayManager.strategicAxes
             .filter(a => a.nodoTipo === 'corredor_comercial' && (a.destinoTipo === 'banca' || !a.destinoTipo))
             .sort((a, b) => (b.prioridad || 0) - (a.prioridad || 0))[0];
         const sabotageAxis = AiGameplayManager.strategicAxes
             .filter(a => a.nodoTipo === 'camino_enemigo_critico')
             .sort((a, b) => (b.prioridad || 0) - (a.prioridad || 0))[0];
+
+        const corridorCapturePending = (corridorStatus?.unownedCount ?? Number.POSITIVE_INFINITY) > 0;
+        const forceBankCorridor = gameState.turnNumber <= 6 && !corridorStatus?.operational && corridorCapturePending;
+
+        // Si hay forzado, limitarlo a pocas unidades para no secuestrar todo el ejército.
+        const forcedCorridorIds = new Set();
+        if (forceBankCorridor && bankCorridorAxis) {
+            unitsToAssign
+                .slice()
+                .sort((a, b) => hexDistance(a.r, a.c, bankCorridorAxis.target.r, bankCorridorAxis.target.c) - hexDistance(b.r, b.c, bankCorridorAxis.target.r, bankCorridorAxis.target.c))
+                .slice(0, Math.min(2, unitsToAssign.length))
+                .forEach(u => forcedCorridorIds.add(u.id));
+        }
 
         // Guardarraíl: asegurar 1 unidad en misión OCCUPY_THEN_BUILD para corredor.
         if (forceBankCorridor && bankCorridorAxis && unitsToAssign.length > 0) {
@@ -1178,7 +1320,7 @@ const AiGameplayManager = {
                 return;
             }
 
-            if (forceBankCorridor && bankCorridorAxis) {
+            if (forceBankCorridor && bankCorridorAxis && forcedCorridorIds.has(unit.id)) {
                 AiGameplayManager.missionAssignments.set(unit.id, {
                     type: 'IA_NODE',
                     objective: bankCorridorAxis.target,
@@ -1192,7 +1334,8 @@ const AiGameplayManager = {
                     objective: { r: bankCorridorAxis.target.r, c: bankCorridorAxis.target.c },
                     nodoTipo: bankCorridorAxis.nodoTipo,
                     forceBankCorridor,
-                    reason: 'apertura_objetivo_persistente'
+                    forcedUnitCount: forcedCorridorIds.size,
+                    reason: 'apertura_objetivo_persistente_limitado'
                 });
                 return;
             }
