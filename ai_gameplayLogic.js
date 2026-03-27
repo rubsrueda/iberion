@@ -283,57 +283,7 @@ const AiGameplayManager = {
                 const decision = this._currentMotorDecision || await IaDecisionEngine.evaluarEstadoYTomarDecision(playerNumber);
                 const nodoCorredor = decision?.prioritarios?.find(n => n.tipo === 'corredor_comercial');
                 if (nodoCorredor?.origen && nodoCorredor?.destino) {
-                    const path = this._buildCommercialCorridorPath(playerNumber, nodoCorredor.origen, nodoCorredor.destino);
-                    let corridorStatus = this._updateCommercialCorridorState(playerNumber, nodoCorredor, path);
-                    const corridorDebug = this._describeCommercialCorridor(playerNumber, path);
-                    console.log(`[IA CORREDOR TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} peso=${Math.round(nodoCorredor.peso || 0)} path=${path?.length || 0} oper=${corridorStatus.operational} faltantes=${corridorDebug.missingCount} sin_camino=${corridorDebug.roadMissingCount || 0} bloqueados=${corridorDebug.blockedCount} candidatos=${corridorDebug.candidateCount} detalle=${corridorDebug.summary}`);
-
-                    if (!path || path.length === 0) {
-                        this._assignFallbackEconomicMission(playerNumber, nodoCorredor.origen, 'SIN_RUTA_CORREDOR');
-                    }
-
-                    // Fase infraestructura: si el corredor ya es propio, construir Camino automáticamente (sin secuestrar unidades).
-                    console.log(`[IA ROADWORK START] playerNumber=${playerNumber}, pathLength=${path?.length}, unownedCount=${corridorStatus.unownedCount}, roadMissing=${corridorStatus.roadMissingCount}`);
-                    const roadwork = await this._ensureOwnedCorridorRoadwork(playerNumber, path);
-                    console.log(`[IA ROADWORK RESULT] playerNumber=${playerNumber}, built=${roadwork?.built}, reason=${roadwork?.reason}, at=${roadwork?.at ? `(${roadwork.at.r},${roadwork.at.c})` : 'N/A'}`);
-                    if (roadwork?.built) {
-                        corridorStatus = this._updateCommercialCorridorState(playerNumber, nodoCorredor, path);
-                        AiGameplayManager._trace('corridor_roadwork_built', {
-                            playerNumber,
-                            at: roadwork.at,
-                            status: {
-                                operational: corridorStatus.operational,
-                                unownedCount: corridorStatus.unownedCount,
-                                roadMissingCount: corridorStatus.roadMissingCount
-                            }
-                        });
-                    }
-
-                    if (corridorStatus.operational) {
-                        this._activateCommercialEconomy(playerNumber, corridorStatus);
-                    } else if ((corridorStatus.unownedCount || 0) > 0) {
-                        const faltantes = path
-                            .map((p, idx) => ({ ...p, idx }))
-                            .filter(p => {
-                                const hex = board[p.r]?.[p.c];
-                                return hex && hex.owner !== playerNumber && this._canBuildRoadOnHex(hex);
-                            })
-                            .sort((a, b) => a.idx - b.idx);
-
-                        AiGameplayManager._trace('corridor_capture_phase', {
-                            playerNumber,
-                            pendingCount: faltantes.length,
-                            nextTarget: faltantes[0] ? { r: faltantes[0].r, c: faltantes[0].c } : null
-                        });
-                    } else {
-                        // Corredor ya conquistado: no forzar más misiones de ocupación.
-                        AiGameplayManager._trace('corridor_infrastructure_phase', {
-                            playerNumber,
-                            operational: corridorStatus.operational,
-                            unownedCount: corridorStatus.unownedCount,
-                            roadMissingCount: corridorStatus.roadMissingCount
-                        });
-                    }
+                    await this._runCommercialCorridorController(playerNumber, nodoCorredor);
                 }
             } catch (e) {
                 console.warn('[IA CORREDOR] No se pudo generar misión de corredor_comercial:', e?.message || e);
@@ -438,6 +388,166 @@ const AiGameplayManager = {
         } else {
             console.log("[DIAGNÓSTICO] Fin: Aún no tiene la tecnología de fortificaciones tras la fase de investigación (probablemente por falta de puntos).");
         }
+    },
+
+    _runCommercialCorridorController: async function(playerNumber, nodoCorredor) {
+        if (!nodoCorredor?.origen) return null;
+        if (!gameState.ai_corridor_controller) gameState.ai_corridor_controller = {};
+
+        const networkPlan = this._getCommercialNetworkPlan(playerNumber);
+        if (!networkPlan.connections.length) {
+            this._assignFallbackEconomicMission(playerNumber, nodoCorredor.origen, 'SIN_RED_COMERCIAL');
+            gameState.ai_corridor_controller[playerNumber] = { phase: 'sin_ruta', turnNumber: gameState.turnNumber };
+            return null;
+        }
+
+        const pendingCaptureConnections = networkPlan.connections
+            .filter(conn => (conn.pendingCaptureSegments?.length || 0) > 0)
+            .sort((a, b) => {
+                const bankDiff = Number(b.hasBank) - Number(a.hasBank);
+                if (bankDiff !== 0) return bankDiff;
+                const capDiff = a.pendingCaptureSegments.length - b.pendingCaptureSegments.length;
+                if (capDiff !== 0) return capDiff;
+                return a.path.length - b.path.length;
+            });
+
+        const roadworkConnections = networkPlan.connections
+            .filter(conn => (conn.pendingCaptureSegments?.length || 0) === 0 && (conn.missingOwnedSegments?.length || 0) > 0)
+            .sort((a, b) => {
+                const bankDiff = Number(b.hasBank) - Number(a.hasBank);
+                if (bankDiff !== 0) return bankDiff;
+                const roadDiff = a.missingOwnedSegments.length - b.missingOwnedSegments.length;
+                if (roadDiff !== 0) return roadDiff;
+                return a.path.length - b.path.length;
+            });
+
+        const activeConnection = pendingCaptureConnections[0] || roadworkConnections[0] || networkPlan.connections[0];
+        const corridorNode = {
+            ...nodoCorredor,
+            origen: { r: activeConnection.from.r, c: activeConnection.from.c },
+            destino: { r: activeConnection.to.r, c: activeConnection.to.c },
+            destino_tipo: activeConnection.hasBank ? 'banca' : 'ciudad'
+        };
+        let corridorStatus = this._updateCommercialCorridorState(playerNumber, corridorNode, activeConnection.path);
+        const corridorDebug = this._describeCommercialCorridor(playerNumber, activeConnection.path);
+
+        console.log(`[IA CORREDOR TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} red_nodos=${networkPlan.nodes.length} conexiones=${networkPlan.connections.length} enlace=${activeConnection.from.name || `${activeConnection.from.r},${activeConnection.from.c}`}→${activeConnection.to.name || `${activeConnection.to.r},${activeConnection.to.c}`} bank=${activeConnection.hasBank} path=${activeConnection.path.length} oper=${corridorStatus.operational} faltantes=${corridorDebug.missingCount} sin_camino=${corridorDebug.roadMissingCount || 0} bloqueados=${corridorDebug.blockedCount}`);
+
+        if (pendingCaptureConnections.length > 0) {
+            const pendingCapture = activeConnection.pendingCaptureSegments;
+            const availableUnits = units
+                .filter(u => u.player === playerNumber && u.currentHealth > 0 && !u.hasMoved)
+                .filter(u => {
+                    const mission = this.missionAssignments.get(u.id);
+                    return !mission || ['IA_NODE', 'AXIS_ADVANCE'].includes(mission.type);
+                });
+
+            const assignedTargets = [];
+            const assignedIds = new Set();
+            pendingCapture.slice(0, Math.min(2, pendingCapture.length)).forEach(targetHex => {
+                const chosen = availableUnits
+                    .filter(u => !assignedIds.has(u.id))
+                    .sort((a, b) => {
+                        const aPioneer = (a.name || '').includes('Pionero') ? -1 : 0;
+                        const bPioneer = (b.name || '').includes('Pionero') ? -1 : 0;
+                        if (aPioneer !== bPioneer) return aPioneer - bPioneer;
+                        return hexDistance(a.r, a.c, targetHex.r, targetHex.c) - hexDistance(b.r, b.c, targetHex.r, targetHex.c);
+                    })[0];
+
+                if (!chosen) return;
+                assignedIds.add(chosen.id);
+                assignedTargets.push({ unitId: chosen.id, target: { r: targetHex.r, c: targetHex.c } });
+                this.missionAssignments.set(chosen.id, {
+                    type: 'OCCUPY_THEN_BUILD',
+                    objective: { r: targetHex.r, c: targetHex.c },
+                    structureType: 'Camino',
+                    nodoRazon: 'CORREDOR_COMERCIAL'
+                });
+            });
+
+            gameState.ai_corridor_controller[playerNumber] = {
+                phase: 'capture',
+                turnNumber: gameState.turnNumber,
+                pendingCount: pendingCapture.length,
+                assignedTargets,
+                connection: {
+                    from: { r: activeConnection.from.r, c: activeConnection.from.c },
+                    to: { r: activeConnection.to.r, c: activeConnection.to.c },
+                    hasBank: activeConnection.hasBank
+                }
+            };
+            AiGameplayManager._trace('corridor_capture_phase', {
+                playerNumber,
+                pendingCount: pendingCapture.length,
+                assignedTargets,
+                hasBank: activeConnection.hasBank
+            });
+            return gameState.ai_corridor_controller[playerNumber];
+        }
+
+        if (roadworkConnections.length > 0) {
+            console.log(`[IA ROADWORK START] playerNumber=${playerNumber}, pathLength=${activeConnection.path.length}, unownedCount=${corridorStatus.unownedCount}, roadMissing=${corridorStatus.roadMissingCount}`);
+            const roadwork = await this._ensureOwnedCorridorRoadwork(playerNumber, activeConnection.path);
+            console.log(`[IA ROADWORK RESULT] playerNumber=${playerNumber}, built=${roadwork?.built}, reason=${roadwork?.reason}, at=${roadwork?.at ? `(${roadwork.at.r},${roadwork.at.c})` : 'N/A'}`);
+            if (roadwork?.built) {
+                corridorStatus = this._updateCommercialCorridorState(playerNumber, corridorNode, activeConnection.path);
+                AiGameplayManager._trace('corridor_roadwork_built', {
+                    playerNumber,
+                    at: roadwork.at,
+                    status: {
+                        operational: corridorStatus.operational,
+                        unownedCount: corridorStatus.unownedCount,
+                        roadMissingCount: corridorStatus.roadMissingCount
+                    },
+                    hasBank: activeConnection.hasBank
+                });
+            }
+
+            gameState.ai_corridor_controller[playerNumber] = {
+                phase: roadwork?.reason === 'desalojo_asignado' ? 'vacate' : 'roadwork',
+                turnNumber: gameState.turnNumber,
+                roadMissingCount: corridorStatus.roadMissingCount,
+                connection: {
+                    from: { r: activeConnection.from.r, c: activeConnection.from.c },
+                    to: { r: activeConnection.to.r, c: activeConnection.to.c },
+                    hasBank: activeConnection.hasBank
+                }
+            };
+            AiGameplayManager._trace('corridor_infrastructure_phase', {
+                playerNumber,
+                operational: corridorStatus.operational,
+                unownedCount: corridorStatus.unownedCount,
+                roadMissingCount: corridorStatus.roadMissingCount,
+                phase: gameState.ai_corridor_controller[playerNumber].phase,
+                hasBank: activeConnection.hasBank
+            });
+            return gameState.ai_corridor_controller[playerNumber];
+        }
+
+        const tradeCandidate = this._pickNextCommercialTradeRoutePair(playerNumber, networkPlan);
+        if (tradeCandidate) {
+            gameState.ai_corridor_controller[playerNumber] = {
+                phase: 'trade',
+                turnNumber: gameState.turnNumber,
+                connection: {
+                    from: { r: tradeCandidate.from.r, c: tradeCandidate.from.c },
+                    to: { r: tradeCandidate.to.r, c: tradeCandidate.to.c },
+                    hasBank: tradeCandidate.hasBank
+                }
+            };
+            const established = this._tryEstablishTradeRouteBetweenCities(playerNumber, tradeCandidate.from, tradeCandidate.to, tradeCandidate.infraPath);
+            AiGameplayManager._trace('corridor_trade_phase', {
+                playerNumber,
+                established,
+                from: { r: tradeCandidate.from.r, c: tradeCandidate.from.c },
+                to: { r: tradeCandidate.to.r, c: tradeCandidate.to.c },
+                hasBank: tradeCandidate.hasBank
+            });
+            if (established) return gameState.ai_corridor_controller[playerNumber];
+        }
+
+        gameState.ai_corridor_controller[playerNumber] = { phase: 'idle', turnNumber: gameState.turnNumber };
+        return gameState.ai_corridor_controller[playerNumber];
     },
 
     _buildCommercialCorridorPath: function(playerNumber, origen, destino) {
@@ -606,6 +716,158 @@ const AiGameplayManager = {
             .sort((a, b) => a.idx - b.idx);
     },
 
+    _selectCommercialCityTarget: function(playerNumber, originPoint, preferredPoint = null) {
+        const cities = (gameState.cities || []).filter(c => c && (c.owner === playerNumber || c.owner === null || c.owner === 0));
+        const originCity = originPoint ? cities.find(c => c.r === originPoint.r && c.c === originPoint.c) : null;
+        const candidates = cities.filter(c => !originCity || c.r !== originCity.r || c.c !== originCity.c);
+        if (!originCity || candidates.length === 0) return preferredPoint || null;
+
+        const preferredCity = preferredPoint ? candidates.find(c => c.r === preferredPoint.r && c.c === preferredPoint.c) : null;
+        let best = null;
+
+        for (const city of candidates) {
+            const path = this._buildCommercialCorridorPath(playerNumber, originCity, city);
+            if (!Array.isArray(path) || path.length < 2) continue;
+
+            const isBank = city.owner === 0 && !!city.isBank;
+            const isOwn = city.owner === playerNumber;
+            const isNeutral = city.owner === null || (city.owner === 0 && !city.isBank);
+            const dist = hexDistance(originCity.r, originCity.c, city.r, city.c);
+            let score = 0;
+
+            if (isOwn) score += 220;
+            if (isNeutral) score += 120;
+            if (isBank) score -= 80;
+            if (preferredCity && city.r === preferredCity.r && city.c === preferredCity.c) score += 40;
+
+            score -= path.length * 10;
+            score -= dist * 4;
+
+            if (!best || score > best.score) {
+                best = {
+                    city,
+                    path,
+                    score,
+                    destinationType: isBank ? 'banca' : (isOwn ? 'ciudad_propia' : 'ciudad_neutral')
+                };
+            }
+        }
+
+        if (!best) return preferredPoint || null;
+
+        return {
+            r: best.city.r,
+            c: best.city.c,
+            owner: best.city.owner,
+            isBank: !!best.city.isBank,
+            name: best.city.name,
+            destinationType: best.destinationType,
+            path: best.path
+        };
+    },
+
+    _getBankCity: function() {
+        return (gameState.cities || []).find(c => c && c.owner === 0 && c.isBank) || null;
+    },
+
+    _getCommercialNetworkNodes: function(playerNumber) {
+        const ownCities = (gameState.cities || []).filter(c => c && c.owner === playerNumber);
+        const bankCity = this._getBankCity();
+        return bankCity ? ownCities.concat([bankCity]) : ownCities;
+    },
+
+    _getCommercialNetworkConnection: function(playerNumber, cityA, cityB) {
+        if (!cityA || !cityB) return null;
+        const path = this._buildCommercialCorridorPath(playerNumber, cityA, cityB);
+        if (!Array.isArray(path) || path.length < 2) return null;
+
+        const roadReadyStructures = new Set(['Camino', 'Fortaleza', 'Fortaleza con Muralla', 'Aldea', 'Ciudad', 'Metrópoli']);
+        const pendingCaptureSegments = [];
+        const missingOwnedSegments = [];
+
+        path.forEach((step, idx) => {
+            const isEndpoint = idx === 0 || idx === path.length - 1;
+            if (isEndpoint) return;
+            const hex = board[step.r]?.[step.c];
+            if (!hex || hex.isCity || !this._canBuildRoadOnHex(hex)) return;
+            if (hex.owner !== playerNumber) {
+                pendingCaptureSegments.push({ r: step.r, c: step.c, idx });
+                return;
+            }
+            const city = this._getCityAtHex(step.r, step.c);
+            const isOwnCity = !!(city && city.owner === playerNumber);
+            if (!isOwnCity && !roadReadyStructures.has(hex.structure)) {
+                missingOwnedSegments.push({ r: step.r, c: step.c, idx });
+            }
+        });
+
+        return {
+            from: cityA,
+            to: cityB,
+            path,
+            pendingCaptureSegments,
+            missingOwnedSegments,
+            hasBank: !!(cityA.isBank || cityB.isBank)
+        };
+    },
+
+    _getCommercialNetworkPlan: function(playerNumber) {
+        const nodes = this._getCommercialNetworkNodes(playerNumber);
+        const capital = nodes.find(c => c.owner === playerNumber && c.isCapital) || nodes.find(c => c.owner === playerNumber) || nodes[0] || null;
+        if (!capital || nodes.length < 2) {
+            return { nodes, connections: [] };
+        }
+
+        const connected = [capital];
+        const remaining = nodes.filter(c => c !== capital);
+        const connections = [];
+
+        while (remaining.length > 0) {
+            let best = null;
+            let bestIndex = -1;
+
+            for (let i = 0; i < remaining.length; i++) {
+                const target = remaining[i];
+                for (const source of connected) {
+                    const conn = this._getCommercialNetworkConnection(playerNumber, source, target);
+                    if (!conn) continue;
+                    const connScore = conn.path.length - (conn.hasBank ? 1 : 0);
+                    const bestScore = best ? (best.path.length - (best.hasBank ? 1 : 0)) : Number.POSITIVE_INFINITY;
+                    if (!best || connScore < bestScore) {
+                        best = conn;
+                        bestIndex = i;
+                    }
+                }
+            }
+
+            if (!best) break;
+            connections.push(best);
+            connected.push(best.to);
+            remaining.splice(bestIndex, 1);
+        }
+
+        return { nodes, connections };
+    },
+
+    _pickNextCommercialTradeRoutePair: function(playerNumber, networkPlan) {
+        const existingPairs = this._getExistingTradeRoutePairs(playerNumber);
+        let best = null;
+
+        for (const connection of networkPlan.connections || []) {
+            const pairKey = this._getTradePairKey(connection.from, connection.to);
+            if (!pairKey || existingPairs.has(pairKey)) continue;
+            const infraPath = findInfrastructurePath(connection.from, connection.to, { allowForeignInfrastructure: true });
+            if (!infraPath || infraPath.length === 0) continue;
+
+            const score = (connection.hasBank ? 200 : 120) - infraPath.length;
+            if (!best || score > best.score) {
+                best = { ...connection, infraPath, score };
+            }
+        }
+
+        return best;
+    },
+
     _updateCommercialCorridorState: function(playerNumber, nodoCorredor, path) {
         if (!gameState.ai_corridor_status) gameState.ai_corridor_status = {};
         const operational = this._isCommercialCorridorOperational(playerNumber, path);
@@ -766,19 +1028,24 @@ const AiGameplayManager = {
             console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=corredor_no_operativo`);
             return false;
         }
+        const origin = this._resolveTradeCityForCorridor(playerNumber, corridorStatus.origen, true, true);
+        const destination = this._selectTradeRouteDestination(playerNumber, origin, corridorStatus.destino);
+        return this._tryEstablishTradeRouteBetweenCities(playerNumber, origin, destination);
+    },
+
+    _tryEstablishTradeRouteBetweenCities: function(playerNumber, originInput, destinationInput, forcedInfraPath = null) {
         if (typeof findInfrastructurePath !== 'function') {
             console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=findInfrastructurePath_no_disponible`);
             return false;
         }
 
-        let origin = this._resolveTradeCityForCorridor(playerNumber, corridorStatus.origen, true, true);
-        const destination = this._selectTradeRouteDestination(playerNumber, origin, corridorStatus.destino);
+        let origin = originInput;
+        const destination = destinationInput;
         if (!origin || !destination) {
             console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=ciudad_origen_destino_invalida_o_sin_ruta_disponible`);
             return false;
         }
 
-        // Asegurar centro de ciudad libre para evitar conflictos al establecer ruta terrestre.
         const unitAtOrigin = getUnitOnHex(origin.r, origin.c);
         if (unitAtOrigin && unitAtOrigin.player === playerNumber && !unitAtOrigin.tradeRoute) {
             const relocated = this._tryRelocateUnitFromCityCenter(unitAtOrigin, origin);
@@ -795,7 +1062,7 @@ const AiGameplayManager = {
             }
         }
 
-        const infraPath = findInfrastructurePath(origin, destination, { allowForeignInfrastructure: true });
+        const infraPath = forcedInfraPath || findInfrastructurePath(origin, destination, { allowForeignInfrastructure: true });
         if (!infraPath || infraPath.length === 0) {
             console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=infraPath_vacio origen=(${origin.r},${origin.c}) destino=(${destination.r},${destination.c})`);
             return false;
@@ -827,7 +1094,7 @@ const AiGameplayManager = {
         }
 
         const ok = this._requestEstablishTradeRoute(supplyUnit, origin, destination, infraPath);
-        console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=${ok ? 'ruta_solicitada' : 'fallo_request'} unidad=${supplyUnit.name} path=${infraPath.length}`);
+        console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=${ok ? 'ruta_solicitada' : 'fallo_request'} unidad=${supplyUnit.name} origen=${origin.name || `${origin.r},${origin.c}`} destino=${destination.name || `${destination.r},${destination.c}`} path=${infraPath.length}`);
         return ok;
     },
 
@@ -885,15 +1152,17 @@ const AiGameplayManager = {
 
         const rutasActivas = units.filter(u => u.player === playerNumber && !!u.tradeRoute).length;
         orderedCandidates.sort((a, b) => {
-            const aIsBank = a.owner === 0 ? 1 : 0;
-            const bIsBank = b.owner === 0 ? 1 : 0;
-            const aBankBias = rutasActivas === 0 ? aIsBank * 100 : aIsBank * -40;
-            const bBankBias = rutasActivas === 0 ? bIsBank * 100 : bIsBank * -40;
-            const aOwnBias = a.owner === playerNumber ? 60 : 0;
-            const bOwnBias = b.owner === playerNumber ? 60 : 0;
+            const aIsBank = a.owner === 0 && !!a.isBank ? 1 : 0;
+            const bIsBank = b.owner === 0 && !!b.isBank ? 1 : 0;
+            const aOwnBias = a.owner === playerNumber ? 180 : 0;
+            const bOwnBias = b.owner === playerNumber ? 180 : 0;
+            const aNeutralBias = (a.owner === null || (a.owner === 0 && !a.isBank)) ? 80 : 0;
+            const bNeutralBias = (b.owner === null || (b.owner === 0 && !b.isBank)) ? 80 : 0;
+            const aBankBias = rutasActivas === 0 ? aIsBank * -60 : aIsBank * -120;
+            const bBankBias = rutasActivas === 0 ? bIsBank * -60 : bIsBank * -120;
             const aDist = hexDistance(origin.r, origin.c, a.r, a.c);
             const bDist = hexDistance(origin.r, origin.c, b.r, b.c);
-            return (bBankBias + bOwnBias - bDist * 8) - (aBankBias + aOwnBias - aDist * 8);
+            return (bBankBias + bOwnBias + bNeutralBias - bDist * 8) - (aBankBias + aOwnBias + aNeutralBias - aDist * 8);
         });
 
         for (const city of orderedCandidates) {
@@ -1263,105 +1532,15 @@ const AiGameplayManager = {
     },
 
     assignUnitsToAxes: function(playerNumber, unitsToAssign) {
-        let corridorStatus = gameState.ai_corridor_status?.[playerNumber];
-        const bankCorridorAxis = AiGameplayManager.strategicAxes
-            .filter(a => a.nodoTipo === 'corredor_comercial' && (a.destinoTipo === 'banca' || !a.destinoTipo))
-            .sort((a, b) => (b.prioridad || 0) - (a.prioridad || 0))[0];
+        const corridorControllerState = gameState.ai_corridor_controller?.[playerNumber] || null;
         const sabotageAxis = AiGameplayManager.strategicAxes
             .filter(a => a.nodoTipo === 'camino_enemigo_critico')
             .sort((a, b) => (b.prioridad || 0) - (a.prioridad || 0))[0];
-
-        const ownCapital = gameState.cities?.find(c => c.owner === playerNumber && c.isCapital);
-        const corridorPath = (ownCapital && bankCorridorAxis)
-            ? this._buildCommercialCorridorPath(playerNumber, ownCapital, bankCorridorAxis.target)
-            : [];
-
-        if (bankCorridorAxis && corridorPath.length > 0 && (!corridorStatus || corridorStatus.turnNumber !== gameState.turnNumber)) {
-            corridorStatus = this._updateCommercialCorridorState(playerNumber, bankCorridorAxis, corridorPath);
-        }
-
-        const corridorPendingHexes = bankCorridorAxis ? this._getCommercialCorridorPendingHexes(playerNumber, bankCorridorAxis.target) : [];
-        const corridorCapturePending = corridorPendingHexes.length > 0;
-        const forceBankCorridor = gameState.turnNumber <= 6 && !(corridorStatus?.operational) && corridorCapturePending;
-        const pickCorridorObjective = (unit) => {
-            if (!corridorPendingHexes.length) return bankCorridorAxis?.target || null;
-            return corridorPendingHexes
-                .slice()
-                .sort((a, b) => hexDistance(unit.r, unit.c, a.r, a.c) - hexDistance(unit.r, unit.c, b.r, b.c))[0];
-        };
-        
-        console.log(`[ASSIGN DEBUG] corridorStatus=${JSON.stringify(corridorStatus)}, corridorCapturePending=${corridorCapturePending}, forceBankCorridor=${forceBankCorridor}`);
-
-        // Si hay captura pendiente, asignar directamente hasta 2 unidades a hexes concretos del corredor.
-        const forcedCorridorPlans = new Map();
-        if (forceBankCorridor && corridorPendingHexes.length > 0) {
-            const remainingUnits = unitsToAssign.slice();
-            corridorPendingHexes
-                .slice(0, Math.min(2, corridorPendingHexes.length, remainingUnits.length))
-                .forEach(targetHex => {
-                    remainingUnits.sort((a, b) => {
-                        const aPioneer = (a.name || '').includes('Pionero') ? -1 : 0;
-                        const bPioneer = (b.name || '').includes('Pionero') ? -1 : 0;
-                        if (aPioneer !== bPioneer) return aPioneer - bPioneer;
-                        return hexDistance(a.r, a.c, targetHex.r, targetHex.c) - hexDistance(b.r, b.c, targetHex.r, targetHex.c);
-                    });
-                    const picked = remainingUnits.shift();
-                    if (picked) {
-                        forcedCorridorPlans.set(picked.id, { r: targetHex.r, c: targetHex.c });
-                    }
-                });
-        }
-
-        AiGameplayManager._trace('corridor_pipeline_status', {
-            playerNumber,
-            operational: !!corridorStatus?.operational,
-            unownedCount: corridorStatus?.unownedCount ?? corridorPendingHexes.length,
-            roadMissingCount: corridorStatus?.roadMissingCount ?? null,
-            pendingCaptureCount: corridorPendingHexes.length,
-            forcedCaptureCount: forcedCorridorPlans.size
-        });
-
-        // Guardarraíl: asegurar al menos 1 unidad en misión OCCUPY_THEN_BUILD para corredor.
-        if (forceBankCorridor && bankCorridorAxis && unitsToAssign.length > 0) {
-            const hasCorridorBuilder = Array.from(AiGameplayManager.missionAssignments.values())
-                .some(m => m && m.type === 'OCCUPY_THEN_BUILD' && m.nodoRazon === 'CORREDOR_COMERCIAL');
-
-            if (!hasCorridorBuilder) {
-                const missingHex = this._getCommercialCorridorPendingHexes(playerNumber, bankCorridorAxis.target)[0];
-
-                if (missingHex) {
-                    const builder = unitsToAssign
-                        .slice()
-                        .sort((a, b) => {
-                            const aPioneer = (a.name || '').includes('Pionero') ? -1 : 0;
-                            const bPioneer = (b.name || '').includes('Pionero') ? -1 : 0;
-                            if (aPioneer !== bPioneer) return aPioneer - bPioneer;
-                            return hexDistance(a.r, a.c, missingHex.r, missingHex.c) - hexDistance(b.r, b.c, missingHex.r, missingHex.c);
-                        })[0];
-
-                    if (builder) {
-                        AiGameplayManager.missionAssignments.set(builder.id, {
-                            type: 'OCCUPY_THEN_BUILD',
-                            objective: { r: missingHex.r, c: missingHex.c },
-                            structureType: 'Camino',
-                            nodoRazon: 'CORREDOR_COMERCIAL'
-                        });
-                        AiGameplayManager._trace('assign_unit_corridor_builder', {
-                            playerNumber,
-                            unitId: builder.id,
-                            unitName: builder.name,
-                            objective: { r: missingHex.r, c: missingHex.c },
-                            reason: 'garantizar_construccion_corredor'
-                        });
-                    }
-                }
-            }
-        }
+        console.log(`[ASSIGN DEBUG] corridorControllerState=${JSON.stringify(corridorControllerState)}`);
 
         let reservedSaboteurId = null;
-        if (forceBankCorridor && bankCorridorAxis && sabotageAxis && unitsToAssign.length >= 2) {
+        if (sabotageAxis && unitsToAssign.length >= 2) {
             const sortedForSabotage = unitsToAssign
-                .filter(u => !forcedCorridorPlans.has(u.id))
                 .slice()
                 .sort((a, b) => {
                     const da = hexDistance(a.r, a.c, sabotageAxis.target.r, sabotageAxis.target.c);
@@ -1404,34 +1583,12 @@ const AiGameplayManager = {
                 return;
             }
 
-            if (forceBankCorridor && forcedCorridorPlans.has(unit.id)) {
-                const corridorObjective = forcedCorridorPlans.get(unit.id);
-                AiGameplayManager.missionAssignments.set(unit.id, {
-                    type: 'OCCUPY_THEN_BUILD',
-                    objective: { r: corridorObjective.r, c: corridorObjective.c },
-                    structureType: 'Camino',
-                    nodoRazon: 'CORREDOR_COMERCIAL',
-                    axisName: `${bankCorridorAxis?.name || 'corredor_comercial'}_FORCED_CAPTURE`
-                });
-                AiGameplayManager._trace('assign_unit_axis_forced_corridor', {
-                    playerNumber,
-                    unitId: unit.id,
-                    unitName: unit.name,
-                    objective: { r: corridorObjective.r, c: corridorObjective.c },
-                    nodoTipo: 'corredor_comercial',
-                    forceBankCorridor,
-                    forcedUnitCount: forcedCorridorPlans.size,
-                    reason: 'captura_directa_hex_corredor'
-                });
-                return;
-            }
-
             let bestAxis = null;
             let bestScore = -Infinity;
             const axisScores = [];
             
             for (const axis of AiGameplayManager.strategicAxes) {
-                if (axis.nodoTipo === 'corredor_comercial' && !corridorCapturePending) {
+                if (axis.nodoTipo === 'corredor_comercial') {
                     continue;
                 }
                 const dist = hexDistance(unit.r, unit.c, axis.target.r, axis.target.c);
@@ -1453,15 +1610,9 @@ const AiGameplayManager = {
             console.log(`[IA AXIS TRACE] unidad=${unit.name} preferDistant=${preferDistant} top=${axisScores.slice(0, 4).map(a => `${a.nodoTipo}@${a.name}:score=${Math.round(a.score)}:dist=${a.dist}:prio=${Math.round(a.priority)}`).join(' ; ')}`);
             
             if(bestAxis) {
-                const resolvedObjective = (bestAxis.nodoTipo === 'corredor_comercial' && corridorCapturePending)
-                    ? pickCorridorObjective(unit)
-                    : bestAxis.target;
-                if (!resolvedObjective) {
-                    return;
-                }
                 AiGameplayManager.missionAssignments.set(unit.id, {
                     type: bestAxis.nodoTipo ? 'IA_NODE' : 'AXIS_ADVANCE',
-                    objective: { r: resolvedObjective.r, c: resolvedObjective.c },
+                    objective: { r: bestAxis.target.r, c: bestAxis.target.c },
                     nodoTipo: bestAxis.nodoTipo || null,
                     axisName: bestAxis.name
                 });
@@ -1472,7 +1623,7 @@ const AiGameplayManager = {
                     missionType: bestAxis.nodoTipo ? 'IA_NODE' : 'AXIS_ADVANCE',
                     preferDistant,
                     axisScore: bestScore,
-                    objective: { r: resolvedObjective.r, c: resolvedObjective.c },
+                    objective: { r: bestAxis.target.r, c: bestAxis.target.c },
                     axisName: bestAxis.name,
                     nodoTipo: bestAxis.nodoTipo || null
                 });

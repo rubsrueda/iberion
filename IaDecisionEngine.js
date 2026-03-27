@@ -282,7 +282,12 @@ const IaDecisionEngine = {
             razon_texto: `Capital propia (${capitalCity.name || 'Capital'})`
         });
 
-        const candidatosEconomicos = nodos.filter(n => n.tipo === 'banca' || n.tipo === 'ciudad_libre');
+        // Candidatos: ciudades propias desconectadas (prioridad alta), ciudades libres, y la Banca
+        const candidatosEconomicos = nodos.filter(n =>
+            n.tipo === 'ciudad_propia_desconectada' ||
+            n.tipo === 'banca' ||
+            n.tipo === 'ciudad_libre'
+        );
         if (candidatosEconomicos.length === 0) {
             console.log('[IaDecision] Corredor comercial descartado: sin candidatos economicos');
             return nodos;
@@ -337,11 +342,17 @@ const IaDecisionEngine = {
         );
         if (!rutaConstruible) return -99999;
 
-        const baseTipo = nodoEconomico.tipo === 'banca'
-            ? (rutasActivas === 0 ? 620 : 160)
-            : (ciudadesPropias < 2 ? 320 : 240);
-        const bonusApertura = contextoEstrategico?.fase === 'apertura' ? 120 : 0;
-        const bonusPersistencia = rutasActivas > 0 && nodoEconomico.tipo === 'ciudad_libre' ? 120 : 0;
+        // Red comercial: ciudades propias > ciudades libres > Banca (la Banca es un nodo más, no el destino forzado)
+        let baseTipo;
+        if (nodoEconomico.tipo === 'ciudad_propia_desconectada') {
+            baseTipo = 600; // reconectar ciudad propia siempre es prioritario
+        } else if (nodoEconomico.tipo === 'banca') {
+            baseTipo = rutasActivas === 0 ? 420 : 160; // Banca es relevante pero no exclusiva
+        } else {
+            baseTipo = ciudadesPropias < 2 ? 340 : 260; // ciudad_libre
+        }
+        const bonusApertura = contextoEstrategico?.fase === 'apertura' ? 80 : 0;
+        const bonusPersistencia = rutasActivas > 0 && nodoEconomico.tipo !== 'banca' ? 100 : 0;
         return baseTipo + bonusApertura + bonusPersistencia - distancia * 12 + (nodoEconomico.valor_control || 0) * 0.5;
     },
 
@@ -387,17 +398,12 @@ const IaDecisionEngine = {
         const ciudadBarbara = nodosTop.find(n => n.tipo === 'ciudad_barbara');
         const sitioAldea = nodosTop.find(n => n.tipo === 'sitio_aldea');
 
-        // Jerarquía económica dura en apertura:
-        // 1) Si la banca es conectable por camino construible, construir corredor a banca.
-        // 2) Si no, conquistar ciudad bárbara.
-        // 3) Si no, fundar ciudad (sitio_aldea).
-        // 4) Después, activar/expandir rutas comerciales.
+        // Jerarquía económica en apertura: corredor comercial (cualquier destino) > conquista > aldea > caravana
         if (contexto?.fase === 'apertura' && !contexto?.capitalAmenazada) {
-            if (corredor && corredor.destino_tipo === 'banca') return corredor;
+            if (corredor) return corredor;
             if (ciudadBarbara) return ciudadBarbara;
             if (sitioAldea) return sitioAldea;
             if (crearCaravana) return crearCaravana;
-            if (corredor) return corredor;
         }
 
         if (contexto?.fase === 'apertura' && contexto?.crisisEconomica && !contexto?.capitalAmenazada) {
@@ -473,7 +479,8 @@ const IaDecisionEngine = {
                 supervivencia: contextoEstrategico.capitalAmenazada ? 2.5 : 0.8
             };
             bonusTipos.corredor_comercial = 260;
-            bonusTipos.banca = 140;
+            bonusTipos.ciudad_propia_desconectada = 200;
+            bonusTipos.banca = 80;  // Banca es un nodo de red, no el destino exclusivo
             bonusTipos.ciudad_libre = 100;
             bonusTipos.sitio_aldea = 140;
             bonusTipos.camino_enemigo_critico = 160;
@@ -499,7 +506,8 @@ const IaDecisionEngine = {
         if (contextoEstrategico?.crisisEconomica) {
             multiplicadores.economia = Math.max(multiplicadores.economia || 1, 2.4);
             bonusTipos.corredor_comercial = (bonusTipos.corredor_comercial || 0) + 120;
-            bonusTipos.banca = (bonusTipos.banca || 0) + 80;
+            bonusTipos.ciudad_propia_desconectada = (bonusTipos.ciudad_propia_desconectada || 0) + 100;
+            bonusTipos.banca = (bonusTipos.banca || 0) + 40; // crisis = más comercio, pero no solo con Banca
             bonusTipos.ciudad_libre = (bonusTipos.ciudad_libre || 0) + 60;
             bonusTipos.crear_caravana = (bonusTipos.crear_caravana || 0) + 120;
             penalizacionTipos.recurso_estrategico = (penalizacionTipos.recurso_estrategico || 0) + 60;
