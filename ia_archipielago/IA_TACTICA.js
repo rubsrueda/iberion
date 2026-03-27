@@ -3,9 +3,8 @@
 
 const IATactica = {
   detectarFrente(myPlayer, contactRange = 2) {
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
     const misUnidades = IASentidos.getUnits(myPlayer);
-    const unidadesEnemigas = IASentidos.getUnits(enemyPlayer);
+    const unidadesEnemigas = IASentidos.getEnemyUnits(myPlayer);
     const frente = [];
     const seen = new Set();
 
@@ -38,9 +37,11 @@ const IATactica = {
   },
 
   detectarAmenazasSobreObjetivos(myPlayer, objetivos, threatRange = 3) {
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
+    const enemyPlayers = IASentidos.getEnemyPlayerIds(myPlayer);
+    if (!enemyPlayers.length) return [];
+
     const amenazas = units.filter(u =>
-      u.player === enemyPlayer &&
+      enemyPlayers.includes(u.player) &&
       u.currentHealth > 0 &&
       objetivos.some(o => hexDistance(u.r, u.c, o.r, o.c) <= threatRange)
     );

@@ -1254,8 +1254,7 @@ const AiGameplayManager = {
         }
 
         if (typeof _executeEstablishTradeRoute === 'function') {
-            _executeEstablishTradeRoute(action.payload);
-            return true;
+            return !!_executeEstablishTradeRoute(action.payload);
         }
 
         return false;
@@ -1420,7 +1419,12 @@ const AiGameplayManager = {
      */
     _ensureTradeInfrastructureOrganic: function(playerNumber) {
         const pairs = AiGameplayManager._getOrganicTradePairs(playerNumber);
-        if (pairs.length === 0) return;
+        if (pairs.length === 0) {
+            console.log(`[IA ORG TRADE] J${playerNumber}: sin pares comerciales válidos.`);
+            return;
+        }
+
+        console.log(`[IA ORG TRADE] J${playerNumber}: pares comerciales detectados=${pairs.length}`);
 
         AiGameplayManager._runOrganicRoadCreationFlow(playerNumber, pairs);
         AiGameplayManager._runOrganicCaravanCreationFlow(playerNumber, pairs);
@@ -1523,47 +1527,16 @@ const AiGameplayManager = {
             const infraPath = findInfrastructurePath(origin, dest, { allowForeignInfrastructure: true });
             if (!infraPath || infraPath.length === 0) continue;
 
-            let supplyUnit = units.find(u =>
-                u.player === playerNumber &&
-                !u.tradeRoute &&
-                u.r === origin.r && u.c === origin.c &&
-                u.regiments?.some(reg => (REGIMENT_TYPES[reg.type]?.abilities || []).includes('provide_supply'))
-            );
-
-            if (!supplyUnit) {
-                const blocker = getUnitOnHex(origin.r, origin.c);
-                if (blocker && blocker.player === playerNumber && !blocker.tradeRoute && blocker.currentHealth > 0) {
-                    if (typeof AiGameplayManager._tryRelocateUnitFromCityCenter === 'function') {
-                        AiGameplayManager._tryRelocateUnitFromCityCenter(blocker, origin);
-                    }
-                }
-            }
-
-            if (!supplyUnit) {
-                supplyUnit = AiGameplayManager.produceUnit(playerNumber, ['Columna de Suministro'], 'trader', 'Columna de Suministro', origin);
-            }
-
-            if (!supplyUnit) {
-                supplyUnit = units.find(u =>
-                    u.player === playerNumber &&
-                    !u.tradeRoute &&
-                    u.currentHealth > 0 &&
-                    u.regiments?.some(reg => (REGIMENT_TYPES[reg.type]?.abilities || []).includes('provide_supply'))
-                ) || null;
-            }
-
-            if (!supplyUnit) continue;
-
             let routed = false;
-            if (typeof AiGameplayManager._requestEstablishTradeRoute === 'function') {
-                routed = AiGameplayManager._requestEstablishTradeRoute(supplyUnit, origin, dest, infraPath);
-            } else if (typeof _executeEstablishTradeRoute === 'function') {
-                routed = !!_executeEstablishTradeRoute({ unitId: supplyUnit.id, origin, destination: dest, path: infraPath });
+            if (typeof AiGameplayManager._tryEstablishTradeRouteBetweenCities === 'function') {
+                routed = AiGameplayManager._tryEstablishTradeRouteBetweenCities(playerNumber, origin, dest, infraPath);
             }
 
             if (routed) {
                 existingPairs.add(pairKey);
                 console.log(`[IA ORG CARAVANA] J${playerNumber}: caravana ${origin.name || `${origin.r},${origin.c}`}→${dest.name || `${dest.r},${dest.c}`}`);
+            } else {
+                console.log(`[IA ORG CARAVANA] J${playerNumber}: no se pudo crear ruta ${origin.name || `${origin.r},${origin.c}`}→${dest.name || `${dest.r},${dest.c}`}`);
             }
         }
     },

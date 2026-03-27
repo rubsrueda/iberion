@@ -97,7 +97,10 @@ const IAArchipielago = {
     console.log(`\n[IA_ARCHIPIELAGO] Analizando situación económica...`);
     const economia = (typeof IAEconomica !== 'undefined') ? IAEconomica.evaluarEconomia(myPlayer) : { oro: 0 };
     const recursosEnMapa = (typeof IAEconomica !== 'undefined') ? IAEconomica.contarRecursosEnMapa(myPlayer) : { total: 0 };
-    const recursosVulnerables = (typeof IAEconomica !== 'undefined') ? IAEconomica.detectarRecursosVulnerables(myPlayer === 1 ? 2 : 1) : [];
+    const enemyPlayer = this._getEnemyPlayerId(myPlayer);
+    const recursosVulnerables = (typeof IAEconomica !== 'undefined' && enemyPlayer != null)
+      ? IAEconomica.detectarRecursosVulnerables(enemyPlayer)
+      : [];
 
     console.log(`\n[IA_ARCHIPIELAGO] ========= RESUMEN DE SITUACIÓN =========`);
     console.log(`Amenazas detectadas: ${amenazas.length}`);
@@ -121,6 +124,8 @@ const IAArchipielago = {
       infraestructura: infraestructura
     };
 
+    const snapshotAntesAcciones = this._snapshotTurnActivity(myPlayer);
+
     situacion.enemyProfile = this._evaluateEnemyExpansionStrategy(myPlayer);
 
     const rutas = this._evaluarRutasDeVictoria(situacion);
@@ -131,6 +136,12 @@ const IAArchipielago = {
     // <<==== IMPLEMENTACIÓN DE ACCIONES DE IA ====>>
     console.log(`[IA_ARCHIPIELAGO] ========= EJECUTANDO PLAN DE ACCIÓN =========`);
     this.ejecutarPlanDeAccion(situacion);
+
+    if (!this._didMakeProgressThisTurn(myPlayer, snapshotAntesAcciones)) {
+      console.warn('[IA_ARCHIPIELAGO] Turno inerte detectado. Activando plan de emergencia...');
+      this._ejecutarPlanEmergencia(situacion);
+    }
+
     console.log(`[IA_ARCHIPIELAGO] Plan de acción completado.`);
     console.log(`========================================\n`);
 
@@ -427,8 +438,7 @@ const IAArchipielago = {
    */
   ejecutarMovimientosTacticos(myPlayer, misUnidades, situacion) {
     const { amenazas, frente, recursos: recursosEnHexes } = situacion;
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
-    const unidadesEnemigas = IASentidos.getUnits(enemyPlayer);
+    const unidadesEnemigas = IASentidos.getEnemyUnits(myPlayer);
     const enemyProfile = situacion.enemyProfile;
     const ruins = this._getUnexploredRuins();
     const canExploreRuins = ruins.length > 0 && this._ensureTech(myPlayer, 'RECONNAISSANCE');
@@ -588,8 +598,7 @@ const IAArchipielago = {
    * - Si poder < 0.8x → RETIRADA O FUSIONAR TODO
    */
   ejecutarFusionesOfensivas(myPlayer, misUnidades, situacion) {
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
-    const unidadesEnemigas = IASentidos.getUnits(enemyPlayer);
+    const unidadesEnemigas = IASentidos.getEnemyUnits(myPlayer);
     
     console.log(`[IA_ARCHIPIELAGO] FASE 3.5: FUSIÓN OFENSIVA INTELIGENTE`);
     if (unidadesEnemigas.length === 0) return;
@@ -1293,10 +1302,45 @@ const IAArchipielago = {
     return (gameState.cities || []).find(c => c && c.owner === bankId) || null;
   },
 
+  _getEnemyPlayerIds(myPlayer) {
+    if (typeof IASentidos !== 'undefined' && typeof IASentidos.getEnemyPlayerIds === 'function') {
+      const ids = IASentidos.getEnemyPlayerIds(myPlayer);
+      if (ids.length) return ids;
+    }
+
+    const ids = new Set();
+    (units || []).forEach(u => {
+      if (!u || u.player === myPlayer) return;
+      if (!Number.isFinite(Number(u.player)) || Number(u.player) <= 0) return;
+      ids.add(Number(u.player));
+    });
+    (gameState.cities || []).forEach(c => {
+      if (!c || c.owner == null || c.owner === myPlayer) return;
+      if (!Number.isFinite(Number(c.owner)) || Number(c.owner) <= 0) return;
+      ids.add(Number(c.owner));
+    });
+
+    return Array.from(ids).sort((a, b) => a - b);
+  },
+
   _getEnemyPlayerId(myPlayer) {
-    if (gameState.numPlayers === 2) return myPlayer === 1 ? 2 : 1;
-    const enemy = (gameState.players || []).find(p => p.id !== myPlayer);
-    return enemy?.id || (myPlayer === 1 ? 2 : 1);
+    const enemies = this._getEnemyPlayerIds(myPlayer);
+    if (!enemies.length) return null;
+
+    const withDistance = enemies.map(id => {
+      const enemyUnits = IASentidos.getUnits(id);
+      if (!enemyUnits.length) return { id, dist: 99, power: 0 };
+
+      const dist = enemyUnits.reduce((best, enemyUnit) => {
+        const d = this._minUnitDistance(myPlayer, enemyUnit);
+        return Math.min(best, d);
+      }, 99);
+      const power = enemyUnits.reduce((sum, u) => sum + (u.regiments?.length || 0), 0);
+      return { id, dist, power };
+    });
+
+    withDistance.sort((a, b) => (a.dist - b.dist) || (b.power - a.power));
+    return withDistance[0].id;
   },
 
   _getPlayerType(playerId) {
@@ -1787,6 +1831,85 @@ const IAArchipielago = {
     });
   },
 
+  _snapshotTurnActivity(myPlayer) {
+    const snapshot = new Map();
+    const myUnits = IASentidos.getUnits(myPlayer);
+    for (const unit of myUnits) {
+      snapshot.set(unit.id, {
+        r: unit.r,
+        c: unit.c,
+        hasMoved: !!unit.hasMoved,
+        hasAttacked: !!unit.hasAttacked,
+        currentMovement: unit.currentMovement || 0
+      });
+    }
+    return snapshot;
+  },
+
+  _didMakeProgressThisTurn(myPlayer, snapshot) {
+    const myUnits = IASentidos.getUnits(myPlayer);
+    for (const unit of myUnits) {
+      const prev = snapshot.get(unit.id);
+      if (!prev) {
+        return true;
+      }
+      if (unit.r !== prev.r || unit.c !== prev.c) return true;
+      if (!!unit.hasAttacked && !prev.hasAttacked) return true;
+      if (!!unit.hasMoved && !prev.hasMoved) return true;
+      if ((unit.currentMovement || 0) < (prev.currentMovement || 0)) return true;
+    }
+    return false;
+  },
+
+  _ejecutarPlanEmergencia(situacion) {
+    const { myPlayer, ciudades } = situacion;
+    const myUnits = IASentidos.getUnits(myPlayer).filter(u => (u.currentMovement || 0) > 0 && !u.iaExpeditionTarget);
+    if (!myUnits.length) {
+      console.warn('[IA_ARCHIPIELAGO] Plan emergencia: sin unidades con movimiento.');
+      return;
+    }
+
+    const enemyUnits = IASentidos.getEnemyUnits(myPlayer);
+    const cityThreats = [];
+    for (const city of (ciudades || [])) {
+      const threats = enemyUnits.filter(e => hexDistance(e.r, e.c, city.r, city.c) <= 4);
+      cityThreats.push(...threats);
+    }
+
+    const uniqueByPos = (list) => {
+      const map = new Map();
+      for (const item of list) {
+        if (!item) continue;
+        map.set(`${item.r},${item.c}`, item);
+      }
+      return Array.from(map.values());
+    };
+
+    const defenseTargets = uniqueByPos(cityThreats);
+    const neutralCities = this._getBarbarianCities();
+    const enemyCities = (gameState.cities || []).filter(c => c.owner != null && c.owner !== myPlayer && !c.isBarbarianCity);
+    const fallbackTargets = defenseTargets.length
+      ? defenseTargets
+      : (enemyUnits.length ? enemyUnits : (neutralCities.length ? neutralCities : enemyCities));
+
+    if (!fallbackTargets.length) {
+      console.warn('[IA_ARCHIPIELAGO] Plan emergencia: sin objetivos disponibles.');
+      return;
+    }
+
+    let acciones = 0;
+    for (const unit of myUnits) {
+      if ((unit.currentMovement || 0) <= 0) continue;
+      const objetivo = this._pickObjective(fallbackTargets, unit, myPlayer);
+      if (!objetivo) continue;
+      if (this._requestMoveOrAttack(unit, objetivo.r, objetivo.c)) {
+        acciones++;
+      }
+    }
+
+    console.log(`[IA_ARCHIPIELAGO] Plan emergencia ejecutado. Acciones=${acciones}`);
+  },
+
   _getPlayerTechs(myPlayer) {
     return gameState.playerResources?.[myPlayer]?.researchedTechnologies || [];
   },
@@ -1993,8 +2116,8 @@ const IAArchipielago = {
     const cities = gameState.cities || [];
     const neutral = cities.filter(c => c.owner === null || c.isBarbarianCity);
     if (neutral.length) return neutral[0];
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
-    const enemyCities = cities.filter(c => c.owner === enemyPlayer);
+    const enemyPlayers = this._getEnemyPlayerIds(myPlayer);
+    const enemyCities = cities.filter(c => enemyPlayers.includes(c.owner));
     return enemyCities[0] || null;
   },
 
@@ -2152,8 +2275,8 @@ const IAArchipielago = {
       return created ? { action: 'naval', executed: true, note: 'unidad_naval_creada' } : { action: 'naval', executed: false, reason: 'sin_spawn_naval' };
     }
 
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
-    const enemyUnits = units.filter(u => u.player === enemyPlayer && u.regiments?.some(r => REGIMENT_TYPES[r.type]?.is_naval));
+    const enemyPlayers = this._getEnemyPlayerIds(myPlayer);
+    const enemyUnits = units.filter(u => enemyPlayers.includes(u.player) && u.regiments?.some(r => REGIMENT_TYPES[r.type]?.is_naval));
     let target = enemyUnits[0] || this._findNearestCityTarget(myPlayer);
     if (target && board[target.r]?.[target.c]?.terrain !== 'water') {
       const waterNeighbor = getHexNeighbors(target.r, target.c).find(n => board[n.r]?.[n.c]?.terrain === 'water' && !board[n.r][n.c].unit);
@@ -2168,7 +2291,7 @@ const IAArchipielago = {
 
   _ejecutarRutaCapital(situacion) {
     const { myPlayer } = situacion;
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
+    const enemyPlayer = this._getEnemyPlayerId(myPlayer);
     const enemyCapital = gameState.cities.find(c => c.isCapital && c.owner === enemyPlayer);
     if (!enemyCapital) {
       return { action: 'evaluar_capital', executed: false, reason: 'sin_capital_enemiga' };
@@ -2192,8 +2315,7 @@ const IAArchipielago = {
 
   _ejecutarPresionMilitar(situacion, reason) {
     const { myPlayer } = situacion;
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
-    const enemyUnits = IASentidos.getUnits(enemyPlayer).slice().sort((a, b) => (a.regiments?.length || 0) - (b.regiments?.length || 0));
+    const enemyUnits = IASentidos.getEnemyUnits(myPlayer).slice().sort((a, b) => (a.regiments?.length || 0) - (b.regiments?.length || 0));
     if (!enemyUnits.length) {
       return { action: 'presion_militar', executed: false, reason: 'sin_enemigos' };
     }
@@ -2253,12 +2375,12 @@ const IAArchipielago = {
 
   _evaluarRutasDeVictoria(situacion) {
     const { myPlayer, ciudades } = situacion;
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
+    const enemyPlayer = this._getEnemyPlayerId(myPlayer);
     const myMetrics = this._collectVictoryMetrics(myPlayer);
-    const enemyMetrics = this._collectVictoryMetrics(enemyPlayer);
+    const enemyMetrics = enemyPlayer != null ? this._collectVictoryMetrics(enemyPlayer) : {};
     const holders = gameState.victoryPoints?.holders || {};
     const myKey = `player${myPlayer}`;
-    const enemyKey = `player${enemyPlayer}`;
+    const enemyKey = enemyPlayer != null ? `player${enemyPlayer}` : null;
     const rutas = [];
 
     const pushTitleRoute = (id, label, metricKey, holderKey, baseWeight = 120) => {
@@ -2269,7 +2391,7 @@ const IAArchipielago = {
       let weight = baseWeight + Math.max(0, delta) * 8;
 
       if (holder === myKey) weight *= 0.4;
-      if (holder === enemyKey) weight *= 1.3;
+      if (enemyKey && holder === enemyKey) weight *= 1.3;
 
       rutas.push({
         id,
@@ -2280,7 +2402,7 @@ const IAArchipielago = {
       });
     };
 
-    const enemyCapital = gameState.cities.find(c => c.isCapital && c.owner === enemyPlayer);
+    const enemyCapital = enemyPlayer != null ? gameState.cities.find(c => c.isCapital && c.owner === enemyPlayer) : null;
     if (enemyCapital) {
       const powerRatio = this._estimateLocalPowerRatio(myPlayer, enemyCapital, 5);
       const nearestDist = this._minUnitDistance(myPlayer, enemyCapital);
@@ -2351,9 +2473,9 @@ const IAArchipielago = {
 
   _evaluarRutaLarga(situacion, myMetrics, enemyMetrics, holders) {
     const { myPlayer, ciudades } = situacion;
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
+    const enemyPlayer = this._getEnemyPlayerId(myPlayer);
     const myKey = `player${myPlayer}`;
-    const enemyKey = `player${enemyPlayer}`;
+    const enemyKey = enemyPlayer != null ? `player${enemyPlayer}` : null;
 
     if (!ciudades || ciudades.length < 2) {
       return {
@@ -2381,7 +2503,7 @@ const IAArchipielago = {
     let weight = 190 + (hasInfra ? 80 : 0) + Math.min(80, missingCount * 6);
 
     if (holders.mostRoutes === myKey) weight *= 0.5;
-    if (holders.mostRoutes === enemyKey) weight *= 1.4;
+    if (enemyKey && holders.mostRoutes === enemyKey) weight *= 1.4;
 
     return {
       id: 'ruta_larga',
@@ -2561,7 +2683,8 @@ const IAArchipielago = {
   },
 
   _estimateLocalPowerRatio(myPlayer, target, radius = 5) {
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
+    const enemyPlayer = this._getEnemyPlayerId(myPlayer);
+    if (enemyPlayer == null) return 1;
     const myUnits = IASentidos.getUnits(myPlayer).filter(u => hexDistance(u.r, u.c, target.r, target.c) <= radius);
     const enemyUnits = IASentidos.getUnits(enemyPlayer).filter(u => hexDistance(u.r, u.c, target.r, target.c) <= radius);
     const myRegs = myUnits.reduce((sum, u) => sum + (u.regiments?.length || 0), 0);

@@ -1488,7 +1488,8 @@ async function simpleAiTurn() {
     console.log(`%c[simpleAiTurn] TURNO ${gameState.turnNumber} | Fase: ${gameState.currentPhase} | Jugador: ${aiActualPlayerNumber} | Tipo: ${aiPlayerType}`, 'color: #FF6600');
 
     // Verificación robusta: Solo procede si realmente es el turno de la IA.
-    if (gameState.currentPhase !== 'play' || !aiPlayerType?.startsWith('ai_')) {
+    const isAiType = typeof aiPlayerType === 'string' && aiPlayerType.includes('ai');
+    if (gameState.currentPhase !== 'play' || !isAiType) {
         console.warn(`[simpleAiTurn] Bloqueado | fase=${gameState.currentPhase} | jugador=${aiActualPlayerNumber} | tipo=${aiPlayerType || 'undefined'}`);
         return;
     }
@@ -2451,8 +2452,10 @@ async function handleEndTurn(isHostProcessing = false) {
     }
 
      // 3. GESTIÓN DEL SIGUIENTE TURNO (IA vs HUMANO vs RELOJ)
-    const isNextPlayerAI = gameState.playerTypes[`player${gameState.currentPlayer}`]?.startsWith('ai_');
-        const endingWasAI = gameState.playerTypes[`player${playerEndingTurn}`]?.startsWith('ai_');
+    const nextPlayerType = gameState.playerTypes[`player${gameState.currentPlayer}`];
+        const endingPlayerType = gameState.playerTypes[`player${playerEndingTurn}`];
+        const isNextPlayerAI = typeof nextPlayerType === 'string' && nextPlayerType.includes('ai');
+        const endingWasAI = typeof endingPlayerType === 'string' && endingPlayerType.includes('ai');
 
         if (isNextPlayerAI) {
             gameState.aiTurnMoveGhostsBuffer = [];

@@ -8,7 +8,8 @@ const BarbarianMicroAI = {
     executeRoundPass: async function() {
         if (gameState.currentPhase !== 'play') return;
 
-        this._ensureTrackedBarbarianCities();
+    this._resetBarbarianUnitsForNewRound();
+    this._ensureTrackedBarbarianCities();
         const startGold = gameState.playerResources?.[this.BARBARIAN_ID]?.oro || 0;
         const startRecruit = gameState.playerResources?.[this.BARBARIAN_ID]?.puntosReclutamiento || 0;
         this._collectEconomyByInfrastructure();
@@ -90,7 +91,7 @@ const BarbarianMicroAI = {
                     u.id !== main.id &&
                     u.currentHealth > 0 &&
                     !u.tradeRoute &&
-                    hexDistance(u.r, u.c, city.r, city.c) <= 1
+                    hexDistance(u.r, u.c, city.r, city.c) <= 2
                 )
                 .sort((a, b) => (a.isGuardian === b.isGuardian) ? 0 : (a.isGuardian ? -1 : 1));
 
@@ -162,7 +163,7 @@ const BarbarianMicroAI = {
                 u.player === this.BARBARIAN_ID &&
                 !u.isGuardian &&
                 u.currentHealth > 0 &&
-                hexDistance(u.r, u.c, city.r, city.c) <= 1
+                hexDistance(u.r, u.c, city.r, city.c) <= 2
             );
 
             if (hasMainDivision) continue;
@@ -231,7 +232,7 @@ const BarbarianMicroAI = {
             u.currentHealth > 0 &&
             !u.tradeRoute &&
             !u.isGuardian &&
-            hexDistance(u.r, u.c, city.r, city.c) <= 1
+            hexDistance(u.r, u.c, city.r, city.c) <= 2
         );
 
         if (candidates.length === 0) return null;
@@ -626,5 +627,16 @@ const BarbarianMicroAI = {
                 handleEndTurn();
             }
         }, 700);
+    },
+
+    _resetBarbarianUnitsForNewRound: function() {
+        if (!Array.isArray(units)) return;
+        units.forEach(u => {
+            if (u.player !== this.BARBARIAN_ID || (u.currentHealth || 0) <= 0) return;
+            if (u.tradeRoute) return;
+            u.hasMoved = false;
+            u.hasAttacked = false;
+            u.currentMovement = u.movement || 2;
+        });
     }
 };

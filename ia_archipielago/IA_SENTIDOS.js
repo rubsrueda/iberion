@@ -5,8 +5,26 @@
 const IASentidos = {
   // Identidad
   getPlayerIds(myPlayer) {
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
-    return { myPlayer, enemyPlayer };
+    const enemyPlayers = this.getEnemyPlayerIds(myPlayer);
+    return { myPlayer, enemyPlayer: enemyPlayers[0] || null, enemyPlayers };
+  },
+
+  getEnemyPlayerIds(player) {
+    const rawIds = new Set();
+
+    const addIfEnemy = (value) => {
+      const id = Number(value);
+      if (!Number.isFinite(id)) return;
+      if (id <= 0 || id === player) return;
+      const type = gameState.playerTypes?.[`player${id}`] ?? gameState.playerTypes?.[id] ?? gameState.playerTypes?.[String(id)] ?? null;
+      if (type === 'barbarian') return;
+      rawIds.add(id);
+    };
+
+    (gameState.cities || []).forEach(c => addIfEnemy(c?.owner));
+    (units || []).forEach(u => addIfEnemy(u?.player));
+
+    return Array.from(rawIds).sort((a, b) => a - b);
   },
 
   // Estado global
@@ -60,8 +78,8 @@ const IASentidos = {
   },
 
   getEnemyUnits(player) {
-    const enemy = player === 1 ? 2 : 1;
-    const enemyUnits = units.filter(u => u.player === enemy && u.currentHealth > 0);
+    const enemies = this.getEnemyPlayerIds(player);
+    const enemyUnits = units.filter(u => enemies.includes(u.player) && u.currentHealth > 0);
     return enemyUnits;
   },
 
