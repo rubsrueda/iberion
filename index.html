@@ -94,6 +94,10 @@
     <div id="victory-points-tracker" style="display: none;">
         <span class="vp-icon">👑</span>
         <span id="victory-points-summary"></span>
+        <div id="victory-points-bar-container" class="victory-bar-container">
+            <div id="victory-bar-p1" class="victory-bar victory-bar-p1"></div>
+            <div id="victory-bar-p2" class="victory-bar victory-bar-p2"></div>
+        </div>
         <div id="victory-points-tooltip" class="tooltip">
             <!-- El contenido se generará con JS -->
         </div>
@@ -784,8 +788,8 @@
                         <div class="setup-option">
                             <label for="turnTimeSelect">Tiempo</label>
                             <select id="turnTimeSelect">
-                                <option value="90">90 seg</option>
-                                <option value="180" selected>3 min</option>
+                                <option value="90" selected>90 seg</option>
+                                <option value="180">3 min</option>
                                 <option value="300">5 min</option>
                                 <option value="600">10 min</option>
                                 <option value="none">Sin límite</option>
@@ -797,8 +801,8 @@
                                 MANUAL
                             </div>
                             <select id="unitSplitMode">
-                                <option value="detail" selected>Detallar (como ahora)</option>
-                                <option value="minimum">Minimo (divide el regimiento mas pequeno)</option>
+                                <option value="detail">Detallar (como ahora)</option>
+                                <option value="minimum" selected>Minimo (divide el regimiento mas pequeno)</option>
                                 <option value="maximum">Maximo (divide todos menos uno)</option>
                                 <option value="average">Promedio (divide la mitad)</option>
                             </select>
@@ -2774,6 +2778,66 @@
         .ledger-tab.active {
             background: #00f3ff !important;
             color: #000 !important;
+        }
+
+        .ledger-military-condensed {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .military-bar-container {
+            background: rgba(0,243,255,0.08);
+            border: 1px solid #00f3ff;
+            border-radius: 6px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .military-bar-label {
+            font-size: 0.95em;
+            color: #00f3ff;
+            font-weight: bold;
+        }
+
+        .military-bar-track {
+            width: 100%;
+            height: 24px;
+            background: rgba(0,0,0,0.4);
+            border-radius: 4px;
+            overflow: hidden;
+            display: flex;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.6);
+        }
+
+        .military-bar-fill {
+            height: 100%;
+            transition: width 0.3s ease-out;
+            display: flex;
+            align-items: center;
+            font-size: 0.75em;
+            color: rgba(255,255,255,0.7);
+            font-weight: bold;
+            justify-content: center;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+        }
+
+        .military-bar-fill.supplied {
+            background: linear-gradient(90deg, #4caf50, #66bb6a) !important;
+            border-right: 1px solid rgba(0,0,0,0.2);
+        }
+
+        .military-bar-fill.unsupplied {
+            background: linear-gradient(90deg, #ff5252, #ff6e6e) !important;
+        }
+
+        .military-bar-status {
+            font-size: 0.85em;
+            color: #aaa;
+            text-align: right;
         }
 
         [data-legacy-tab].active {

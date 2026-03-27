@@ -314,6 +314,25 @@ const UIManager = {
             });
         }
     },
+
+    showTradeRouteOverlay: function(path = []) {
+        this.clearTradeRouteOverlay();
+        if (!Array.isArray(path) || path.length === 0) return;
+
+        path.forEach((step, idx) => {
+            const hexEl = board?.[step.r]?.[step.c]?.element;
+            if (!hexEl) return;
+            hexEl.classList.add('trade-route-overlay');
+            if (idx === 0) hexEl.classList.add('trade-route-start');
+            if (idx === path.length - 1) hexEl.classList.add('trade-route-end');
+        });
+    },
+
+    clearTradeRouteOverlay: function() {
+        document.querySelectorAll('.hex.trade-route-overlay, .hex.trade-route-start, .hex.trade-route-end').forEach(h => {
+            h.classList.remove('trade-route-overlay', 'trade-route-start', 'trade-route-end');
+        });
+    },
      
     highlightPossibleSplitHexes: function (unit) {
         if (typeof UIManager !== 'undefined' && UIManager.clearHighlights) UIManager.clearHighlights();
@@ -675,6 +694,7 @@ const UIManager = {
         
         this.removeAttackPredictionListener();
         this.hideAllActionButtons();
+        this.clearTradeRouteOverlay();
         if (typeof selectedUnit !== 'undefined') selectedUnit = null;
         if (typeof hexToBuildOn !== 'undefined') hexToBuildOn = null;
     },
@@ -926,6 +946,13 @@ const UIManager = {
                 statusDiv.innerHTML = statusIconHTML;
                 statusDiv.title = statusTitle;
                 unitElement.appendChild(statusDiv);
+        
+                    // === SUPPLY VISUAL FEEDBACK: Agregar class de animación si está sin suministro ===
+                    if (isUnsupplied) {
+                        unitElement.classList.add('unit-no-supply');
+                    } else {
+                        unitElement.classList.remove('unit-no-supply');
+                    }
             }
 
             // Añadir el indicador de salud
@@ -967,6 +994,76 @@ const UIManager = {
         }, 2500); // La duración de la animación
     },
 
+    _clearHexSelectionProgressVisual: function() {
+        const existingOverlay = document.getElementById('hexSelectionProgressOverlay');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+
+        if (this._lastDisputedHexElement) {
+            this._lastDisputedHexElement.classList.remove('hex-dispute-glow');
+            this._lastDisputedHexElement = null;
+        }
+    },
+
+    _showHexSelectionProgressVisual: function(r, c, hexData) {
+        this._clearHexSelectionProgressVisual();
+
+        if (!hexData || !this._domElements?.gameBoard) return;
+
+        let label = '';
+        let ratio = 0;
+        let barColor = '#4caf50';
+        let shouldGlowDispute = false;
+
+        if (hexData.owner === gameState.currentPlayer) {
+            const stability = Number(hexData.estabilidad || 0);
+            const maxStability = Number(MAX_STABILITY || 5);
+            ratio = Math.max(0, Math.min(1, maxStability > 0 ? (stability / maxStability) : 0));
+            label = `Estabilidad ${stability}/${maxStability}`;
+        } else if (hexData.owner !== null) {
+            const occupyingUnit = (typeof getUnitOnHex === 'function') ? getUnitOnHex(r, c) : null;
+            const isDisputed = occupyingUnit && occupyingUnit.player === gameState.currentPlayer;
+            if (!isDisputed) return;
+
+            const resistance = Number(hexData.nacionalidad?.[hexData.owner] || 0);
+            const maxNationality = Number(MAX_NACIONALIDAD || 5);
+            ratio = Math.max(0, Math.min(1, maxNationality > 0 ? ((maxNationality - resistance) / maxNationality) : 0));
+            label = `Conquista ${Math.round(ratio * 100)}%`;
+            barColor = '#ffb74d';
+            shouldGlowDispute = true;
+        } else {
+            return;
+        }
+
+        const hexEl = hexData.element;
+        if (!hexEl) return;
+
+        const hexWidth = hexEl.offsetWidth || 50;
+        const hexCenterX = (parseFloat(hexEl.style.left || '0') + (hexWidth / 2));
+        const hexTopY = parseFloat(hexEl.style.top || '0');
+
+        const overlay = document.createElement('div');
+        overlay.id = 'hexSelectionProgressOverlay';
+        overlay.className = 'hex-selection-progress-overlay';
+        overlay.style.left = `${Math.round(hexCenterX)}px`;
+        overlay.style.top = `${Math.round(hexTopY - 12)}px`;
+
+        overlay.innerHTML = `
+            <div class="hex-selection-progress-label">${label}</div>
+            <div class="hex-selection-progress-track">
+                <div class="hex-selection-progress-fill" style="width:${Math.round(ratio * 100)}%; background:${barColor};"></div>
+            </div>
+        `;
+
+        this._domElements.gameBoard.appendChild(overlay);
+
+        if (shouldGlowDispute) {
+            hexEl.classList.add('hex-dispute-glow');
+            this._lastDisputedHexElement = hexEl;
+        }
+    },
+
     showUnitContextualInfo: function(unit, isOwnUnit = true) {
         if (!this._domElements.contextualInfoPanel || !unit) return;
 
@@ -991,6 +1088,7 @@ const UIManager = {
         // --- Muestra el panel ---
         this._domElements.contextualInfoPanel.classList.add('visible');
         if (this._reopenBtn) this._reopenBtn.style.display = 'none';
+        this._showHexSelectionProgressVisual(unit.r, unit.c, board[unit.r]?.[unit.c]);
 
         // --- Guarda la información para poder reabrirla ---
         this._lastShownInfo = { type: 'unit', data: unit };
@@ -998,6 +1096,7 @@ const UIManager = {
         // --- Inicia el temporizador de autocierre ---
         const autocloseUnitPanel = () => {
             this._domElements.contextualInfoPanel.classList.remove('visible');
+            this._clearHexSelectionProgressVisual();
                 // Usa this._reopenBtn para mostrar el botón
             if (this._reopenBtn) this._reopenBtn.style.display = 'block';
             if (gameState.isTutorialActive) return; // Si es el tutorial, no sigas ocultando cosas 
@@ -1166,6 +1265,7 @@ const UIManager = {
         // --- Muestra el panel ---
         this._domElements.contextualInfoPanel.classList.add('visible');
         if (this._reopenBtn) this._reopenBtn.style.display = 'none';
+        this._showHexSelectionProgressVisual(r, c, hexData);
         
         // --- Guarda la información ---
         this._lastShownInfo = { type: 'hex', data: { r, c, hexData } };
@@ -1173,6 +1273,7 @@ const UIManager = {
         // --- Inicia el temporizador de autocierre ---
         const autocloseHexPanel = () => {
             this._domElements.contextualInfoPanel.classList.remove('visible');
+            this._clearHexSelectionProgressVisual();
                 // Usa this._reopenBtn para mostrar el botón
             if (this._reopenBtn) this._reopenBtn.style.display = 'block'; 
             //this.hideAllActionButtons();
@@ -1228,6 +1329,7 @@ const UIManager = {
         if (this._domElements.contextualInfoPanel) {
             this._domElements.contextualInfoPanel.classList.remove('visible');
         }
+        this._clearHexSelectionProgressVisual();
         this.removeAttackPredictionListener();
         if (!gameState.isTutorialActive) {
             this.hideAllActionButtons();
@@ -1275,12 +1377,6 @@ const UIManager = {
                 content += ` | ${hexData.structure}`;
             }
 
-            // Usamos acceso seguro (?. y || 0) para que nunca falle
-            const est = hexData.estabilidad || 0;
-            const nac = (hexData.nacionalidad && hexData.nacionalidad[hexData.owner]) || 0;
-            
-            content += ` | Est: ${est}/${MAX_STABILITY}`;
-            content += ` | Nac: ${nac}/${MAX_NACIONALIDAD}`;
         } else {
             content += ` | <strong>Neutral</strong>`;
         }
@@ -1357,6 +1453,80 @@ const UIManager = {
         }
     },
 
+    _formatTopBarResourceValue: function(value) {
+        const numericValue = Number(value) || 0;
+        return numericValue >= 1000 ? `${(numericValue / 1000).toFixed(1)}k` : `${Math.round(numericValue)}`;
+    },
+
+    _popTopBarResourceIcon: function(resourceEl) {
+        const iconEl = resourceEl?.parentElement?.querySelector('span');
+        if (!iconEl) return;
+
+        iconEl.style.transition = 'transform 120ms ease-out';
+        iconEl.style.transform = 'scale(1.2)';
+
+        setTimeout(() => {
+            iconEl.style.transition = 'transform 160ms ease-in';
+            iconEl.style.transform = 'scale(1)';
+        }, 120);
+    },
+
+    _animateTopBarResourceValue: function(resourceEl, targetValue, options = {}) {
+        if (!resourceEl) return;
+
+        const duration = Number(options.durationMs || 300);
+        const popIcon = options.popIcon === true;
+        const finalValue = Number(targetValue) || 0;
+
+        if (!this._topBarResourceTweens) {
+            this._topBarResourceTweens = {};
+        }
+
+        const tweenKey = resourceEl.dataset.resource || 'unknown';
+        const currentValueFromDom = Number(resourceEl.dataset.rawValue);
+        const startValue = Number.isFinite(currentValueFromDom)
+            ? currentValueFromDom
+            : finalValue;
+
+        if (this._topBarResourceTweens[tweenKey]) {
+            cancelAnimationFrame(this._topBarResourceTweens[tweenKey]);
+            this._topBarResourceTweens[tweenKey] = null;
+        }
+
+        if (startValue === finalValue) {
+            resourceEl.dataset.rawValue = `${finalValue}`;
+            resourceEl.textContent = this._formatTopBarResourceValue(finalValue);
+            return;
+        }
+
+        if (popIcon) {
+            this._popTopBarResourceIcon(resourceEl);
+        }
+
+        const startedAt = performance.now();
+        const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+        const tick = (now) => {
+            const progress = Math.min(1, (now - startedAt) / duration);
+            const eased = easeOutCubic(progress);
+            const animatedValue = startValue + ((finalValue - startValue) * eased);
+            const roundedAnimatedValue = Math.round(animatedValue);
+
+            resourceEl.dataset.rawValue = `${roundedAnimatedValue}`;
+            resourceEl.textContent = this._formatTopBarResourceValue(roundedAnimatedValue);
+
+            if (progress < 1) {
+                this._topBarResourceTweens[tweenKey] = requestAnimationFrame(tick);
+            } else {
+                resourceEl.dataset.rawValue = `${finalValue}`;
+                resourceEl.textContent = this._formatTopBarResourceValue(finalValue);
+                this._topBarResourceTweens[tweenKey] = null;
+            }
+        };
+
+        this._topBarResourceTweens[tweenKey] = requestAnimationFrame(tick);
+    },
+
     //función para la información en pantalla
     updateTopBarInfo: function() {
         // 1. Verificar si el menú y los datos existen antes de hacer nada
@@ -1384,10 +1554,19 @@ const UIManager = {
 
         for (const resKey in resourcesData) {
             const el = infoContainer.querySelector(`strong[data-resource="${resKey}"]`);
-            if (el) {
-                // Formatear números grandes (opcional pero muy útil)
-                el.textContent = resourcesData[resKey] >= 1000 ? `${(resourcesData[resKey] / 1000).toFixed(1)}k` : resourcesData[resKey];
+            if (!el) continue;
+
+            const numericValue = Number(resourcesData[resKey] || 0);
+            if (resKey === 'oro') {
+                this._animateTopBarResourceValue(el, numericValue, {
+                    durationMs: 300,
+                    popIcon: true
+                });
+                continue;
             }
+
+            el.dataset.rawValue = `${numericValue}`;
+            el.textContent = this._formatTopBarResourceValue(numericValue);
         }
 
         // --- NUEVO: ALERTA DE MANTENIMIENTO ---
@@ -1505,7 +1684,21 @@ const UIManager = {
 
         const summaryEl = document.getElementById('victory-points-summary');
         const tooltipEl = document.getElementById('victory-points-tooltip');
+        const barP1El = document.getElementById('victory-bar-p1');
+        const barP2El = document.getElementById('victory-bar-p2');
         const vpData = gameState.victoryPoints;
+
+        // 0. Calcular y animar la barra bicolor de comparación de puntos
+        if (barP1El && barP2El) {
+            const p1Points = vpData['player1'] || 0;
+            const p2Points = vpData['player2'] || 0;
+            const totalPoints = Math.max(p1Points + p2Points, 1);
+            const p1Ratio = (p1Points / totalPoints) * 100;
+            const p2Ratio = (p2Points / totalPoints) * 100;
+            
+            barP1El.style.flex = `${Math.max(p1Ratio, 3)}`; // Mínimo 3% para visibilidad
+            barP2El.style.flex = `${Math.max(p2Ratio, 3)}`;
+        }
 
         // 1. Actualizar el resumen simple (formato compacto)
         const playerScores = [];
@@ -1754,8 +1947,8 @@ const UIManager = {
                 <div style="font-size: 0.8em;">Turnos jugados: <strong>${matchData.turns}</strong></div>
                 <div style="font-size: 0.8em;">Regimientos enemigos destruidos: <strong>${matchData.kills}</strong></div>
                 <div style="font-size: 0.8em;">Poder final propio / rival: <strong>${finalOwnPower} / ${finalEnemyPower}</strong></div>
-                <div style="grid-column: span 2; font-size: 0.75em; color: #bcaaa4; text-align: left;">Grafica: verde es tu poder militar al cierre de cada ronda y rojo el del rival principal. No mide oro ahorrado ni nivel de cuenta.</div>
-                <div id="miniPowerGraph" style="grid-column: span 2; height: 70px; display: flex; align-items: flex-end; gap: 3px; background: rgba(0,0,0,0.5); padding: 6px; margin-top: 10px; border: 1px solid #444;">
+                <div style="grid-column: span 2; font-size: 0.75em; color: #bcaaa4; text-align: left;">Grafica apilada tipo piramide: arriba tu poder militar y abajo el del rival principal en cada ronda.</div>
+                <div id="miniPowerGraph" style="grid-column: span 2; height: 82px; display: flex; flex-direction: column; gap: 4px; background: rgba(0,0,0,0.5); padding: 6px; margin-top: 10px; border: 1px solid #444;">
                 </div>
             `;
         }
@@ -1764,31 +1957,40 @@ const UIManager = {
         const graph = document.getElementById('miniPowerGraph');
         if (graph && normalizedSnapshots.length > 0) {
             const maxPower = Math.max(...myPowerSeries, ...enemyPowerSeries, 1);
-            // Usamos px en lugar de % porque la columna padre no tiene altura explícita
-            // y los porcentajes se resolverían a 0 en un flex item sin height definido.
-            const usableHeight = 58; // 70px container - 12px vertical padding
-            normalizedSnapshots.forEach((snap, index) => {
-                const column = document.createElement('div');
-                column.style.flex = '1';
-                column.style.display = 'flex';
-                column.style.alignItems = 'flex-end';
-                column.style.gap = '1px';
-                column.title = `Turno ${snap.turn}: tu poder ${myPowerSeries[index] || 0}, rival ${enemyPowerSeries[index] || 0}`;
+            const laneHeight = 32;
 
+            const ownLane = document.createElement('div');
+            ownLane.style.flex = '1';
+            ownLane.style.display = 'flex';
+            ownLane.style.alignItems = 'flex-end';
+            ownLane.style.gap = '2px';
+            ownLane.style.borderBottom = '1px solid rgba(255,255,255,0.08)';
+
+            const enemyLane = document.createElement('div');
+            enemyLane.style.flex = '1';
+            enemyLane.style.display = 'flex';
+            enemyLane.style.alignItems = 'flex-end';
+            enemyLane.style.gap = '2px';
+
+            normalizedSnapshots.forEach((snap, index) => {
                 const ownBar = document.createElement('div');
                 ownBar.style.flex = '1';
-                ownBar.style.height = `${Math.max(3, Math.round(((myPowerSeries[index] || 0) / maxPower) * usableHeight))}px`;
+                ownBar.style.height = `${Math.max(3, Math.round(((myPowerSeries[index] || 0) / maxPower) * laneHeight))}px`;
                 ownBar.style.background = '#4caf50';
+                ownBar.title = `Turno ${snap.turn}: tu poder ${myPowerSeries[index] || 0}`;
 
                 const enemyBar = document.createElement('div');
                 enemyBar.style.flex = '1';
-                enemyBar.style.height = `${Math.max(3, Math.round(((enemyPowerSeries[index] || 0) / maxPower) * usableHeight))}px`;
+                enemyBar.style.height = `${Math.max(3, Math.round(((enemyPowerSeries[index] || 0) / maxPower) * laneHeight))}px`;
                 enemyBar.style.background = '#e57373';
+                enemyBar.title = `Turno ${snap.turn}: poder rival ${enemyPowerSeries[index] || 0}`;
 
-                column.appendChild(ownBar);
-                column.appendChild(enemyBar);
-                graph.appendChild(column);
+                ownLane.appendChild(ownBar);
+                enemyLane.appendChild(enemyBar);
             });
+
+            graph.appendChild(ownLane);
+            graph.appendChild(enemyLane);
         }
 
         // 5. MOSTRAR MODAL Y ANIMAR BARRA XP

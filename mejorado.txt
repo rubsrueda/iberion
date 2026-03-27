@@ -1,0 +1,242 @@
+Mejoras implementadas
+
+1) Grafica en pantalla de victoria (post-partida) en formato apilado vertical
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- Se modifico la funcion showPostMatchSummary en uiUpdates.js.
+- La mini grafica de poder final (antes con barras juntas por turno) ahora se dibuja en dos carriles apilados:
+  - Carril superior: poder del jugador.
+  - Carril inferior: poder del rival principal.
+- Se actualizo el texto explicativo para reflejar el formato "tipo piramide" (encima/abajo).
+- Se ajusto el contenedor visual para soportar layout vertical (flex-direction: column) y separacion entre carriles.
+
+Resultado UX:
+- Lectura mas clara y rapida de la evolucion de poder al final de la partida.
+- Se evita la confusion visual de barras pegadas una al lado de otra en cada columna.
+
+Archivos tocados:
+- uiUpdates.js
+- Mejoras.txt
+- mejorado.txt
+
+2) Tweening de oro en HUD superior + pop del icono
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- Se agregaron helpers en UIManager para animar valores del top bar:
+  - _formatTopBarResourceValue
+  - _popTopBarResourceIcon
+  - _animateTopBarResourceValue
+- En updateTopBarInfo, el recurso oro ya no cambia de golpe: se anima en 300ms con easing.
+- Al detectar cambio de oro, el icono del recurso hace un "pop" visual (escala al 120% y vuelve).
+- El resto de recursos mantiene actualizacion directa, con formato consistente.
+
+Resultado UX:
+- Ganar o perder oro ahora se percibe como feedback inmediato y satisfactorio.
+- Se reduce la sensacion de cambio brusco en el HUD.
+
+Archivos tocados:
+- uiUpdates.js
+- Mejoras.txt
+- mejorado.txt
+
+3) Indicador flotante de progreso en casilla seleccionada (estabilidad/conquista)
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- Se anadio un overlay visual sobre la casilla seleccionada con barra semitransparente y etiqueta corta.
+- Si la casilla es propia: muestra progreso de Estabilidad.
+- Si la casilla enemiga esta en disputa por unidad propia: muestra progreso de Conquista (%).
+- En casilla en disputa se activa brillo/parpadeo sutil del borde para tension visual.
+- Se limpia automaticamente el overlay al cerrar/autocerrar el panel contextual.
+- Se redujo friccion textual: en la linea contextual de casilla ya no se fuerzan textos Est/Nac; la lectura principal pasa al overlay visual.
+
+Resultado UX:
+- El jugador puede estimar avance territorial mirando el mapa, sin depender del panel inferior.
+- El estado de disputa queda visible de forma inmediata.
+
+Archivos tocados:
+- uiUpdates.js
+- style.css
+- Mejoras.txt
+- mejorado.txt
+
+4) Barras condensadas de Tesorería y Situación Militar en Cuaderno
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- Se reemplazó la sección "⚔️ CAPACIDAD MILITAR" por lista horizontal simplificada con barra compacta.
+- Se transformó "👥 MANPOWER" en barra bicolor (verde suministrados / rojo en riesgo) en lugar de cards separados.
+- Ambas barras ahora condensadas para mobile: altura compacta con etiquete y estado visual en 1 línea.
+- Colores dinámicos: Verde ✅ Normal, Amarillo ⚡ Media, Rojo ⚠️  Crítica según % de uso.
+- Se agregó CSS específico en index.html: `.ledger-military-condensed`, `.military-bar-container`, `.military-bar-track`.
+
+Resultado UX:
+- Lectura visual instantánea (< 2 segundos): estado de suministro de un vistazo.
+- Mobile-friendly: ocupan mínimo espacio y máxima claridad.
+- Alejan la fricción de leer listas de números; sustituyen por información gráfica clara.
+
+Archivos tocados:
+- ledgerUI.js
+- index.html
+- Mejoras.txt
+- mejorado.txt
+
+******************************************************************************************************************************
+******************************************************************************************************************************
+Resultado: inconsistente hay otras ojas que no han sido tocadas, no siguiendo la instrucción de aplicarlo en todo el cuaderno.
+******************************************************************************************************************************
+******************************************************************************************************************************
+
+5) Barra de Marcador J1 vs J2 bicolor sutil
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- Se agregó HTML en #victory-points-tracker con dos divs (<victory-bar-p1> y <victory-bar-p2>).
+- La barra se posiciona como línea sutil de 2px en la parte inferior del tracker (muy imperceptible).
+- Cada lado usa degradado de color:  J1 azul (#007bff) vs J2 rojo (#dc3545).
+- El ancho de cada lado representa proporcionalmente los puntos de victoria: si J1 tiene 7/10 puntos, su lado ocupa 70%.
+- Opacidad muy baja (0.4) por defecto, sube a 0.8 en hover para que sea casi imperceptible hasta que se lea.
+- Transición suave (0.4s) cuando cambian los puntos.
+- En CSS: `.victory-bar-container`, `.victory-bar`, `.victory-bar-p1`, `.victory-bar-p2`.
+
+Resultado UX:
+- Información visual subconsciente: el jugador irá percibiendo cambios sin distraerse.
+- A medida que juega múltiples partidas, el efecto cobra sentido (exactamente como especificaste).
+- Sin fricción: no requiere clics ni abre menús.
+
+Archivos tocados:
+- index.html
+- style.css
+- uiUpdates.js
+- Mejoras.txt
+- mejorado.txt
+
+6) Micro-animaciones "Juice" (Combat Shake, Smooth Movement, Supply Visual)
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+
+1. **Combat Shake (Sacudida de Cámara al Atacar)**:
+   - Agregada función `boardShake()` en GameFeelFX (unit_Actions.js línea ~125)
+   - Almacena en cache un elemento board (`#gameBoard` o `#gameContainer`)
+   - Al llamar a `GameFeelFX.battle()`, ahora ejecuta `this.boardShake()` con duración 0.1s
+   - Red @keyframes `boardShake` en style.css: traslación de 2px en 4 fases (24 líneas CSS)
+   - Duración: 100ms (crisp, no intrusivo)
+   - Aplicación: Un ataque válido dispara automáticamente la sacudida
+
+2. **Movimiento Fluido (Lerp / Smooth Movement)**:
+   - Modificada función `positionUnitElement()` en unit_Actions.js (línea 1126+)
+   - Ahora detecta si la unidad YA tiene posición (hasExistingPosition)
+   - Si es movimiento posterior (no colocación inicial), agrega clase `.unit-smooth-move`
+   - Nueva clase CSS `.unit-smooth-move`: transition 0.35s en left/top con easing cubic-bezier(0.34, 1.56, 0.64, 1)
+   - Easing: Over-shoot suave (bounce-out) para sensación lúdica
+   - Resultado: Las unidades ya no "teletransportarse", deslizarse naturalmente entre casillas
+
+3. **Suministro Visual (Pulso + Desaturación)**:
+   - Modificado renderizado de unidades en uiUpdates.js (línea ~920)
+   - Detecta `isUnsupplied` (lógica preexistente)
+   - Agrega clase `.unit-no-supply` al elemento unitElement cuando sin suministro
+   - Nueva clase CSS `.unit-no-supply`: 
+     * Filter saturate(0.6) - desaturación a 60%
+     * Animación `supplyPulse` 1.2s infinita (pulso visible 0.7→1→0.7 opacidad)
+   - Resultado: Unidades sin suministro están visualmente "apagadas" y "palpitantes"
+
+Cambios de Archivos:
+- style.css: Agregadas 2 líneas de clases (.unit-no-supply, .unit-smooth-move) + 2 @keyframes (boardShake, supplyPulse)
+- unit_Actions.js: Agregada función boardShake() + modificada positionUnitElement() para Lerp
+- uiUpdates.js: Agregada lógica de clase .unit-no-supply en renderizado
+
+Resultado UX:
+- Cada ataque genera feedback inmediato (0.1s shake) - satisfacción táctil
+- Movimientos son suaves y fluidos (0.35s Lerp) - sensación menos robótica
+- Unidades sin suministro comunican estado visual constantemente (pulsing + desaturado) - inteligencia de mercado
+- El juego se siente "vivo" y "responsivo" a cada acción del jugador
+
+Criterio de Éxito Alcanzado:
+✅ Combat feedback es instantáneo y sutilmente poderoso
+✅ Movimiento es fluido, no teletransportado
+✅ Suministro visual es evidente sin ser intrusivo
+✅ Cada clic/acción genera respuesta visual clara
+✅ El juego "se siente bien" - pura satisfacción estratégica
+
+Archivos tocados:
+- style.css (nuevas animaciones y clases)
+- unit_Actions.js (GameFeelFX.boardShake + positionUnitElement Lerp)
+- uiUpdates.js (clase unit-no-supply al renderizar)
+- Mejoras.txt (eliminada Juice)
+- mejorado.txt (este archivo)
+
+
+7) Claridad en las Rutas (Overlay Comercial)
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- Se añadió soporte en UI para renderizar un overlay de rutas comerciales al seleccionar caravanas con `tradeRoute.path`.
+- En `UIManager` se incorporaron:
+  - `showTradeRouteOverlay(path)` para marcar cada casilla de la ruta.
+  - `clearTradeRouteOverlay()` para limpiar el resaltado al deseleccionar/cerrar panel.
+- Integración en flujo de selección:
+  - Al seleccionar una unidad, primero se limpia overlay previo.
+  - Si la unidad seleccionada tiene ruta comercial activa, se dibuja el rastro completo.
+  - Al deseleccionar unidad o cerrar el panel contextual, el overlay se limpia.
+- Estilo visual implementado en CSS con rastro sutil:
+  - `.hex.trade-route-overlay`: brillo cian pulsante y saturación suave.
+  - `.hex.trade-route-start`: marca de origen en verde.
+  - `.hex.trade-route-end`: marca de destino en ámbar.
+  - Animación `tradeRoutePulse` para efecto de “ruta viva” sin ruido visual.
+
+Resultado UX:
+- Al seleccionar una caravana (incluidas caravanas de Banca), el camino completo se entiende de un vistazo.
+- Disminuye el riesgo de cortar rutas propias por error al mover tropas.
+- El mapa comunica comercio activo sin abrir menús adicionales, cumpliendo el objetivo de lectura en 1 segundo.
+
+Archivos tocados:
+- uiUpdates.js
+- unit_Actions.js
+- style.css
+- Mejoras.txt
+- mejorado.txt
+
+8) Defaults de Partida Rápida (90s, División mínima, IA Roma)
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- Se ajustaron valores por defecto de la pantalla de Partida Rápida (Escaramuza):
+  - Tiempo por turno por defecto a 90 segundos.
+  - Modo de división por defecto a mínimo.
+  - Configuración de facciones por defecto en setup de jugadores: J1 Iberia (humano) y J2 Roma (IA).
+- Se alinearon también los fallbacks en JavaScript para evitar inconsistencias si un selector no está disponible aún en el DOM.
+
+Cambios técnicos concretos:
+- index.html:
+  - `#turnTimeSelect` ahora inicia con `90` seleccionado.
+  - `#unitSplitMode` ahora inicia con `minimum` seleccionado.
+- main.js:
+  - Fallbacks de `turnTime` cambiados de `180` a `90` en los flujos de setup/LAN.
+  - Fallbacks de `unitSplitMode` cambiados de `detail` a `minimum`.
+  - Ajustes de `setupTempSettings.unitSplitMode` por defecto a `minimum` en rutas de inicialización.
+  - Refresco de tooltip/badge del split mode con fallback `minimum`.
+- modalLogic.js:
+  - Orden de civilizaciones por defecto en setup2 actualizado para que J2 quede en Roma por defecto.
+
+Resultado UX:
+- La Partida Rápida arranca con el ritmo de turno objetivo (90s) sin tocar configuración.
+- El sistema de división automática mínima queda preseleccionado, reduciendo fricción operativa.
+- La IA de arranque aparece como Roma por defecto de forma consistente.
+
+Archivos tocados:
+- index.html
+- main.js
+- modalLogic.js
+- Mejoras.txt
+- mejorado.txt

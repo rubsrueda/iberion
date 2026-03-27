@@ -1,171 +1,113 @@
 Mejoras: 
 
-la grafica en la pantalla de victoria, cuando termina la partida, cambiarla para que no se vea una junto a otra, sino encima de otra, como una de pirámide de edades.
+Transformar la interfaz (UI) y la experiencia (UX) para que el juego se sienta moderno, rápido y "jugoso" al tacto.
 
- Transformar la interfaz (UI) y la experiencia (UX) para que el juego se sienta moderno, rápido y "jugoso" al tacto.
-
-
-​Objetivo: Eliminar la fricción visual. Pasar de "leer datos" a "ver el campo de batalla". El jugador debe entender qué pasa en 1 segundo sin abrir menús.
-
-Tarea: Implementar Tweening (suavizado) en los cambios de valores.
-​Cuando el oro sube o baja en el HUD superior, el número no debe cambiar de golpe. Debe "contar" rápido (ej. de 500 a 600 en 0.3s) y el icono de la moneda debe escalar un 20% y volver a su tamaño (un pequeño "pop").
-​Criterio de éxito: El jugador siente el "placer" visual de ganar recursos.
-
-Tarea: Crear un indicador de progreso sobre la casilla.
-​Diseñar un pequeño anillo o barra de progreso circular que flote sobre la casilla que estás seleccionando.
-​Si faltan 2 turnos, que el anillo esté al 50%.
-​Criterio de éxito: El jugador puede planear su avance viendo el mapa, sin tener que bajar la vista al panel de texto inferior para leer números.
-No obligar al texto de "Nacionalidad: 2" o "Estabilidad: 3" al seleccionar.
-​Barras Flotantes: Implementar pequeñas barras de progreso (semi-transparentes) que aparezcan sobre las casillas seleccionada si esta en disputa Nacionalidad y si es propia, estabilidad.
-​Colores de Control: El borde de la casilla debe "brillar" o parpadear sutilmente cuando está en proceso de cambio de nacionalidad.
-​Criterio de Éxito: El jugador debe saber cuántos turnos faltan para conquistar una casilla solo mirando la barra sobre la casilla, sin clics extra.
-
-
-Tarea: Convertir los datos del cuaderno... "Tesorería" y "Situación Militar" en gráficos simples o barras.
-​En lugar de una lista, de 15 regimientos, de 57 regimientos, usa una barra que diga: "Capacidad militar: 15/57" (como ya calculas), pero con un código de colores (Verde: Suministrados, Rojo: En riesgo).
-Y condensado todo para verlo en el teléfono.
-​Criterio de éxito: Que en un vistazo de 2 segundos al menú, el jugador detecte el problema (ej. "tengo mucha corrupción" o "faltan suministros") sin hacer scroll, sin leer la tabla completa. Son 90 segundos por turno, si tardo más de 2 por hoja es un fracaso. 
-
-
-​Barra de Marcador: igual a la grafica de la pantalla de cierre, poner una linea muy sutil con El marcador J1 vs J2 debe ser una barra de progreso bicolor que se mueva dinámicamente según quién tiene más puntos.
-​Criterio de Éxito: es casi imperceptible, una linea inferior muy sutil, si el jugador lo ve a primera vista y no hasta que haya jugado 3 partidas o alguien se lo diga, es un fracaso.
-
-​
-​El "Juice" (Feedback Táctil y Visual)
-​Tarea: Implementar micro-animaciones para que el juego responda a las acciones.
-​Combat Shake: Al presionar "Atacar", la cámara debe tener una sacudida leve (0.1s) y la unidad defensora debe parpadear en blanco/rojo.
-​Movimiento Fluido: Las unidades no deben "teletransportarse". Implementar una transición suave (Lerp) entre casillas.
-​Suministro Visual: Cuando una unidad se queda sin suministro (calavera), el icono debe "latir" y la unidad debe verse ligeramente más oscura o desaturada.
-​Criterio de Éxito: Jugar un turno debe sentirse físicamente satisfactorio. Cada clic debe generar una respuesta visual.
-
-
-Claridad en las Rutas (Overlay Comercial)
- mencionas que no quieres atacar porque la caravana está ahí y no quieres romper el comercio.
-​Tarea: Implementar un modo de visualización de rutas.
-​Al seleccionar una caravana o la banca, que las casillas que forman el camino brillen con un rastro sutil (partículas o una línea punteada).
-​Criterio de éxito: Evitar que el jugador rompa sus propios caminos por accidente al mover tropas. Y que este vea con claridad las rutas comerciales activas.
-
-Cambiar los valores predeterminado de la configuración de partida rápida...
-
-A 90 segundos.
-En la división mínima. 
-La IA sera Roma por defecto.
-
+Objetivo: Eliminar la fricción visual. Pasar de "leer datos" a "ver el campo de batalla". El jugador debe entender qué pasa en 1 segundo sin abrir menús.
 
 Objetivo: Que el jugador aprenda a ganar sin leer un manual y que sienta la necesidad de explorar el mapa (el factor "una vuelta más").
-​1. Tutorial Dinámico basado en Eventos (Trigger-based)
-​El problema: Tienes mecánicas profundas (arqueología, suministros, rutas) que el jugador ignorará si no se le explican en el momento justo.
-​Tarea: Implementar un sistema de "Consejos de General". No son pop-ups invasivos, sino mensajes que aparecen solo cuando ocurre el evento por primera vez.
-​Trigger Arqueología: Cuando una unidad se detenga a 1 casilla de una ruina, mostrar un mensaje: "Has detectado ruinas. Envía un explorador para obtener sellos de héroe o tesoros".
-​Trigger Suministro: La primera vez que una unidad baje del 50% de efectividad por falta de suministro, mostrar: "Tu unidad se debilita. Conecta un camino hasta Itálica para reabastecerla".
-​Criterio de Éxito: El jugador completa su primera partida habiendo usado al menos una vez cada mecánica (caravana, investigación, arqueología) sin ayuda externa.
-
+1. Tutorial Dinámico basado en Eventos (Trigger-based)
+El problema: Tienes mecánicas profundas (arqueología, suministros, rutas) que el jugador ignorará si no se le explican en el momento justo.
+Tarea: Implementar un sistema de "Consejos de General". No son pop-ups invasivos, sino mensajes que aparecen solo cuando ocurre el evento por primera vez.
+Trigger Arqueología: Cuando una unidad se detenga a 1 casilla de una ruina, mostrar un mensaje: "Has detectado ruinas. Envía un explorador para obtener sellos de héroe o tesoros".
+Trigger Suministro: La primera vez que una unidad baje del 50% de efectividad por falta de suministro, mostrar: "Tu unidad se debilita. Conecta un camino hasta Itálica para reabastecerla".
+Criterio de Éxito: El jugador completa su primera partida habiendo usado al menos una vez cada mecánica (caravana, investigación, arqueología) sin ayuda externa.
 
 Implementación de Niebla de Guerra (Fog of War)
-​El problema: En el video, el mapa es 100% visible desde el turno 1. Esto elimina la emoción de la exploración y hace que la IA sea previsible.
-
-​Tarea: en el turno 1 ves todo el mapa para posicionamiento de tus tres unidades, pero luego, Oscurecer las casillas que no estén en el rango de visión de tus ciudades o unidades. Y que no sean tuyas.
-​Rango de Visión: el de las Unidades.
-​Persistencia: Las casillas de las que eres dueño pero que ya no están en rango quedan en "penumbra" (ves el terreno, pero no los movimientos del contrario).
-​Criterio de Éxito: Obligar al jugador a invertir o
-en exploración, y conquista, y a tener miedo de lo oculto, no solo en combate.
-
+El problema: En el video, el mapa es 100% visible desde el turno 1. Esto elimina la emoción de la exploración y hace que la IA sea previsible.
+Tarea: en el turno 1 ves todo el mapa para posicionamiento de tus tres unidades, pero luego, Oscurecer las casillas que no estén en el rango de visión de tus ciudades o unidades. Y que no sean tuyas.
+Rango de Visión: el de las Unidades.
+Persistencia: Las casillas de las que eres dueño pero que ya no están en rango quedan en "penumbra" (ves el terreno, pero no los movimientos del contrario).
+Criterio de Éxito: Obligar al jugador a invertir en exploración, y conquista, y a tener miedo de lo oculto, no solo en combate.
 
 "The Next Step" (Guía de Victoria)
-​El problema: El jugador a veces no sabe qué hacer para subir en el marcador J1/J2.
-​Tarea: Implementar un sistema de "Objetivos Recomendados".
-​Si el J2 (IA) tiene más riqueza, el icono de Oro en el HUD debe parpadear sutilmente o mostrar una flecha hacia abajo.
-​Al tocar el marcador J1/J2, que se despliegue una mini-guía: "Necesitas más ciudades para superar al rival en Demografía".
-​Criterio de Éxito: Reducir el tiempo que el jugador pasa "pensando qué hacer" y aumentar el tiempo que pasa "ejecutando su estrategia".
+El problema: El jugador a veces no sabe qué hacer para subir en el marcador J1/J2.
+Tarea: Implementar un sistema de "Objetivos Recomendados".
+Si el J2 (IA) tiene más riqueza, el icono de Oro en el HUD debe parpadear sutilmente o mostrar una flecha hacia abajo.
+Al tocar el marcador J1/J2, que se despliegue una mini-guía: "Necesitas más ciudades para superar al rival en Demografía".
+Criterio de Éxito: Reducir el tiempo que el jugador pasa "pensando qué hacer" y aumentar el tiempo que pasa "ejecutando su estrategia".
 
-​"rejugabilidad". Si el jugador siente que cada partida es diferente porque el mapa está oculto y hay tesoros por descubrir, se quedará enganchado.
+"rejugabilidad". Si el jugador siente que cada partida es diferente porque el mapa está oculto y hay tesoros por descubrir, se quedará enganchado.
 
 Cuando se tienen heroes, cazarlos, es una buena idea.  Criterio de Éxito: El jugador debe "temer" perder a esa unidad específica. Si el héroe muere, porque muere esa división, ya no se podrá usar este héroe en la partida eh curso,  el impacto en la moral/puntos debe ser visible.
 
 Árbol de Tecnología Visual (Tech Tree)
-​El problema: no se ve bien, no se ve todo, tiene incongruencias... 
-​Impacto Visual en el Mapa: Al investigar una tecnología, el cambio debe ser obvio. Ej: Si investigas "Caminos de Piedra", el arte del camino en el mapa debe cambiar de color o textura para indicar que ahora las unidades se mueven un 20% más rápido.
-​Criterio de Éxito: Que el jugador sienta que está "desbloqueando" el mapa, no solo comprando mejoras.
-
+El problema: no se ve bien, no se ve todo, tiene incongruencias... 
+Impacto Visual en el Mapa: Al investigar una tecnología, el cambio debe ser obvio. Ej: Si investigas "Caminos de Piedra", el arte del camino en el mapa debe cambiar de color o textura para indicar que ahora las unidades se mueven un 20% más rápido.
+Criterio de Éxito: Que el jugador sienta que está "desbloqueando" el mapa, no solo comprando mejoras.
 
 Especialización de Civilizaciones
-​El problema: Eliges "Britannia" o "Arabia", pero en el gameplay parecen jugar exactamente igual.
-​Tarea: el Bonus es visible.
-​Criterio de Éxito: El marcador de J1/J2 debe reflejar esta ventaja. Si Arabia tiene más "Puntos de Avance", el HUD debe indicarlo con su icono de facción.
+El problema: Eliges "Britannia" o "Arabia", pero en el gameplay parecen jugar exactamente igual.
+Tarea: el Bonus es visible.
+Criterio de Éxito: El marcador de J1/J2 debe reflejar esta ventaja. Si Arabia tiene más "Puntos de Avance", el HUD debe indicarlo con su icono de facción.
 
 Dinámicas de Tensión y "Mundo Vivo"
-​Objetivo: Romper la predictibilidad. Que el mapa no sea solo un tablero, sino un entorno que reacciona y genera problemas inesperados.
+Objetivo: Romper la predictibilidad. Que el mapa no sea solo un tablero, sino un entorno que reacciona y genera problemas inesperados.
 
-​1. Sistema de "Líneas de Suministro" Visuales (Logística)
-si rompen el camino pierdes el comercio. Eso es oro puro, pero el jugador debe ver el peligro.
-​Tarea: Implementar un "Hilo de Vida".
-​Crear una línea tenue que conecte visualmente tus unidades con su ciudad de origen.
-​Si una unidad enemiga se sitúa sobre esa línea o el camino, la línea debe volverse roja y parpadear.
-​Criterio de éxito: El jugador sentirá pánico físico al ver su línea cortada antes de que aparezca el icono de la calavera. Es "tensión visual".
+1. Sistema de "Líneas de Suministro" Visuales (Logística)
+Si rompen el camino pierdes el comercio. Eso es oro puro, pero el jugador debe ver el peligro.
+Tarea: Implementar un "Hilo de Vida".
+Crear una línea tenue que conecte visualmente tus unidades con su ciudad de origen.
+Si una unidad enemiga se sitúa sobre esa línea o el camino, la línea debe volverse roja y parpadear.
+Criterio de éxito: El jugador sentirá pánico físico al ver su línea cortada antes de que aparezca el icono de la calavera. Es "tensión visual".
 
-
-​El problema: Una vez conquistas una casilla, parece que se queda ahí para siempre si no hay enemigos cerca.
-​Tarea: Implementar la Lealtad de las fortalezas y Ciudades.
-​La "Estabilidad" de una fortaleza, o ciudad es como un pulmon (por falta de tropas cerca o falta de comida, de caravanas, de caminos), la casilla debe empezar a "vibrar".
-​Si llega a cero, la ciudad se vuelve Bárbara/Independiente de nuevo.
-​Criterio de éxito: Obliga al jugador a no solo "correr hacia adelante", sino a dejar guarniciones y gestionar la paz interna.
+El problema: Una vez conquistas una casilla, parece que se queda ahí para siempre si no hay enemigos cerca.
+Tarea: Implementar la Lealtad de las fortalezas y Ciudades.
+La "Estabilidad" de una fortaleza, o ciudad es como un pulmon (por falta de tropas cerca o falta de comida, de caravanas, de caminos), la casilla debe empezar a "vibrar".
+Si llega a cero, la ciudad se vuelve Bárbara/Independiente de nuevo.
+Criterio de éxito: Obliga al jugador a no solo "correr hacia adelante", sino a dejar guarniciones y gestionar la paz interna.
 
 Clima y Terreno Dinámico (Modificadores de Turno)
-​El problema: El mapa es estático. Turno 1 y Turno 50 se ven igual.
+El problema: El mapa es estático. Turno 1 y Turno 50 se ven igual.
+Tarea: mejorar las Estaciones o Clima.
+Invierno/Tormenta: Cada 10 turnos, el coste de movimiento en casillas de "Piedra" o "Montaña" se duplica y el alcance de las caravanas se reduce.
+Inundación: La casilla adyacentes al mar pueden volverse intransitables por 2 turnos.
+Criterio de éxito: El jugador debe adaptar su estrategia. "No puedo atacar ahora por la nieve, debo esperar al turno de primavera".
 
-​Tarea: mejorar las Estaciones o Clima.
-​Invierno/Tormenta: Cada 10 turnos, el coste de movimiento en casillas de "Piedra" o "Montaña" se duplica y el alcance de las caravanas se reduce.
-​Inundación: La casilla adyacentes al mar pueden volverse intransitables por 2 turnos.
-​Criterio de éxito: El jugador debe adaptar su estrategia. "No puedo atacar ahora por la nieve, debo esperar al turno de primavera".
+La "Crónica" Narrativa
+El problema: Tienes una sección de Crónica que es un historial técnico. Nadie lee un log de errores.
+Tarea: Transformar el log en Hitos Épicos.
+En lugar de: "Turno 5: Capturada Ciudad 3", poner: "Turno 5: El Imperio de Britannia expande sus fronteras tras la caída de la Ciudad Libre 3".
+Al final de la partida, permitir exportar una "Foto del Mapa Final" con ese resumen.
+Criterio de éxito: El jugador siente que ha escrito una historia, no que ha rellenado una hoja de Excel.
 
- La "Crónica" Narrativa
-​El problema: Tienes una sección de Crónica que es un historial técnico. Nadie lee un log de errores.
-​Tarea: Transformar el log en Hitos Épicos.
-​En lugar de: "Turno 5: Capturada Ciudad 3", poner: "Turno 5: El Imperio de Britannia expande sus fronteras tras la caída de la Ciudad Libre 3".
-​Al final de la partida, permitir exportar una "Foto del Mapa Final" con ese resumen.
-​Criterio de éxito: El jugador siente que ha escrito una historia, no que ha rellenado una hoja de Excel.
-
-el jugador debe poder responderte: "¿Es la partida diferente a la anterior?".
+El jugador debe poder responderte: "¿Es la partida diferente a la anterior?".
 Si la respuesta es "Sí, porque hubo una tormenta que me cortó los suministros y tuve una revuelta en el sur", entonces tienes un juego con personalidad propia.
 
-
 Monetización Orgánica y Modelo de Retención
-​Objetivo: Generar ingresos respetando la inteligencia del jugador. No vendemos "monedas para ganar", vendemos "variedad de experiencia".
+Objetivo: Generar ingresos respetando la inteligencia del jugador. No vendemos "monedas para ganar", vendemos "variedad de experiencia".
 
 Acción: * Gratis: Britannia y Arabia (las que ya tienes) están desbloqueadas.
-​Premium: Nuevas facciones (ej. Roma, Egipto, Japón) con sus propios Bonus de Facción únicos. 
+Premium: Nuevas facciones (ej. Roma, Egipto, Japón) con sus propios Bonus de Facción únicos. 
 Criterio de éxito: El jugador prueba la profundidad con las gratis y compra las nuevas no por "poder", sino por jugar con estrategias diferentes.
 
 Monetización de la Arqueología (Heroes y Equipo)
 Criterio de éxito: El jugador elige ver el anuncio por curiosidad y colección, no porque el juego lo obligue para seguir jugando.
 
 Análisis de Datos (Analytics para el Programador)
-​El problema: No sabes dónde se aburre el jugador.
-​Acción: Implementar un Heatmap de Abandono.
-​El programador debe enviar un evento cada vez que un jugador cierra el juego: ¿En qué turno fue? ¿Tenía balance negativo de oro? ¿Le estaban ganando por mucho puntos?
-​Criterio de éxito: Si detectas que el 80% abandona en el turno 5 cuando la IA les corta el camino, sabes que debes ajustar la dificultad o mejorar el tutorial en ese punto exacto.
-
+El problema: No sabes dónde se aburre el jugador.
+Acción: Implementar un Heatmap de Abandono.
+El programador debe enviar un evento cada vez que un jugador cierra el juego: ¿En qué turno fue? ¿Tenía balance negativo de oro? ¿Le estaban ganando por mucho puntos?
+Criterio de éxito: Si detectas que el 80% abandona en el turno 5 cuando la IA les corta el camino, sabes que debes ajustar la dificultad o mejorar el tutorial en ese punto exacto.
 
 El "Efecto Dominó" en los Suministros
-​Si una unidad se queda sin suministro, no solo debería debilitarse ella.
-​Idea: Si esa unidad estaba protegiendo un puente o un nodo de camino, el corte de suministro debería "viajar" por la ruta.
-​Impacto: Esto crea jugadas maestras donde el jugador no ataca al ejército enemigo, sino que captura una casilla de suministros en la retaguardia y ve cómo todo el frente enemigo se colapsa en tres turnos. Eso es pura satisfacción estratégica.
+Si una unidad se queda sin suministro, no solo debería debilitarse ella.
+Idea: Si esa unidad estaba protegiendo un puente o un nodo de camino, el corte de suministro debería "viajar" por la ruta.
+Impacto: Esto crea jugadas maestras donde el jugador no ataca al ejército enemigo, sino que captura una casilla de suministros en la retaguardia y ve cómo todo el frente enemigo se colapsa en tres turnos. Eso es pura satisfacción estratégica.
 
 Micro-Narrativa de las Ruinas
-​Ya que tienes arqueología, haz que los hallazgos tengan un pequeño texto de Lore (historia del mundo).
-​Idea: "Has encontrado la espada rota del Rey Ítalo". No hace falta que haga nada complejo, pero establece que tu mundo tiene pasado.
-​Impacto: Crea una conexión emocional. El jugador ya no solo conquista casillas, está "reclamando un imperio perdido".
+Ya que tienes arqueología, haz que los hallazgos tengan un pequeño texto de Lore (historia del mundo).
+Idea: "Has encontrado la espada rota del Rey Ítalo". No hace falta que haga nada complejo, pero establece que tu mundo tiene pasado.
+Impacto: Crea una conexión emocional. El jugador ya no solo conquista casillas, está "reclamando un imperio perdido".
 
 El "Fantasma" del Turno Anterior
-​A veces, en los juegos de turnos, olvidas por qué moviste una pieza hace 3 minutos.
-​Idea: Al empezar tu turno, muestra durante 1.5 segundos unas flechas tenues que indiquen de dónde vinieron las unidades de la IA.
-​Impacto: Ayuda al cerebro del jugador a procesar la amenaza de inmediato ("¡Ah, este regimiento viene del norte!") sin tener que revisar la Crónica.
+A veces, en los juegos de turnos, olvidas por qué moviste una pieza hace 3 minutos.
+Idea: Al empezar tu turno, muestra durante 1.5 segundos unas flechas tenues que indiquen de dónde vinieron las unidades de la IA.
+Impacto: Ayuda al cerebro del jugador a procesar la amenaza de inmediato ("¡Ah, este regimiento viene del norte!") sin tener que revisar la Crónica.
 
-busca la fricción. Que el mapa sea un lugar peligroso donde cada decisión sea un riesgo. 
+Busca la fricción. Que el mapa sea un lugar peligroso donde cada decisión sea un riesgo.
 
-No ha funcionado el intercambio de comida a piedra.
-
-Las divisiones de la IA se están moviendo sin respetar las reglas, por ejemplo una división salta una casilla y cae en otra, siendo que las casillas son de tipo montaña o Bosque, donde solo pueden moverse una casilla.
-
-la banca está creando caravanas sin que exista caminos. 
+Bugs y Problemas Técnicos a Corregir:
+- No ha funcionado el intercambio de comida a piedra.
+- Las divisiones de la IA se están moviendo sin respetar las reglas, por ejemplo una división salta una casilla y cae en otra, siendo que las casillas son de tipo montaña o Bosque, donde solo pueden moverse una casilla.
+- La banca está creando caravanas sin que exista caminos.
 

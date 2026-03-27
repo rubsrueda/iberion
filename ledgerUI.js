@@ -159,22 +159,14 @@ const LedgerUI = {
             </div>
 
             <div class="ledger-section">
-                <h3>⚔️ CAPACIDAD MILITAR</h3>
-                <div class="ledger-grid">
-                    <div class="ledger-card">
-                        <span class="label">Regimientos Activos</span>
-                        <span class="value">${resumen.capacidadMilitar.regimentosActivos}</span>
-                    </div>
-                    <div class="ledger-card">
-                        <span class="label">Límite de Suministros</span>
-                        <span class="value">${resumen.capacidadMilitar.limiteSuministros}</span>
-                    </div>
-                    <div class="ledger-card full-width">
-                        <span class="label">Uso de Capacidad</span>
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: ${Math.min(resumen.capacidadMilitar.porcentajeUso, 100)}%"></div>
+                <h3>⚔️ CAPACIDAD MILITAR (Condensada)</h3>
+                <div class="ledger-military-condensed">
+                    <div class="military-bar-container">
+                        <div class="military-bar-label">Regimientos: ${resumen.capacidadMilitar.regimentosActivos}/${resumen.capacidadMilitar.limiteSuministros}</div>
+                        <div class="military-bar-track">
+                            <div class="military-bar-fill" style="width:${Math.min(resumen.capacidadMilitar.porcentajeUso, 100)}%; background:${resumen.capacidadMilitar.porcentajeUso > 85 ? '#ff5252' : resumen.capacidadMilitar.porcentajeUso > 60 ? '#ffb74d' : '#4caf50'};"></div>
                         </div>
-                        <span class="value">${resumen.capacidadMilitar.porcentajeUso}%</span>
+                        <div class="military-bar-status">${resumen.capacidadMilitar.porcentajeUso}% (${resumen.capacidadMilitar.porcentajeUso > 85 ? '⚠️ Crítica' : resumen.capacidadMilitar.porcentajeUso > 60 ? '⚡ Media' : '✅ Normal'})</div>
                     </div>
                 </div>
             </div>
@@ -471,23 +463,15 @@ const LedgerUI = {
             </div>
 
             <div class="ledger-section">
-                <h3>👥 MANPOWER (Total de Regimientos)</h3>
-                <div class="ledger-grid">
-                    <div class="ledger-card full-width">
-                        <span class="label">Total de Regimientos Activos</span>
-                        <span class="value">${militar.manpower}</span>
-                    </div>
-                    <div class="ledger-card">
-                        <span class="label">Regimientos Suministrados</span>
-                        <span class="value">${militar.suppliedRegiments ?? 0}</span>
-                    </div>
-                    <div class="ledger-card">
-                        <span class="label">Regimientos sin Suministro</span>
-                        <span class="value">${militar.unsuppliedRegiments ?? 0}</span>
-                    </div>
-                    <div class="ledger-card full-width">
-                        <span class="label">Estado de Suministros</span>
-                        <span class="value status-${supplyClass}">${militar.supplyStatus}</span>
+                <h3>👥 MANPOWER (Estado de Suministros)</h3>
+                <div class="ledger-military-condensed">
+                    <div class="military-bar-container">
+                        <div class="military-bar-label">Suministrados: ${militar.suppliedRegiments ?? 0}/${militar.manpower}</div>
+                        <div class="military-bar-track">
+                            <div class="military-bar-fill supplied" style="width:${militar.manpower > 0 ? Math.round(((militar.suppliedRegiments ?? 0) / militar.manpower) * 100) : 0}%; background:#4caf50;"></div>
+                            <div class="military-bar-fill unsupplied" style="width:${militar.manpower > 0 ? Math.round(((militar.unsuppliedRegiments ?? 0) / militar.manpower) * 100) : 0}%; background:#ff5252;"></div>
+                        </div>
+                        <div class="military-bar-status">${militar.supplyStatus} (${militar.unsuppliedRegiments ?? 0} en riesgo)</div>
                     </div>
                 </div>
             </div>

@@ -116,6 +116,16 @@ const GameFeelFX = {
         if ((Number(damageAmount) || 0) >= 120) {
             this.boardPulse('board-impact', 340);
         }
+        this.boardShake('board-shake', 100);
+    },
+
+    boardShake(className = 'board-shake', duration = 100) {
+        const gameBoard = document.getElementById('gameBoard') || document.querySelector('#gameContainer');
+        if (!gameBoard) return;
+        gameBoard.classList.add(className);
+        setTimeout(() => {
+            gameBoard.classList.remove(className);
+        }, duration);
     },
 
     move(unit, r, c) {
@@ -743,6 +753,14 @@ function selectUnit(unit) {
     const canAct = gameState.currentPhase !== 'play' || (!unit.hasMoved && !unit.hasAttacked);
 
     if (typeof UIManager !== 'undefined') {
+        if (UIManager.clearTradeRouteOverlay) {
+            UIManager.clearTradeRouteOverlay();
+        }
+
+        if (unit.tradeRoute?.path && UIManager.showTradeRouteOverlay) {
+            UIManager.showTradeRouteOverlay(unit.tradeRoute.path);
+        }
+
         // Mostrar panel inferior
         if (UIManager.showUnitContextualInfo) {
             UIManager.showUnitContextualInfo(unit, true); // true = mostrar botones
@@ -808,6 +826,10 @@ function deselectUnit() {
         selectedUnit.element.classList.remove('selected-unit');
     }
     selectedUnit = null;
+
+    if (typeof UIManager !== 'undefined' && UIManager.clearTradeRouteOverlay) {
+        UIManager.clearTradeRouteOverlay();
+    }
     
     // Si deseleccionas una unidad, cualquier acción que estuvieras preparando
     // con ella debe ser cancelada.
@@ -1147,6 +1169,14 @@ function positionUnitElement(unit) {
             return;
         }
 
+        // === SMOOTH MOVEMENT: Agregar transición suave solo si ya tiene posición ===
+        const hasExistingPosition = elementToPosition.style.left && elementToPosition.style.top;
+        if (hasExistingPosition) {
+            elementToPosition.classList.add('unit-smooth-move');
+        } else {
+            elementToPosition.classList.remove('unit-smooth-move');
+        }
+        
         // Aplicación de estilos 
         elementToPosition.style.left = `${xPos}px`;
         elementToPosition.style.top = `${yPos}px`;

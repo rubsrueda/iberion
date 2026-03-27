@@ -3205,7 +3205,7 @@ function renderPlayerSelectionSetup(numPlayers) {
     ).join('');
 
     // Array con un orden de civilizaciones por defecto para cada jugador
-    const defaultCivs = ["Roma", "Iberia", "Grecia", "Egipto", "Cartago", "Galia", "Japón", "Vikingos"];
+    const defaultCivs = ["Iberia", "Roma", "Grecia", "Egipto", "Cartago", "Galia", "Japón", "Vikingos"];
 
     for (let i = 1; i <= 8; i++) { // Siempre crear 8 slots
         const playerCard = document.createElement('div');
