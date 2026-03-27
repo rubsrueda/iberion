@@ -44,6 +44,7 @@ const UIManager = {
     _pendingEndTurnConfirmation: false,
     _lastShownInfo: { type: null, data: null }, // Para recordar qué se mostró por última vez
     _reopenBtn: null, // Guardará la referencia al botón ▲
+    _ghostTurnArrowsTimeout: null,
     
     setDomElements: function(domElementsRef) {
         this._domElements = domElementsRef; 
@@ -333,7 +334,107 @@ const UIManager = {
             h.classList.remove('trade-route-overlay', 'trade-route-start', 'trade-route-end');
         });
     },
-     
+
+    /**
+     * Muestra la "línea de vida" de suministro de una unidad.
+     * Mientras no haya enemigo en la ruta: verde tenue.
+     * Si hay una unidad enemiga interpuesta: rojo + parpadeo (línea cortada).
+     */
+    showSupplyLineOverlay: function(unit) {
+        this.clearSupplyLineOverlay();
+        if (!unit || unit.tradeRoute) return; // las caravanas ya tienen su propio overlay
+        if (typeof getSupplyPath !== 'function') return;
+
+        const path = getSupplyPath(unit.r, unit.c, unit.player);
+        if (!path || path.length < 2) return;
+
+        // Detectar si algún enemigo bloquea la ruta
+        const isBroken = path.some(step => {
+            if (typeof getUnitOnHex !== 'function') return false;
+            const u = getUnitOnHex(step.r, step.c);
+            return u && u.player !== unit.player;
+        });
+
+        path.forEach((step, idx) => {
+            if (idx === 0) return; // skipeamos el hex de la propia unidad
+            const hexEl = board?.[step.r]?.[step.c]?.element;
+            if (!hexEl) return;
+            hexEl.classList.add('supply-line-hex');
+            if (isBroken) hexEl.classList.add('danger');
+        });
+    },
+
+    clearSupplyLineOverlay: function() {
+        document.querySelectorAll('.hex.supply-line-hex').forEach(h => {
+            h.classList.remove('supply-line-hex', 'danger');
+        });
+    },
+
+    clearGhostTurnArrows: function() {
+        const existing = document.getElementById('ghostTurnArrowsOverlay');
+        if (existing) existing.remove();
+        if (this._ghostTurnArrowsTimeout) {
+            clearTimeout(this._ghostTurnArrowsTimeout);
+            this._ghostTurnArrowsTimeout = null;
+        }
+    },
+
+    showGhostTurnArrows: function(moves = [], durationMs = 1500) {
+        this.clearGhostTurnArrows();
+        if (!Array.isArray(moves) || moves.length === 0) return;
+
+        const validMoves = moves.filter(m => Number.isFinite(m?.fromR) && Number.isFinite(m?.fromC) && Number.isFinite(m?.toR) && Number.isFinite(m?.toC));
+        if (validMoves.length === 0) return;
+
+        const svgNS = 'http://www.w3.org/2000/svg';
+        const overlay = document.createElementNS(svgNS, 'svg');
+        overlay.setAttribute('id', 'ghostTurnArrowsOverlay');
+        overlay.setAttribute('class', 'ghost-turn-arrows-overlay');
+        overlay.setAttribute('viewBox', `0 0 ${window.innerWidth} ${window.innerHeight}`);
+
+        const defs = document.createElementNS(svgNS, 'defs');
+        const marker = document.createElementNS(svgNS, 'marker');
+        marker.setAttribute('id', 'ghostArrowHead');
+        marker.setAttribute('viewBox', '0 0 10 10');
+        marker.setAttribute('refX', '8');
+        marker.setAttribute('refY', '5');
+        marker.setAttribute('markerWidth', '8');
+        marker.setAttribute('markerHeight', '8');
+        marker.setAttribute('orient', 'auto-start-reverse');
+
+        const path = document.createElementNS(svgNS, 'path');
+        path.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
+        path.setAttribute('fill', 'rgba(210,230,255,0.82)');
+        marker.appendChild(path);
+        defs.appendChild(marker);
+        overlay.appendChild(defs);
+
+        validMoves.forEach(mv => {
+            const fromEl = board?.[mv.fromR]?.[mv.fromC]?.element;
+            const toEl = board?.[mv.toR]?.[mv.toC]?.element;
+            if (!fromEl || !toEl) return;
+
+            const fromRect = fromEl.getBoundingClientRect();
+            const toRect = toEl.getBoundingClientRect();
+            const x1 = fromRect.left + fromRect.width / 2;
+            const y1 = fromRect.top + fromRect.height / 2;
+            const x2 = toRect.left + toRect.width / 2;
+            const y2 = toRect.top + toRect.height / 2;
+
+            const line = document.createElementNS(svgNS, 'line');
+            line.setAttribute('x1', String(x1));
+            line.setAttribute('y1', String(y1));
+            line.setAttribute('x2', String(x2));
+            line.setAttribute('y2', String(y2));
+            line.setAttribute('class', 'ghost-turn-arrow-line');
+            line.setAttribute('marker-end', 'url(#ghostArrowHead)');
+            overlay.appendChild(line);
+        });
+
+        document.body.appendChild(overlay);
+        this._ghostTurnArrowsTimeout = setTimeout(() => this.clearGhostTurnArrows(), durationMs);
+    },
+
     highlightPossibleSplitHexes: function (unit) {
         if (typeof UIManager !== 'undefined' && UIManager.clearHighlights) UIManager.clearHighlights();
         else if (typeof clearHighlights === "function") clearHighlights();

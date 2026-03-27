@@ -15,6 +15,17 @@ const STORE_ITEMS = [
         type: 'battle_pass', 
         premium: true 
     },
+    {
+        id: 'premium_civ_pack_1',
+        name: 'Pack Imperios Premium',
+        cost: 3.99,
+        currency: 'USD',
+        icon: '👑',
+        type: 'faction_pack',
+        premium: true,
+        description: 'Desbloquea Roma, Egipto y Japón',
+        amountLabel: 'Roma • Egipto • Japón'
+    },
     
     // --- SECCIÓN 1: DINERO REAL (Gemas) ---
     { id: 'gems_pouch', name: 'Bolsa de Gemas', cost: 0.99, currency: 'USD', amount: 100, icon: '💎', type: 'gems' },
@@ -58,6 +69,14 @@ const StoreManager = {
         }
     },
 
+    isOwned: function(item) {
+        if (!item) return false;
+        if (item.type === 'faction_pack') {
+            return !!PlayerDataManager.currentPlayer?.premiumCivilizationPackOwned;
+        }
+        return false;
+    },
+
     renderStore: function() {
         const container = document.getElementById('storeGrid');
         container.innerHTML = '';
@@ -78,23 +97,23 @@ const StoreManager = {
             card.className = `store-card ${item.premium ? 'premium' : ''}`;
             
             let btnHtml = '';
+            const alreadyOwned = this.isOwned(item);
             
-            // Decidir qué botón mostrar según la moneda
-            if (item.currency) {
-                // Dinero Real
+            if (alreadyOwned) {
+                btnHtml = `<button class="btn-buy owned" disabled>ADQUIRIDO</button>`;
+            } else if (item.currency) {
                 btnHtml = `<button class="btn-buy real" onclick="StoreManager.buyWithRealMoney('${item.id}')">${item.cost} ${item.currency}</button>`;
             } else if (item.costGems) {
-                // Gemas
                 btnHtml = `<button class="btn-buy gems" onclick="StoreManager.buyWithGems('${item.id}')">${item.costGems} 💎</button>`;
             } else if (item.costGold) {
-                // Oro de Perfil (NUEVO)
                 btnHtml = `<button class="btn-buy gold" onclick="StoreManager.buyWithGold('${item.id}')">${item.costGold} 💰</button>`;
             }
 
+            const subtitle = item.description || item.amountLabel || (typeof item.amount !== 'undefined' ? `x${item.amount}` : 'Compra única');
             card.innerHTML = `
                 <div class="card-icon">${item.icon}</div>
                 <h4>${item.name}</h4>
-                <p>x${item.amount}</p>
+                <p>${subtitle}</p>
                 ${btnHtml}
             `;
             container.appendChild(card);
@@ -162,11 +181,15 @@ const StoreManager = {
                     } else {
                         console.error("BattlePassManager no está disponible.");
                     }
+                } else if (item.type === 'faction_pack') {
+                    await PlayerDataManager.unlockCivilizationPack(PlayerDataManager.getPremiumCivilizationPack());
+                    if (typeof showToast === 'function') {
+                        showToast('Pack de Imperios Premium desbloqueado: Roma, Egipto y Japón.', 'success');
+                    }
                 } 
                 // CASO NORMAL: GEMAS
                 else {
                     PlayerDataManager.currentPlayer.currencies.gems += item.amount;
-                    // Bonus: Primera compra quita ads
                     if (!PlayerDataManager.currentPlayer.is_premium) {
                         PlayerDataManager.currentPlayer.is_premium = true;
                         if(typeof AdManager !== 'undefined') AdManager.isPremium = true;
@@ -175,9 +198,18 @@ const StoreManager = {
                     await PlayerDataManager.saveCurrentPlayer();
                     if(typeof showToast === 'function') showToast(`¡Compra exitosa! +${item.amount} Gemas`, "success");
                 }
-                
+
                 this.updateHeader();
-                // CORRECCIÓN: Actualizar UI global
+                this.renderStore();
+                if (item.type === 'faction_pack' && typeof document !== 'undefined') {
+                    document.querySelectorAll('[id^="player"][id$="Civ"]').forEach(selectEl => {
+                        const match = selectEl.id.match(/^player(\d+)Civ$/);
+                        const playerIndex = match ? Number(match[1]) : null;
+                        if (!playerIndex) return;
+                        if (typeof refreshFactionSelectOptions === 'function') refreshFactionSelectOptions(playerIndex);
+                        if (typeof updateFactionDisplay === 'function') updateFactionDisplay(playerIndex);
+                    });
+                }
                 if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
                     UIManager.updateAllUIDisplays();
                 }

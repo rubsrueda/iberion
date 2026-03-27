@@ -756,9 +756,17 @@ function selectUnit(unit) {
         if (UIManager.clearTradeRouteOverlay) {
             UIManager.clearTradeRouteOverlay();
         }
+        if (UIManager.clearSupplyLineOverlay) {
+            UIManager.clearSupplyLineOverlay();
+        }
 
         if (unit.tradeRoute?.path && UIManager.showTradeRouteOverlay) {
             UIManager.showTradeRouteOverlay(unit.tradeRoute.path);
+        }
+
+        // Línea de suministro visual (solo unidades militares sin ruta comercial)
+        if (!unit.tradeRoute && UIManager.showSupplyLineOverlay) {
+            UIManager.showSupplyLineOverlay(unit);
         }
 
         // Mostrar panel inferior
@@ -846,6 +854,9 @@ function deselectUnit() {
 
     if (typeof UIManager !== 'undefined' && UIManager.clearTradeRouteOverlay) {
         UIManager.clearTradeRouteOverlay();
+    }
+    if (typeof UIManager !== 'undefined' && UIManager.clearSupplyLineOverlay) {
+        UIManager.clearSupplyLineOverlay();
     }
     
     // Si deseleccionas una unidad, cualquier acción que estuvieras preparando
@@ -1017,7 +1028,19 @@ function getMovementCost(unit, r_start, c_start, r_target, c_target, isPotential
                 else if (TERRAIN_TYPES[neighborHexData.terrain]) {
                     moveCost = TERRAIN_TYPES[neighborHexData.terrain].movementCostMultiplier;
                 }
-                
+
+                // Clima dinámico: tormenta invernal duplica coste en colinas y bosque
+                if (gameState?.activeWeatherEvent?.type === 'winter_storm' &&
+                    !unitRegimentData.is_naval &&
+                    (neighborHexData.terrain === 'hills' || neighborHexData.terrain === 'forest')) {
+                    moveCost *= 2;
+                }
+
+                // Clima dinámico: inundación costera bloquea la casilla para unidades terrestres
+                if (neighborHexData.isFlooded && !unitRegimentData.is_naval) {
+                    moveCost = Infinity;
+                }
+
                 const newCost = current.cost + moveCost;
 
                     // La validación de coste ahora debe usar el movimiento TOTAL, no el actual, para el pathfinding.
@@ -1070,6 +1093,24 @@ async function moveUnit(unit, toR, toC) {
     unit.c = toC;
     unit.currentMovement -= costOfThisMove;
     unit.hasMoved = true;
+
+    const isAiUnit = !!gameState?.playerTypes?.[`player${unit.player}`]?.startsWith('ai_');
+    if (isAiUnit && gameState.currentPhase === 'play') {
+        if (!Array.isArray(gameState.aiTurnMoveGhostsBuffer)) {
+            gameState.aiTurnMoveGhostsBuffer = [];
+        }
+        gameState.aiTurnMoveGhostsBuffer.push({
+            unitId: unit.id,
+            fromR,
+            fromC,
+            toR,
+            toC,
+            turn: Number(gameState.turnNumber || 1)
+        });
+        if (gameState.aiTurnMoveGhostsBuffer.length > 40) {
+            gameState.aiTurnMoveGhostsBuffer = gameState.aiTurnMoveGhostsBuffer.slice(-40);
+        }
+    }
 
     if (typeof UnitGrid !== 'undefined' && Array.isArray(units) && units.includes(unit)) {
         const moved = UnitGrid.move(unit, fromR, fromC);
@@ -3703,6 +3744,13 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
     const fromC = unit.c;
     const targetHexData = board[toR]?.[toC];
 
+    const destinationTerrain = String(targetHexData?.terrain || '').toLowerCase();
+    const isDifficultTerrain = ['hills', 'forest', 'mountain', 'montana', 'bosque'].includes(destinationTerrain);
+    if (!isMergeMove && isDifficultTerrain && hexDistance(fromR, fromC, toR, toC) > 1) {
+        logMessage(`Movimiento inválido: ${destinationTerrain} solo permite avanzar una casilla por acción.`, 'warning');
+        return;
+    }
+
     // Calcular coste
     unit.lastMove = {
         fromR: fromR,
@@ -4204,6 +4252,7 @@ function findInfrastructurePath(startCoords, targetCoords, pathOptions = {}) {
     const startOwner = startCoords.owner ?? board[startCoords.r]?.[startCoords.c]?.owner ?? null;
     const bankOwner = (typeof BankManager !== 'undefined') ? BankManager.PLAYER_ID : null;
     const allowForeignInfrastructure = !!pathOptions.allowForeignInfrastructure;
+    const requireRoadCorridor = !!pathOptions.requireRoadCorridor;
 
     while (queue.length > 0) {
         let current = queue.shift();
@@ -4218,13 +4267,17 @@ function findInfrastructurePath(startCoords, targetCoords, pathOptions = {}) {
 
             const hex = board[neighbor.r]?.[neighbor.c];
             const isTargetHex = neighbor.r === targetCoords.r && neighbor.c === targetCoords.c;
+            const isStartHex = neighbor.r === startCoords.r && neighbor.c === startCoords.c;
             // La Banca puede atravesar cualquier infraestructura. Para rutas comerciales entre jugadores,
             // permitimos infraestructura extranjera si así lo pide pathOptions.
             const allowedOwner = allowForeignInfrastructure || startOwner === null || startOwner === bankOwner || isTargetHex || hex?.owner === startOwner || (bankOwner !== null && hex?.owner === bankOwner);
 
-            // La condición ahora solo comprueba si el hexágono tiene infraestructura.
-            // IGNORA si hay una unidad en él.
-            if (hex && allowedOwner && (hex.structure || hex.isCity)) {
+            const hasInfrastructure = requireRoadCorridor
+                ? (hex?.structure === 'Camino' || isTargetHex || isStartHex)
+                : (hex?.structure || hex?.isCity);
+
+            // La condición comprueba infraestructura permitida.
+            if (hex && allowedOwner && hasInfrastructure) {
                 visited.add(key);
                 const newPath = [...current.path, neighbor];
                 queue.push({ ...neighbor, path: newPath });
@@ -4425,8 +4478,8 @@ function _executeExploreRuins(payload) {
     
     if (!selectedEvent) selectedEvent = RUIN_EVENTS.find(e => e.id === 'nothing'); // Fallback
 
-    // Procesar el efecto del evento en victoria
-    processRuinEvent(selectedEvent, unit, playerResources);
+    // Procesar el efecto del evento y capturar el resultado del botín
+    const lootResult = processRuinEvent(selectedEvent, unit, playerResources);
 
     const pKey = `player${playerId}`;
     if (!gameState.playerStats.ruinsExplored) gameState.playerStats.ruinsExplored = {};
@@ -4455,6 +4508,13 @@ function _executeExploreRuins(payload) {
         }
     }
     
+    // Mostrar modal de descubrimiento (con opción de anuncio para doblar botín)
+    if (typeof showRuinDiscoveryModal === 'function') {
+        showRuinDiscoveryModal(selectedEvent, lootResult, playerId);
+    } else if (typeof showToast === 'function') {
+        showToast(`${lootResult.icon} ${lootResult.label}`, lootResult.toastType, 4000);
+    }
+
     if (UIManager) UIManager.hideContextualPanel();
 }
 
@@ -4470,38 +4530,44 @@ function processRuinEvent(event, unit, playerResources) {
 
     let toastText = event.toastMessage;
     let toastType = event.type === 'bad' ? 'warning' : 'success';
+    let doubleData = null; // Datos para duplicar el premio si el jugador ve un anuncio
     
     const effect = event.effect;
 
     // Procesamos el efecto y personalizamos el texto del toast
     switch (effect.type) {
-        case 'add_resource':
+        case 'add_resource': {
             const amountRes = Math.floor(Math.random() * (effect.amount[1] - effect.amount[0] + 1)) + effect.amount[0];
             playerResources[effect.resource] += amountRes;
             toastText = `+${amountRes} ${effect.resource.charAt(0).toUpperCase() + effect.resource.slice(1)}`;
+            doubleData = { type: 'add_resource', resource: effect.resource, amount: amountRes };
             break;
-
+        }
         // <<< CASO MEJORADO PARA MÚLTIPLES RECURSOS >>>
-        case 'add_multiple_resources':
-            let gainedResources = [];
+        case 'add_multiple_resources': {
+            const gainedResources = [];
+            const gainedAmounts = {};
             for (const resource in effect.resources) {
                 const amountRange = effect.resources[resource];
                 const amount = Math.floor(Math.random() * (amountRange[1] - amountRange[0] + 1)) + amountRange[0];
                 playerResources[resource] += amount;
                 gainedResources.push(`+${amount} ${resource}`);
+                gainedAmounts[resource] = amount;
             }
             toastText = gainedResources.join(', '); // Ej: "+150 piedra, +120 madera"
+            doubleData = { type: 'add_multiple_resources', resources: gainedAmounts };
             break;
-            
-        case 'add_item':
+        }
+        case 'add_item': {
             if (effect.item === 'sellos_guerra' && typeof PlayerDataManager !== 'undefined') {
                 PlayerDataManager.addWarSeals(effect.amount);
                 toastText = `+${effect.amount} Sello de Guerra`;
+                doubleData = { type: 'add_item', item: 'sellos_guerra', amount: effect.amount };
             }
             break;
-        
+        }
         // <<< IMPLEMENTACIÓN DE LOS CASOS QUE FALTABAN >>>
-        case 'add_equipment_fragments':
+        case 'add_equipment_fragments': {
             const eqRarity = effect.rarity;
             const possibleItems = Object.values(EQUIPMENT_DEFINITIONS).filter(item => item.rarity === eqRarity);
             if (possibleItems.length > 0) {
@@ -4509,10 +4575,11 @@ function processRuinEvent(event, unit, playerResources) {
                 const fragAmount = Math.floor(Math.random() * (effect.amount[1] - effect.amount[0] + 1)) + effect.amount[0];
                 PlayerDataManager.addEquipmentFragments(droppedItem.id, fragAmount);
                 toastText = `+${fragAmount} Fragmentos de "${droppedItem.name}"`;
+                doubleData = { type: 'add_equipment_fragments', itemId: droppedItem.id, amount: fragAmount, itemName: droppedItem.name };
             }
             break;
-            
-        case 'add_hero_fragments':
+        }
+        case 'add_hero_fragments': {
             const heroRarity = effect.rarity[Math.floor(Math.random() * effect.rarity.length)];
             const heroPool = GACHA_CONFIG.HERO_POOLS_BY_RARITY[heroRarity.toUpperCase()];
             if (heroPool && heroPool.length > 0) {
@@ -4520,8 +4587,10 @@ function processRuinEvent(event, unit, playerResources) {
                 const fragAmount = Math.floor(Math.random() * (effect.amount[1] - effect.amount[0] + 1)) + effect.amount[0];
                 PlayerDataManager.addFragmentsToHero(randomHeroId, fragAmount);
                 toastText = `+${fragAmount} Fragmentos de ${COMMANDERS[randomHeroId].name}`;
+                doubleData = { type: 'add_hero_fragments', heroId: randomHeroId, amount: fragAmount, heroName: COMMANDERS[randomHeroId].name };
             }
             break;
+        }
             
         case 'grant_random_tech':
             const availableTechs = getAvailableTechnologies(playerResources.researchedTechnologies).filter(tech => tech.tier === effect.tier);
@@ -4601,15 +4670,49 @@ function processRuinEvent(event, unit, playerResources) {
             break;
     }
     
-    // Mostramos el Toast con el mensaje detallado
-    if (typeof showToast === 'function') {
-        showToast(`${event.toastIcon} ${toastText}`, toastType, 4000); // 4 segundos para leer bien
-    } else {
-        logMessage(toastText, "info");
-    }
-
     // Actualizamos toda la UI para reflejar los cambios de recursos, salud, etc.
-    if(UIManager) UIManager.updateAllUIDisplays();
+    if (UIManager) UIManager.updateAllUIDisplays();
+
+    // Retornamos el resultado del botín para que el llamador pueda mostrar el modal de descubrimiento
+    return { label: toastText, icon: event.toastIcon, toastType, doubleData, eventType: event.type };
+}
+
+/**
+ * [Función Auxiliar] Duplica el botín de una ruina tras ver un anuncio premiado.
+ * @param {object} doubleData - Datos del premio a duplicar.
+ * @param {number} playerId - ID del jugador.
+ */
+function _applyDoubleRuinLoot(doubleData, playerId) {
+    if (!doubleData) return;
+    const playerResources = gameState.playerResources[playerId];
+    if (!playerResources) return;
+
+    switch (doubleData.type) {
+        case 'add_resource':
+            playerResources[doubleData.resource] = (playerResources[doubleData.resource] || 0) + doubleData.amount;
+            break;
+        case 'add_multiple_resources':
+            for (const resource in doubleData.resources) {
+                playerResources[resource] = (playerResources[resource] || 0) + doubleData.resources[resource];
+            }
+            break;
+        case 'add_item':
+            if (doubleData.item === 'sellos_guerra' && typeof PlayerDataManager !== 'undefined') {
+                PlayerDataManager.addWarSeals(doubleData.amount);
+            }
+            break;
+        case 'add_equipment_fragments':
+            if (typeof PlayerDataManager !== 'undefined') {
+                PlayerDataManager.addEquipmentFragments(doubleData.itemId, doubleData.amount);
+            }
+            break;
+        case 'add_hero_fragments':
+            if (typeof PlayerDataManager !== 'undefined') {
+                PlayerDataManager.addFragmentsToHero(doubleData.heroId, doubleData.amount);
+            }
+            break;
+    }
+    if (UIManager) UIManager.updateAllUIDisplays();
 }
 
 /**

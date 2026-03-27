@@ -113,7 +113,7 @@ const BankManager = {
      * @param {object} targetCity - La ciudad de destino del jugador.
      */
     buildAndDeployCaravan: function(originCity, targetCity) {
-        const path = findInfrastructurePath(originCity, targetCity);
+        const path = findInfrastructurePath(originCity, targetCity, { requireRoadCorridor: true });
 
         if (!path) {
             console.warn(`[Banca] No se encontró una ruta de infraestructura válida a ${targetCity.name}.`);

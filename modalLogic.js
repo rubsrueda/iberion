@@ -303,8 +303,7 @@ function addModalEventListeners() {
     }
     
     if (domElements.bankRequestResourceSelect) {
-        // En el futuro, podría haber lógica aquí si el ratio de cambio varía.
-        // Por ahora, no necesita un listener.
+        domElements.bankRequestResourceSelect.addEventListener('change', updateBankTradeUI);
     }
 
     if (domElements.bankConfirmTradeBtn) {
@@ -3163,30 +3162,98 @@ document.addEventListener('DOMContentLoaded', () => {
  * @param {number} numPlayers - Número de jugadores a renderizar (obtenido de setupScreen).
  */
 /**
+ * Helpers de monetización para el selector de facciones.
+ */
+function getFactionAccessMeta(civKey) {
+    const isFree = typeof PlayerDataManager !== 'undefined' && PlayerDataManager.getFreeCivilizations
+        ? PlayerDataManager.getFreeCivilizations().includes(civKey)
+        : false;
+    const isUnlocked = typeof PlayerDataManager !== 'undefined' && PlayerDataManager.isCivilizationUnlocked
+        ? PlayerDataManager.isCivilizationUnlocked(civKey)
+        : isFree;
+    const isPremium = !isFree && civKey !== 'ninguna' && civKey !== 'Bárbaros';
+    return { isFree, isUnlocked, isPremium };
+}
+
+function getFirstUnlockedFaction() {
+    const preferred = ['Britania', 'Arábiga', 'ninguna'];
+    return preferred.find(civKey => getFactionAccessMeta(civKey).isUnlocked) || 'ninguna';
+}
+
+function refreshFactionSelectOptions(playerIndex) {
+    const civSelect = document.getElementById(`player${playerIndex}Civ`);
+    const typeSelect = document.getElementById(`player${playerIndex}TypeSelect`);
+    if (!civSelect || !typeSelect) return;
+
+    const previousValue = civSelect.value;
+    const isHumanSlot = typeSelect.value === 'human';
+
+    const civOptions = Object.keys(CIVILIZATIONS).map(key => {
+        const meta = getFactionAccessMeta(key);
+        const disabled = isHumanSlot && !meta.isUnlocked ? 'disabled' : '';
+        const tag = meta.isFree ? 'Gratis' : (meta.isPremium ? 'Premium' : '');
+        const name = tag ? `${CIVILIZATIONS[key].name} (${tag})` : CIVILIZATIONS[key].name;
+        return `<option value="${key}" ${disabled}>${name}</option>`;
+    }).join('');
+
+    civSelect.innerHTML = civOptions;
+
+    const previousMeta = getFactionAccessMeta(previousValue);
+    if (previousValue && (!isHumanSlot || previousMeta.isUnlocked) && CIVILIZATIONS[previousValue]) {
+        civSelect.value = previousValue;
+    } else {
+        civSelect.value = isHumanSlot ? getFirstUnlockedFaction() : (previousValue || 'Roma');
+    }
+}
+
+/**
  * (NUEVA FUNCIÓN) Actualiza la tarjeta de un jugador para mostrar la información de la facción seleccionada.
  * @param {number} playerIndex - El índice del jugador (1-8) cuya tarjeta se va a actualizar.
  */
 function updateFactionDisplay(playerIndex) {
     const playerCard = document.getElementById(`player-card-${playerIndex}`);
     const civSelect = document.getElementById(`player${playerIndex}Civ`);
+    const typeSelect = document.getElementById(`player${playerIndex}TypeSelect`);
     if (!playerCard || !civSelect) return;
 
     const selectedCivKey = civSelect.value;
     const civData = CIVILIZATIONS[selectedCivKey];
+    const accessMeta = getFactionAccessMeta(selectedCivKey);
+    const isHumanSlot = typeSelect?.value === 'human';
     
     const factionImageEl = playerCard.querySelector('.faction-image');
     const factionDescriptionEl = playerCard.querySelector('.faction-description');
+    const factionAccessBadgeEl = playerCard.querySelector('.faction-access-badge');
+    const factionUnlockBtnEl = playerCard.querySelector('.faction-unlock-btn');
 
     if (civData && factionImageEl && factionDescriptionEl) {
-        // Actualizar la imagen de fondo con una transición de fundido
         factionImageEl.style.opacity = 0;
         setTimeout(() => {
             factionImageEl.style.backgroundImage = `url('${civData.factionImage}')`;
             factionImageEl.style.opacity = 1;
-        }, 200); // 200ms para la animación
+        }, 200);
 
-        // Actualizar la descripción
-        factionDescriptionEl.textContent = civData.description;
+        const tierText = accessMeta.isFree
+            ? 'Disponible gratis desde el inicio.'
+            : accessMeta.isUnlocked
+                ? 'Desbloqueada en tu perfil.'
+                : 'Facción premium. Requiere el Pack de Imperios Premium.';
+        factionDescriptionEl.textContent = `${civData.description} ${tierText}`;
+
+        if (factionAccessBadgeEl) {
+            factionAccessBadgeEl.textContent = accessMeta.isFree ? 'GRATIS' : (accessMeta.isUnlocked ? 'DESBLOQUEADA' : 'PREMIUM');
+            factionAccessBadgeEl.className = `faction-access-badge ${accessMeta.isFree ? 'free' : (accessMeta.isUnlocked ? 'owned' : 'premium')}`;
+        }
+
+        if (factionUnlockBtnEl) {
+            const showUnlock = isHumanSlot && accessMeta.isPremium && !accessMeta.isUnlocked;
+            factionUnlockBtnEl.style.display = showUnlock ? 'inline-flex' : 'none';
+            factionUnlockBtnEl.onclick = () => {
+                if (typeof StoreManager !== 'undefined' && StoreManager.open) {
+                    StoreManager.open();
+                }
+            };
+        }
     }
 }
 
@@ -3205,13 +3272,8 @@ function renderPlayerSelectionSetup(numPlayers) {
         'closed': 'Cerrado'
     };
 
-    // Pre-generar el HTML de las opciones de civilización
-    const civOptions = Object.keys(CIVILIZATIONS).map(key => 
-        `<option value="${key}">${CIVILIZATIONS[key].name}</option>`
-    ).join('');
-
     // Array con un orden de civilizaciones por defecto para cada jugador
-    const defaultCivs = ["Iberia", "Roma", "Grecia", "Egipto", "Cartago", "Galia", "Japón", "Vikingos"];
+    const defaultCivs = ["Britania", "Roma", "Arábiga", "Egipto", "Cartago", "Galia", "Japón", "Vikingos"];
 
     for (let i = 1; i <= 8; i++) { // Siempre crear 8 slots
         const playerCard = document.createElement('div');
@@ -3251,6 +3313,10 @@ function renderPlayerSelectionSetup(numPlayers) {
                     ${typeSelectHTML}
                 </div>
                 <div class="faction-details">
+                    <div class="faction-access-row">
+                        <span class="faction-access-badge"></span>
+                        <button type="button" class="faction-unlock-btn">Ver en Tesorería</button>
+                    </div>
                     <select id="player${i}Civ" ${isInitiallyDisabled}></select>
                     <p class="faction-description"></p>
                 </div>
@@ -3262,21 +3328,34 @@ function renderPlayerSelectionSetup(numPlayers) {
         const civSelect = document.getElementById(`player${i}Civ`);
         
         if (typeSelect && civSelect) {
-            // Rellenar opciones y seleccionar por defecto
-            civSelect.innerHTML = civOptions;
-            civSelect.value = defaultCivs[i - 1] || 'ninguna';
+            civSelect.dataset.preferredCiv = defaultCivs[i - 1] || 'ninguna';
+            refreshFactionSelectOptions(i);
+            const preferredCiv = civSelect.dataset.preferredCiv || 'ninguna';
+            if (typeSelect.value === 'human' && !getFactionAccessMeta(preferredCiv).isUnlocked) {
+                civSelect.value = getFirstUnlockedFaction();
+            } else {
+                civSelect.value = CIVILIZATIONS[preferredCiv] ? preferredCiv : getFirstUnlockedFaction();
+            }
 
-            // Listener para el tipo de jugador (Humano/IA/Cerrado)
             typeSelect.addEventListener('change', (event) => {
                 civSelect.disabled = event.target.value === 'closed';
+                refreshFactionSelectOptions(i);
+                updateFactionDisplay(i);
             });
 
-            // Listener para el cambio de civilización
             civSelect.addEventListener('change', () => {
-                updateFactionDisplay(i); // Llamar a la función de actualización
+                if (typeSelect.value === 'human' && !getFactionAccessMeta(civSelect.value).isUnlocked) {
+                    civSelect.value = getFirstUnlockedFaction();
+                    if (typeof UIManager !== 'undefined' && UIManager.showMessageTemporarily) {
+                        UIManager.showMessageTemporarily('Esta facción es premium. Puedes desbloquearla en la Tesorería.', 3500, true);
+                    }
+                    if (typeof StoreManager !== 'undefined' && StoreManager.open) {
+                        StoreManager.open();
+                    }
+                }
+                updateFactionDisplay(i);
             });
 
-            // Actualización inicial al crear la tarjeta
             updateFactionDisplay(i);
         }
     }
@@ -3319,6 +3398,13 @@ function updateBankTradeUI() {
     if (!playerRes || !domElements.bankOfferResourceSelect) return;
 
     const offerResource = domElements.bankOfferResourceSelect.value;
+    if (domElements.bankRequestResourceSelect.value === offerResource) {
+        const firstDifferent = Array.from(domElements.bankRequestResourceSelect.options)
+            .find(opt => opt.value !== offerResource);
+        if (firstDifferent) {
+            domElements.bankRequestResourceSelect.value = firstDifferent.value;
+        }
+    }
     const parsedOfferAmount = parseInt(domElements.bankOfferAmountInput.value, 10);
     const offerAmount = Number.isFinite(parsedOfferAmount) ? parsedOfferAmount : 0;
     
@@ -3340,7 +3426,13 @@ function handleBankTrade() {
     const offerResource = domElements.bankOfferResourceSelect.value;
     const parsedOfferAmount = parseInt(domElements.bankOfferAmountInput.value, 10);
     const offerAmount = Number.isFinite(parsedOfferAmount) ? parsedOfferAmount : 0;
-    const requestResource = domElements.bankRequestResourceSelect.value;
+    let requestResource = domElements.bankRequestResourceSelect.value;
+    if (requestResource === offerResource) {
+        const firstDifferent = Array.from(domElements.bankRequestResourceSelect.options)
+            .find(opt => opt.value !== offerResource);
+        requestResource = firstDifferent ? firstDifferent.value : requestResource;
+        domElements.bankRequestResourceSelect.value = requestResource;
+    }
     const requestAmount = Math.floor(offerAmount / 4);
 
     const playerRes = gameState.playerResources[gameState.currentPlayer];
@@ -4780,6 +4872,91 @@ window.takeOverMatch = async function(matchId) {
 
 // Exponer la función globalmente para que main.js la encuentre
 window.openMyGamesModal = openMyGamesModal;
+
+// ============================================================================
+// === MODAL DE DESCUBRIMIENTO DE RUINAS (Mejora 20 - Arqueología) ===
+// ============================================================================
+
+/**
+ * Muestra una tarjeta de descubrimiento arqueológico con opción de ver un
+ * anuncio premiado para doblar el botín obtenido. El anuncio es completamente
+ * opcional; el jugador lo elige por curiosidad y colección.
+ *
+ * @param {object} event      - El evento de ruina de RUIN_EVENTS.
+ * @param {object} lootResult - Resultado retornado por processRuinEvent().
+ * @param {number} playerId   - ID del jugador que exploró las ruinas.
+ */
+function showRuinDiscoveryModal(event, lootResult, playerId) {
+    const existing = document.getElementById('ruinDiscoveryCard');
+    if (existing) existing.remove();
+
+    const canDouble = lootResult.doubleData !== null && event.type !== 'bad';
+    const loreSnippets = [
+        'Fragmentos de un imperio antiguo hablan de juramentos rotos y coronas enterradas.',
+        'Los cronistas de la Vieja Era nombraban este paraje como un altar de pactos olvidados.',
+        'Bajo estas piedras, un estandarte quemado recuerda la última marcha del Rey Ítalo.',
+        'Una inscripción partida susurra: "quien reclamen estas ruinas, heredará su deuda".',
+        'El polvo oculta emblemas de casas caídas que aún reclaman venganza sobre el mapa.'
+    ];
+    const loreText = loreSnippets[Math.floor(Math.random() * loreSnippets.length)];
+
+    const card = document.createElement('div');
+    card.id = 'ruinDiscoveryCard';
+    card.className = 'ruin-discovery-card';
+
+    card.innerHTML = `
+        <div class="rdc-header">
+            <span class="rdc-icon">${lootResult.icon || '🧭'}</span>
+            <h3 class="rdc-title">¡Ruinas Antiguas!</h3>
+        </div>
+        <p class="rdc-description">${event.description}</p>
+        <p class="rdc-lore">📜 ${loreText}</p>
+        <div class="rdc-loot-box">
+            <span class="rdc-loot-label">Botín encontrado</span>
+            <span class="rdc-loot-text">${lootResult.label}</span>
+        </div>
+        ${canDouble ? `
+        <div class="rdc-ad-offer">
+            <p class="rdc-ad-hint">¿Curioso sobre qué más guardan estas ruinas?</p>
+            <button class="rdc-btn rdc-btn-ad" id="ruinAdBtn">📺 Ver anuncio → Ganar botín extra</button>
+        </div>` : ''}
+        <button class="rdc-btn rdc-btn-accept" id="ruinAcceptBtn">✓ Continuar</button>
+    `;
+
+    document.body.appendChild(card);
+
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => card.classList.add('rdc-visible'));
+    });
+
+    function closeCard() {
+        card.classList.remove('rdc-visible');
+        setTimeout(() => { if (card.parentNode) card.remove(); }, 300);
+    }
+
+    document.getElementById('ruinAcceptBtn').addEventListener('click', closeCard);
+
+    if (canDouble) {
+        document.getElementById('ruinAdBtn').addEventListener('click', () => {
+            const adBtn = document.getElementById('ruinAdBtn');
+            if (adBtn) adBtn.disabled = true;
+
+            if (typeof AdManager !== 'undefined') {
+                AdManager.showRewardedAd(() => {
+                    if (typeof _applyDoubleRuinLoot === 'function') {
+                        _applyDoubleRuinLoot(lootResult.doubleData, playerId);
+                    }
+                    closeCard();
+                    if (typeof showToast === 'function') {
+                        showToast(`🎉 ¡Botín duplicado! ${lootResult.label}`, 'success', 4000);
+                    }
+                });
+            } else {
+                closeCard();
+            }
+        });
+    }
+}
 
 // Asegurarse de que los listeners se configuran cuando el DOM está listo
 document.addEventListener('DOMContentLoaded', setupGachaModalListeners);

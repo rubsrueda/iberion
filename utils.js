@@ -112,6 +112,15 @@ function getUnitById(unitId) {
     return units.find(u => u.id === unitId) || null;
 }
 
+function isSupplyRouteHexBlocked(hexData, playerId) {
+    if (!hexData) return false;
+    if (hexData.owner !== playerId) return false;
+
+    const blockedUntil = Number(hexData.supplyDisruptedUntil || 0);
+    const currentTurn = Number(gameState?.turnNumber || 1);
+    return blockedUntil >= currentTurn;
+}
+
 function isHexSupplied(startR, startC, playerId) {
    // console.log(`%c[DEBUG Suministro] Chequeando suministro para (${startR},${startC}) de J${playerId}`, "background: yellow; color: black;");
 
@@ -160,6 +169,9 @@ function isHexSupplied(startR, startC, playerId) {
 
                 const neighborHexData = board[neighborCoords.r][neighborCoords.c]; // Acceso seguro
                 if (neighborHexData) {
+                    if (isSupplyRouteHexBlocked(neighborHexData, playerId)) {
+                        continue;
+                    }
                     // Se puede pasar a través de:
                     // 1. Hexágonos propios (owner === playerId)
                     // 2. Hexágonos con una estructura "Camino" QUE TAMBIÉN SEA PROPIA (owner === playerId)
@@ -173,6 +185,62 @@ function isHexSupplied(startR, startC, playerId) {
     }
     //console.log(`%c[isHexSupplied] (${startR},${startC}) NO está suministrada (no se encontró ruta).`, "color: red;");
     return false;
+}
+
+/**
+ * Igual que isHexSupplied pero devuelve el array de pasos [{r,c}] desde la unidad
+ * hasta la fuente de suministro (capital/fortaleza propia), o null si no está conectada.
+ * Usado para visualizar la "línea de vida" en el HUD táctico.
+ */
+function getSupplyPath(startR, startC, playerId) {
+    if (!board || board.length === 0 || !board[startR]?.[startC]) return null;
+    const startHexData = board[startR][startC];
+
+    // Caso directo: la unidad ya está en la fuente de suministro
+    if (startHexData.owner === playerId && (startHexData.isCapital || startHexData.structure === "Fortaleza")) {
+        return [{ r: startR, c: startC }];
+    }
+
+    const queue = [{ r: startR, c: startC }];
+    const visited = new Set([`${startR},${startC}`]);
+    const parent = new Map([[`${startR},${startC}`, null]]);
+    const maxIter = 15 * ((typeof BOARD_ROWS !== 'undefined' ? BOARD_ROWS : 20) * (typeof BOARD_COLS !== 'undefined' ? BOARD_COLS : 20));
+    let iter = 0;
+
+    while (queue.length > 0 && iter < maxIter) {
+        iter++;
+        const current = queue.shift();
+        const hexData = board[current.r]?.[current.c];
+        if (!hexData) continue;
+
+        if ((current.r !== startR || current.c !== startC) &&
+            hexData.owner === playerId && (hexData.isCapital || hexData.structure === "Fortaleza")) {
+            // Reconstruir camino desde fuente hasta unidad
+            const path = [];
+            let node = `${current.r},${current.c}`;
+            while (node !== null) {
+                const [r, c] = node.split(',').map(Number);
+                path.unshift({ r, c });
+                node = parent.get(node);
+            }
+            return path;
+        }
+
+        for (const n of getHexNeighbors(current.r, current.c)) {
+            const key = `${n.r},${n.c}`;
+            if (visited.has(key)) continue;
+            if (n.r < 0 || n.r >= board.length || n.c < 0 || n.c >= board[0].length) continue;
+            const nHex = board[n.r]?.[n.c];
+            if (!nHex) continue;
+            if (isSupplyRouteHexBlocked(nHex, playerId)) continue;
+            if (nHex.owner === playerId || (nHex.structure === "Camino" && nHex.owner === playerId)) {
+                visited.add(key);
+                parent.set(key, `${current.r},${current.c}`);
+                queue.push({ r: n.r, c: n.c });
+            }
+        }
+    }
+    return null;
 }
 
 function isHexSuppliedForReinforce(r, c, playerId) {

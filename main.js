@@ -400,6 +400,9 @@ function initApp() {
     }
 
     if (typeof TurnTimerManager !== 'undefined') TurnTimerManager.init();
+    if (typeof StatTracker !== 'undefined' && typeof StatTracker.ensureAbandonmentHooks === 'function') {
+        StatTracker.ensureAbandonmentHooks();
+    }
     // Precargar todos los sonidos al iniciar la aplicación
     if (typeof AudioManager !== 'undefined' && AudioManager.preload) {
         AudioManager.preload();
@@ -1093,8 +1096,13 @@ function initApp() {
                     const civEl = document.getElementById(`player${i}Civ`);
                     const typeEl = document.getElementById(`player${i}TypeSelect`);
                     if (civEl && typeEl) {
-                        playerCivilizations[i] = civEl.value;
-                        playerTypes[`player${i}`] = typeEl.value;
+                        const selectedCiv = civEl.value;
+                        const selectedType = typeEl.value;
+                        const safeCiv = (selectedType === 'human' && typeof PlayerDataManager !== 'undefined' && !PlayerDataManager.isCivilizationUnlocked(selectedCiv))
+                            ? 'Britania'
+                            : selectedCiv;
+                        playerCivilizations[i] = safeCiv;
+                        playerTypes[`player${i}`] = selectedType;
                     }
                 }
                 gameState.playerCivilizations = playerCivilizations;
@@ -1285,7 +1293,11 @@ function initApp() {
                 }
                 
                 const typeValue = typeSelectEl.value;
-                gameState.playerCivilizations[playerNum] = civSelectEl.value;
+                const selectedCiv = civSelectEl.value;
+                const safeCiv = (typeValue === 'human' && typeof PlayerDataManager !== 'undefined' && !PlayerDataManager.isCivilizationUnlocked(selectedCiv))
+                    ? 'Britania'
+                    : selectedCiv;
+                gameState.playerCivilizations[playerNum] = safeCiv;
                 gameState.playerTypes[playerKey] = typeValue;
 
                     // Configuración de nivel de IA (si aplica)

@@ -54,6 +54,89 @@ function syncSeasonState(logOnChange = false) {
     if (logOnChange && previousKey && previousKey !== season.key) {
         logMessage(`Cambio de estacion: ${season.name}. Mov ${Math.round(season.movementMultiplier * 100)}% | Atricion ${Math.round(season.attritionMultiplier * 100)}%.`, 'important');
     }
+
+    // Actualizar eventos climatológicos activos
+    updateWeatherEvents(gameState.turnNumber, logOnChange);
+}
+
+/**
+ * Gestiona la aparición y expiración de eventos de clima dinámico.
+ * - Tormenta de Invierno: turno múltiplo de 10 → colinas y bosques cuestan ×2 de movimiento.
+ * - Inundación costera: turno múltiplo de 15 (offset 5) → casillas costeras intransitables 2 turnos.
+ */
+function updateWeatherEvents(turnNumber, notify = false) {
+    if (!gameState || !board) return;
+    const turn = Number(turnNumber) || 1;
+
+    if (!gameState.activeWeatherEvent) gameState.activeWeatherEvent = null;
+    if (!Array.isArray(gameState.floodedHexes)) gameState.floodedHexes = [];
+
+    // --- Decrementar evento activo ---
+    if (gameState.activeWeatherEvent) {
+        gameState.activeWeatherEvent.turnsRemaining = (gameState.activeWeatherEvent.turnsRemaining || 1) - 1;
+
+        if (gameState.activeWeatherEvent.turnsRemaining <= 0) {
+            const ended = gameState.activeWeatherEvent.type;
+            if (ended === 'flood') {
+                (gameState.floodedHexes || []).forEach(({ r, c }) => {
+                    const hex = board[r]?.[c];
+                    if (hex) {
+                        delete hex.isFlooded;
+                        if (typeof renderSingleHexVisuals === 'function') renderSingleHexVisuals(r, c);
+                    }
+                });
+                gameState.floodedHexes = [];
+            }
+            gameState.activeWeatherEvent = null;
+            if (notify) {
+                const msg = ended === 'winter_storm'
+                    ? '☀️ La tormenta ha cesado. El movimiento vuelve a la normalidad.'
+                    : '🌊 Las aguas retroceden. Las tierras costeras son transitables de nuevo.';
+                if (typeof UIManager !== 'undefined' && UIManager.showMessageTemporarily)
+                    UIManager.showMessageTemporarily(msg, 4000, false);
+                if (typeof logMessage === 'function') logMessage(msg, 'important');
+            }
+        }
+        return; // Un evento a la vez
+    }
+
+    // --- Iniciar evento nuevo ---
+    // Tormenta de invierno: cada 10 turnos (turno 10, 20, 30…), dura 3 turnos
+    if (turn > 1 && turn % 10 === 0) {
+        gameState.activeWeatherEvent = { type: 'winter_storm', turnsRemaining: 3 };
+        if (notify) {
+            if (typeof UIManager !== 'undefined' && UIManager.showMessageTemporarily)
+                UIManager.showMessageTemporarily('⛄ ¡Tormenta de Invierno! Las colinas y bosques cuestan el doble de movimiento durante 3 turnos.', 6000, true);
+            if (typeof logMessage === 'function') logMessage('Tormenta de Invierno activa. Mov. en colinas/bosque x2.', 'warning');
+        }
+        return;
+    }
+
+    // Inundación costera: turno % 15 === 5 (turnos 5, 20, 35…), dura 2 turnos
+    if (turn > 1 && turn % 15 === 5) {
+        const flooded = [];
+        for (let r = 0; r < board.length; r++) {
+            for (let c = 0; c < board[r].length; c++) {
+                const hex = board[r][c];
+                if (!hex || hex.terrain !== 'plains') continue;
+                if (hex.isCity || hex.isCapital) continue;
+                const isCoastal = (getHexNeighbors(r, c) || []).some(n => board[n.r]?.[n.c]?.terrain === 'water');
+                if (!isCoastal) continue;
+                hex.isFlooded = true;
+                flooded.push({ r, c });
+                if (typeof renderSingleHexVisuals === 'function') renderSingleHexVisuals(r, c);
+            }
+        }
+        if (flooded.length > 0) {
+            gameState.floodedHexes = flooded;
+            gameState.activeWeatherEvent = { type: 'flood', turnsRemaining: 2 };
+            if (notify) {
+                if (typeof UIManager !== 'undefined' && UIManager.showMessageTemporarily)
+                    UIManager.showMessageTemporarily(`🌊 ¡Inundación Costera! ${flooded.length} casillas litorales son intransitables durante 2 turnos.`, 6000, true);
+                if (typeof logMessage === 'function') logMessage(`Inundacion costera: ${flooded.length} casillas bloqueadas.`, 'warning');
+            }
+        }
+    }
 }
 
 /**
@@ -95,6 +178,56 @@ function findEscapePath(unit, targetR, targetC, maxDepth = 15) {
             !CoordValidator.check(targetR, targetC, 'findEscapePath_target')) {
             return null;
         }
+
+        function propagateSupplyCollapseFromUnit(unit) {
+            if (!unit || !board?.[unit.r]?.[unit.c]) return 0;
+
+            const originHex = board[unit.r][unit.c];
+            const isOriginNode = originHex.owner === unit.player && (
+                originHex.structure === 'Camino' ||
+                (originHex.isCity && !originHex.isCapital)
+            );
+            if (!isOriginNode) return 0;
+
+            const visited = new Set([`${unit.r},${unit.c}`]);
+            const queue = [{ r: unit.r, c: unit.c, depth: 0 }];
+            const maxDepth = 2;
+            const disruptionTurns = 2;
+            let affected = 0;
+
+            while (queue.length > 0) {
+                const current = queue.shift();
+                if (current.depth >= maxDepth) continue;
+
+                const neighbors = getHexNeighbors(current.r, current.c);
+                for (const n of neighbors) {
+                    const key = `${n.r},${n.c}`;
+                    if (visited.has(key)) continue;
+                    visited.add(key);
+
+                    const hex = board[n.r]?.[n.c];
+                    if (!hex) continue;
+
+                    const isRouteNode = hex.owner === unit.player && (
+                        hex.structure === 'Camino' ||
+                        (hex.isCity && !hex.isCapital)
+                    );
+                    if (!isRouteNode) continue;
+
+                    const untilTurn = Number(gameState.turnNumber || 1) + disruptionTurns;
+                    hex.supplyDisruptedUntil = Math.max(Number(hex.supplyDisruptedUntil || 0), untilTurn);
+                    affected++;
+
+                    queue.push({ r: n.r, c: n.c, depth: current.depth + 1 });
+
+                    if (typeof renderSingleHexVisuals === 'function') {
+                        renderSingleHexVisuals(n.r, n.c);
+                    }
+                }
+            }
+
+            return affected;
+        }
     }
     
     // Algoritmo A* simplificado para supervivencia
@@ -103,6 +236,11 @@ function findEscapePath(unit, targetR, targetC, maxDepth = 15) {
     let iterations = 0;
     const MAX_ITERATIONS = maxDepth * 10; // Límite absoluto de iteraciones
 
+
+                    const collapsedNodes = propagateSupplyCollapseFromUnit(unit);
+                    if (collapsedNodes > 0) {
+                        logMessage(`⚠️ El corte de suministro se extiende: ${collapsedNodes} nodos de ruta quedan inestables.`, 'warning');
+                    }
     while (openSet.length > 0 && iterations < MAX_ITERATIONS) {
         iterations++;
         
@@ -1221,6 +1359,9 @@ async function endTacticalBattle(winningPlayerNumber) {
 
     // <<== FINALIZAR ESTADÍSTICAS ==>>
     if (typeof StatTracker !== 'undefined') {
+        if (typeof StatTracker.markGameCompleted === 'function') {
+            StatTracker.markGameCompleted('game_over');
+        }
         const gameStats = StatTracker.finalize(gameState.winner);
         // La crónica se abrirá DESPUÉS que el usuario cierre el modal de resultados
         // (desde showPostMatchSummary en uiUpdates.js)
@@ -1621,6 +1762,58 @@ function updateTerritoryMetrics(playerEndingTurn) {
                         //console.log(`Hex (${r},${c}): Estabilidad es ${hex.estabilidad}. Sube nación de J${hex.owner} a ${hex.nacionalidad[hex.owner]}`);
                     }
                 }
+
+                // 3. DECAIMIENTO DE ESTABILIDAD EN CIUDADES / FORTALEZAS DESGUARNECIDAS
+                const isCriticalHex = hex.isCity || hex.structure === 'Fortaleza' || hex.structure === 'Fortaleza con Muralla';
+                if (isCriticalHex) {
+                    const owner = hex.owner;
+
+                    // Condición A: ¿hay una unidad amiga en la casilla o adyacente?
+                    const hasGarrison = (() => {
+                        if (unitOnHex && unitOnHex.player === owner) return true;
+                        return (getHexNeighbors(r, c) || []).some(n => {
+                            const u = getUnitOnHex(n.r, n.c);
+                            return u && u.player === owner;
+                        });
+                    })();
+
+                    // Condición B: ¿tiene el jugador comida positiva?
+                    const hasFood = (gameState.playerResources?.[owner]?.comida ?? 0) > 0;
+
+                    // Condición C: ¿está conectada por suministro (camino → capital/fortaleza)?
+                    const isSupplied = (typeof isHexSupplied === 'function') ? isHexSupplied(r, c, owner) : true;
+
+                    // Si faltan 2 o más condiciones → decaer
+                    const failCount = [!hasGarrison, !hasFood, !isSupplied].filter(Boolean).length;
+                    if (failCount >= 2) {
+                        hex.estabilidad = Math.max(0, hex.estabilidad - 1);
+
+                        // Rebelión: si llega a 0 en una ciudad/fortaleza → se vuelve bárbara/independiente
+                        if (hex.estabilidad === 0) {
+                            const prevOwner = owner;
+                            hex.owner = BARBARIAN_PLAYER_ID;
+                            hex.nacionalidad = { [BARBARIAN_PLAYER_ID]: 3 };
+                            hex.estabilidad = 2; // Recién conquistada, semi-estable
+
+                            const cityEntry = gameState.cities?.find(ci => ci.r === r && ci.c === c);
+                            if (cityEntry) cityEntry.owner = BARBARIAN_PLAYER_ID;
+
+                            renderSingleHexVisuals(r, c);
+                            if (typeof UIManager !== 'undefined' && UIManager.showMessageTemporarily) {
+                                UIManager.showMessageTemporarily(
+                                    `⚠️ ¡Rebelión! ${cityEntry?.name || `Ciudad (${r},${c})`} se ha vuelto independiente (J${prevOwner} pierde control).`,
+                                    5000, true
+                                );
+                            }
+                            if (typeof window !== 'undefined' && window.GameFeelFX) {
+                                window.GameFeelFX.conquest(r, c, null, 'REBELIÓN');
+                            }
+                        } else {
+                            // Solo re-render visual para actualizar el indicador de vibración
+                            renderSingleHexVisuals(r, c);
+                        }
+                    }
+                }
             }
         }
     }
@@ -1706,6 +1899,14 @@ function calculateTradeIncome(playerNum) {
 
     if (tradeIncome > 0) {
         logMessage(`Rutas comerciales activas: ${tradeRoutes.size}. Ingreso por comercio: ${tradeIncome} oro.`);
+    }
+
+    // Penalización climática: invierno/tormenta reduce el alcance de caravanas (ingreso -50%)
+    if (gameState.activeWeatherEvent?.type === 'winter_storm') {
+        tradeIncome = Math.floor(tradeIncome * 0.5);
+        if (tradeIncome > 0) {
+            logMessage('Tormenta de Invierno: ingreso comercial reducido al 50%.', 'warning');
+        }
     }
 
     return tradeIncome;
@@ -2236,6 +2437,14 @@ async function handleEndTurn(isHostProcessing = false) {
 
      // 3. GESTIÓN DEL SIGUIENTE TURNO (IA vs HUMANO vs RELOJ)
     const isNextPlayerAI = gameState.playerTypes[`player${gameState.currentPlayer}`]?.startsWith('ai_');
+        const endingWasAI = gameState.playerTypes[`player${playerEndingTurn}`]?.startsWith('ai_');
+
+        if (isNextPlayerAI) {
+            gameState.aiTurnMoveGhostsBuffer = [];
+        } else if (endingWasAI && Array.isArray(gameState.aiTurnMoveGhostsBuffer) && gameState.aiTurnMoveGhostsBuffer.length > 0) {
+            gameState.lastAiTurnGhostMoves = gameState.aiTurnMoveGhostsBuffer.slice(-24);
+            gameState.aiTurnMoveGhostsBuffer = [];
+        }
     
     const isNetworkMatch = (typeof NetworkManager !== 'undefined' && NetworkManager.miId);
 
@@ -2287,6 +2496,13 @@ async function handleEndTurn(isHostProcessing = false) {
 
     } else {
         // --- TURNO HUMANO (CON RELOJ) ---
+            if (Array.isArray(gameState.lastAiTurnGhostMoves) && gameState.lastAiTurnGhostMoves.length > 0) {
+                if (typeof UIManager !== 'undefined' && typeof UIManager.showGhostTurnArrows === 'function') {
+                    UIManager.showGhostTurnArrows(gameState.lastAiTurnGhostMoves, 1500);
+                }
+                gameState.lastAiTurnGhostMoves = [];
+            }
+
             if (gameState.currentPhase !== "gameOver") {
                 // Asegúrate de leer la variable del gameState
                 const duration = gameState.turnDurationSeconds;

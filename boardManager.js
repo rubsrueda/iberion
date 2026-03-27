@@ -1648,11 +1648,39 @@ function renderSingleHexVisuals(r, c) {
     if (hexData.isCapital) hexEl.classList.add('capital-city');
     if (hexData.resourceNode) hexEl.classList.add(`resource-${hexData.resourceNode.replace('_mina', '')}`);
 
+    const currentTurn = Number(gameState?.turnNumber || 1);
+    if (Number(hexData.supplyDisruptedUntil || 0) >= currentTurn) {
+        hexEl.classList.add('hex-supply-collapse');
+    }
+
     // Impacto visual tecnológico: Caminos avanzados tras investigar Albañilería.
     const ownerTechs = gameState?.playerResources?.[hexData.owner]?.researchedTechnologies || [];
     const hasStoneRoadsVisual = hexData.structure === 'Camino' && ownerTechs.includes('MASONRY');
     if (hasStoneRoadsVisual) {
         hexEl.classList.add('road-stone-tech');
+    }
+
+    // Alerta de estabilidad baja en ciudades/fortalezas: vibrar cuando estabilidad <= 1
+    const isCriticalStructure = hexData.isCity || hexData.structure === 'Fortaleza' || hexData.structure === 'Fortaleza con Muralla';
+    if (isCriticalStructure && hexData.owner !== null && hexData.owner !== 0
+        && typeof BARBARIAN_PLAYER_ID !== 'undefined' && hexData.owner !== BARBARIAN_PLAYER_ID) {
+        const stability = Number(hexData.estabilidad ?? 5);
+        if (stability <= 1) {
+            hexEl.classList.add('low-stability-danger');
+        } else if (stability === 2) {
+            hexEl.classList.add('low-stability-warning');
+
+            // Clima dinámico: casilla inundada
+            if (hexData.isFlooded) {
+                hexEl.classList.add('hex-flooded');
+            }
+
+            // Clima dinámico: tormenta invernal en colinas/bosque
+            if (typeof gameState !== 'undefined' && gameState?.activeWeatherEvent?.type === 'winter_storm' &&
+                (hexData.terrain === 'hills' || hexData.terrain === 'forest')) {
+                hexEl.classList.add('hex-winter-storm');
+            }
+        }
     }
 
     // Si hay una ESTRUCTURA, creamos su sprite

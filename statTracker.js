@@ -12,6 +12,10 @@ const StatTracker = {
     turnEvents: [],
     battleLog: [],
     isEnabled: false,
+    abandonmentStorageKey: 'iberion_abandonment_events_v1',
+    _abandonmentHooked: false,
+    _abandonmentRecordedThisSession: false,
+    _matchCompleted: false,
 
     /**
      * Inicializa el rastreador al comenzar una partida
@@ -62,6 +66,236 @@ const StatTracker = {
         this.turnEvents = [];
         this.battleLog = [];
         this.isEnabled = true;
+        this._matchCompleted = false;
+        this._abandonmentRecordedThisSession = false;
+        this.ensureAbandonmentHooks();
+    },
+
+    /**
+     * Asegura listeners únicos para detectar salida/cierre de pestaña durante partida.
+     */
+    ensureAbandonmentHooks: function() {
+        if (this._abandonmentHooked) return;
+        this._abandonmentHooked = true;
+
+        window.addEventListener('pagehide', () => {
+            this.recordAbandonment('pagehide');
+        });
+
+        window.addEventListener('beforeunload', () => {
+            this.recordAbandonment('beforeunload');
+        });
+    },
+
+    /**
+     * Marca que la partida ya terminó de forma normal (evita falsos positivos de abandono).
+     */
+    markGameCompleted: function(reason = 'game_over') {
+        this._matchCompleted = true;
+        this._abandonmentRecordedThisSession = true;
+        console.log('[StatTracker] Partida completada, abandono desactivado:', reason);
+    },
+
+    /**
+     * Registra una salida prematura para análisis de abandono.
+     */
+    recordAbandonment: function(reason = 'close') {
+        try {
+            if (this._abandonmentRecordedThisSession) return;
+            if (this._matchCompleted) return;
+            if (!this._isPlayableMatchActive()) return;
+
+            const myPlayerId = this._getMyPlayerId();
+            const myGold = Number(gameState?.playerResources?.[myPlayerId]?.oro || 0);
+            const scoreGap = this._getScoreGap(myPlayerId);
+
+            const event = {
+                id: `abandon_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
+                timestamp: Date.now(),
+                reason: reason,
+                turn: Number(gameState?.turnNumber || 1),
+                phase: gameState?.currentPhase || 'unknown',
+                myPlayerId: myPlayerId,
+                myGold: myGold,
+                isGoldNegative: myGold < 0,
+                scoreGap: scoreGap,
+                isLosingHard: scoreGap >= 1200,
+                gameMode: gameState?.currentGameMode || (gameState?.isCampaignBattle ? 'campaign' : 'skirmish'),
+                isTutorial: !!gameState?.isTutorialActive,
+                isNetwork: !!(typeof isNetworkGame === 'function' && isNetworkGame())
+            };
+
+            const events = this._getLocalAbandonmentEvents();
+            events.push(event);
+            const capped = events.slice(-300);
+            localStorage.setItem(this.abandonmentStorageKey, JSON.stringify(capped));
+
+            this._abandonmentRecordedThisSession = true;
+            this._syncAbandonmentToSupabase(event);
+            console.log('[StatTracker] Evento de abandono registrado:', event);
+        } catch (err) {
+            console.warn('[StatTracker] Error registrando abandono:', err);
+        }
+    },
+
+    _isPlayableMatchActive: function() {
+        if (!gameState) return false;
+        if (gameState.currentPhase === 'gameOver') return false;
+        if (!gameState.currentPhase) return false;
+        if (gameState.turnNumber < 1) return false;
+        if (!Array.isArray(board) || board.length === 0) return false;
+        return true;
+    },
+
+    _getMyPlayerId: function() {
+        if (Number.isFinite(Number(gameState?.myPlayerNumber))) return Number(gameState.myPlayerNumber);
+        if (Number.isFinite(Number(gameState?.currentPlayer))) return Number(gameState.currentPlayer);
+        return 1;
+    },
+
+    _getScoreGap: function(myPlayerId) {
+        try {
+            if (!this.gameStats?.players) return 0;
+            const players = Object.values(this.gameStats.players);
+            if (!Array.isArray(players) || players.length === 0) return 0;
+
+            const myStats = this.gameStats.players[myPlayerId];
+            if (!myStats) return 0;
+
+            const myScore = Number(myStats.score || 0);
+            const bestRival = players
+                .filter(p => Number(p.playerId) !== Number(myPlayerId))
+                .reduce((max, p) => Math.max(max, Number(p.score || 0)), 0);
+
+            return Math.max(0, bestRival - myScore);
+        } catch (err) {
+            return 0;
+        }
+    },
+
+    _getLocalAbandonmentEvents: function() {
+        try {
+            const raw = localStorage.getItem(this.abandonmentStorageKey);
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (err) {
+            return [];
+        }
+    },
+
+    _syncAbandonmentToSupabase: async function(event) {
+        try {
+            if (typeof supabaseClient === 'undefined') return;
+            if (!PlayerDataManager?.currentPlayer?.auth_id) return;
+
+            await supabaseClient
+                .from('analytics_abandonment')
+                .insert([{
+                    player_id: PlayerDataManager.currentPlayer.auth_id,
+                    payload: event,
+                    created_at: new Date(event.timestamp).toISOString()
+                }]);
+        } catch (err) {
+            // Tabla opcional: si no existe, no romper flujo
+        }
+    },
+
+    getAbandonmentHeatmapData: function() {
+        const events = this._getLocalAbandonmentEvents();
+        const byTurn = {};
+        let negativeGoldCount = 0;
+        let losingHardCount = 0;
+
+        events.forEach(ev => {
+            const turn = Math.max(1, Number(ev.turn || 1));
+            byTurn[turn] = (byTurn[turn] || 0) + 1;
+            if (ev.isGoldNegative) negativeGoldCount++;
+            if (ev.isLosingHard) losingHardCount++;
+        });
+
+        const points = Object.entries(byTurn)
+            .map(([turn, count]) => ({ turn: Number(turn), count: Number(count) }))
+            .sort((a, b) => a.turn - b.turn);
+
+        return {
+            total: events.length,
+            points,
+            negativeGoldCount,
+            losingHardCount,
+            negativeGoldPct: events.length ? Math.round((negativeGoldCount / events.length) * 100) : 0,
+            losingHardPct: events.length ? Math.round((losingHardCount / events.length) * 100) : 0,
+            rawEvents: events
+        };
+    },
+
+    openAbandonmentHeatmap: function() {
+        const existing = document.getElementById('abandonmentHeatmapModal');
+        if (existing) existing.remove();
+
+        const data = this.getAbandonmentHeatmapData();
+        const maxCount = Math.max(1, ...data.points.map(p => p.count));
+
+        const rows = data.points.length
+            ? data.points.map(p => {
+                const widthPct = Math.max(4, Math.round((p.count / maxCount) * 100));
+                const color = p.count >= Math.ceil(maxCount * 0.8)
+                    ? '#e74c3c'
+                    : p.count >= Math.ceil(maxCount * 0.5)
+                        ? '#f39c12'
+                        : '#2ecc71';
+                return `
+                    <div style="display:grid; grid-template-columns: 52px 1fr 34px; gap:8px; align-items:center; margin-bottom:6px;">
+                        <div style="color:#bbb; font-size:12px;">T${p.turn}</div>
+                        <div style="height:14px; background:rgba(255,255,255,0.06); border-radius:999px; overflow:hidden;">
+                            <div style="height:100%; width:${widthPct}%; background:${color}; border-radius:999px;"></div>
+                        </div>
+                        <div style="text-align:right; color:#fff; font-size:12px;">${p.count}</div>
+                    </div>
+                `;
+            }).join('')
+            : '<div style="color:#888; padding: 14px 0;">Sin eventos de abandono aún.</div>';
+
+        const modal = document.createElement('div');
+        modal.id = 'abandonmentHeatmapModal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:21000;display:flex;align-items:center;justify-content:center;padding:20px;';
+        modal.innerHTML = `
+            <div style="width:min(700px,95vw);max-height:88vh;overflow:auto;background:#121212;border:1px solid #333;border-radius:12px;padding:18px 18px 14px;box-shadow:0 20px 60px rgba(0,0,0,0.6);">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+                    <h3 style="margin:0;color:#00f3ff;">📊 Heatmap de Abandono</h3>
+                    <button id="closeAbandonmentHeatmapBtn" style="border:none;background:#2b2b2b;color:#ddd;border-radius:6px;padding:6px 10px;cursor:pointer;">Cerrar</button>
+                </div>
+                <p style="margin:8px 0 14px;color:#999;font-size:12px;">Eventos capturados al cerrar/recargar durante una partida activa.</p>
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(120px,1fr));gap:10px;margin-bottom:14px;">
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid #2f2f2f;border-radius:8px;padding:10px;">
+                        <div style="color:#888;font-size:11px;">Total abandonos</div>
+                        <div style="color:#fff;font-size:20px;font-weight:bold;">${data.total}</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid #2f2f2f;border-radius:8px;padding:10px;">
+                        <div style="color:#888;font-size:11px;">Con oro negativo</div>
+                        <div style="color:#fff;font-size:20px;font-weight:bold;">${data.negativeGoldPct}%</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid #2f2f2f;border-radius:8px;padding:10px;">
+                        <div style="color:#888;font-size:11px;">Perdiendo por mucho</div>
+                        <div style="color:#fff;font-size:20px;font-weight:bold;">${data.losingHardPct}%</div>
+                    </div>
+                </div>
+                <div style="border:1px solid #2a2a2a;border-radius:10px;padding:12px;background:rgba(0,0,0,0.25);">
+                    ${rows}
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        const close = () => {
+            if (modal.parentNode) modal.remove();
+        };
+        const closeBtn = document.getElementById('closeAbandonmentHeatmapBtn');
+        if (closeBtn) closeBtn.addEventListener('click', close);
+        modal.addEventListener('click', (ev) => {
+            if (ev.target === modal) close();
+        });
     },
 
     /**

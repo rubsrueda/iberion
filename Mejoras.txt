@@ -9,71 +9,8 @@ Objetivo: Eliminar la fricción visual. Pasar de "leer datos" a "ver el campo de
 Dinámicas de Tensión y "Mundo Vivo"
 Objetivo: Romper la predictibilidad. Que el mapa no sea solo un tablero, sino un entorno que reacciona y genera problemas inesperados.
 
-1. Sistema de "Líneas de Suministro" Visuales (Logística)
-Si rompen el camino pierdes el comercio. Eso es oro puro, pero el jugador debe ver el peligro.
-Tarea: Implementar un "Hilo de Vida".
-Crear una línea tenue que conecte visualmente tus unidades con su ciudad de origen.
-Si una unidad enemiga se sitúa sobre esa línea o el camino, la línea debe volverse roja y parpadear.
-Criterio de éxito: El jugador sentirá pánico físico al ver su línea cortada antes de que aparezca el icono de la calavera. Es "tensión visual".
-
-El problema: Una vez conquistas una casilla, parece que se queda ahí para siempre si no hay enemigos cerca.
-Tarea: Implementar la Lealtad de las fortalezas y Ciudades.
-La "Estabilidad" de una fortaleza, o ciudad es como un pulmon (por falta de tropas cerca o falta de comida, de caravanas, de caminos), la casilla debe empezar a "vibrar".
-Si llega a cero, la ciudad se vuelve Bárbara/Independiente de nuevo.
-Criterio de éxito: Obliga al jugador a no solo "correr hacia adelante", sino a dejar guarniciones y gestionar la paz interna.
-
-Clima y Terreno Dinámico (Modificadores de Turno)
-El problema: El mapa es estático. Turno 1 y Turno 50 se ven igual.
-Tarea: mejorar las Estaciones o Clima.
-Invierno/Tormenta: Cada 10 turnos, el coste de movimiento en casillas de "Piedra" o "Montaña" se duplica y el alcance de las caravanas se reduce.
-Inundación: La casilla adyacentes al mar pueden volverse intransitables por 2 turnos.
-Criterio de éxito: El jugador debe adaptar su estrategia. "No puedo atacar ahora por la nieve, debo esperar al turno de primavera".
-
-La "Crónica" Narrativa
-El problema: Tienes una sección de Crónica que es un historial técnico. Nadie lee un log de errores.
-Tarea: Transformar el log en Hitos Épicos.
-En lugar de: "Turno 5: Capturada Ciudad 3", poner: "Turno 5: El Imperio de Britannia expande sus fronteras tras la caída de la Ciudad Libre 3".
-Al final de la partida, permitir exportar una "Foto del Mapa Final" con ese resumen.
-Criterio de éxito: El jugador siente que ha escrito una historia, no que ha rellenado una hoja de Excel.
-
 El jugador debe poder responderte: "¿Es la partida diferente a la anterior?".
 Si la respuesta es "Sí, porque hubo una tormenta que me cortó los suministros y tuve una revuelta en el sur", entonces tienes un juego con personalidad propia.
 
-Monetización Orgánica y Modelo de Retención
-Objetivo: Generar ingresos respetando la inteligencia del jugador. No vendemos "monedas para ganar", vendemos "variedad de experiencia".
-
-Acción: * Gratis: Britannia y Arabia (las que ya tienes) están desbloqueadas.
-Premium: Nuevas facciones (ej. Roma, Egipto, Japón) con sus propios Bonus de Facción únicos. 
-Criterio de éxito: El jugador prueba la profundidad con las gratis y compra las nuevas no por "poder", sino por jugar con estrategias diferentes.
-
-Monetización de la Arqueología (Heroes y Equipo)
-Criterio de éxito: El jugador elige ver el anuncio por curiosidad y colección, no porque el juego lo obligue para seguir jugando.
-
-Análisis de Datos (Analytics para el Programador)
-El problema: No sabes dónde se aburre el jugador.
-Acción: Implementar un Heatmap de Abandono.
-El programador debe enviar un evento cada vez que un jugador cierra el juego: ¿En qué turno fue? ¿Tenía balance negativo de oro? ¿Le estaban ganando por mucho puntos?
-Criterio de éxito: Si detectas que el 80% abandona en el turno 5 cuando la IA les corta el camino, sabes que debes ajustar la dificultad o mejorar el tutorial en ese punto exacto.
-
-El "Efecto Dominó" en los Suministros
-Si una unidad se queda sin suministro, no solo debería debilitarse ella.
-Idea: Si esa unidad estaba protegiendo un puente o un nodo de camino, el corte de suministro debería "viajar" por la ruta.
-Impacto: Esto crea jugadas maestras donde el jugador no ataca al ejército enemigo, sino que captura una casilla de suministros en la retaguardia y ve cómo todo el frente enemigo se colapsa en tres turnos. Eso es pura satisfacción estratégica.
-
-Micro-Narrativa de las Ruinas
-Ya que tienes arqueología, haz que los hallazgos tengan un pequeño texto de Lore (historia del mundo).
-Idea: "Has encontrado la espada rota del Rey Ítalo". No hace falta que haga nada complejo, pero establece que tu mundo tiene pasado.
-Impacto: Crea una conexión emocional. El jugador ya no solo conquista casillas, está "reclamando un imperio perdido".
-
-El "Fantasma" del Turno Anterior
-A veces, en los juegos de turnos, olvidas por qué moviste una pieza hace 3 minutos.
-Idea: Al empezar tu turno, muestra durante 1.5 segundos unas flechas tenues que indiquen de dónde vinieron las unidades de la IA.
-Impacto: Ayuda al cerebro del jugador a procesar la amenaza de inmediato ("¡Ah, este regimiento viene del norte!") sin tener que revisar la Crónica.
-
 Busca la fricción. Que el mapa sea un lugar peligroso donde cada decisión sea un riesgo.
-
-Bugs y Problemas Técnicos a Corregir:
-- No ha funcionado el intercambio de comida a piedra.
-- Las divisiones de la IA se están moviendo sin respetar las reglas, por ejemplo una división salta una casilla y cae en otra, siendo que las casillas son de tipo montaña o Bosque, donde solo pueden moverse una casilla.
-- La banca está creando caravanas sin que exista caminos.
 

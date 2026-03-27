@@ -14,6 +14,56 @@ const PlayerDataManager = {
     isProcessingAuth: false, // Flag para prevenir loops
     authInitialized: false,  // Flag para saber si ya se inicializó auth
 
+    getFreeCivilizations: function() {
+        return ['Britania', 'Arábiga'];
+    },
+
+    getPremiumCivilizationPack: function() {
+        return ['Roma', 'Egipto', 'Japón'];
+    },
+
+    initializeCivilizationAccess: function(playerData = this.currentPlayer) {
+        if (!playerData) return playerData;
+
+        const freeCivs = this.getFreeCivilizations();
+        if (!Array.isArray(playerData.unlockedCivilizations)) {
+            playerData.unlockedCivilizations = [...freeCivs];
+        }
+        freeCivs.forEach(civKey => {
+            if (!playerData.unlockedCivilizations.includes(civKey)) {
+                playerData.unlockedCivilizations.push(civKey);
+            }
+        });
+
+        if (typeof playerData.premiumCivilizationPackOwned === 'undefined') {
+            playerData.premiumCivilizationPackOwned = false;
+        }
+
+        return playerData;
+    },
+
+    isCivilizationUnlocked: function(civKey, playerData = this.currentPlayer) {
+        if (!civKey || civKey === 'ninguna' || civKey === 'Bárbaros') return true;
+        if (this.getFreeCivilizations().includes(civKey)) return true;
+        if (!playerData) return false;
+        this.initializeCivilizationAccess(playerData);
+        return playerData.unlockedCivilizations.includes(civKey);
+    },
+
+    unlockCivilizationPack: async function(civKeys = []) {
+        if (!this.currentPlayer) return false;
+        this.initializeCivilizationAccess(this.currentPlayer);
+
+        civKeys.forEach(civKey => {
+            if (!this.currentPlayer.unlockedCivilizations.includes(civKey)) {
+                this.currentPlayer.unlockedCivilizations.push(civKey);
+            }
+        });
+        this.currentPlayer.premiumCivilizationPackOwned = true;
+        await this.saveCurrentPlayer();
+        return true;
+    },
+
     loginWithGoogle: async function() {
         // URL fija para Iberion en GitHub Pages (configurada en Supabase)
         let redirectUrl;
@@ -101,6 +151,7 @@ const PlayerDataManager = {
                 if (profile && profile.profile_data) {
                     this.currentPlayer = profile.profile_data;
                     this.currentPlayer.auth_id = userId;
+                    this.initializeCivilizationAccess(this.currentPlayer);
                     
                     // Verificar recompensas pendientes de raids
                     if (typeof RaidManager !== 'undefined' && RaidManager.checkPendingRewards) {
@@ -223,6 +274,7 @@ const PlayerDataManager = {
         let playerDataString = localStorage.getItem(playerDataKey);
         if(playerDataString){
             this.currentPlayer = JSON.parse(playerDataString);
+            this.initializeCivilizationAccess(this.currentPlayer);
             return true;
         }
         return false;
@@ -238,7 +290,7 @@ const PlayerDataManager = {
     },
 
     createNewPlayer: function(username, password) {
-        return {
+        return this.initializeCivilizationAccess({
             username: username.trim(),
             credentials: {
                 passwordHash: this._hash(password)
@@ -272,7 +324,7 @@ const PlayerDataManager = {
                 pulls_since_last_legendary: 0,
                 pulls_since_last_epic: 0
             }
-        };
+        });
     },
 
     /**

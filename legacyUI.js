@@ -366,6 +366,7 @@ const LegacyUI = {
         if (!content) return;
 
         const events = narrative?.events || [];
+        const highlights = narrative?.highlightedEvents || [];
         const eventHTML = events.map(e => {
             const icon = e.type === 'battle' ? '⚔️' : '📜';
             return `<div class="narrative-entry ${e.type}">
@@ -373,12 +374,29 @@ const LegacyUI = {
                 <span class="narrative-text">${e.text}</span>
             </div>`;
         }).join('');
+        const highlightHTML = highlights.map((event, index) => `
+            <div style="padding: 10px 12px; border: 1px solid rgba(212,165,116,0.25); background: rgba(212,165,116,0.06); border-radius: 6px; margin-bottom: 8px;">
+                <div style="color: #d4a574; font-size: 0.78em; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px;">Hito ${index + 1}</div>
+                <div style="line-height: 1.45; color: #f2d3ac;">${event.text}</div>
+            </div>
+        `).join('');
 
         const hasEvents = events.length > 0;
         const html = `
-            <h3>📖 La Crónica de la Partida</h3>
-            <p style="color: #aaa; font-size: 0.9em;">Reseña narrativa de los eventos más importantes (${narrative.totalTurns} turnos)</p>
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; margin-bottom: 8px;">
+                <div>
+                    <h3 style="margin:0 0 6px;">📖 La Crónica de la Partida</h3>
+                    <p style="color: #aaa; font-size: 0.9em; margin:0;">Reseña narrativa de los eventos más importantes (${narrative.totalTurns} turnos)</p>
+                </div>
+                <button onclick="LegacyManager.exportNarrativePoster()" style="padding: 10px 16px; background: linear-gradient(135deg, #d4a574, #8b5e3c); color: #1b120b; border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; cursor: pointer; font-weight: bold;">🖼️ EXPORTAR FOTO FINAL</button>
+            </div>
             <div style="margin: 12px 0 18px; padding: 12px; border: 1px solid rgba(212,165,116,0.4); background: rgba(212,165,116,0.08); color: #f2d3ac; line-height: 1.45;">${narrative.summary || 'Sin resumen narrativo disponible.'}</div>
+            ${highlights.length > 0 ? `
+                <div style="margin: 0 0 18px;">
+                    <div style="color:#d4a574; font-size:0.82em; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:8px;">Hitos épicos</div>
+                    ${highlightHTML}
+                </div>
+            ` : ''}
             <div class="narrative-log" style="
                 max-height: 500px;
                 overflow-y: auto;

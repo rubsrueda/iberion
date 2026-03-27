@@ -7,6 +7,7 @@
 const LegacyManager = {
     isOpen: false,
     currentTab: 'timeline', // timeline, heatmap, narrative, combat
+    lastNarrative: null,
 
     /**
      * Abre la Crónica al terminar la partida
@@ -331,14 +332,18 @@ const LegacyManager = {
             ? StatTracker.getRecentBattles(15)
             : [];
 
-        if ((!narrativeEvents || narrativeEvents.length === 0) && typeof Chronicle !== 'undefined') {
-            const logs = Chronicle.getLogs ? Chronicle.getLogs() : (Chronicle.currentMatchLogs || []);
+        const logs = (typeof Chronicle !== 'undefined')
+            ? (Chronicle.getLogs ? Chronicle.getLogs() : (Chronicle.currentMatchLogs || []))
+            : [];
+
+        if (Array.isArray(logs) && logs.length > 0) {
             narrativeEvents = logs
-                .filter(log => log && log.message)
+                .filter(log => log && log.message && !['turn_start'].includes(log.type))
                 .map(log => ({
                     type: log.type === 'battle_start' ? 'battle' : 'event',
                     text: log.message,
-                    turn: log.turn || 0
+                    turn: log.turn || 0,
+                    sourceType: log.type
                 }));
             if (!battles || battles.length === 0) {
                 battles = this._buildCombatAnalysisFromChronicle(logs);
@@ -370,7 +375,12 @@ const LegacyManager = {
                     turn: b.turn
                 };
             })
-        ].sort((a, b) => a.turn - b.turn);
+        ]
+            .sort((a, b) => a.turn - b.turn)
+            .filter((event, index, array) => {
+                if (!event?.text) return false;
+                return array.findIndex(other => other.turn === event.turn && other.text === event.text) === index;
+            });
 
         const totalTurns = (typeof StatTracker !== 'undefined' && StatTracker.gameStats?.currentTurn)
             ? StatTracker.gameStats.currentTurn
@@ -378,22 +388,156 @@ const LegacyManager = {
         const narrative = {
             events: allEvents,
             totalTurns: totalTurns,
-            summary: this._buildNarrativeSummary(allEvents, battles)
+            summary: this._buildNarrativeSummary(allEvents, battles),
+            winnerName: this._getWinnerEmpireName(),
+            highlightedEvents: this._buildNarrativeHighlights(allEvents)
         };
 
+        this.lastNarrative = narrative;
         LegacyUI.displayNarrative(narrative);
     },
 
     _buildNarrativeSummary: function(allEvents, battles) {
-        const winner = gameState.winner ? `Jugador ${gameState.winner}` : 'Imperio vencedor';
+        const winner = this._getWinnerEmpireName();
         const battleCount = Array.isArray(battles) ? battles.length : 0;
         const eventCount = Array.isArray(allEvents) ? allEvents.length : 0;
+        const conquestCount = allEvents.filter(event => /conquista|fronteras|ciudad/i.test(event.text || '')).length;
+        const foundationCount = allEvents.filter(event => /funda|levantan|ruta de comercio/i.test(event.text || '')).length;
 
         if (battleCount === 0 && eventCount === 0) {
-            return `${winner} consolidó su dominio sin que la crónica registrara hitos suficientes.`;
+            return `${winner} consolidó su dominio en silencio, sin dejar suficientes hitos registrados para el cronista.`;
         }
 
-        return `${winner} cerró la partida tras ${gameState.turnNumber || 0} turnos, con ${battleCount} enfrentamientos destacados y ${eventCount} hitos narrativos registrados.`;
+        return `${winner} cerró la campaña tras ${gameState.turnNumber || 0} turnos. La guerra dejó ${battleCount} batallas memorables, ${conquestCount} avances territoriales y ${foundationCount} hitos de crecimiento que definieron el destino del imperio.`;
+    },
+
+    _buildNarrativeHighlights: function(allEvents) {
+        return (allEvents || [])
+            .filter(event => event && event.text)
+            .filter(event => /⚔️|💥|☠️|🏛️|🛤️|👑|conquista|batalla|ciudad|ruta/i.test(event.text))
+            .slice(0, 6);
+    },
+
+    _getWinnerEmpireName: function() {
+        const winnerId = gameState?.winner;
+        const civKey = gameState?.playerCivilizations?.[winnerId];
+        return CIVILIZATIONS?.[civKey]?.name || (winnerId ? `Jugador ${winnerId}` : 'Imperio vencedor');
+    },
+
+    exportNarrativePoster: function() {
+        const narrative = this.lastNarrative || { events: [], summary: 'Sin resumen disponible.', totalTurns: gameState?.turnNumber || 0, highlightedEvents: [] };
+        const canvas = document.createElement('canvas');
+        canvas.width = 1600;
+        canvas.height = 900;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const winnerName = narrative.winnerName || this._getWinnerEmpireName();
+        const bg = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+        bg.addColorStop(0, '#24170e');
+        bg.addColorStop(0.45, '#3a2718');
+        bg.addColorStop(1, '#16100a');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.strokeStyle = '#d4a574';
+        ctx.lineWidth = 6;
+        ctx.strokeRect(24, 24, canvas.width - 48, canvas.height - 48);
+
+        ctx.fillStyle = '#f2d3ac';
+        ctx.font = 'bold 54px Georgia';
+        ctx.fillText('La Cronica del Imperio', 70, 95);
+        ctx.font = '28px Georgia';
+        ctx.fillStyle = '#d4a574';
+        ctx.fillText(`${winnerName} • ${narrative.totalTurns || 0} turnos`, 72, 138);
+
+        // Panel del mapa final
+        const mapX = 70;
+        const mapY = 180;
+        const mapW = 620;
+        const mapH = 520;
+        ctx.fillStyle = 'rgba(255,255,255,0.04)';
+        ctx.fillRect(mapX, mapY, mapW, mapH);
+        ctx.strokeStyle = 'rgba(212,165,116,0.7)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(mapX, mapY, mapW, mapH);
+        ctx.fillStyle = '#f2d3ac';
+        ctx.font = 'bold 24px Georgia';
+        ctx.fillText('Mapa Final del Reino', mapX + 20, mapY + 36);
+
+        const rows = board?.length || 0;
+        const cols = board?.[0]?.length || 0;
+        const cellSize = Math.max(8, Math.min(18, Math.floor(Math.min((mapW - 40) / Math.max(1, cols), (mapH - 80) / Math.max(1, rows)))));
+        const gridX = mapX + 20;
+        const gridY = mapY + 60;
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const hex = board[r]?.[c];
+                const owner = hex?.owner;
+                let color = '#3a332c';
+                if (owner) color = this._getPlayerColor(owner);
+                if (hex?.terrain === 'water') color = '#2c5d8a';
+                if (owner === BARBARIAN_PLAYER_ID) color = '#8a6a43';
+                ctx.fillStyle = color;
+                ctx.fillRect(gridX + c * cellSize, gridY + r * cellSize, cellSize - 1, cellSize - 1);
+                if (hex?.isCity) {
+                    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                    ctx.fillRect(gridX + c * cellSize + Math.max(1, cellSize / 4), gridY + r * cellSize + Math.max(1, cellSize / 4), Math.max(2, cellSize / 2), Math.max(2, cellSize / 2));
+                }
+            }
+        }
+
+        // Resumen y hitos
+        const textX = 760;
+        const textY = 190;
+        const textW = 760;
+        ctx.fillStyle = '#f2d3ac';
+        ctx.font = 'bold 26px Georgia';
+        ctx.fillText('Resumen de la Campana', textX, textY);
+        ctx.font = '22px Georgia';
+        this._wrapCanvasText(ctx, narrative.summary || 'Sin resumen disponible.', textX, textY + 50, textW, 34);
+
+        ctx.font = 'bold 24px Georgia';
+        ctx.fillText('Hitos Epicos', textX, 430);
+        ctx.font = '20px Georgia';
+        const highlights = (narrative.highlightedEvents || []).length > 0 ? narrative.highlightedEvents : (narrative.events || []).slice(0, 6);
+        highlights.forEach((event, index) => {
+            this._wrapCanvasText(ctx, `${index + 1}. ${event.text}`, textX, 475 + index * 58, textW, 28);
+        });
+
+        ctx.font = '18px Georgia';
+        ctx.fillStyle = '#d4a574';
+        ctx.fillText(`Exportado desde Iberion • ${new Date().toLocaleDateString()}`, textX, 840);
+
+        const link = document.createElement('a');
+        link.href = canvas.toDataURL('image/png');
+        link.download = `cronica_final_${Date.now()}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        if (typeof logMessage === 'function') {
+            logMessage('La Foto del Mapa Final ha sido exportada.', 'success');
+        }
+    },
+
+    _wrapCanvasText: function(ctx, text, x, y, maxWidth, lineHeight) {
+        const words = String(text || '').split(/\s+/);
+        let line = '';
+        let currentY = y;
+        words.forEach(word => {
+            const testLine = line ? `${line} ${word}` : word;
+            if (ctx.measureText(testLine).width > maxWidth && line) {
+                ctx.fillText(line, x, currentY);
+                line = word;
+                currentY += lineHeight;
+            } else {
+                line = testLine;
+            }
+        });
+        if (line) ctx.fillText(line, x, currentY);
+        return currentY;
     },
 
     /**

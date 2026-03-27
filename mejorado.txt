@@ -65,6 +65,320 @@ Archivos tocados:
 - Mejoras.txt
 - mejorado.txt
 
+18) La Crónica Narrativa (Hitos Épicos + Foto del Mapa Final)
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- La crónica deja de registrar ruido táctico irrelevante como movimientos básicos, consolidaciones o decisiones internas de IA.
+- El sistema prioriza hitos épicos: batallas, conquistas, destrucción de divisiones, fundaciones, rutas comerciales y nombramientos de comandantes.
+- Se reforzó el tono narrativo de los textos con referencias a imperios, ciudades y campañas, reduciendo el aspecto de "log técnico".
+
+Transformación narrativa aplicada:
+- `chronicle.js` ahora usa helpers de civilización/jugador para nombrar correctamente al imperio que actúa.
+- Eventos como `move`, `consolidate` e `ia_decision` ya no generan entrada narrativa.
+- Se añadieron mensajes narrativos para `trade_route_started` y `trade_route_failed`.
+- Las conquistas, fundaciones y batallas ahora se escriben como hitos históricos en lugar de mensajes operativos.
+
+Crónica final y exportación:
+- `legacyManager.js` ahora usa la Crónica real como fuente principal de la pestaña narrativa final cuando hay logs disponibles.
+- Se deduplican eventos repetidos y se generan `highlightedEvents` para extraer los hitos principales de la campaña.
+- Se mejoró el resumen final (`_buildNarrativeSummary`) para narrar la campaña del imperio vencedor con métricas de guerra y expansión.
+- Nueva función `exportNarrativePoster()`:
+  - Genera un póster PNG en canvas.
+  - Incluye título de la campaña, nombre del imperio vencedor, resumen narrativo, hitos épicos y una vista final del mapa.
+  - El mapa final se dibuja como mosaico coloreado por propietarios y marca ciudades sobre la imagen exportada.
+
+UI final:
+- `legacyUI.js` añade botón visible `EXPORTAR FOTO FINAL` en la pestaña de Crónica Narrativa.
+- Se añadió bloque de "Hitos épicos" sobre el log completo para lectura rápida antes de recorrer todos los eventos.
+
+Resultado UX:
+- La partida se recuerda como una historia militar con momentos clave, no como una lista mecánica de acciones.
+- El jugador puede cerrar una batalla llevándose una imagen-resumen compartible del estado final del conflicto.
+- La crónica final ahora sí responde a la pregunta de rejugabilidad: cada campaña deja una narrativa distinta.
+
+Archivos tocados:
+- chronicle.js
+- legacyManager.js
+- legacyUI.js
+- Mejoras.txt
+- mejorado.txt
+
+19) Monetización Orgánica y Modelo de Retención (Facciones Gratis vs Premium)
+Fecha: 2026-03-27
+Estado: no Implementado
+
+20) Monetización de la Arqueología (Anuncio Premiado para Doblar Botín)
+Fecha: 2026-03-27
+Estado: Implementado
+
+Objetivo:
+El jugador elige ver el anuncio por curiosidad y colección, no porque el juego lo obligue para seguir jugando.
+
+Detalle del cambio:
+Cuando una unidad con Explorador saquea unas Ruinas Antiguas, en lugar de mostrar un simple toast,
+aparece una tarjeta de descubrimiento arqueológico (ruin-discovery-card) centrada en pantalla con:
+  - Icono y descripción narrativa del evento de ruina.
+  - Caja de botín con el premio exacto obtenido (el efectivo ya fue aplicado al estado del juego).
+  - Botón azul opcional: "📺 Ver anuncio → Ganar botín extra"
+    · Solo aparece para botines duplicables: recursos, sellos de guerra, fragmentos de equipo/héroe.
+    · No aparece en eventos malos (emboscada, trampa), tecnologías, regimientos ni PV.
+    · El jugador puede ignorarlo completamente y pulsar "✓ Continuar".
+  - Si ve el anuncio completo → _applyDoubleRuinLoot duplica exactamente el botín ya obtenido.
+  - La tarjeta se anima con fade+scale in/out suave; se limpia automáticamente del DOM al cerrarse.
+
+Cambios técnicos:
+- unit_Actions.js:
+  · processRuinEvent() refactorizado: now usa bloques {} en cada case del switch (evita conflicto de
+    const/let entre cases). Retorna { label, icon, toastType, doubleData, eventType } en vez de
+    llamar showToast directamente. La UI sigue actualizándose al final de la función.
+  · doubleData contiene los montos exactos ya rolados para add_resource, add_multiple_resources,
+    add_item (sellos_guerra), add_equipment_fragments, add_hero_fragments.
+  · _executeExploreRuins() captura el retorno de processRuinEvent y llama showRuinDiscoveryModal()
+    (con fallback a showToast si el modal no estuviese disponible).
+  · Nueva función _applyDoubleRuinLoot(doubleData, playerId): re-aplica el loot al estado del jugador
+    sin nuevos rolls aleatorios; llama UIManager.updateAllUIDisplays() al terminar.
+- modalLogic.js:
+  · Nueva función showRuinDiscoveryModal(event, lootResult, playerId) al final del archivo.
+    Crea el overlay de tarjeta vía DOM, no depende de ningún contenedor HTML existente.
+- style.css:
+  · Nuevas clases: .ruin-discovery-card, .rdc-visible, .rdc-header, .rdc-icon, .rdc-title,
+    .rdc-description, .rdc-loot-box, .rdc-loot-label, .rdc-loot-text, .rdc-ad-offer,
+    .rdc-ad-hint, .rdc-btn, .rdc-btn-ad, .rdc-btn-accept.
+  · Diseño oscuro dorado consistente con la estética del juego; animación fade+scale.
+
+Resultado UX:
+- El jugador recibe una confirmación visual rica de su descubrimiento en lugar de un toast efímero.
+- La oferta del anuncio es sutil y contextual ("¿Curioso sobre qué más guardan estas ruinas?").
+- No hay presión: el jugador puede continuar sin ver el anuncio sin penalización alguna.
+- La monetización encaja en la narrativa del juego (arqueología = colección = curiosidad).
+
+Archivos tocados:
+- unit_Actions.js
+- modalLogic.js
+- style.css
+- Mejoras.txt
+- mejorado.txt
+
+21) Análisis de Datos (Analytics para el Programador) - Heatmap de Abandono
+Fecha: 2026-03-27
+Estado: Implementado
+
+Objetivo:
+Registrar abandono real de partidas y exponer un heatmap accionable para detectar en qué turnos y bajo qué presión económica/estratégica el jugador tiende a cerrar el juego.
+
+Detalle del cambio:
+- Se amplió StatTracker para incluir analítica de abandono con almacenamiento local persistente:
+  - Captura automática en eventos de cierre/salida (`pagehide` y `beforeunload`) durante partida activa.
+  - Señales registradas por evento:
+    - turno actual
+    - fase actual
+    - oro del jugador
+    - bandera de oro negativo
+    - brecha de puntuación vs mejor rival (`scoreGap`)
+    - bandera de desventaja severa (`isLosingHard`)
+    - modo de juego, tutorial y red/local
+  - Persistencia circular en `localStorage` con tope de 300 eventos.
+
+- Se agregó un reporte visual integrado (para programador) accesible desde HUD:
+  - Nuevo botón `📊` en la barra superior.
+  - `StatTracker.openAbandonmentHeatmap()` abre modal de diagnóstico con:
+    - total de abandonos
+    - porcentaje de abandonos con oro negativo
+    - porcentaje de abandonos con gran desventaja de puntuación
+    - distribución por turno en formato de barras (heatmap temporal)
+
+- Robustez anti-falsos positivos:
+  - Al finalizar una partida normalmente, `gameFlow.js` llama `StatTracker.markGameCompleted('game_over')`
+    para evitar registrar como abandono el cierre posterior al resultado.
+  - `main.js` asegura el registro único de hooks de abandono al iniciar app.
+
+- Sincronización opcional:
+  - Se añadió intento best-effort de inserción en Supabase (`analytics_abandonment`) sin romper flujo
+    si la tabla no existe o la red falla.
+
+Resultado para balance/diseño:
+- Ahora se puede validar hipótesis concretas del tipo:
+  - "¿Se abandona más en turno 4-6?"
+  - "¿El abandono coincide con oro negativo?"
+  - "¿La frustración aparece cuando la brecha de score supera cierto umbral?"
+- Esto permite ajustar dificultad, pacing de tutorial y economía con evidencia y no intuición.
+
+Archivos tocados:
+- statTracker.js
+- gameFlow.js
+- main.js
+- index.html
+- Mejoras.txt
+- mejorado.txt
+
+22) El "Efecto Dominó" en los Suministros
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- Se incorporó propagación de colapso logístico cuando una unidad queda incomunicada sobre un nodo de ruta.
+- Nueva función `propagateSupplyCollapseFromUnit(unit)` en gameFlow.js:
+  - Detecta unidades sin suministro sobre caminos/ciudades no-capital.
+  - Propaga disrupción por nodos de ruta cercanos (profundidad 2) durante 2 turnos.
+  - Marca nodos con `supplyDisruptedUntil` y refresca su render.
+- `isHexSupplied()` y `getSupplyPath()` ahora ignoran nodos temporalmente bloqueados por disrupción,
+  habilitando un verdadero efecto en cadena sobre el frente.
+
+Resultado UX/estrategia:
+- Atacar retaguardia y cortar nodos importa más: el desabastecimiento ya no es puntual, se extiende.
+- Se abren jugadas de colapso progresivo del frente enemigo sin contacto directo constante.
+
+Archivos tocados:
+- gameFlow.js
+- utils.js
+- boardManager.js
+- style.css
+
+23) Micro-Narrativa de las Ruinas
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- La tarjeta de descubrimiento de ruinas ahora añade una línea de micro-lore contextual.
+- Se introdujo un pool de frases narrativas cortas y se selecciona una aleatoriamente por hallazgo.
+- Se añadió bloque visual `.rdc-lore` para reforzar tono de crónica y mundo antiguo.
+
+Resultado UX:
+- Cada ruina transmite sensación de pasado histórico, no solo botín mecánico.
+- Mejora la conexión emocional del jugador con el mapa y su "imperio perdido".
+
+Archivos tocados:
+- modalLogic.js
+- style.css
+
+24) El "Fantasma" del Turno Anterior
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- Se registran los desplazamientos de unidades IA durante su turno (`aiTurnMoveGhostsBuffer`).
+- Al iniciar el turno humano, se muestran durante 1.5s flechas tenues desde origen→destino.
+- Se añadió overlay SVG temporal con método de UI:
+  - `UIManager.showGhostTurnArrows(moves, durationMs)`
+  - `UIManager.clearGhostTurnArrows()`
+
+Resultado UX:
+- El jugador reconoce de inmediato el vector de amenaza del enemigo al comenzar su turno.
+- Se reduce carga cognitiva y necesidad de revisar logs para entender de dónde llegó la presión.
+
+Archivos tocados:
+- unit_Actions.js
+- gameFlow.js
+- uiUpdates.js
+- style.css
+- Mejoras.txt
+- mejorado.txt
+
+25) Bugfix: Intercambio de comida a piedra en La Banca
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- Se conectó `bankRequestResourceSelect` al refresco de UI (`updateBankTradeUI`) para evitar estados desincronizados.
+- Se añadió saneamiento de selección para impedir intercambio del mismo recurso por sí mismo.
+- `handleBankTrade()` ahora corrige automáticamente el recurso de destino si coincide con el recurso ofrecido.
+
+Resultado:
+- El flujo Comida → Piedra queda estable y consistente en UI + ejecución.
+
+Archivos tocados:
+- modalLogic.js
+
+26) Bugfix: IA respeta restricción de movimiento en montaña/bosque
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- Se añadió guardia en `_executeMoveUnit()` para bloquear saltos de más de 1 casilla cuando el destino es terreno difícil (`hills/forest/mountain/...`).
+- El bloqueo aplica para movimientos normales (no merge), evitando desplazamientos largos no permitidos por regla táctica en ese tipo de terreno.
+
+Resultado:
+- Las divisiones IA ya no pueden "saltar" varias casillas hacia bosque/montaña en una sola acción.
+
+Archivos tocados:
+- unit_Actions.js
+
+27) Bugfix: La Banca no crea caravanas sin caminos
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- `buildAndDeployCaravan()` ahora exige corredor vial estricto:
+  - llama `findInfrastructurePath(..., { requireRoadCorridor: true })`.
+- `findInfrastructurePath()` implementa este modo para permitir tránsito solo por hexes de tipo `Camino` (salvo inicio/fin).
+
+Resultado:
+- La Banca deja de generar caravanas cuando no existe una ruta real de caminos entre origen y destino.
+
+Archivos tocados:
+- bank_logic.js
+- unit_Actions.js
+- Mejoras.txt
+- mejorado.txt
+
+
+Detalle del cambio:
+- Se introdujo un sistema ligero de acceso a facciones basado en perfil del jugador.
+- Facciones gratis iniciales:
+  - Britania
+  - Arábiga
+- Primer pack premium de facciones:
+  - Roma
+  - Egipto
+  - Japón
+
+Persistencia y reglas de acceso:
+- `playerDataManager.js` ahora mantiene:
+  - `unlockedCivilizations`
+  - `premiumCivilizationPackOwned`
+- Se añadieron helpers:
+  - `getFreeCivilizations()`
+  - `getPremiumCivilizationPack()`
+  - `initializeCivilizationAccess()`
+  - `isCivilizationUnlocked()`
+  - `unlockCivilizationPack()`
+- Los perfiles nuevos y antiguos reciben automáticamente las facciones gratis al cargar.
+
+Selector de facciones:
+- `modalLogic.js` ahora diferencia facciones GRATIS, PREMIUM y DESBLOQUEADAS en el setup.
+- Cada tarjeta de jugador muestra:
+  - badge visual de acceso
+  - descripción ampliada con estatus comercial
+  - botón `Ver en Tesorería` cuando la facción premium no está desbloqueada
+- En slots humanos, las facciones premium bloqueadas no se pueden seleccionar para iniciar partida.
+- El slot humano principal pasa a iniciar por defecto con Britania como facción gratuita disponible.
+
+Tienda:
+- `storeManager.js` añade el producto `Pack Imperios Premium`.
+- La compra desbloquea Roma, Egipto y Japón de forma persistente.
+- La tienda muestra estado `ADQUIRIDO` cuando el pack ya fue comprado.
+- Si la compra se realiza con la pantalla de setup abierta, los selectores de facción se refrescan al instante.
+
+Robustez de arranque:
+- `main.js` sanea la configuración final del setup.
+- Si por cualquier vía un slot humano intentara arrancar con una facción bloqueada, se corrige automáticamente a Britania.
+
+Resultado UX:
+- El jugador entiende inmediatamente qué facciones son gratuitas y cuáles forman parte del contenido premium.
+- La monetización se apoya en variedad estratégica, no en ventaja directa en combate.
+- El flujo comercial queda integrado en una UI ya existente, sin añadir menús redundantes.
+
+Archivos tocados:
+- playerDataManager.js
+- modalLogic.js
+- storeManager.js
+- main.js
+- style.css
+- Mejoras.txt
+- mejorado.txt
+
 4) Barras condensadas de Tesorería y Situación Militar en Cuaderno
 Fecha: 2026-03-27
 Estado: Implementado
@@ -243,7 +557,7 @@ Archivos tocados:
 
 9) Tutorial Dinámico por Eventos (Consejos de General)
 Fecha: 2026-03-27
-Estado: Implementado
+Estado: no lo veo Implementado
 
 Detalle del cambio:
 - Se implementó un sistema de consejos contextuales de "primera vez" para no invadir al jugador con popups repetitivos.
@@ -293,7 +607,12 @@ Archivos tocados:
 
 10) Implementación de Niebla de Guerra (Fog of War)
 Fecha: 2026-03-27
-Estado: Implementado
+******************************************************************************************************************
+******************************************************************************************************************
+Estado: Fallando, no está desapareciendo el mapa, la idea es que esta niebla deje el mapa en blanco sin verse lo que no es nuestro 
+o bien no está al alcance de la vista de una división después del turno inicial de despliegue.
+******************************************************************************************************************
+******************************************************************************************************************
 
 Detalle del cambio:
 - Se ajustó `updateFogOfWar()` para cumplir el flujo táctico pedido:
@@ -325,7 +644,7 @@ Archivos tocados:
 
 11) The Next Step (Guía de Victoria)
 Fecha: 2026-03-27
-Estado: Implementado
+Estado: No logro observarlo.
 
 Detalle del cambio:
 - Se agregó alerta estratégica en el HUD de Oro cuando J2 (si es IA) supera a J1 en riqueza total.
@@ -407,7 +726,7 @@ Archivos tocados:
 
 13) Árbol de Tecnología Visual (Impacto en el Mapa)
 Fecha: 2026-03-27
-Estado: Implementado
+Estado: no se observa nada.
 
 Detalle del cambio:
 - Se conectó investigación tecnológica con impacto visual directo en el mapa.
@@ -437,6 +756,60 @@ Resultado UX:
 
 Archivos tocados:
 - boardManager.js
+
+17) Clima y Terreno Dinámico (Modificadores de Turno)
+Fecha: 2026-03-27
+Estado: mal Implementado, falta un cambio visual, montaña con nieve, tierra con agua.
+
+Detalle del cambio:
+- Se implementaron dos eventos climatológicos que alteran el campo de batalla periódicamente
+  y obligan al jugador a adaptar su estrategia turno a turno.
+
+Evento 1 — Tormenta de Invierno (turnos múltiplos de 10, dura 3 turnos):
+- Las casillas de terreno "colinas" y "bosque" tienen su coste de movimiento duplicado.
+- El ingreso comercial de caravanas se reduce al 50% durante la tormenta.
+- Visual: overlay blanco-grisáceo + filtro de desaturación animado en los hexes afectados.
+
+Evento 2 — Inundación Costera (turno % 15 === 5, dura 2 turnos):
+- Las casillas de llanura adyacentes al mar se marcan como `isFlooded = true`.
+- Dichas casillas se vuelven intransitables para unidades terrestres.
+- Al expirar el evento, el flag `isFlooded` se limpia y el tablero se re-renderiza.
+- Visual: overlay azul-marino pulsante en las casillas afectadas.
+
+Ambos eventos:
+- Muestran un banner de alerta prominente ≥6s cuando comienzan.
+- Muestran un mensaje de fin cuando expiran.
+- Solo puede estar activo un evento a la vez.
+
+Integración técnica:
+- gameFlow.js:
+  - Nueva función `updateWeatherEvents(turnNumber, notify)` invocada desde `syncSeasonState` en
+    cada cambio de turno con `logOnChange=true`.
+  - `gameState.activeWeatherEvent` = `{ type, turnsRemaining }` (null si no hay evento).
+  - `gameState.floodedHexes` = array `[{r, c}]` de casillas inundadas activas.
+  - `calculateTradeIncome()`: aplica ×0.5 cuando `activeWeatherEvent.type === 'winter_storm'`.
+- unit_Actions.js (`getMovementCost`):
+  - Tormenta: si `terrain === 'hills'|'forest'` y unidad terrestre → `moveCost *= 2`.
+  - Inundación: si `hex.isFlooded` y unidad terrestre → `moveCost = Infinity`.
+- boardManager.js (`renderSingleHexVisuals`):
+  - `hex.isFlooded` → clase `.hex-flooded`.
+  - Tormenta activa + hills/forest → clase `.hex-winter-storm`.
+- style.css:
+  - `.hex.hex-flooded` + `@keyframes floodPulse`.
+  - `.hex.hex-winter-storm` + `@keyframes winterStormPulse`.
+
+Resultado UX:
+- El jugador debe retrasar ofensivas en invierno ("no puedo cruzar esas colinas con la nieve").
+- Las inundaciones costeras bloquean rutas de flanqueo marítimo temporalmente.
+- El mapa ya no es estático: cada partida tiene momentos de presión y pausa distintos.
+
+Archivos tocados:
+- gameFlow.js
+- unit_Actions.js
+- boardManager.js
+- style.css
+- Mejoras.txt
+- mejorado.txt
 - techScreenUI.js
 - style.css
 - Mejoras.txt
@@ -444,7 +817,7 @@ Archivos tocados:
 
 14) Especialización de Civilizaciones visible en marcador/HUD
 Fecha: 2026-03-27
-Estado: Implementado
+Estado: no veo nada Implementado
 
 Detalle del cambio:
 - Se implementó indicador de ventaja de civilización basado en "Puntos de Avance" para J1/J2 dentro del marcador de victoria.
@@ -478,6 +851,100 @@ Resultado UX:
 
 Archivos tocados:
 - uiUpdates.js
+- style.css
+- Mejoras.txt
+- mejorado.txt
+
+15) Sistema de "Líneas de Suministro" Visuales (Hilo de Vida)
+Fecha: 2026-03-27
+Estado:no veo nada Implementado
+
+Detalle del cambio:
+- Al seleccionar una unidad militar (sin ruta comercial activa), el sistema calcula su
+  ruta de suministro desde la posición actual hasta la capital/fortaleza más cercana propia.
+- La ruta se renderiza sobre el mapa como un overlay de casillas tenuemente iluminadas.
+- Estados visuales diferenciados:
+  - Ruta intacta: overlay verde semitransparente con borde sutil.
+  - Ruta cortada: overlay rojo + animación de parpadeo (`supplyLineDanger`) si hay
+    una unidad enemiga interpuesta en cualquier hex de la ruta.
+- El overlay se limpia automáticamente al deseleccionar la unidad o cerrar el panel
+  contextual, sin dejar rastro visual en el mapa.
+
+Integración técnica:
+- utils.js:
+  - Nueva función `getSupplyPath(startR, startC, playerId)`:
+    - BFS con rastreo de padre para reconstruir el camino exacto.
+    - Mismas reglas de paso que `isHexSupplied` (territorio propio o camino propio).
+    - Devuelve `[{r,c}, ...]` desde la unidad hasta la fuente, o `null` si no conecta.
+- uiUpdates.js (UIManager):
+  - Nuevo helper `showSupplyLineOverlay(unit)`.
+  - Nuevo helper `clearSupplyLineOverlay()`.
+- unit_Actions.js:
+  - `selectUnit()`: llama a `clearSupplyLineOverlay()` + `showSupplyLineOverlay(unit)`.
+  - `deselectUnit()`: llama a `clearSupplyLineOverlay()`.
+- style.css:
+  - Nueva clase `.hex.supply-line-hex` (verde tenue + borde 1px).
+  - Nueva clase `.hex.supply-line-hex.danger` + `@keyframes supplyLineDanger`.
+
+Resultado UX:
+- El jugador ve de un vistazo si su línea de suministro está en peligro al seleccionar
+  cualquier unidad militar.
+- La línea roja parpadeante transmite urgencia táctica inmediata antes de que aparezca
+  la calavera de sin suministro.
+- La visualización desaparece al deseleccionar: no satura el mapa permanentemente.
+
+Archivos tocados:
+- utils.js
+- uiUpdates.js
+- unit_Actions.js
+- style.css
+- Mejoras.txt
+- mejorado.txt
+
+16) Lealtad de Fortalezas y Ciudades (Estabilidad Dinámica y Rebelión)
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- Las ciudades y fortalezas ahora pueden perder estabilidad de forma pasiva si no están
+  debidamente guarnecidas y abastecidas, obligando al jugador a gestionar su retaguardia.
+- Se evalúan 3 condiciones cada vez que el jugador termina su turno:
+  A) ¿Hay una unidad amiga en la casilla o adyacente? (guarnición)
+  B) ¿El jugador tiene comida > 0? (abastecimiento)
+  C) ¿La casilla está conectada por suministro a capital/fortaleza? (infraestructura)
+- Si fallan 2 o más condiciones: `estabilidad` baja 1 punto ese turno.
+- Si `estabilidad` llega a 0: la ciudad se convierte en bárbara/independiente
+  (owner = BARBARIAN_PLAYER_ID), con notificación visible al jugador afectado.
+
+Feedback visual:
+- `estabilidad` == 2 → clase `.low-stability-warning`: borde amarillo pulsante.
+- `estabilidad` <= 1 → clase `.low-stability-danger`: borde rojo + vibración CSS
+  combinando `stabilityVibrate` + `stabilityDangerPulse`.
+- El render se actualiza en cada decaimiento vía `renderSingleHexVisuals(r, c)`.
+
+Integración técnica:
+- gameFlow.js:
+  - En `updateTerritoryMetrics()`, bloque nuevo tras el aumento de nacionalidad,
+    ejecutado para cada ciudad/fortaleza propiedad del jugador que termina turno.
+  - Verifica `hasGarrison`, `hasFood`, `isSupplied` con funciones ya existentes.
+  - Rebelión: transfiere propiedad, notifica (UIManager + GameFeelFX), re-renderiza.
+- boardManager.js:
+  - En `renderSingleHexVisuals()`: aplica `.low-stability-warning` o `.low-stability-danger`
+    según nivel de `estabilidad` del hex crítico propiedad de un jugador real.
+- style.css:
+  - Nuevas clases: `.low-stability-warning`, `.low-stability-danger`.
+  - Nuevos @keyframes: `stabilityWarnPulse`, `stabilityDangerPulse`, `stabilityVibrate`.
+
+Resultado UX:
+- El jugador no puede ignorar su retaguardia: las ciudades sin guarnición
+  empiezan a "vibrar" visualmente ante de perder el control.
+- La rebelión genera drama táctico auténtico ("¡perdí mi ciudad del sur!") sin ser
+  punitiva si el jugador mantiene guarniciones y caminos.
+- Cumple el criterio: obliga a gestionar la paz interna y dejar guarniciones.
+
+Archivos tocados:
+- gameFlow.js
+- boardManager.js
 - style.css
 - Mejoras.txt
 - mejorado.txt
