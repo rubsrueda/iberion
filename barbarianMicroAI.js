@@ -16,11 +16,13 @@ const BarbarianMicroAI = {
 
         let caravanCreated = false;
         let reinforced = false;
+        let mergedDivisions = 0;
         let recoveredActions = 0;
         let ringActions = 0;
 
         try {
             caravanCreated = await this._tryCreateCaravanFromRoadTouch();
+            mergedDivisions = await this._mergeNearbyDivisionsIntoMain();
             reinforced = await this._tryIncreaseCityDefense();
 
             let actionsSpent = 0;
@@ -38,6 +40,7 @@ const BarbarianMicroAI = {
             startRecruit,
             caravanCreated,
             reinforced,
+            mergedDivisions,
             recoveredActions,
             ringActions
         });
@@ -49,7 +52,7 @@ const BarbarianMicroAI = {
         const ownedCities = this._getBarbarianCitiesOwned().length;
         const lostCities = this._getLostBarbarianCities().length;
 
-        const summary = `[BarbarianAI] Ronda ${gameState.turnNumber || 1} | ciudades=${ownedCities} perdidas=${lostCities} | oro ${data.startGold}->${endGold} | recluta ${data.startRecruit}->${endRecruit} | caravana=${data.caravanCreated ? 1 : 0} refuerzo=${data.reinforced ? 1 : 0} recuperar=${data.recoveredActions} anillo=${data.ringActions}`;
+        const summary = `[BarbarianAI] Ronda ${gameState.turnNumber || 1} | ciudades=${ownedCities} perdidas=${lostCities} | oro ${data.startGold}->${endGold} | recluta ${data.startRecruit}->${endRecruit} | caravana=${data.caravanCreated ? 1 : 0} fusion=${data.mergedDivisions || 0} refuerzo=${data.reinforced ? 1 : 0} recuperar=${data.recoveredActions} anillo=${data.ringActions}`;
 
         console.log(summary);
         if (typeof logMessage === 'function') {
@@ -65,11 +68,59 @@ const BarbarianMicroAI = {
                 startRecruit: data.startRecruit,
                 endRecruit,
                 caravanCreated: data.caravanCreated,
+                mergedDivisions: data.mergedDivisions || 0,
                 reinforced: data.reinforced,
                 recoveredActions: data.recoveredActions,
                 ringActions: data.ringActions
             });
         }
+    },
+
+    _mergeNearbyDivisionsIntoMain: async function() {
+        const cities = this._getBarbarianCitiesOwned();
+        let mergeCount = 0;
+
+        for (const city of cities) {
+            const main = this._findMainDivisionNearCity(city);
+            if (!main || main.tradeRoute) continue;
+
+            const candidates = units
+                .filter(u =>
+                    u.player === this.BARBARIAN_ID &&
+                    u.id !== main.id &&
+                    u.currentHealth > 0 &&
+                    !u.tradeRoute &&
+                    hexDistance(u.r, u.c, city.r, city.c) <= 1
+                )
+                .sort((a, b) => (a.isGuardian === b.isGuardian) ? 0 : (a.isGuardian ? -1 : 1));
+
+            for (const support of candidates) {
+                const mainLive = getUnitById(main.id);
+                const supportLive = getUnitById(support.id);
+                if (!mainLive || !supportLive) continue;
+
+                const totalRegs = (mainLive.regiments?.length || 0) + (supportLive.regiments?.length || 0);
+                if (totalRegs > MAX_REGIMENTS_PER_DIVISION) continue;
+
+                if (mainLive.r !== supportLive.r || mainLive.c !== supportLive.c) {
+                    if (typeof _executeMoveUnit === 'function') {
+                        await _executeMoveUnit(supportLive, mainLive.r, mainLive.c, true);
+                    }
+                }
+
+                const mainAfterMove = getUnitById(main.id);
+                const supportAfterMove = getUnitById(support.id);
+                if (!mainAfterMove || !supportAfterMove) continue;
+                if (mainAfterMove.r !== supportAfterMove.r || mainAfterMove.c !== supportAfterMove.c) continue;
+
+                const merged = await mergeUnits(supportAfterMove, mainAfterMove);
+                if (merged) {
+                    mergeCount++;
+                }
+            }
+        }
+
+        return mergeCount;
     },
 
     executeTurn: async function(playerNumber) {
