@@ -600,6 +600,25 @@ const AiGameplayManager = {
         return { unownedCount, roadMissingCount, blockedCount };
     },
 
+    _getCommercialCorridorPendingHexes: function(playerNumber, destination) {
+        const capital = gameState.cities?.find(c => c.owner === playerNumber && c.isCapital);
+        if (!capital || !destination) return [];
+
+        const path = this._buildCommercialCorridorPath(playerNumber, capital, destination);
+        if (!Array.isArray(path) || path.length < 2) return [];
+
+        return path
+            .map((p, idx) => ({ ...p, idx }))
+            .filter(p => {
+                const hex = board[p.r]?.[p.c];
+                const isEndpoint = p.idx === 0 || p.idx === path.length - 1;
+                if (!hex || isEndpoint) return false;
+                if (hex.isCity) return false;
+                return hex.owner !== playerNumber && this._canBuildRoadOnHex(hex);
+            })
+            .sort((a, b) => a.idx - b.idx);
+    },
+
     _updateCommercialCorridorState: function(playerNumber, nodoCorredor, path) {
         if (!gameState.ai_corridor_status) gameState.ai_corridor_status = {};
         const operational = this._isCommercialCorridorOperational(playerNumber, path);
@@ -1262,6 +1281,13 @@ const AiGameplayManager = {
 
         const corridorCapturePending = (corridorStatus?.unownedCount ?? 0) > 0;
         const forceBankCorridor = gameState.turnNumber <= 6 && !corridorStatus?.operational && corridorCapturePending;
+        const corridorPendingHexes = bankCorridorAxis ? this._getCommercialCorridorPendingHexes(playerNumber, bankCorridorAxis.target) : [];
+        const pickCorridorObjective = (unit) => {
+            if (!corridorPendingHexes.length) return bankCorridorAxis?.target || null;
+            return corridorPendingHexes
+                .slice()
+                .sort((a, b) => hexDistance(unit.r, unit.c, a.r, a.c) - hexDistance(unit.r, unit.c, b.r, b.c))[0];
+        };
         
         console.log(`[ASSIGN DEBUG] corridorStatus=${JSON.stringify(corridorStatus)}, corridorCapturePending=${corridorCapturePending}, forceBankCorridor=${forceBankCorridor}`);
 
@@ -1286,13 +1312,7 @@ const AiGameplayManager = {
                     ? this._buildCommercialCorridorPath(playerNumber, ownCapital, bankCorridorAxis.target)
                     : [];
 
-                const missingHex = (corridorPath || []).find((p, idx) => {
-                    const hex = board[p.r]?.[p.c];
-                    const isEndpoint = idx === 0 || idx === corridorPath.length - 1;
-                    if (!hex || isEndpoint) return false;
-                    if (hex.isCity) return false;
-                    return hex.owner !== playerNumber && this._canBuildRoadOnHex(hex);
-                });
+                const missingHex = this._getCommercialCorridorPendingHexes(playerNumber, bankCorridorAxis.target)[0];
 
                 if (missingHex) {
                     const builder = unitsToAssign
@@ -1369,9 +1389,11 @@ const AiGameplayManager = {
             }
 
             if (forceBankCorridor && bankCorridorAxis && forcedCorridorIds.has(unit.id)) {
+                const corridorObjective = pickCorridorObjective(unit);
+                if (!corridorObjective) return;
                 AiGameplayManager.missionAssignments.set(unit.id, {
                     type: 'IA_NODE',
-                    objective: bankCorridorAxis.target,
+                    objective: { r: corridorObjective.r, c: corridorObjective.c },
                     nodoTipo: bankCorridorAxis.nodoTipo,
                     axisName: `${bankCorridorAxis.name}_FORCED_BANK_CORRIDOR`
                 });
@@ -1379,7 +1401,7 @@ const AiGameplayManager = {
                     playerNumber,
                     unitId: unit.id,
                     unitName: unit.name,
-                    objective: { r: bankCorridorAxis.target.r, c: bankCorridorAxis.target.c },
+                    objective: { r: corridorObjective.r, c: corridorObjective.c },
                     nodoTipo: bankCorridorAxis.nodoTipo,
                     forceBankCorridor,
                     forcedUnitCount: forcedCorridorIds.size,
@@ -1415,9 +1437,15 @@ const AiGameplayManager = {
             console.log(`[IA AXIS TRACE] unidad=${unit.name} preferDistant=${preferDistant} top=${axisScores.slice(0, 4).map(a => `${a.nodoTipo}@${a.name}:score=${Math.round(a.score)}:dist=${a.dist}:prio=${Math.round(a.priority)}`).join(' ; ')}`);
             
             if(bestAxis) {
+                const resolvedObjective = (bestAxis.nodoTipo === 'corredor_comercial' && corridorCapturePending)
+                    ? pickCorridorObjective(unit)
+                    : bestAxis.target;
+                if (!resolvedObjective) {
+                    return;
+                }
                 AiGameplayManager.missionAssignments.set(unit.id, {
                     type: bestAxis.nodoTipo ? 'IA_NODE' : 'AXIS_ADVANCE',
-                    objective: bestAxis.target,
+                    objective: { r: resolvedObjective.r, c: resolvedObjective.c },
                     nodoTipo: bestAxis.nodoTipo || null,
                     axisName: bestAxis.name
                 });
@@ -1428,7 +1456,7 @@ const AiGameplayManager = {
                     missionType: bestAxis.nodoTipo ? 'IA_NODE' : 'AXIS_ADVANCE',
                     preferDistant,
                     axisScore: bestScore,
-                    objective: { r: bestAxis.target.r, c: bestAxis.target.c },
+                    objective: { r: resolvedObjective.r, c: resolvedObjective.c },
                     axisName: bestAxis.name,
                     nodoTipo: bestAxis.nodoTipo || null
                 });
