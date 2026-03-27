@@ -3,6 +3,7 @@
 // CLAVE PÚBLICA DE STRIPE (Asegúrate de que sea la tuya, pk_test...)
 const STRIPE_PUBLIC_KEY = 'pk_test_51SrUqM2KsNopK2NTFPJRU7gZGxTGLJ2wh5ZTjaRvMSCI0hJeWOG6LZfYFkULNL1VLH1Ec84ryL6cIyz8M4eH92f400sdlL2JIo'; 
 let stripe = null;
+const SINGLE_CIV_GEM_COST = 300;
 
 const STORE_ITEMS = [
 
@@ -23,8 +24,18 @@ const STORE_ITEMS = [
         icon: '👑',
         type: 'faction_pack',
         premium: true,
-        description: 'Desbloquea Roma, Egipto y Japón',
-        amountLabel: 'Roma • Egipto • Japón'
+        description: 'Desbloquea todas las civilizaciones premium',
+        amountLabel: 'Desbloqueo premium completo'
+    },
+    {
+        id: 'premium_civ_pack_gems',
+        name: 'Pack Imperios Premium (Gemas)',
+        costGems: 3000,
+        icon: '👑',
+        type: 'faction_pack',
+        premium: true,
+        description: 'Desbloquea todas las civilizaciones premium sin pago USD',
+        amountLabel: 'Desbloqueo premium completo'
     },
     
     // --- SECCIÓN 1: DINERO REAL (Gemas) ---
@@ -72,9 +83,57 @@ const StoreManager = {
     isOwned: function(item) {
         if (!item) return false;
         if (item.type === 'faction_pack') {
-            return !!PlayerDataManager.currentPlayer?.premiumCivilizationPackOwned;
+            if (typeof PlayerDataManager === 'undefined') return false;
+            const premiumCivs = PlayerDataManager.getPremiumCivilizationPack();
+            if (!premiumCivs.length) return false;
+            return premiumCivs.every(civKey => PlayerDataManager.isCivilizationUnlocked(civKey));
+        }
+        if (item.type === 'single_civilization') {
+            return typeof PlayerDataManager !== 'undefined' && PlayerDataManager.isCivilizationUnlocked(item.civKey);
         }
         return false;
+    },
+
+    getStoreItems: function() {
+        return [...STORE_ITEMS, ...this.createSingleCivilizationOffers()];
+    },
+
+    createSingleCivilizationOffers: function() {
+        if (typeof CIVILIZATIONS === 'undefined') return [];
+        const special = new Set(['ninguna', 'Bárbaros']);
+        const free = new Set(
+            typeof PlayerDataManager !== 'undefined' && PlayerDataManager.getFreeCivilizations
+                ? PlayerDataManager.getFreeCivilizations()
+                : ['Britania', 'Arábiga']
+        );
+
+        return Object.keys(CIVILIZATIONS)
+            .filter(civKey => !special.has(civKey) && !free.has(civKey))
+            .map(civKey => {
+                const civName = CIVILIZATIONS[civKey]?.name || civKey;
+                return {
+                    id: `single_civ_${civKey}`,
+                    name: `Desbloquear ${civName}`,
+                    costGems: SINGLE_CIV_GEM_COST,
+                    icon: '🏛️',
+                    type: 'single_civilization',
+                    premium: true,
+                    civKey,
+                    description: `Compra individual de ${civName}`,
+                    amountLabel: 'Desbloqueo individual'
+                };
+            });
+    },
+
+    refreshFactionSelectors: function() {
+        if (typeof document === 'undefined') return;
+        document.querySelectorAll('[id^="player"][id$="Civ"]').forEach(selectEl => {
+            const match = selectEl.id.match(/^player(\d+)Civ$/);
+            const playerIndex = match ? Number(match[1]) : null;
+            if (!playerIndex) return;
+            if (typeof refreshFactionSelectOptions === 'function') refreshFactionSelectOptions(playerIndex);
+            if (typeof updateFactionDisplay === 'function') updateFactionDisplay(playerIndex);
+        });
     },
 
     renderStore: function() {
@@ -92,7 +151,7 @@ const StoreManager = {
         `;
         container.appendChild(adCard);
 
-        STORE_ITEMS.forEach(item => {
+        this.getStoreItems().forEach(item => {
             const card = document.createElement('div');
             card.className = `store-card ${item.premium ? 'premium' : ''}`;
             
@@ -102,7 +161,7 @@ const StoreManager = {
             if (alreadyOwned) {
                 btnHtml = `<button class="btn-buy owned" disabled>ADQUIRIDO</button>`;
             } else if (item.currency) {
-                btnHtml = `<button class="btn-buy real" onclick="StoreManager.buyWithRealMoney('${item.id}')">${item.cost} ${item.currency}</button>`;
+                btnHtml = `<button class="btn-buy real" onclick="StoreManager.buyWithRealMoney('${item.id}', this)">${item.cost} ${item.currency}</button>`;
             } else if (item.costGems) {
                 btnHtml = `<button class="btn-buy gems" onclick="StoreManager.buyWithGems('${item.id}')">${item.costGems} 💎</button>`;
             } else if (item.costGold) {
@@ -122,7 +181,7 @@ const StoreManager = {
 
     // --- COMPRA CON ORO (NUEVA FUNCIÓN) ---
     buyWithGold: function(itemId) {
-        const item = STORE_ITEMS.find(i => i.id === itemId);
+        const item = this.getStoreItems().find(i => i.id === itemId);
         const player = PlayerDataManager.currentPlayer;
 
         if (player.currencies.gold >= item.costGold) {
@@ -140,17 +199,27 @@ const StoreManager = {
     },
 
     // --- COMPRA CON GEMAS ---
-    buyWithGems: function(itemId) {
-        const item = STORE_ITEMS.find(i => i.id === itemId);
+    buyWithGems: async function(itemId) {
+        const item = this.getStoreItems().find(i => i.id === itemId);
         const player = PlayerDataManager.currentPlayer;
 
         if (player.currencies.gems >= item.costGems) {
             player.currencies.gems -= item.costGems;
-            this.deliverItem(item);
+            if (item.type === 'faction_pack') {
+                await PlayerDataManager.unlockCivilizationPack(PlayerDataManager.getPremiumCivilizationPack());
+            } else if (item.type === 'single_civilization') {
+                await PlayerDataManager.unlockCivilization(item.civKey);
+            } else {
+                this.deliverItem(item);
+            }
             this.saveAndNotify(item, 'gems');
             // CORRECCIÓN: Actualizar UI global
             if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
                 UIManager.updateAllUIDisplays();
+            }
+            if ((item.type === 'faction_pack' || item.type === 'single_civilization') && typeof document !== 'undefined') {
+                this.renderStore();
+                this.refreshFactionSelectors();
             }
         } else {
             showToast("No tienes suficientes Gemas.", "error");
@@ -158,17 +227,19 @@ const StoreManager = {
     },
 
     // --- DINERO REAL (Simulación) ---
-    buyWithRealMoney: async function(itemId) {
-        const item = STORE_ITEMS.find(i => i.id === itemId);
+    buyWithRealMoney: async function(itemId, btnEl) {
+        const item = this.getStoreItems().find(i => i.id === itemId);
         if (!item) {
             console.error("Item no encontrado: " + itemId);
             return;
         }
 
-        const btn = event.target;
-        const originalText = btn.textContent;
-        btn.textContent = "Procesando...";
-        btn.disabled = true;
+        const btn = btnEl || (typeof event !== 'undefined' ? event.target : null);
+        const originalText = btn ? btn.textContent : '';
+        if (btn) {
+            btn.textContent = "Procesando...";
+            btn.disabled = true;
+        }
 
         setTimeout(async () => {
             if (confirm(`[STRIPE SIMULADO] Pagar $${item.cost} por ${item.name}?`)) {
@@ -184,7 +255,7 @@ const StoreManager = {
                 } else if (item.type === 'faction_pack') {
                     await PlayerDataManager.unlockCivilizationPack(PlayerDataManager.getPremiumCivilizationPack());
                     if (typeof showToast === 'function') {
-                        showToast('Pack de Imperios Premium desbloqueado: Roma, Egipto y Japón.', 'success');
+                        showToast('Pack de Imperios Premium desbloqueado.', 'success');
                     }
                 } 
                 // CASO NORMAL: GEMAS
@@ -202,13 +273,7 @@ const StoreManager = {
                 this.updateHeader();
                 this.renderStore();
                 if (item.type === 'faction_pack' && typeof document !== 'undefined') {
-                    document.querySelectorAll('[id^="player"][id$="Civ"]').forEach(selectEl => {
-                        const match = selectEl.id.match(/^player(\d+)Civ$/);
-                        const playerIndex = match ? Number(match[1]) : null;
-                        if (!playerIndex) return;
-                        if (typeof refreshFactionSelectOptions === 'function') refreshFactionSelectOptions(playerIndex);
-                        if (typeof updateFactionDisplay === 'function') updateFactionDisplay(playerIndex);
-                    });
+                    this.refreshFactionSelectors();
                 }
                 if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
                     UIManager.updateAllUIDisplays();
@@ -217,8 +282,10 @@ const StoreManager = {
                 if(typeof showToast === 'function') showToast("Compra cancelada.", "info");
             }
             
-            btn.textContent = originalText;
-            btn.disabled = false;
+            if (btn) {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
         }, 1000);
     },
 

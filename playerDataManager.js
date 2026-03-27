@@ -18,8 +18,19 @@ const PlayerDataManager = {
         return ['Britania', 'Arábiga'];
     },
 
+    getSpecialCivilizations: function() {
+        return ['ninguna', 'Bárbaros'];
+    },
+
+    getAllCivilizationKeys: function() {
+        if (typeof CIVILIZATIONS === 'undefined') return [];
+        const special = new Set(this.getSpecialCivilizations());
+        return Object.keys(CIVILIZATIONS).filter(civKey => !special.has(civKey));
+    },
+
     getPremiumCivilizationPack: function() {
-        return ['Roma', 'Egipto', 'Japón'];
+        const free = new Set(this.getFreeCivilizations());
+        return this.getAllCivilizationKeys().filter(civKey => !free.has(civKey));
     },
 
     initializeCivilizationAccess: function(playerData = this.currentPlayer) {
@@ -37,6 +48,11 @@ const PlayerDataManager = {
 
         if (typeof playerData.premiumCivilizationPackOwned === 'undefined') {
             playerData.premiumCivilizationPackOwned = false;
+        }
+
+        const premiumCivs = this.getPremiumCivilizationPack();
+        if (premiumCivs.length > 0 && premiumCivs.every(civKey => playerData.unlockedCivilizations.includes(civKey))) {
+            playerData.premiumCivilizationPackOwned = true;
         }
 
         return playerData;
@@ -60,6 +76,25 @@ const PlayerDataManager = {
             }
         });
         this.currentPlayer.premiumCivilizationPackOwned = true;
+        await this.saveCurrentPlayer();
+        return true;
+    },
+
+    unlockCivilization: async function(civKey) {
+        if (!this.currentPlayer || !civKey) return false;
+        if (this.getSpecialCivilizations().includes(civKey)) return false;
+
+        this.initializeCivilizationAccess(this.currentPlayer);
+
+        if (!this.currentPlayer.unlockedCivilizations.includes(civKey)) {
+            this.currentPlayer.unlockedCivilizations.push(civKey);
+        }
+
+        const premiumCivs = this.getPremiumCivilizationPack();
+        if (premiumCivs.length > 0 && premiumCivs.every(key => this.currentPlayer.unlockedCivilizations.includes(key))) {
+            this.currentPlayer.premiumCivilizationPackOwned = true;
+        }
+
         await this.saveCurrentPlayer();
         return true;
     },
