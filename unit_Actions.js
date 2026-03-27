@@ -714,6 +714,11 @@ function selectUnit(unit) {
         }
         // Aseguramos que no se quede nada seleccionado
         if (typeof deselectUnit === "function") deselectUnit();
+
+        // Visualización en modo lectura: permitir inspeccionar la ruta de caravanas en marcha.
+        if (typeof UIManager !== 'undefined' && unit.tradeRoute?.path && UIManager.showTradeRouteOverlay) {
+            UIManager.showTradeRouteOverlay(unit.tradeRoute.path);
+        }
         return; 
     }
 
