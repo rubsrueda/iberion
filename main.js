@@ -1,7 +1,7 @@
 // main.js
 // Punto de entrada para la lógica de batalla táctica y listeners de UI táctica.
 
-function onHexClick(r, c) {
+function onHexClick(r, c, clickEvent = null) {
 
     // === BIFURCACIÓN: MODO EDITOR ===
     // Si estamos en modo editor, delegar al manejador del editor y salir temprano
@@ -32,8 +32,8 @@ function onHexClick(r, c) {
     if (radialContainer && radialContainer.style.display === 'block') {
         const rect = radialContainer.getBoundingClientRect();
         // Obtener coordenadas del clic en pantalla
-        const clickX = event ? event.clientX : 0;
-        const clickY = event ? event.clientY : 0;
+        const clickX = clickEvent ? clickEvent.clientX : 0;
+        const clickY = clickEvent ? clickEvent.clientY : 0;
         const distFromCenter = Math.sqrt(
             Math.pow(clickX - (rect.left + rect.width / 2), 2) + 
             Math.pow(clickY - (rect.top + rect.height / 2), 2)

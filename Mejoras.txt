@@ -1,13 +1,6 @@
 Mejoras: 
 
-Transformar la interfaz (UI) y la experiencia (UX) para que el juego se sienta moderno, rápido y "jugoso" al tacto.
 
-Objetivo: Eliminar la fricción visual. Pasar de "leer datos" a "ver el campo de batalla". El jugador debe entender qué pasa en 1 segundo sin abrir menús.
-
-"rejugabilidad". Si el jugador siente que cada partida es diferente porque el mapa está oculto y hay tesoros por descubrir, se quedará enganchado.
-
-Dinámicas de Tensión y "Mundo Vivo"
-Objetivo: Romper la predictibilidad. Que el mapa no sea solo un tablero, sino un entorno que reacciona y genera problemas inesperados.
 
 El jugador debe poder responderte: "¿Es la partida diferente a la anterior?".
 Si la respuesta es "Sí, porque hubo una tormenta que me cortó los suministros y tuve una revuelta en el sur", entonces tienes un juego con personalidad propia.

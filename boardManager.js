@@ -1080,6 +1080,11 @@ return;
 
 let lastTouchX_pan_bm = null;
 let lastTouchY_pan_bm = null;
+let panGestureExceededThreshold = false;
+let panReleaseResetTimer = null;
+const PAN_CANCEL_CLICK_THRESHOLD_MOUSE_PX = 10;
+const PAN_CANCEL_CLICK_THRESHOLD_TOUCH_PX = 14;
+const PAN_CANCEL_CLICK_RESET_MS = 140;
 
 // --- Helper para calcular la distancia entre dos toques ---
 function getPinchDistance(touches) {
@@ -1142,7 +1147,12 @@ _boundMouseDown = function(e) {
     domElements.initialClickX = e.clientX; // Guardamos para el final
     domElements.initialClickY = e.clientY;
     domElements.isPanning = true; // Activamos movimiento YA
+    panGestureExceededThreshold = false;
     gameState.justPanned = false; // El clic es válido hasta que se demuestre lo contrario
+    if (panReleaseResetTimer) {
+        clearTimeout(panReleaseResetTimer);
+        panReleaseResetTimer = null;
+    }
     
     domElements.panStartX = e.clientX - domElements.currentBoardTranslateX;
     domElements.panStartY = e.clientY - domElements.currentBoardTranslateY;
@@ -1157,8 +1167,9 @@ _boundMouseMove = function(e) {
     domElements.currentBoardTranslateX = e.clientX - domElements.panStartX;
     domElements.currentBoardTranslateY = e.clientY - domElements.panStartY;
 
-    // Solo si el movimiento es real (más de 5px), bloqueamos el clic
-    if (Math.hypot(e.clientX - domElements.initialClickX, e.clientY - domElements.initialClickY) > 5) {
+    // Solo si el movimiento es real, bloqueamos el clic para evitar acciones fantasma al terminar un arrastre.
+    if (Math.hypot(e.clientX - domElements.initialClickX, e.clientY - domElements.initialClickY) > PAN_CANCEL_CLICK_THRESHOLD_MOUSE_PX) {
+        panGestureExceededThreshold = true;
         gameState.justPanned = true;
     }
     applyTransform();
@@ -1170,6 +1181,12 @@ _boundMouseUp = function(e) {
 if (e.button !== 0) return;
 domElements.isPanning = false;
 gameBoard.classList.remove('grabbing');
+if (panGestureExceededThreshold) {
+    panReleaseResetTimer = setTimeout(() => {
+        gameState.justPanned = false;
+        panReleaseResetTimer = null;
+    }, PAN_CANCEL_CLICK_RESET_MS);
+}
 };
     // --- Zoom con Rueda del Ratón  ---
 document.addEventListener('mouseup', _boundMouseUp);
@@ -1192,7 +1209,12 @@ if ((typeof placementMode !== 'undefined' && placementMode.active)) return;
         domElements.initialTouchX = touch.clientX; // Guardamos para el final
         domElements.initialTouchY = touch.clientY;
         domElements.isPanning = true; // Iniciamos movimiento al instante
+        panGestureExceededThreshold = false;
         gameState.justPanned = false; // El clic es válido hasta que se mueva más de 5px
+        if (panReleaseResetTimer) {
+            clearTimeout(panReleaseResetTimer);
+            panReleaseResetTimer = null;
+        }
         
         domElements.isPinching = false;
         lastTouchX_pan_bm = touch.clientX; 
@@ -1219,9 +1241,10 @@ if (domElements.isPanning && e.touches.length === 1) {
         lastTouchX_pan_bm = touch.clientX; 
         lastTouchY_pan_bm = touch.clientY;
 
-        // --- LA CLAVE: Si el dedo se ha movido más de 5px en total, anulamos el clic ---
+        // --- LA CLAVE: Si el dedo se ha movido de verdad, anulamos el clic ---
         const distTotal = Math.hypot(touch.clientX - domElements.initialTouchX, touch.clientY - domElements.initialTouchY);
-        if (distTotal > 5) {
+        if (distTotal > PAN_CANCEL_CLICK_THRESHOLD_TOUCH_PX) {
+            panGestureExceededThreshold = true;
             gameState.justPanned = true;
         }
 
@@ -1245,6 +1268,12 @@ domElements.isPanning = false;
 domElements.isPinching = false;
 lastTouchX_pan_bm = null;
 lastTouchY_pan_bm = null;
+if (panGestureExceededThreshold) {
+    panReleaseResetTimer = setTimeout(() => {
+        gameState.justPanned = false;
+        panReleaseResetTimer = null;
+    }, PAN_CANCEL_CLICK_RESET_MS);
+}
 };
 gameBoard.addEventListener('touchend', _boundTouchEnd);
 
@@ -1269,7 +1298,7 @@ hexEl.addEventListener('click', (event) => {
     // No detener propagación aquí si la unidad tiene pointer-events: none,
     // onHexClick debe decidir qué hacer.
     event.stopPropagation();
-    onHexClick(r, c);
+    onHexClick(r, c, event);
 });
 return hexEl;
 }

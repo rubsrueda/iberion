@@ -1512,19 +1512,54 @@ const AiGameplayManager = {
                 u.regiments?.some(reg => (REGIMENT_TYPES[reg.type]?.abilities || []).includes('provide_supply'))
             );
 
-            // Si no hay, producirla en la ciudad origen
+            // Si el origen está ocupado por una unidad propia no comercial, intentar despejarlo.
             if (!supplyUnit) {
-                supplyUnit = this.produceUnit(playerNumber, ['Columna de Suministro'], 'trader', 'Columna de Suministro', origin);
-                if (!supplyUnit) {
-                    console.log(`[IA COMERCIO ORGÁNICO] J${playerNumber}: sin recursos para Columna de Suministro en ${origin.name}`);
-                    continue;
+                const blocker = getUnitOnHex(origin.r, origin.c);
+                if (blocker && blocker.player === playerNumber && !blocker.tradeRoute && blocker.currentHealth > 0) {
+                    const moved = (typeof this._tryRelocateUnitFromCityCenter === 'function')
+                        ? this._tryRelocateUnitFromCityCenter(blocker, origin)
+                        : false;
+                    if (moved) {
+                        console.log(`[IA COMERCIO ORGÁNICO] J${playerNumber}: origen ${origin.name} despejado para crear columna.`);
+                    }
                 }
             }
 
-            // Convertir en caravana
-            if (typeof _executeEstablishTradeRoute === 'function') {
-                console.log(`[IA COMERCIO ORGÁNICO] J${playerNumber}: activando caravana ${origin.name}→${dest.name}`);
-                _executeEstablishTradeRoute({ unitId: supplyUnit.id, origin, destination: dest, path: infraPath });
+            // Si no hay, producirla en la ciudad origen.
+            if (!supplyUnit) {
+                supplyUnit = this.produceUnit(playerNumber, ['Columna de Suministro'], 'trader', 'Columna de Suministro', origin);
+            }
+
+            // Fallback 1: producir en cualquier centro propio libre.
+            if (!supplyUnit) {
+                supplyUnit = this.produceUnit(playerNumber, ['Columna de Suministro'], 'trader', 'Columna de Suministro');
+            }
+
+            // Fallback 2: reutilizar cualquier columna propia sin ruta activa.
+            if (!supplyUnit) {
+                supplyUnit = units.find(u =>
+                    u.player === playerNumber &&
+                    !u.tradeRoute &&
+                    u.currentHealth > 0 &&
+                    u.regiments?.some(reg => (REGIMENT_TYPES[reg.type]?.abilities || []).includes('provide_supply'))
+                ) || null;
+            }
+
+            if (!supplyUnit) {
+                console.log(`[IA COMERCIO ORGÁNICO] J${playerNumber}: no se pudo obtener Columna de Suministro para ${origin.name}→${dest.name} (recursos o centros ocupados).`);
+                continue;
+            }
+
+            // Convertir en caravana (vía request de IA cuando esté disponible).
+            let routed = false;
+            if (typeof this._requestEstablishTradeRoute === 'function') {
+                routed = this._requestEstablishTradeRoute(supplyUnit, origin, dest, infraPath);
+            } else if (typeof _executeEstablishTradeRoute === 'function') {
+                routed = !!_executeEstablishTradeRoute({ unitId: supplyUnit.id, origin, destination: dest, path: infraPath });
+            }
+
+            if (routed) {
+                console.log(`[IA COMERCIO ORGÁNICO] J${playerNumber}: caravana activada ${origin.name}→${dest.name}`);
             }
         }
     },
