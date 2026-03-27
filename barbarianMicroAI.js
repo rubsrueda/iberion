@@ -8,12 +8,10 @@ const BarbarianMicroAI = {
     executeRoundPass: async function() {
         if (gameState.currentPhase !== 'play') return;
 
-    this._resetBarbarianUnitsForNewRound();
-    this._ensureTrackedBarbarianCities();
+        this._resetBarbarianUnitsForNewRound();
         const startGold = gameState.playerResources?.[this.BARBARIAN_ID]?.oro || 0;
         const startRecruit = gameState.playerResources?.[this.BARBARIAN_ID]?.puntosReclutamiento || 0;
         this._collectEconomyByInfrastructure();
-        this._ensureMainDivisionPerCity();
 
         let caravanCreated = false;
         let reinforced = false;
@@ -22,10 +20,17 @@ const BarbarianMicroAI = {
         let ringActions = 0;
 
         try {
-            caravanCreated = await this._tryCreateCaravanFromRoadTouch();
-            mergedDivisions = await this._mergeNearbyDivisionsIntoMain();
+            // 1. FUSIÓN PRIMERO: consolidar divisiones bárbaras en pocas grandes
+            mergedDivisions = await this._mergeAllBarbarianDivisions();
+            
+            // 2. Crear/reforzar divisiones solo en ciudades que J9 posee AHORA
+            this._ensureMainDivisionPerCity();
             reinforced = await this._tryIncreaseCityDefense();
+            
+            // 3. Caravanas (económico, bajo prioridad)
+            caravanCreated = await this._tryCreateCaravanFromRoadTouch();
 
+            // 4. Acciones tácticas: conquistar ciudades neutrales/enemigas, luego controlar anillo
             let actionsSpent = 0;
             recoveredActions = await this._tryRecoverLostBarbarianCities(this.MAX_TACTICAL_ACTIONS_PER_TURN - actionsSpent);
             actionsSpent += recoveredActions;
@@ -51,9 +56,9 @@ const BarbarianMicroAI = {
         const endGold = gameState.playerResources?.[this.BARBARIAN_ID]?.oro || 0;
         const endRecruit = gameState.playerResources?.[this.BARBARIAN_ID]?.puntosReclutamiento || 0;
         const ownedCities = this._getBarbarianCitiesOwned().length;
-        const lostCities = this._getLostBarbarianCities().length;
+        const targetCities = this._getConquerableTargets().length;
 
-        const summary = `[BarbarianAI] Ronda ${gameState.turnNumber || 1} | ciudades=${ownedCities} perdidas=${lostCities} | oro ${data.startGold}->${endGold} | recluta ${data.startRecruit}->${endRecruit} | caravana=${data.caravanCreated ? 1 : 0} fusion=${data.mergedDivisions || 0} refuerzo=${data.reinforced ? 1 : 0} recuperar=${data.recoveredActions} anillo=${data.ringActions}`;
+        const summary = `[BarbarianAI] Ronda ${gameState.turnNumber || 1} | ciudades=${ownedCities} objetivos=${targetCities} | oro ${data.startGold}->${endGold} | recluta ${data.startRecruit}->${endRecruit} | fusion=${data.mergedDivisions} caravana=${data.caravanCreated ? 1 : 0} refuerzo=${data.reinforced ? 1 : 0} conquistar=${data.recoveredActions} anillo=${data.ringActions}`;
 
         console.log(summary);
         if (typeof logMessage === 'function') {
@@ -63,7 +68,7 @@ const BarbarianMicroAI = {
             Chronicle.logEvent('barbarian_round', {
                 summary,
                 ownedCities,
-                lostCities,
+                targetCities,
                 startGold: data.startGold,
                 endGold,
                 startRecruit: data.startRecruit,
@@ -77,46 +82,103 @@ const BarbarianMicroAI = {
         }
     },
 
-    _mergeNearbyDivisionsIntoMain: async function() {
-        const cities = this._getBarbarianCitiesOwned();
+    _mergeAllBarbarianDivisions: async function() {
+        // Fusionar TODAS las divisiones bárbaras entre sí para obtener pocas divisiones grandes.
+        // Prioridad: guardianes se fusionan en divisiones normales; divisiones normales se fusionan entre sí.
         let mergeCount = 0;
 
-        for (const city of cities) {
-            const main = this._findMainDivisionNearCity(city);
-            if (!main || main.tradeRoute) continue;
+        const barbDivisions = units.filter(u =>
+            u.player === this.BARBARIAN_ID &&
+            u.currentHealth > 0 &&
+            !u.tradeRoute &&
+            !u.isGuardian
+        );
 
-            const candidates = units
-                .filter(u =>
-                    u.player === this.BARBARIAN_ID &&
-                    u.id !== main.id &&
-                    u.currentHealth > 0 &&
-                    !u.tradeRoute &&
-                    hexDistance(u.r, u.c, city.r, city.c) <= 2
-                )
-                .sort((a, b) => (a.isGuardian === b.isGuardian) ? 0 : (a.isGuardian ? -1 : 1));
+        const guardians = units.filter(u =>
+            u.player === this.BARBARIAN_ID &&
+            u.currentHealth > 0 &&
+            !u.tradeRoute &&
+            u.isGuardian
+        );
 
-            for (const support of candidates) {
-                const mainLive = getUnitById(main.id);
-                const supportLive = getUnitById(support.id);
-                if (!mainLive || !supportLive) continue;
+        // 1. Fusionar guardianes en la división normal más cercana
+        for (const guardian of guardians) {
+            if (!getUnitById(guardian.id)) continue;
 
-                const totalRegs = (mainLive.regiments?.length || 0) + (supportLive.regiments?.length || 0);
+            const targets = barbDivisions
+                .map(div => ({
+                    unit: div,
+                    dist: hexDistance(guardian.r, guardian.c, div.r, div.c)
+                }))
+                .filter(t => t.dist <= 2)
+                .sort((a, b) => a.dist - b.dist);
+
+            if (targets.length === 0) continue;
+
+            const target = targets[0].unit;
+            const targetLive = getUnitById(target.id);
+            const guardianLive = getUnitById(guardian.id);
+            if (!targetLive || !guardianLive) continue;
+
+            const totalRegs = (targetLive.regiments?.length || 0) + (guardianLive.regiments?.length || 0);
+            if (totalRegs > MAX_REGIMENTS_PER_DIVISION) continue;
+
+            if (guardianLive.r !== targetLive.r || guardianLive.c !== targetLive.c) {
+                if (typeof _executeMoveUnit === 'function') {
+                    await _executeMoveUnit(guardianLive, targetLive.r, targetLive.c, true);
+                }
+            }
+
+            const targetAfterMove = getUnitById(target.id);
+            const guardianAfterMove = getUnitById(guardian.id);
+            if (!targetAfterMove || !guardianAfterMove) continue;
+            if (targetAfterMove.r !== guardianAfterMove.r || targetAfterMove.c !== guardianAfterMove.c) continue;
+
+            const merged = await mergeUnits(guardianAfterMove, targetAfterMove);
+            if (merged) {
+                mergeCount++;
+                barbDivisions.push(targetAfterMove);
+            }
+        }
+
+        // 2. Fusionar divisiones bárbaras normales entre sí (mantener las más grandes)
+        for (let i = 0; i < barbDivisions.length - 1; i++) {
+            const division1 = getUnitById(barbDivisions[i].id);
+            if (!division1 || !division1.currentHealth || division1.currentHealth <= 0) continue;
+
+            for (let j = i + 1; j < barbDivisions.length; j++) {
+                const division2 = getUnitById(barbDivisions[j].id);
+                if (!division2 || !division2.currentHealth || division2.currentHealth <= 0) continue;
+
+                const dist = hexDistance(division1.r, division1.c, division2.r, division2.c);
+                if (dist > 2) continue;
+
+                const totalRegs = (division1.regiments?.length || 0) + (division2.regiments?.length || 0);
                 if (totalRegs > MAX_REGIMENTS_PER_DIVISION) continue;
 
-                if (mainLive.r !== supportLive.r || mainLive.c !== supportLive.c) {
+                // Fusionar la más pequeña en la más grande
+                const smaller = (division1.regiments?.length || 0) < (division2.regiments?.length || 0) ? division1 : division2;
+                const larger = smaller === division1 ? division2 : division1;
+                const largerLive = getUnitById(larger.id);
+                const smallerLive = getUnitById(smaller.id);
+                if (!largerLive || !smallerLive) continue;
+
+                if (smallerLive.r !== largerLive.r || smallerLive.c !== largerLive.c) {
                     if (typeof _executeMoveUnit === 'function') {
-                        await _executeMoveUnit(supportLive, mainLive.r, mainLive.c, true);
+                        await _executeMoveUnit(smallerLive, largerLive.r, largerLive.c, true);
                     }
                 }
 
-                const mainAfterMove = getUnitById(main.id);
-                const supportAfterMove = getUnitById(support.id);
-                if (!mainAfterMove || !supportAfterMove) continue;
-                if (mainAfterMove.r !== supportAfterMove.r || mainAfterMove.c !== supportAfterMove.c) continue;
+                const largerAfterMove = getUnitById(larger.id);
+                const smallerAfterMove = getUnitById(smaller.id);
+                if (!largerAfterMove || !smallerAfterMove) continue;
+                if (largerAfterMove.r !== smallerAfterMove.r || largerAfterMove.c !== smallerAfterMove.c) continue;
 
-                const merged = await mergeUnits(supportAfterMove, mainAfterMove);
+                const merged = await mergeUnits(smallerAfterMove, largerAfterMove);
                 if (merged) {
                     mergeCount++;
+                    barbDivisions.splice(j, 1);
+                    j--;
                 }
             }
         }
@@ -191,29 +253,13 @@ const BarbarianMicroAI = {
         }
     },
 
-    _ensureTrackedBarbarianCities: function() {
-        if (!Array.isArray(gameState.cities)) return;
-
-        gameState.cities.forEach(city => {
-            if (!city) return;
-
-            const hex = board[city.r]?.[city.c];
-            const belongsToBarbarians = city.owner === this.BARBARIAN_ID || hex?.owner === this.BARBARIAN_ID;
-            const likelyBarbarianName = typeof city.name === 'string' && city.name.startsWith('Ciudad Libre');
-
-            if (belongsToBarbarians || likelyBarbarianName) {
-                city.isBarbarianCity = true;
-                city.isBarbaric = true;
-            }
-        });
-    },
-
     _getBarbarianCitiesOwned: function() {
         return (gameState.cities || []).filter(c => c.owner === this.BARBARIAN_ID);
     },
 
-    _getLostBarbarianCities: function() {
-        return (gameState.cities || []).filter(c => c.isBarbarianCity && c.owner !== this.BARBARIAN_ID);
+    _getConquerableTargets: function() {
+        // Ciudades que no son bárbaras (neutral o enemigas) y que J9 puede conquistar
+        return (gameState.cities || []).filter(c => c.owner !== this.BARBARIAN_ID && c.owner !== null);
     },
 
     _getMovableUnits: function() {
@@ -467,17 +513,18 @@ const BarbarianMicroAI = {
     },
 
     _tryRecoverLostBarbarianCities: async function(actionsAvailable) {
+        // Conquistar ciudades que no son bárbaras (neutrales o enemigas)
         if (actionsAvailable <= 0) return 0;
 
-        const lostCities = this._getLostBarbarianCities();
-        if (lostCities.length === 0) return 0;
+        const targetCities = this._getConquerableTargets();
+        if (targetCities.length === 0) return 0;
 
         let actionsDone = 0;
         const movable = this._getMovableUnits();
 
         movable.sort((a, b) => {
-            const aDist = Math.min(...lostCities.map(c => hexDistance(a.r, a.c, c.r, c.c)));
-            const bDist = Math.min(...lostCities.map(c => hexDistance(b.r, b.c, c.r, c.c)));
+            const aDist = Math.min(...targetCities.map(c => hexDistance(a.r, a.c, c.r, c.c)));
+            const bDist = Math.min(...targetCities.map(c => hexDistance(b.r, b.c, c.r, c.c)));
             return aDist - bDist;
         });
 
@@ -485,7 +532,7 @@ const BarbarianMicroAI = {
             if (actionsDone >= actionsAvailable) break;
             if (unit.hasMoved) continue;
 
-            const targetCity = lostCities
+            const targetCity = targetCities
                 .slice()
                 .sort((a, b) => hexDistance(unit.r, unit.c, a.r, a.c) - hexDistance(unit.r, unit.c, b.r, b.c))[0];
             if (!targetCity) continue;
