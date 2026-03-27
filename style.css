@@ -5005,6 +5005,41 @@ input[type="range"] {
     margin-right: 4px;
 }
 
+.victory-advance-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 6px;
+    padding: 0 4px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    max-height: 14px;
+}
+
+.victory-advance-indicator .advance-faction-icon {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.victory-advance-indicator .advance-faction-fallback {
+    font-size: 9px;
+    color: #ffd166;
+}
+
+.victory-advance-indicator .advance-faction-text {
+    font-size: 9px;
+    color: #d9edf7;
+    white-space: nowrap;
+}
+
+#victory-points-tracker.arabia-advance-lead .victory-advance-indicator {
+    box-shadow: 0 0 10px rgba(255, 193, 7, 0.35);
+    border-color: rgba(255, 193, 7, 0.45);
+}
+
 /* El tooltip sigue igual, pero lo ajustamos para que no sea enorme */
 #victory-points-tooltip {
     display: none;
@@ -6957,6 +6992,17 @@ input:checked + .slider:before {
     background-color: rgba(255, 0, 0, 0.3) !important;
     box-shadow: inset 0 0 10px #ff0000;
     border: 1px solid red;
+}
+
+/* Impacto visual de tecnología: caminos mejorados por Albañilería */
+.hex.road-stone-tech {
+    box-shadow: inset 0 0 0 1px rgba(180, 180, 190, 0.55), 0 0 8px rgba(160, 160, 180, 0.3);
+    filter: saturate(0.92) contrast(1.05);
+}
+
+.hex.road-stone-tech .structure-sprite {
+    text-shadow: 0 0 6px rgba(214, 214, 230, 0.7);
+    transform: scale(1.05);
 }
 
 /* Overlay comercial: rastro sutil sobre casillas de la ruta */

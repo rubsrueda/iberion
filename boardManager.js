@@ -1648,6 +1648,13 @@ function renderSingleHexVisuals(r, c) {
     if (hexData.isCapital) hexEl.classList.add('capital-city');
     if (hexData.resourceNode) hexEl.classList.add(`resource-${hexData.resourceNode.replace('_mina', '')}`);
 
+    // Impacto visual tecnológico: Caminos avanzados tras investigar Albañilería.
+    const ownerTechs = gameState?.playerResources?.[hexData.owner]?.researchedTechnologies || [];
+    const hasStoneRoadsVisual = hexData.structure === 'Camino' && ownerTechs.includes('MASONRY');
+    if (hasStoneRoadsVisual) {
+        hexEl.classList.add('road-stone-tech');
+    }
+
     // Si hay una ESTRUCTURA, creamos su sprite
     if (hexData.structure && STRUCTURE_TYPES[hexData.structure]) {
         structureSpriteEl = document.createElement('span');
@@ -1655,7 +1662,11 @@ function renderSingleHexVisuals(r, c) {
         hexEl.appendChild(structureSpriteEl);
         
         const spriteValue = STRUCTURE_TYPES[hexData.structure].sprite;
-        if (spriteValue.includes('.') || spriteValue.includes('/')) {
+        if (hasStoneRoadsVisual) {
+            structureSpriteEl.style.backgroundImage = 'none';
+            structureSpriteEl.textContent = '🧱';
+            structureSpriteEl.title = 'Camino de Piedra (movimiento avanzado)';
+        } else if (spriteValue.includes('.') || spriteValue.includes('/')) {
             structureSpriteEl.style.backgroundImage = `url('${spriteValue}')`;
             structureSpriteEl.textContent = '';
         } else {

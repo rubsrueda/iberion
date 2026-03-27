@@ -54,6 +54,7 @@ function resetGameStateForIberiaMagna() {
         playerTypes: {},
         playerCivilizations: {},
         activeCommanders: {},
+        fallenCommanders: {},
         capitalCityId: {},
         playerResources: {},
         unitsPlacedByPlayer: {},
@@ -75,6 +76,7 @@ function resetGameStateForIberiaMagna() {
         initialGameStateObject.playerResources[i] = JSON.parse(JSON.stringify(initialResources[i - 1]));
         initialGameStateObject.playerCivilizations[i] = 'ninguna';
         initialGameStateObject.activeCommanders[i] = [];
+        initialGameStateObject.fallenCommanders[i] = [];
         initialGameStateObject.capitalCityId[i] = null;
         initialGameStateObject.unitsPlacedByPlayer[i] = 0;
     }
@@ -113,6 +115,7 @@ function resetGameStateVariables(playerCount = 2, turnDuration = Infinity, gameM
         playerAiLevels: {},
         playerCivilizations: {},
         activeCommanders: {},
+        fallenCommanders: {},
         capitalCityId: {},
         playerResources: {},
         unitsPlacedByPlayer: {},
@@ -145,6 +148,7 @@ function resetGameStateVariables(playerCount = 2, turnDuration = Infinity, gameM
         
         initialGameStateObject.playerResources[i].researchedTechnologies = ["ORGANIZATION"];
         initialGameStateObject.activeCommanders[i] = [];
+        initialGameStateObject.fallenCommanders[i] = [];
         initialGameStateObject.capitalCityId[i] = null;
         initialGameStateObject.unitsPlacedByPlayer[i] = 0;
         
@@ -223,6 +227,7 @@ async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaign
             2: initialP2Resources
         },
         activeCommanders: { 1: [], 2: [] }, // Se asegura de que SIEMPRE exista
+        fallenCommanders: { 1: [], 2: [] },
         deploymentUnitLimit: scenarioData.deploymentUnitLimit || Infinity,
         unitsPlacedByPlayer: { 1: 0, 2: 0 },
         cities: [],
@@ -319,6 +324,7 @@ function resetGameStateForIberiaMagna() {
         playerAiLevels: {},
         playerCivilizations: {},
         activeCommanders: {},
+        fallenCommanders: {},
         capitalCityId: {},
         playerResources: {},
         unitsPlacedByPlayer: {},
@@ -346,6 +352,7 @@ function resetGameStateForIberiaMagna() {
         // Inicializamos el resto de arrays/objetos
         initialGameStateObject.playerCivilizations[i] = 'ninguna'; // Se puede asignar después
         initialGameStateObject.activeCommanders[i] = [];
+        initialGameStateObject.fallenCommanders[i] = [];
         initialGameStateObject.capitalCityId[i] = null;
         initialGameStateObject.unitsPlacedByPlayer[i] = 0;
     }

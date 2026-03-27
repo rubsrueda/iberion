@@ -2457,6 +2457,12 @@ function assignHeroToUnit(unit, commanderId) {
     }
 
     const playerActiveCommanders = gameState.activeCommanders[unit.player];
+    const playerFallenCommanders = gameState.fallenCommanders?.[unit.player] || [];
+
+    if (playerFallenCommanders.includes(commanderId)) {
+        logMessage(`Error: El general ${COMMANDERS[commanderId].name} cayó en esta batalla y no puede volver a asignarse.`, 'warning');
+        return false;
+    }
     
     // Comprobar que el héroe no esté ya en uso
     if (playerActiveCommanders.includes(commanderId)) {

@@ -369,3 +369,115 @@ Archivos tocados:
 - style.css
 - Mejoras.txt
 - mejorado.txt
+
+12) Héroes cazables: caída permanente en partida + impacto visible
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- Se implementó la regla de pérdida permanente en partida para héroes que mueren junto a su división.
+- Al destruir una unidad con `commander`:
+  - El héroe se elimina de `activeCommanders`.
+  - Se registra en `fallenCommanders` para ese jugador.
+  - Queda bloqueada su reasignación durante la partida en curso.
+- Se añadió impacto militar visible inmediato:
+  - Penalización de moral al resto de divisiones aliadas del jugador afectado.
+  - Si una unidad cae a 0 de moral por ese shock, queda desorganizada.
+- Se añadió impacto visible en marcador:
+  - Re-cálculo inmediato de puntos de victoria tras destrucción para reflejar cambios (incluido título por héroes).
+- Se añadió comunicación clara al jugador:
+  - Mensaje importante en log.
+  - Banner temporal en UI con aviso de caída del héroe.
+
+Bloqueo de reuso del héroe caído:
+- En asignación de héroes, ahora se valida `fallenCommanders[player]`.
+- Si el héroe ya cayó en esa partida, se rechaza la asignación con mensaje explícito.
+
+Cambios de estructura de estado:
+- Se añadió `fallenCommanders` al estado base en los resets principales.
+- Se inicializa también en `ensureFullGameState()` para compatibilidad con partidas cargadas.
+
+Archivos tocados:
+- unit_Actions.js
+- modalLogic.js
+- utils.js
+- state.js
+- Mejoras.txt
+- mejorado.txt
+
+13) Árbol de Tecnología Visual (Impacto en el Mapa)
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- Se conectó investigación tecnológica con impacto visual directo en el mapa.
+- Al investigar la tecnología asociada a mejora de caminos (Albañilería / `MASONRY`), los caminos del jugador cambian de aspecto de forma inmediata.
+- El cambio se aplica sobre cada hex con estructura `Camino` del propietario que tenga la tecnología.
+
+Impacto visual implementado:
+- Se agrega clase visual al hex: `.road-stone-tech`.
+- El sprite del camino mejorado pasa a estilo de piedra (`🧱`) con brillo sutil.
+- Se aplica ajuste de contraste/saturación y halo suave para distinguirlo del camino normal.
+- Tooltip del sprite indica estado de camino avanzado.
+
+Integración técnica:
+- boardManager.js:
+  - En `renderSingleHexVisuals()` se evalúan tecnologías del dueño del hex.
+  - Si el hex es `Camino` y el jugador tiene `MASONRY`, se activa el render avanzado.
+- techScreenUI.js:
+  - Tras investigación exitosa en `_executeResearch(...)`, se fuerza `renderFullBoardVisualState()` para reflejar el cambio al instante.
+  - Se muestra mensaje temporal confirmando impacto visual activo.
+- style.css:
+  - Nuevos estilos para `.hex.road-stone-tech` y su `.structure-sprite`.
+
+Resultado UX:
+- El jugador “ve” que desbloqueó una mejora real en el terreno, no solo un cambio de números.
+- La progresión del árbol tecnológico queda materializada visualmente durante la partida.
+- Se refuerza sensación de evolución del imperio al investigar infraestructura.
+
+Archivos tocados:
+- boardManager.js
+- techScreenUI.js
+- style.css
+- Mejoras.txt
+- mejorado.txt
+
+14) Especialización de Civilizaciones visible en marcador/HUD
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- Se implementó indicador de ventaja de civilización basado en "Puntos de Avance" para J1/J2 dentro del marcador de victoria.
+- El sistema ahora calcula el líder de avance entre ambos jugadores y lo muestra de forma explícita en UI.
+- Cuando existe ventaja, el tracker agrega un bloque visual con:
+  - Icono de facción del líder (tomado desde `CIVILIZATIONS.factionImage`).
+  - Etiqueta contextual con texto de ventaja de avance.
+- Si no hay icono disponible, se aplica fallback de texto inicial de facción para no perder legibilidad.
+- Se añadió realce visual específico cuando Arabia lidera para cumplir el criterio solicitado de visibilidad inmediata.
+
+Integración técnica:
+- uiUpdates.js:
+  - Nuevos helpers:
+    - `_getAdvancePoints(playerId)`
+    - `_getAdvanceLeaderDataJ1J2()`
+    - `_renderAdvanceLeaderIndicator(tracker)`
+  - Integración en `updateVictoryPointsDisplay()` para renderizar/actualizar el indicador en cada refresco.
+- style.css:
+  - Nuevas clases para el componente visual:
+    - `.victory-advance-indicator`
+    - `.advance-faction-icon`
+    - `.advance-faction-fallback`
+    - `.advance-faction-text`
+  - Estado de énfasis para Arabia líder:
+    - `#victory-points-tracker.arabia-advance-lead .victory-advance-indicator`
+
+Resultado UX:
+- La elección de civilización deja de sentirse cosmética y se percibe en el HUD durante la partida.
+- El jugador identifica en menos de un segundo qué facción lleva ventaja en avance.
+- Se refuerza la lectura táctica del marcador J1/J2 sin abrir menús adicionales.
+
+Archivos tocados:
+- uiUpdates.js
+- style.css
+- Mejoras.txt
+- mejorado.txt

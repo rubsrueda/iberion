@@ -519,6 +519,7 @@ function ensureFullGameState() {
     if (!gameState.playerStats) gameState.playerStats = { unitsDestroyed: {}, sealTrades: {}, ruinsExplored: {}, navalVictories: {} };
     if (!gameState.playerStats.navalVictories) gameState.playerStats.navalVictories = {};
     if (!gameState.generalTips) gameState.generalTips = {};
+    if (!gameState.fallenCommanders) gameState.fallenCommanders = {};
     if (typeof gameState.generalTips.archaeologyDetected === 'undefined') gameState.generalTips.archaeologyDetected = false;
     if (typeof gameState.generalTips.lowSupplyEffectiveness === 'undefined') gameState.generalTips.lowSupplyEffectiveness = false;
 
@@ -533,6 +534,7 @@ function ensureFullGameState() {
         if (typeof gameState.playerStats.ruinsExplored[pKey] === 'undefined') gameState.playerStats.ruinsExplored[pKey] = 0;
         if (typeof gameState.victoryPoints.ruins[pKey] === 'undefined') gameState.victoryPoints.ruins[pKey] = 0;
         if (typeof gameState.victoryPoints[pKey] === 'undefined') gameState.victoryPoints[pKey] = 0;
+        if (!Array.isArray(gameState.fallenCommanders[i])) gameState.fallenCommanders[i] = [];
     }
 }
 

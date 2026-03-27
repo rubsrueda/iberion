@@ -1547,6 +1547,67 @@ const UIManager = {
         return p2Wealth > p1Wealth;
     },
 
+    _getAdvancePoints: function(playerId) {
+        const res = gameState?.playerResources?.[playerId] || {};
+        const researchedCount = Array.isArray(res.researchedTechnologies) ? res.researchedTechnologies.length : 0;
+        const reserveResearch = Number(res.researchPoints || 0);
+        // El conteo de tecnologías manda; researchPoints solo desempata suavemente.
+        return researchedCount + (reserveResearch / 1000);
+    },
+
+    _getAdvanceLeaderDataJ1J2: function() {
+        const p1 = { playerId: 1, points: this._getAdvancePoints(1) };
+        const p2 = { playerId: 2, points: this._getAdvancePoints(2) };
+
+        if (Math.abs(p1.points - p2.points) < 0.0001) {
+            return null;
+        }
+
+        const leader = p1.points > p2.points ? p1 : p2;
+        const civKey = gameState?.playerCivilizations?.[leader.playerId] || 'ninguna';
+        const civData = CIVILIZATIONS?.[civKey] || null;
+
+        return {
+            playerId: leader.playerId,
+            points: Math.floor(leader.points),
+            civKey,
+            civData
+        };
+    },
+
+    _renderAdvanceLeaderIndicator: function(tracker) {
+        if (!tracker) return;
+
+        let indicatorEl = document.getElementById('victory-advance-indicator');
+        if (!indicatorEl) {
+            indicatorEl = document.createElement('div');
+            indicatorEl.id = 'victory-advance-indicator';
+            indicatorEl.className = 'victory-advance-indicator';
+            tracker.insertBefore(indicatorEl, document.getElementById('victory-points-tooltip'));
+        }
+
+        const leader = this._getAdvanceLeaderDataJ1J2();
+        if (!leader) {
+            indicatorEl.style.display = 'none';
+            tracker.classList.remove('arabia-advance-lead');
+            return;
+        }
+
+        const civName = leader.civData?.name || leader.civKey;
+        const factionImage = leader.civData?.factionImage || '';
+        const isArabiaLead = civName === 'Arabia' || leader.civKey === 'Arábiga';
+
+        const iconHtml = factionImage
+            ? `<img class="advance-faction-icon" src="${factionImage}" alt="${civName}">`
+            : `<span class="advance-faction-fallback">⚑</span>`;
+
+        indicatorEl.style.display = 'inline-flex';
+        indicatorEl.innerHTML = `${iconHtml}<span class="advance-faction-text">Avance J${leader.playerId}</span>`;
+        indicatorEl.title = `${civName} lidera en Puntos de Avance (${leader.points}).`;
+
+        tracker.classList.toggle('arabia-advance-lead', isArabiaLead);
+    },
+
     _bindVictoryTrackerGuideToggle: function(tracker, tooltipEl) {
         if (!tracker || !tooltipEl || tracker.dataset.guideBound === '1') return;
 
@@ -1793,6 +1854,7 @@ const UIManager = {
             }
         }
         summaryEl.textContent = playerScores.join(' | ');
+        this._renderAdvanceLeaderIndicator(tracker);
 
         // 2. Construir el contenido del tooltip detallado (sin cambios en la lógica)
         let tooltipHTML = '<h4>Títulos de Victoria</h4><ul>';

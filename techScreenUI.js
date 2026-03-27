@@ -192,6 +192,15 @@ window.openTechTreeScreen = openTechTreeScreen;
         }
         playerTechs.push(techId);
 
+        // Refrescar impacto visual de tecnologías en el mapa (ej: caminos avanzados).
+        if (typeof renderFullBoardVisualState === 'function') {
+            renderFullBoardVisualState();
+        }
+
+        if (typeof UIManager !== 'undefined' && typeof UIManager.showMessageTemporarily === 'function') {
+            UIManager.showMessageTemporarily(`Impacto visual activo: ${techToResearch.name}`, 2400, false);
+        }
+
         // Si llegamos hasta aquí, la investigación fue un éxito.
         return true; 
     }

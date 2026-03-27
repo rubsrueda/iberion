@@ -2601,6 +2601,8 @@ async function handleUnitDestroyed(destroyedUnit, victorUnit) {
         if (typeof TutorialManager !== 'undefined') TutorialManager.notifyActionCompleted('enemy_defeated');
     }
 
+    _handleCommanderDeathConsequences(destroyedUnit);
+
     // Ejecución de limpieza lógica de DATOS inmediata (Fundamental para evitar el "0")
     _executeUnitCleanup(destroyedUnit);
 
@@ -2616,9 +2618,52 @@ async function handleUnitDestroyed(destroyedUnit, victorUnit) {
         BattlePassManager.updateProgress('unit_kill', 1);
     }
 
+    if (typeof calculateVictoryPoints === 'function') {
+        calculateVictoryPoints();
+    }
+
     // Actualización visual final
     if (UIManager) UIManager.updateAllUIDisplays();
     if (typeof checkVictory === 'function' && !gameState.isTutorialActive) checkVictory();
+}
+
+function _handleCommanderDeathConsequences(destroyedUnit) {
+    const commanderId = destroyedUnit?.commander;
+    if (!commanderId || !gameState) return;
+
+    if (!gameState.activeCommanders) gameState.activeCommanders = {};
+    if (!gameState.fallenCommanders) gameState.fallenCommanders = {};
+    if (!Array.isArray(gameState.activeCommanders[destroyedUnit.player])) gameState.activeCommanders[destroyedUnit.player] = [];
+    if (!Array.isArray(gameState.fallenCommanders[destroyedUnit.player])) gameState.fallenCommanders[destroyedUnit.player] = [];
+
+    const activeList = gameState.activeCommanders[destroyedUnit.player];
+    const fallenList = gameState.fallenCommanders[destroyedUnit.player];
+
+    const activeIndex = activeList.indexOf(commanderId);
+    if (activeIndex > -1) {
+        activeList.splice(activeIndex, 1);
+    }
+
+    if (!fallenList.includes(commanderId)) {
+        fallenList.push(commanderId);
+    }
+
+    const moralePenalty = 15;
+    units
+        .filter(u => u.player === destroyedUnit.player && u.id !== destroyedUnit.id && u.currentHealth > 0)
+        .forEach(u => {
+            u.morale = Math.max(0, (u.morale || 50) - moralePenalty);
+            if (u.morale <= 0) u.isDisorganized = true;
+        });
+
+    const commanderName = COMMANDERS?.[commanderId]?.name || 'un héroe';
+    const warningMsg = `¡${commanderName} ha caído en combate! Impacto en la moral y en el marcador de héroes.`;
+    logMessage(warningMsg, 'important');
+    if (typeof UIManager !== 'undefined' && typeof UIManager.showMessageTemporarily === 'function') {
+        UIManager.showMessageTemporarily(warningMsg, 4200, true);
+    }
+
+    destroyedUnit.commander = null;
 }
 
 function _applyDestructionRewards(destroyedUnit, victorUnit) {

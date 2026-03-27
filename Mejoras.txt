@@ -6,18 +6,6 @@ Objetivo: Eliminar la fricción visual. Pasar de "leer datos" a "ver el campo de
 
 "rejugabilidad". Si el jugador siente que cada partida es diferente porque el mapa está oculto y hay tesoros por descubrir, se quedará enganchado.
 
-Cuando se tienen heroes, cazarlos, es una buena idea.  Criterio de Éxito: El jugador debe "temer" perder a esa unidad específica. Si el héroe muere, porque muere esa división, ya no se podrá usar este héroe en la partida eh curso,  el impacto en la moral/puntos debe ser visible.
-
-Árbol de Tecnología Visual (Tech Tree)
-El problema: no se ve bien, no se ve todo, tiene incongruencias... 
-Impacto Visual en el Mapa: Al investigar una tecnología, el cambio debe ser obvio. Ej: Si investigas "Caminos de Piedra", el arte del camino en el mapa debe cambiar de color o textura para indicar que ahora las unidades se mueven un 20% más rápido.
-Criterio de Éxito: Que el jugador sienta que está "desbloqueando" el mapa, no solo comprando mejoras.
-
-Especialización de Civilizaciones
-El problema: Eliges "Britannia" o "Arabia", pero en el gameplay parecen jugar exactamente igual.
-Tarea: el Bonus es visible.
-Criterio de Éxito: El marcador de J1/J2 debe reflejar esta ventaja. Si Arabia tiene más "Puntos de Avance", el HUD debe indicarlo con su icono de facción.
-
 Dinámicas de Tensión y "Mundo Vivo"
 Objetivo: Romper la predictibilidad. Que el mapa no sea solo un tablero, sino un entorno que reacciona y genera problemas inesperados.
 
