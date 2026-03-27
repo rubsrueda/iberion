@@ -605,11 +605,23 @@ const AiGameplayManager = {
             return false;
         }
 
-        const origin = this._resolveTradeCityForCorridor(playerNumber, corridorStatus.origen, true);
+        let origin = this._resolveTradeCityForCorridor(playerNumber, corridorStatus.origen, true, true);
         const destination = this._selectTradeRouteDestination(playerNumber, origin, corridorStatus.destino);
         if (!origin || !destination) {
             console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=ciudad_origen_destino_invalida_o_sin_ruta_disponible`);
             return false;
+        }
+
+        // Asegurar centro de ciudad libre para evitar conflictos al establecer ruta terrestre.
+        const unitAtOrigin = getUnitOnHex(origin.r, origin.c);
+        if (unitAtOrigin && unitAtOrigin.player === playerNumber && !unitAtOrigin.tradeRoute) {
+            const altOrigin = this._resolveTradeCityForCorridor(playerNumber, null, true, true);
+            if (altOrigin && (altOrigin.r !== origin.r || altOrigin.c !== origin.c)) {
+                origin = altOrigin;
+            } else {
+                console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=origen_ocupado_sin_ciudad_libre unidad=${unitAtOrigin.name}`);
+                return false;
+            }
         }
 
         const infraPath = findInfrastructurePath(origin, destination, { allowForeignInfrastructure: true });
@@ -630,11 +642,16 @@ const AiGameplayManager = {
         }
 
         if (!supplyUnit) {
-            console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=no_hay_columna_suministro`);
-            return false;
+            supplyUnit = units.find(u =>
+                u.player === playerNumber &&
+                !u.tradeRoute &&
+                u.currentHealth > 0 &&
+                u.regiments?.some(reg => (REGIMENT_TYPES[reg.type]?.abilities || []).includes('provide_supply'))
+            ) || null;
         }
-        if (supplyUnit.r !== origin.r || supplyUnit.c !== origin.c) {
-            console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=columna_fuera_origen unidad=${supplyUnit.name} pos=(${supplyUnit.r},${supplyUnit.c}) origen=(${origin.r},${origin.c})`);
+
+        if (!supplyUnit) {
+            console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=no_hay_columna_suministro`);
             return false;
         }
 
@@ -643,16 +660,41 @@ const AiGameplayManager = {
         return ok;
     },
 
-    _resolveTradeCityForCorridor: function(playerNumber, point, requireOwn) {
+    _tryRelocateUnitFromCityCenter: function(blockingUnit, city) {
+        if (!blockingUnit || !city) return false;
+        const options = getHexNeighbors(city.r, city.c)
+            .map(n => board[n.r]?.[n.c])
+            .filter(h => h && !h.unit && h.owner === blockingUnit.player && !TERRAIN_TYPES[h.terrain]?.isImpassableForLand)
+            .sort((a, b) => hexDistance(a.r, a.c, city.r, city.c) - hexDistance(b.r, b.c, city.r, city.c));
+
+        const step = options[0];
+        if (!step) return false;
+        if (typeof _executeMoveUnit === 'function') {
+            _executeMoveUnit(blockingUnit, step.r, step.c);
+            return true;
+        }
+        return false;
+    },
+
+    _resolveTradeCityForCorridor: function(playerNumber, point, requireOwn, preferFreeCenter = false) {
         const cities = gameState.cities || [];
         const exact = point ? cities.find(c => c.r === point.r && c.c === point.c) : null;
         if (exact) {
-            if (requireOwn && exact.owner === playerNumber) return exact;
+            if (requireOwn && exact.owner === playerNumber) {
+                if (!preferFreeCenter || !getUnitOnHex(exact.r, exact.c)) return exact;
+            }
             if (!requireOwn && (exact.owner === playerNumber || exact.owner === 0)) return exact;
         }
 
         if (requireOwn) {
-            return cities.find(c => c.isCapital && c.owner === playerNumber) || cities.find(c => c.owner === playerNumber) || null;
+            const ownCities = cities.filter(c => c.owner === playerNumber);
+            if (preferFreeCenter) {
+                const freeCapital = ownCities.find(c => c.isCapital && !getUnitOnHex(c.r, c.c));
+                if (freeCapital) return freeCapital;
+                const anyFree = ownCities.find(c => !getUnitOnHex(c.r, c.c));
+                if (anyFree) return anyFree;
+            }
+            return ownCities.find(c => c.isCapital) || ownCities[0] || null;
         }
 
         return cities.find(c => c.owner === 0) || cities.find(c => c.owner === playerNumber && (!point || (c.r !== point.r || c.c !== point.c))) || null;
@@ -894,8 +936,12 @@ const AiGameplayManager = {
         const playerRes = gameState.playerResources[playerNumber];
         const structCost = STRUCTURE_TYPES[structureType].cost;
         
-        // Verificar recursos
-        if (playerRes.oro < structCost.oro || playerRes.piedra < structCost.piedra) {
+        // Verificar recursos por todas las claves del coste (ej: Camino = madera + piedra)
+        const canPay = Object.keys(structCost || {}).every(res => {
+            if (res === 'Colono') return true;
+            return (playerRes[res] || 0) >= (structCost[res] || 0);
+        });
+        if (!canPay) {
             console.warn(`%c[IA BUILD DECISION - RECHAZADA] TURNO=${gameState.turnNumber} FASE=${gameState.currentPhase} JUGADOR=${playerNumber} ESTR=${structureType} (${r},${c}) DUENO=${playerNumber} RAZON=${nodoRazon} MOTIVO=Recursos insuficientes`, "color: #FFA500; background: #FFE0B2; padding: 5px;");
             return false;
         }
@@ -1379,8 +1425,26 @@ const AiGameplayManager = {
                 const hex = board[tgt.r]?.[tgt.c];
                 
                 if (hex && hex.owner === unit.player) {
-                    // El hex ya es nuestro → construir
-                    console.log(`[IA OCCUPY_THEN_BUILD] ${unit.name} en (${tgt.r},${tgt.c}) YA construido. Estructura: ${mission.structureType}`);
+                    // El hex ya es nuestro. Si la unidad está encima, liberar la casilla para permitir construcción.
+                    const occupant = getUnitOnHex(tgt.r, tgt.c);
+                    if (occupant && occupant.id === unit.id) {
+                        const freeAdj = getHexNeighbors(unit.r, unit.c)
+                            .map(n => board[n.r]?.[n.c])
+                            .filter(h => h && !h.unit && h.owner === unit.player && this._canBuildRoadOnHex(h))
+                            .sort((a, b) => hexDistance(a.r, a.c, tgt.r, tgt.c) - hexDistance(b.r, b.c, tgt.r, tgt.c))[0];
+
+                        if (freeAdj && (unit.currentMovement || unit.movement || 0) > 0) {
+                            await _executeMoveUnit(unit, freeAdj.r, freeAdj.c);
+                            AiGameplayManager._trace('occupy_then_build_vacated_target', {
+                                unitId: unit.id,
+                                from: { r: tgt.r, c: tgt.c },
+                                to: { r: freeAdj.r, c: freeAdj.c },
+                                target: { r: tgt.r, c: tgt.c }
+                            });
+                        }
+                    }
+
+                    console.log(`[IA OCCUPY_THEN_BUILD] ${unit.name} en (${tgt.r},${tgt.c}) listo para construir. Estructura: ${mission.structureType}`);
                     if (typeof AiGameplayManager.attemptConstructionAtHex === 'function') {
                         AiGameplayManager.attemptConstructionAtHex(unit.player, tgt.r, tgt.c, mission.structureType, mission.nodoRazon);
                     }
