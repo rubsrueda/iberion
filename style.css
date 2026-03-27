@@ -3267,6 +3267,25 @@ body {
     text-shadow: 1px 1px 1px black;
 }
 
+.resource-item.gold-trailing-rival {
+    animation: goldTrailPulse 1.2s ease-in-out infinite;
+}
+
+.resource-item.gold-trailing-rival span {
+    color: #ffb74d !important;
+    position: relative;
+}
+
+.resource-item.gold-trailing-rival span::after {
+    content: '▼';
+    position: absolute;
+    right: -9px;
+    top: -5px;
+    font-size: 9px;
+    color: #ff6b6b;
+    text-shadow: 0 0 4px rgba(255, 107, 107, 0.8);
+}
+
 /* Panel de botones: Flota a la derecha */
 .top-bar-actions-panel {
     position: absolute;
@@ -5007,6 +5026,10 @@ input[type="range"] {
     display: block;
 }
 
+#victory-points-tracker.guide-open > #victory-points-tooltip {
+    display: block;
+}
+
 #victory-points-tooltip h4 {
     margin: 0 0 5px 0;
     padding-bottom: 4px;
@@ -5022,6 +5045,37 @@ input[type="range"] {
 }
 #victory-points-tooltip li span:first-child {
     color: #bdc3c7;
+}
+
+.victory-next-step-guide {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.victory-next-step-guide h4 {
+    margin: 0 0 4px 0;
+    color: #7ed6ff;
+    font-size: 11px;
+}
+
+.victory-next-step-guide ul {
+    margin: 0;
+    padding-left: 14px;
+}
+
+.victory-next-step-guide li {
+    display: list-item;
+    color: #dbeafe;
+    font-size: 10px;
+    line-height: 1.3;
+    margin-bottom: 3px;
+}
+
+@keyframes goldTrailPulse {
+    0% { box-shadow: 0 0 0 rgba(255, 183, 77, 0); }
+    50% { box-shadow: 0 0 10px rgba(255, 183, 77, 0.55); }
+    100% { box-shadow: 0 0 0 rgba(255, 183, 77, 0); }
 }
 
 .victory-bar-container {

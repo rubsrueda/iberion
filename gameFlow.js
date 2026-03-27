@@ -360,6 +360,17 @@ function handleUnitUpkeep(playerNum) {
             
             unit.morale = Math.max(0, (unit.morale || 50) - moraleLoss);
             logMessage(`¡${unit.name} está incomunicada y pierde moral!`, 'warning');
+
+            const effectiveMaxHealth = Math.max(1, Number(unit.maxHealth) || 1);
+            const currentHealth = Math.max(0, Number(unit.currentHealth) || 0);
+            const effectivenessRatio = currentHealth / effectiveMaxHealth;
+            if (effectivenessRatio < 0.5 && typeof triggerGeneralTipOnce === 'function') {
+                triggerGeneralTipOnce(
+                    'lowSupplyEffectiveness',
+                    'Consejo de General: Tu unidad se debilita por falta de suministro. Conecta un camino hasta Italica para reabastecerla.',
+                    'warning'
+                );
+            }
         }
 
         // --- GESTIÓN DE ESTADOS: DESORGANIZADA Y ASEDIO ---
@@ -761,6 +772,24 @@ function updateFogOfWar() {
     const currentCols = board[0] ? board[0].length : 0; 
     
     const playerKey = `player${gameState.currentPlayer}`;
+    const currentTurn = Number(gameState.turnNumber || 1);
+
+    // 0. TURNO 1: mapa completamente visible para desplegar/planificar.
+    if (currentTurn <= 1) {
+        for (let r = 0; r < currentRows; r++) {
+            for (let c = 0; c < currentCols; c++) {
+                const hexData = board[r]?.[c];
+                if (!hexData) continue;
+                if (!hexData.visibility) hexData.visibility = {};
+                hexData.visibility[playerKey] = 'visible';
+
+                const u = getUnitOnHex(r, c);
+                if (u?.element) u.element.style.display = 'flex';
+                if (hexData.element) hexData.element.classList.remove('fog-hidden', 'fog-partial');
+            }
+        }
+        return;
+    }
 
     // 1. SI EL MAPA ESTÁ REVELADO (TRUCO), SALIR
     if (gameState.isMapRevealed) {
@@ -785,11 +814,17 @@ function updateFogOfWar() {
         for (let c = 0; c < currentCols; c++) {
             const hexData = board[r]?.[c];
             if (!hexData || !hexData.element) continue;
+            if (!hexData.visibility) hexData.visibility = {};
 
             const unitOnThisHex = getUnitOnHex(r, c);
 
             // Si estaba visible, pasa a partial (memoria de mapa). Si estaba hidden, se queda hidden.
             if (hexData.visibility[playerKey] === 'visible') {
+                hexData.visibility[playerKey] = 'partial';
+            }
+
+            // Regla de persistencia: lo propio nunca queda totalmente oculto.
+            if (hexData.owner === gameState.currentPlayer && (!hexData.visibility[playerKey] || hexData.visibility[playerKey] === 'hidden')) {
                 hexData.visibility[playerKey] = 'partial';
             }
             
@@ -810,24 +845,12 @@ function updateFogOfWar() {
         }
     });
 
-    // B) ESTRUCTURAS PROPIAS
+    // B) CIUDADES/CAPITALES PROPIAS
     for (let r = 0; r < currentRows; r++) {
         for (let c = 0; c < currentCols; c++) {
             const hex = board[r][c];
-            if (hex && hex.owner === gameState.currentPlayer && hex.structure) {
-                let range = 1; // Visión base
-                
-                const structDef = STRUCTURE_TYPES[hex.structure];
-                if (structDef) {
-                    if (structDef.visionBonus) {
-                        range = structDef.visionBonus;
-                    } 
-                    else if (hex.isCapital) range = 3;
-                    else if (hex.isCity) range = 2;
-                    else if (hex.structure === 'Fortaleza') range = 2;
-                    else if (hex.structure === 'Fortaleza con Muralla') range = 3;
-                }
-                
+            if (hex && hex.owner === gameState.currentPlayer && (hex.isCity || hex.isCapital)) {
+                let range = hex.isCapital ? 3 : 2;
                 visionSources.push({r: r, c: c, range: range});
             }
         }

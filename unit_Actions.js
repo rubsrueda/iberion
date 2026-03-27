@@ -782,6 +782,23 @@ function selectUnit(unit) {
         TutorialManager.notifyActionCompleted('unit_selected_by_objective');
     }
 
+    // Consejo dinámico: detectar ruinas cercanas (solo primera vez por partida)
+    if (unit.player === gameState.currentPlayer && typeof getHexNeighbors === 'function') {
+        const neighbors = getHexNeighbors(unit.r, unit.c) || [];
+        const ruinNearby = neighbors.some(n => {
+            const hex = board?.[n.r]?.[n.c];
+            return hex && hex.feature === 'ruins' && hex.looted !== true;
+        });
+
+        if (ruinNearby && typeof triggerGeneralTipOnce === 'function') {
+            triggerGeneralTipOnce(
+                'archaeologyDetected',
+                'Consejo de General: Has detectado ruinas cercanas. Envia un explorador para obtener sellos de heroe o tesoros.',
+                'event'
+            );
+        }
+    }
+
     // --- 5. NUEVO: ABRIR MENÚ RADIAL ---
     console.log('RADIAL CODE REACHED');
     // Solo si es mi unidad, es fase de juego y no está "zombi"

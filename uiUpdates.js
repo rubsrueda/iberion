@@ -1527,6 +1527,79 @@ const UIManager = {
         this._topBarResourceTweens[tweenKey] = requestAnimationFrame(tick);
     },
 
+    _getPlayerWealth: function(playerId) {
+        const resources = gameState?.playerResources?.[playerId];
+        if (!resources) return 0;
+
+        return Object.values(resources).reduce((sum, val) => {
+            const n = Number(val);
+            return Number.isFinite(n) ? sum + Math.max(0, n) : sum;
+        }, 0);
+    },
+
+    _isJ2AiRicherThanJ1: function() {
+        const p2Type = gameState?.playerTypes?.player2 || '';
+        const isJ2Ai = typeof p2Type === 'string' && p2Type.includes('ai');
+        if (!isJ2Ai) return false;
+
+        const p1Wealth = this._getPlayerWealth(1);
+        const p2Wealth = this._getPlayerWealth(2);
+        return p2Wealth > p1Wealth;
+    },
+
+    _bindVictoryTrackerGuideToggle: function(tracker, tooltipEl) {
+        if (!tracker || !tooltipEl || tracker.dataset.guideBound === '1') return;
+
+        tracker.dataset.guideBound = '1';
+
+        tracker.addEventListener('click', (event) => {
+            event.stopPropagation();
+            tracker.classList.toggle('guide-open');
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!tracker.contains(event.target)) {
+                tracker.classList.remove('guide-open');
+            }
+        });
+    },
+
+    _buildVictoryNextStepGuideHtml: function(vpData) {
+        const j1Wealth = this._getPlayerWealth(1);
+        const j2Wealth = this._getPlayerWealth(2);
+        const j1Points = Number(vpData?.player1 || 0);
+        const j2Points = Number(vpData?.player2 || 0);
+        const j1Cities = (gameState.cities || []).filter(c => c.owner === 1).length;
+        const j2Cities = (gameState.cities || []).filter(c => c.owner === 2).length;
+
+        const recommendations = [];
+
+        if (j1Cities < j2Cities) {
+            recommendations.push('Necesitas más ciudades para superar al rival en Demografía.');
+        }
+
+        if (j1Wealth < j2Wealth) {
+            recommendations.push('Vas por detrás en riqueza: protege rutas y prioriza ingresos de oro.');
+        }
+
+        if (j1Points < j2Points) {
+            recommendations.push('J2 lidera en puntos: disputa títulos abiertos y ruinas este turno.');
+        }
+
+        if (recommendations.length === 0) {
+            recommendations.push('Vas por buen camino: mantén ciudades seguras y comercio activo.');
+        }
+
+        return `
+            <div class="victory-next-step-guide">
+                <h4>The Next Step</h4>
+                <ul>
+                    ${recommendations.map(text => `<li>${text}</li>`).join('')}
+                </ul>
+            </div>
+        `;
+    },
+
     //función para la información en pantalla
     updateTopBarInfo: function() {
         // 1. Verificar si el menú y los datos existen antes de hacer nada
@@ -1592,6 +1665,7 @@ const UIManager = {
         
         const goldEl = document.querySelector('strong[data-resource="oro"]');
         const foodEl = document.querySelector('strong[data-resource="comida"]');
+        const goldItemEl = goldEl?.parentElement;
 
         // Comprobación Oro
         if (goldEl) {
@@ -1604,6 +1678,16 @@ const UIManager = {
                 goldEl.style.color = ""; // Restaurar (o el color que use tu CSS, el amarillo de .resource-item strong)
                 goldEl.style.animation = "";
                 goldEl.parentElement.title = "";
+            }
+        }
+
+        // Alerta estratégica: si J2 (IA) supera en riqueza a J1, destacar oro con pulso/flecha.
+        if (goldItemEl) {
+            const warnRivalWealth = this._isJ2AiRicherThanJ1();
+            goldItemEl.classList.toggle('gold-trailing-rival', warnRivalWealth);
+            if (warnRivalWealth) {
+                const baseTitle = goldItemEl.title ? `${goldItemEl.title} · ` : '';
+                goldItemEl.title = `${baseTitle}J2 tiene más riqueza. Mejora comercio o conquista ciudades.`;
             }
         }
 
@@ -1677,6 +1761,7 @@ const UIManager = {
 
         if (gameState.turnNumber < 2) {
             tracker.style.display = 'none';
+            tracker.classList.remove('guide-open');
             return;
         }
 
@@ -1749,7 +1834,8 @@ const UIManager = {
         ruinsHTML += '</ul>';
         if (hasRuinPoints) { tooltipHTML += ruinsHTML; }
         
-        tooltipEl.innerHTML = tooltipHTML;
+        tooltipEl.innerHTML = `${tooltipHTML}${this._buildVictoryNextStepGuideHtml(vpData)}`;
+        this._bindVictoryTrackerGuideToggle(tracker, tooltipEl);
     },
 
     // =============================================================

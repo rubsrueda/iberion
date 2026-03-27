@@ -4,28 +4,6 @@ Transformar la interfaz (UI) y la experiencia (UX) para que el juego se sienta m
 
 Objetivo: Eliminar la fricción visual. Pasar de "leer datos" a "ver el campo de batalla". El jugador debe entender qué pasa en 1 segundo sin abrir menús.
 
-Objetivo: Que el jugador aprenda a ganar sin leer un manual y que sienta la necesidad de explorar el mapa (el factor "una vuelta más").
-1. Tutorial Dinámico basado en Eventos (Trigger-based)
-El problema: Tienes mecánicas profundas (arqueología, suministros, rutas) que el jugador ignorará si no se le explican en el momento justo.
-Tarea: Implementar un sistema de "Consejos de General". No son pop-ups invasivos, sino mensajes que aparecen solo cuando ocurre el evento por primera vez.
-Trigger Arqueología: Cuando una unidad se detenga a 1 casilla de una ruina, mostrar un mensaje: "Has detectado ruinas. Envía un explorador para obtener sellos de héroe o tesoros".
-Trigger Suministro: La primera vez que una unidad baje del 50% de efectividad por falta de suministro, mostrar: "Tu unidad se debilita. Conecta un camino hasta Itálica para reabastecerla".
-Criterio de Éxito: El jugador completa su primera partida habiendo usado al menos una vez cada mecánica (caravana, investigación, arqueología) sin ayuda externa.
-
-Implementación de Niebla de Guerra (Fog of War)
-El problema: En el video, el mapa es 100% visible desde el turno 1. Esto elimina la emoción de la exploración y hace que la IA sea previsible.
-Tarea: en el turno 1 ves todo el mapa para posicionamiento de tus tres unidades, pero luego, Oscurecer las casillas que no estén en el rango de visión de tus ciudades o unidades. Y que no sean tuyas.
-Rango de Visión: el de las Unidades.
-Persistencia: Las casillas de las que eres dueño pero que ya no están en rango quedan en "penumbra" (ves el terreno, pero no los movimientos del contrario).
-Criterio de Éxito: Obligar al jugador a invertir en exploración, y conquista, y a tener miedo de lo oculto, no solo en combate.
-
-"The Next Step" (Guía de Victoria)
-El problema: El jugador a veces no sabe qué hacer para subir en el marcador J1/J2.
-Tarea: Implementar un sistema de "Objetivos Recomendados".
-Si el J2 (IA) tiene más riqueza, el icono de Oro en el HUD debe parpadear sutilmente o mostrar una flecha hacia abajo.
-Al tocar el marcador J1/J2, que se despliegue una mini-guía: "Necesitas más ciudades para superar al rival en Demografía".
-Criterio de Éxito: Reducir el tiempo que el jugador pasa "pensando qué hacer" y aumentar el tiempo que pasa "ejecutando su estrategia".
-
 "rejugabilidad". Si el jugador siente que cada partida es diferente porque el mapa está oculto y hay tesoros por descubrir, se quedará enganchado.
 
 Cuando se tienen heroes, cazarlos, es una buena idea.  Criterio de Éxito: El jugador debe "temer" perder a esa unidad específica. Si el héroe muere, porque muere esa división, ya no se podrá usar este héroe en la partida eh curso,  el impacto en la moral/puntos debe ser visible.

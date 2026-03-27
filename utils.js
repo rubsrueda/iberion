@@ -518,6 +518,9 @@ function ensureFullGameState() {
     if (!gameState.victoryPoints.ruins) gameState.victoryPoints.ruins = {};
     if (!gameState.playerStats) gameState.playerStats = { unitsDestroyed: {}, sealTrades: {}, ruinsExplored: {}, navalVictories: {} };
     if (!gameState.playerStats.navalVictories) gameState.playerStats.navalVictories = {};
+    if (!gameState.generalTips) gameState.generalTips = {};
+    if (typeof gameState.generalTips.archaeologyDetected === 'undefined') gameState.generalTips.archaeologyDetected = false;
+    if (typeof gameState.generalTips.lowSupplyEffectiveness === 'undefined') gameState.generalTips.lowSupplyEffectiveness = false;
 
     // B. INICIALIZACIÓN DE VALORES POR JUGADOR
     const totalPlayers = gameState.numPlayers || 2;
@@ -530,6 +533,28 @@ function ensureFullGameState() {
         if (typeof gameState.playerStats.ruinsExplored[pKey] === 'undefined') gameState.playerStats.ruinsExplored[pKey] = 0;
         if (typeof gameState.victoryPoints.ruins[pKey] === 'undefined') gameState.victoryPoints.ruins[pKey] = 0;
         if (typeof gameState.victoryPoints[pKey] === 'undefined') gameState.victoryPoints[pKey] = 0;
+    }
+}
+
+/**
+ * Muestra un consejo contextual solo una vez por partida.
+ * @param {string} key - Identificador único del consejo.
+ * @param {string} message - Mensaje a mostrar al jugador.
+ * @param {string} type - Tipo de mensaje para logMessage.
+ * @param {number} duration - Duración del mensaje UI en ms.
+ */
+function triggerGeneralTipOnce(key, message, type = 'event', duration = 5200) {
+    if (!gameState || !key || !message) return;
+    if (!gameState.generalTips) gameState.generalTips = {};
+    if (gameState.generalTips[key]) return;
+
+    gameState.generalTips[key] = true;
+
+    if (typeof UIManager !== 'undefined' && typeof UIManager.showMessageTemporarily === 'function') {
+        UIManager.showMessageTemporarily(message, duration, false);
+    }
+    if (typeof logMessage === 'function') {
+        logMessage(message, type);
     }
 }
 

@@ -240,3 +240,132 @@ Archivos tocados:
 - modalLogic.js
 - Mejoras.txt
 - mejorado.txt
+
+9) Tutorial Dinámico por Eventos (Consejos de General)
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- Se implementó un sistema de consejos contextuales de "primera vez" para no invadir al jugador con popups repetitivos.
+- Se añadió helper global `triggerGeneralTipOnce()` y flags persistentes en `gameState.generalTips`.
+- Se inicializan y preservan dos flags clave:
+  - `archaeologyDetected`
+  - `lowSupplyEffectiveness`
+
+Triggers implementados:
+1. Trigger de Arqueología (unidad a 1 casilla de ruina)
+- Integrado en selección de unidad.
+- Cuando una unidad propia se selecciona y tiene una ruina no saqueada en hex adyacente, se lanza:
+  "Consejo de General: Has detectado ruinas cercanas..."
+- Se ejecuta solo una vez por partida mediante `triggerGeneralTipOnce('archaeologyDetected', ...)`.
+
+2. Trigger de Suministro Crítico (efectividad < 50% sin suministro)
+- Integrado en ciclo de moral/suministro del turno.
+- Cuando una unidad está incomunicada y su ratio `currentHealth / maxHealth` cae por debajo de 50%, se lanza:
+  "Consejo de General: Tu unidad se debilita por falta de suministro..."
+- Se ejecuta solo una vez por partida mediante `triggerGeneralTipOnce('lowSupplyEffectiveness', ...)`.
+
+Diseño UX (no invasivo):
+- Los consejos se muestran con `UIManager.showMessageTemporarily(...)` (banner temporal), no modal bloqueante.
+- También se registran en log del juego para trazabilidad.
+- Evita spam: cada evento se dispara una sola vez por partida.
+
+Cambios técnicos:
+- utils.js:
+  - Inicialización robusta de `gameState.generalTips` en `ensureFullGameState()`.
+  - Nueva función `triggerGeneralTipOnce(key, message, type, duration)`.
+- unit_Actions.js:
+  - Detección de ruinas adyacentes en flujo de selección de unidad.
+- gameFlow.js:
+  - Detección de efectividad crítica bajo falta de suministro en procesamiento de moral por turno.
+
+Resultado UX:
+- El jugador aprende mecánicas profundas en el momento exacto donde importan.
+- Se reduce fricción de aprendizaje sin cortar el ritmo de partida.
+- Se incrementa probabilidad de usar arqueología y corregir logística de suministro temprano.
+
+Archivos tocados:
+- utils.js
+- unit_Actions.js
+- gameFlow.js
+- Mejoras.txt
+- mejorado.txt
+
+10) Implementación de Niebla de Guerra (Fog of War)
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- Se ajustó `updateFogOfWar()` para cumplir el flujo táctico pedido:
+  - Turno 1 completamente visible para posicionamiento y lectura del mapa.
+  - Desde turno 2 se aplica niebla dinámica por visión.
+- Se reforzó persistencia de propiedad:
+  - Las casillas propias nunca caen a oculto total (`hidden`), quedan como mínimo en `partial` (penumbra).
+  - En penumbra se conserva el terreno, pero no se revelan movimientos enemigos fuera de visión.
+- Se acotaron fuentes de visión estática a ciudades/capitales propias, y se mantiene visión por unidades con su `visionRange`.
+- Se robusteció inicialización de `hex.visibility` para evitar estados inconsistentes en celdas sin objeto de visibilidad.
+
+Comportamiento resultante:
+- Turno 1: mapa visible completo para despliegue/planificación.
+- Turno 2+: 
+  - `visible` en rango de unidades/ciudades.
+  - `partial` en memoria de mapa y territorios propios fuera de rango.
+  - `hidden` en zonas no exploradas/no visibles y no propias.
+- Unidades enemigas fuera de visión se ocultan, reduciendo predictibilidad y reforzando exploración.
+
+Resultado UX:
+- Se recupera tensión estratégica de “lo desconocido”.
+- El jugador debe explorar y mantener líneas de observación para evitar sorpresas.
+- El mapa propio sigue siendo legible en penumbra sin regalar información enemiga.
+
+Archivos tocados:
+- gameFlow.js
+- Mejoras.txt
+- mejorado.txt
+
+11) The Next Step (Guía de Victoria)
+Fecha: 2026-03-27
+Estado: Implementado
+
+Detalle del cambio:
+- Se agregó alerta estratégica en el HUD de Oro cuando J2 (si es IA) supera a J1 en riqueza total.
+- En ese caso, el bloque de oro ahora:
+  - Parpadea sutilmente.
+  - Muestra flecha descendente junto al icono.
+  - Incluye tooltip contextual para orientar acción económica.
+- Se implementó mini-guía desplegable al tocar el marcador J1/J2.
+  - El tracker ahora alterna estado abierto/cerrado por click.
+  - Se cierra automáticamente al hacer click fuera.
+  - Se añadió sección “The Next Step” dentro del tooltip del marcador.
+
+Lógica de recomendaciones:
+- Si J1 tiene menos ciudades que J2: sugiere explícitamente priorizar demografía.
+- Si J1 tiene menos riqueza que J2: sugiere reforzar comercio/ingresos.
+- Si J1 va por detrás en puntos: sugiere disputar títulos y ruinas.
+- Si no hay desventaja crítica: muestra consejo de mantenimiento de ventaja.
+
+Cambios técnicos:
+- uiUpdates.js:
+  - Nuevos helpers:
+    - `_getPlayerWealth(playerId)`
+    - `_isJ2AiRicherThanJ1()`
+    - `_bindVictoryTrackerGuideToggle(tracker, tooltipEl)`
+    - `_buildVictoryNextStepGuideHtml(vpData)`
+  - Integración en `updateTopBarInfo()` para clase de alerta de oro.
+  - Integración en `updateVictoryPointsDisplay()` para mini-guía y toggle por click.
+- style.css:
+  - Clase `.resource-item.gold-trailing-rival` + flecha visual en icono de oro.
+  - Animación `@keyframes goldTrailPulse`.
+  - Soporte de apertura por click en tracker (`.guide-open`).
+  - Estilos de `.victory-next-step-guide`.
+
+Resultado UX:
+- El jugador recibe dirección táctica inmediata sin salir del mapa.
+- Se reduce tiempo de “¿qué hago ahora?” y aumenta ejecución de decisiones.
+- El marcador J1/J2 deja de ser solo informativo y pasa a ser guía accionable.
+
+Archivos tocados:
+- uiUpdates.js
+- style.css
+- Mejoras.txt
+- mejorado.txt
