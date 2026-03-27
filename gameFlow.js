@@ -1086,6 +1086,38 @@ function checkVictory() {
     }
     if (gameState.currentPhase !== 'play') return false;
 
+    // En red (escaramuza), usamos una comprobación robusta basada en jugadores competitivos
+    // para evitar falsos gameOver al destruir neutrales/barbaros.
+    const isNetworkSkirmish = typeof isNetworkGame === 'function' && isNetworkGame() && !gameState.isCampaignBattle;
+    if (isNetworkSkirmish) {
+        const competitivePlayers = Array.from({ length: gameState.numPlayers }, (_, i) => i + 1);
+        const alivePlayers = competitivePlayers.filter(playerId => {
+            const hasUnits = units.some(u => u.player === playerId && u.currentHealth > 0);
+            const capital = gameState.capitalCityId?.[playerId];
+            const hasCapital = !!(capital && board?.[capital.r]?.[capital.c]?.owner === playerId);
+            return hasUnits || hasCapital;
+        });
+
+        // Victoria por captura de capital (solo entre jugadores competitivos).
+        for (const defenderId of competitivePlayers) {
+            const capital = gameState.capitalCityId?.[defenderId];
+            if (!capital) continue;
+            const owner = board?.[capital.r]?.[capital.c]?.owner;
+            if (owner && owner !== defenderId && competitivePlayers.includes(owner)) {
+                endTacticalBattle(owner);
+                return true;
+            }
+        }
+
+        // Victoria por eliminacion total real (sin contar neutrales).
+        if (alivePlayers.length === 1) {
+            endTacticalBattle(alivePlayers[0]);
+            return true;
+        }
+
+        return false;
+    }
+
     let winner = null; // 1 para jugador humano, 2 para IA u oponente
 
     // 1. Verificación por Capital (Usando las coordenadas del log)

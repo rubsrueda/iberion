@@ -2670,7 +2670,14 @@ async function handleUnitDestroyed(destroyedUnit, victorUnit) {
 
     // Actualización visual final
     if (UIManager) UIManager.updateAllUIDisplays();
-    if (typeof checkVictory === 'function' && !gameState.isTutorialActive) checkVictory();
+    const destroyedBelongsToCompetitivePlayer =
+        Number.isInteger(destroyedUnit?.player) &&
+        destroyedUnit.player >= 1 &&
+        destroyedUnit.player <= (gameState?.numPlayers || 0);
+
+    if (typeof checkVictory === 'function' && !gameState.isTutorialActive && destroyedBelongsToCompetitivePlayer) {
+        checkVictory();
+    }
 }
 
 function _handleCommanderDeathConsequences(destroyedUnit) {

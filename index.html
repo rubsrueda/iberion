@@ -2497,7 +2497,7 @@
 
     <!-- MODAL DE LA CRÓNICA (End Game Analysis) -->
     <div id="legacyModal" class="modal" style="display: none; background: rgba(0,0,0,0.95); z-index: 9998;">
-        <div style="
+        <div class="legacy-modal-panel" style="
             width: 95vw;
             height: 95vh;
             background: linear-gradient(135deg, #2a1a0f, #1a0f05);
@@ -2508,7 +2508,7 @@
             position: relative;
             box-shadow: 0 0 30px rgba(212,165,116,0.4);
         ">
-            <div style="
+            <div class="legacy-modal-header" style="
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
@@ -2516,7 +2516,7 @@
                 border-bottom: 2px solid #d4a574;
                 background: linear-gradient(135deg, rgba(212,165,116,0.1), transparent);
             ">
-                <h2 style="color: #d4a574; margin: 0; text-shadow: 0 0 15px #d4a574; font-family: Georgia, serif;">👑 LA CRÓNICA DEL IMPERIO 👑</h2>
+                <h2 class="legacy-modal-title" style="color: #d4a574; margin: 0; text-shadow: 0 0 15px #d4a574; font-family: Georgia, serif;">👑 LA CRÓNICA DEL IMPERIO 👑</h2>
                 <button class="legacy-close" style="
                     background: none;
                     border: none;
@@ -2527,7 +2527,7 @@
             </div>
 
             <!-- Pestañas -->
-            <div style="
+            <div class="legacy-tabs-bar" style="
                 display: flex;
                 gap: 10px;
                 padding: 15px 20px;
@@ -2535,7 +2535,7 @@
                 background: rgba(0,0,0,0.5);
                 flex-wrap: wrap;
             ">
-                <button data-legacy-tab="timeline" class="active" style="
+                <button data-legacy-tab="timeline" class="active legacy-tab-btn" style="
                     padding: 10px 20px;
                     background: #d4a574;
                     color: #2a1a0f;
@@ -2545,7 +2545,7 @@
                     font-weight: bold;
                     transition: all 0.2s;
                 ">📈 Línea de Tiempo</button>
-                <button data-legacy-tab="heatmap" style="
+                <button data-legacy-tab="heatmap" class="legacy-tab-btn" style="
                     padding: 10px 20px;
                     background: transparent;
                     color: #d4a574;
@@ -2554,7 +2554,7 @@
                     cursor: pointer;
                     transition: all 0.2s;
                 ">🗺️ Mapa de Expansión</button>
-                <button data-legacy-tab="narrative" style="
+                <button data-legacy-tab="narrative" class="legacy-tab-btn" style="
                     padding: 10px 20px;
                     background: transparent;
                     color: #d4a574;
@@ -2563,7 +2563,7 @@
                     cursor: pointer;
                     transition: all 0.2s;
                 ">📖 Crónica Narrativa</button>
-                <button data-legacy-tab="combat" style="
+                <button data-legacy-tab="combat" class="legacy-tab-btn" style="
                     padding: 10px 20px;
                     background: transparent;
                     color: #d4a574;
@@ -2575,7 +2575,7 @@
             </div>
 
             <!-- Contenido -->
-            <div style="
+            <div class="legacy-modal-content" style="
                 flex: 1;
                 overflow-y: auto;
                 padding: 20px;
@@ -2845,6 +2845,130 @@
         [data-legacy-tab].active {
             background: #d4a574 !important;
             color: #2a1a0f !important;
+        }
+
+        #legacyModal .legacy-modal-panel {
+            max-width: 95vw;
+            max-height: 95vh;
+        }
+
+        #legacyModal .legacy-chart {
+            width: 100%;
+            max-width: 900px;
+            height: auto;
+            display: block;
+            margin: 14px auto;
+        }
+
+        #legacyModal .legacy-table-container,
+        #legacyModal .heatmap-grid {
+            overflow: auto;
+        }
+
+        @media (max-width: 480px) {
+            #legacyModal {
+                align-items: flex-start;
+                padding-top: 8px;
+            }
+
+            #legacyModal .legacy-modal-panel {
+                width: min(320px, 96vw) !important;
+                height: min(620px, 94vh) !important;
+                border-width: 2px !important;
+                border-radius: 6px !important;
+                margin: 0 auto;
+            }
+
+            #legacyModal .legacy-modal-header {
+                padding: 8px 10px !important;
+            }
+
+            #legacyModal .legacy-modal-title {
+                font-size: 0.82rem !important;
+                line-height: 1.2;
+                letter-spacing: 0.03em;
+            }
+
+            #legacyModal .legacy-close {
+                font-size: 18px !important;
+            }
+
+            #legacyModal .legacy-tabs-bar {
+                gap: 4px !important;
+                padding: 8px !important;
+            }
+
+            #legacyModal .legacy-tab-btn,
+            #legacyModal [data-legacy-tab] {
+                padding: 5px 7px !important;
+                font-size: 10px !important;
+                border-radius: 3px !important;
+            }
+
+            #legacyModal .legacy-modal-content {
+                padding: 8px !important;
+                font-size: 12px;
+            }
+
+            #legacyModal .legacy-chart {
+                max-width: 320px !important;
+                margin: 8px auto !important;
+            }
+
+            #legacyModal .legacy-legend {
+                gap: 6px !important;
+                padding: 6px !important;
+                margin-top: 8px !important;
+                font-size: 11px;
+            }
+
+            #legacyModal .legacy-table {
+                font-size: 10px !important;
+            }
+
+            #legacyModal .legacy-table th,
+            #legacyModal .legacy-table td {
+                padding: 5px !important;
+                white-space: nowrap;
+            }
+
+            #legacyModal .narrative-entry {
+                padding: 8px !important;
+            }
+
+            #legacyModal .narrative-icon {
+                min-width: 22px !important;
+                font-size: 1rem !important;
+            }
+
+            #legacyModal .narrative-log {
+                max-height: 260px !important;
+                padding-left: 8px !important;
+            }
+
+            #legacyModal .legacy-export-btn {
+                padding: 6px 8px !important;
+                font-size: 10px !important;
+                border-radius: 4px !important;
+            }
+
+            #legacyModal .breakdown-tab {
+                padding: 4px 7px !important;
+                font-size: 10px !important;
+            }
+
+            #legacyModal .heatmap-grid {
+                max-width: 320px;
+                gap: 1px !important;
+                padding: 6px !important;
+                margin: 0 auto;
+            }
+
+            #legacyModal .heatmap-hex {
+                width: 11px !important;
+                height: 11px !important;
+                border-radius: 2px !important;
+            }
         }
 
         /* Estilos para Historial de Partidas */

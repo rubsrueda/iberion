@@ -8,6 +8,10 @@ const LegacyUI = {
     modalElement: null,
     isVisible: false,
 
+    _isCompactMobile: function() {
+        return window.matchMedia('(max-width: 480px)').matches;
+    },
+
     /**
      * Inicializa la UI
      */
@@ -147,13 +151,14 @@ const LegacyUI = {
         }
 
         // ── Gráfico principal: poder total por jugador ──────────────────────
-        const width = 900;
-        const height = 400;
-        const padding = 60;
+        const isCompactMobile = this._isCompactMobile();
+        const width = isCompactMobile ? 320 : 900;
+        const height = isCompactMobile ? 210 : 400;
+        const padding = isCompactMobile ? 34 : 60;
         const allValues = safeSeries.flatMap(s => s.data).filter(v => Number.isFinite(v));
         const maxScore = Math.max(1, ...(allValues.length > 0 ? allValues : [1]));
 
-        let svg = `<svg width="${width}" height="${height}" class="legacy-chart">`;
+        let svg = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" class="legacy-chart">`;
         svg += `<line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#fff" stroke-width="2"/>`;
         svg += `<line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" stroke="#fff" stroke-width="2"/>`;
 
@@ -202,7 +207,7 @@ const LegacyUI = {
         if (safeBreakdown.length > 0) {
             const tabButtons = safeBreakdown.map((bd, i) =>
                 `<button class="breakdown-tab ${i === 0 ? 'active' : ''}" data-breakdown-idx="${i}"
-                    style="background: ${i === 0 ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)'}; border: 1px solid ${bd.color}; color: #eee; padding: 5px 12px; margin: 3px; border-radius: 4px; cursor: pointer; font-size: 0.82em;">
+                    style="background: ${i === 0 ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)'}; border: 1px solid ${bd.color}; color: #eee; padding: ${isCompactMobile ? '4px 7px' : '5px 12px'}; margin: 3px; border-radius: 4px; cursor: pointer; font-size: ${isCompactMobile ? '0.66em' : '0.82em'};">
                     <span style="color: ${bd.color};">■</span> ${bd.name}
                 </button>`
             ).join('');
@@ -260,13 +265,14 @@ const LegacyUI = {
             return '<div style="color: #777; padding: 10px 0;">Sin datos de desglose disponibles para este jugador.</div>';
         }
 
-        const width = 900;
-        const height = 280;
-        const padding = 60;
+        const isCompactMobile = this._isCompactMobile();
+        const width = isCompactMobile ? 320 : 900;
+        const height = isCompactMobile ? 185 : 280;
+        const padding = isCompactMobile ? 34 : 60;
         const allValues = subSeries.flatMap(s => s.data).filter(v => Number.isFinite(v));
         const maxVal = Math.max(1, ...(allValues.length > 0 ? allValues : [1]));
 
-        let svg = `<svg width="${width}" height="${height}" class="legacy-chart">`;
+        let svg = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" class="legacy-chart">`;
         svg += `<line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#fff" stroke-width="1.5"/>`;
         svg += `<line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" stroke="#fff" stroke-width="1.5"/>`;
 
@@ -325,8 +331,9 @@ const LegacyUI = {
         }
 
         // Crear grid visual de hexagos simplificado
-        const hexSize = 20;
-        let gridHTML = `<div class="heatmap-grid" style="display: grid; grid-template-columns: repeat(${heatmapData.width}, 1fr); gap: 2px; padding: 20px;">`;
+        const isCompactMobile = this._isCompactMobile();
+        const hexSize = isCompactMobile ? 11 : 20;
+        let gridHTML = `<div class="heatmap-grid" style="display: grid; grid-template-columns: repeat(${heatmapData.width}, 1fr); gap: ${isCompactMobile ? 1 : 2}px; padding: ${isCompactMobile ? 6 : 20}px;">`;
 
         for (let r = 0; r < heatmapData.height; r++) {
             for (let c = 0; c < heatmapData.width; c++) {
@@ -388,7 +395,7 @@ const LegacyUI = {
                     <h3 style="margin:0 0 6px;">📖 La Crónica de la Partida</h3>
                     <p style="color: #aaa; font-size: 0.9em; margin:0;">Reseña narrativa de los eventos más importantes (${narrative.totalTurns} turnos)</p>
                 </div>
-                <button onclick="LegacyManager.exportNarrativePoster()" style="padding: 10px 16px; background: linear-gradient(135deg, #d4a574, #8b5e3c); color: #1b120b; border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; cursor: pointer; font-weight: bold;">🖼️ EXPORTAR FOTO FINAL</button>
+                <button class="legacy-export-btn" onclick="LegacyManager.exportNarrativePoster()" style="padding: 10px 16px; background: linear-gradient(135deg, #d4a574, #8b5e3c); color: #1b120b; border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; cursor: pointer; font-weight: bold;">🖼️ EXPORTAR FOTO FINAL</button>
             </div>
             <div style="margin: 12px 0 18px; padding: 12px; border: 1px solid rgba(212,165,116,0.4); background: rgba(212,165,116,0.08); color: #f2d3ac; line-height: 1.45;">${narrative.summary || 'Sin resumen narrativo disponible.'}</div>
             ${highlights.length > 0 ? `
