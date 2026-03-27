@@ -282,7 +282,8 @@ const AiGameplayManager = {
             try {
                 const decision = this._currentMotorDecision || await IaDecisionEngine.evaluarEstadoYTomarDecision(playerNumber);
                 const nodoCorredor = decision?.prioritarios?.find(n => n.tipo === 'corredor_comercial');
-                if (nodoCorredor?.origen && nodoCorredor?.destino) {
+                // IaNodoValor.crearNodo no copia 'origen'/'destino' — basta con que el nodo exista.
+                if (nodoCorredor) {
                     await this._runCommercialCorridorController(playerNumber, nodoCorredor);
                 }
             } catch (e) {
@@ -391,12 +392,16 @@ const AiGameplayManager = {
     },
 
     _runCommercialCorridorController: async function(playerNumber, nodoCorredor) {
-        if (!nodoCorredor?.origen) return null;
+        if (!nodoCorredor) return null;
         if (!gameState.ai_corridor_controller) gameState.ai_corridor_controller = {};
+
+        // Derivar origen de la capital si el nodo no lo incluye (IaNodoValor.crearNodo no copia campos extra).
+        const capitalCity = (gameState.cities || []).find(c => c.isCapital && c.owner === playerNumber);
+        const nodeOrigen = nodoCorredor.origen || (capitalCity ? { r: capitalCity.r, c: capitalCity.c } : { r: nodoCorredor.r, c: nodoCorredor.c });
 
         const networkPlan = this._getCommercialNetworkPlan(playerNumber);
         if (!networkPlan.connections.length) {
-            this._assignFallbackEconomicMission(playerNumber, nodoCorredor.origen, 'SIN_RED_COMERCIAL');
+            this._assignFallbackEconomicMission(playerNumber, nodeOrigen, 'SIN_RED_COMERCIAL');
             gameState.ai_corridor_controller[playerNumber] = { phase: 'sin_ruta', turnNumber: gameState.turnNumber };
             return null;
         }
@@ -1850,6 +1855,12 @@ const AiGameplayManager = {
                 } else {
                     // El hex NO es nuestro → ocupar primero
                     console.log(`[IA OCCUPY_THEN_BUILD] ${unit.name} → ocupa (${tgt.r},${tgt.c}) ANTES de construir ${mission.structureType}`);
+                    // Intentar avance relay (fusión con aliado adyacente) antes de mover solo
+                    const relayDone = await this._attemptCorridorRelayAdvance(unit, tgt);
+                    if (relayDone) {
+                        AiGameplayManager.missionAssignments.set(unit.id, mission);
+                        return;
+                    }
                     const pathToOccupy = AiGameplayManager.findPathToTarget(unit, tgt.r, tgt.c);
                     if (pathToOccupy && pathToOccupy.length > 1) {
                         const steps = unit.currentMovement || unit.movement || 1;
