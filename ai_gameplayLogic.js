@@ -720,8 +720,8 @@ const AiGameplayManager = {
             return { built: false, builtCount: 0, reason: 'sin_tramo_propio_sin_camino' };
         }
 
-        // Paso 1: liberar y alejar unidades propias del corredor antes de construir.
-        let vacatedCount = 0;
+        // Paso 1: si el tramo está ocupado, asignar misión explícita de desalojo.
+        let vacateAssignedCount = 0;
         for (const target of buildTargets) {
             const occupant = getUnitOnHex(target.r, target.c);
             if (!occupant || occupant.player !== playerNumber) continue;
@@ -736,15 +736,15 @@ const AiGameplayManager = {
                     return db - da;
                 })[0];
 
-            if (bestVacate && (occupant.currentMovement || occupant.movement || 0) > 0) {
-                console.log(`[ROADWORK DEBUG] Vaciando ${occupant.name} de (${target.r},${target.c}) hacia (${bestVacate.r},${bestVacate.c})`);
-                await _executeMoveUnit(occupant, bestVacate.r, bestVacate.c);
-                vacatedCount++;
-
-                const mission = AiGameplayManager.missionAssignments.get(occupant.id);
-                if (mission?.type === 'IA_NODE' && mission?.nodoTipo === 'corredor_comercial') {
-                    AiGameplayManager.missionAssignments.delete(occupant.id);
-                }
+            if (bestVacate && !occupant.hasMoved && (occupant.currentMovement || occupant.movement || 0) > 0) {
+                console.log(`[ROADWORK DEBUG] Asignando desalojo a ${occupant.name} de (${target.r},${target.c}) hacia (${bestVacate.r},${bestVacate.c})`);
+                AiGameplayManager.missionAssignments.set(occupant.id, {
+                    type: 'VACATE_CORRIDOR_FOR_ROADWORK',
+                    objective: { r: bestVacate.r, c: bestVacate.c },
+                    corridorHex: { r: target.r, c: target.c },
+                    nodoRazon: 'CORREDOR_COMERCIAL'
+                });
+                vacateAssignedCount++;
             }
         }
 
@@ -765,11 +765,11 @@ const AiGameplayManager = {
             }
         }
 
-        console.log(`[ROADWORK DEBUG] END: vacated=${vacatedCount}, built=${builtCount}`);
+        console.log(`[ROADWORK DEBUG] END: vacateAssigned=${vacateAssignedCount}, built=${builtCount}`);
         return {
             built: builtCount > 0,
             builtCount,
-            reason: builtCount > 0 ? 'camino_construido' : 'sin_construccion_efectiva',
+            reason: builtCount > 0 ? 'camino_construido' : (vacateAssignedCount > 0 ? 'desalojo_asignado' : 'sin_construccion_efectiva'),
             at: firstBuiltAt
         };
     },
@@ -794,12 +794,17 @@ const AiGameplayManager = {
         // Asegurar centro de ciudad libre para evitar conflictos al establecer ruta terrestre.
         const unitAtOrigin = getUnitOnHex(origin.r, origin.c);
         if (unitAtOrigin && unitAtOrigin.player === playerNumber && !unitAtOrigin.tradeRoute) {
-            const altOrigin = this._resolveTradeCityForCorridor(playerNumber, null, true, true);
-            if (altOrigin && (altOrigin.r !== origin.r || altOrigin.c !== origin.c)) {
-                origin = altOrigin;
+            const relocated = this._tryRelocateUnitFromCityCenter(unitAtOrigin, origin);
+            if (!relocated) {
+                const altOrigin = this._resolveTradeCityForCorridor(playerNumber, null, true, true);
+                if (altOrigin && (altOrigin.r !== origin.r || altOrigin.c !== origin.c)) {
+                    origin = altOrigin;
+                } else {
+                    console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=origen_ocupado_sin_ciudad_libre unidad=${unitAtOrigin.name}`);
+                    return false;
+                }
             } else {
-                console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=origen_ocupado_sin_ciudad_libre unidad=${unitAtOrigin.name}`);
-                return false;
+                console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=origen_despejado unidad=${unitAtOrigin.name}`);
             }
         }
 
@@ -1271,7 +1276,7 @@ const AiGameplayManager = {
     },
 
     assignUnitsToAxes: function(playerNumber, unitsToAssign) {
-        const corridorStatus = gameState.ai_corridor_status?.[playerNumber];
+        let corridorStatus = gameState.ai_corridor_status?.[playerNumber];
         const bankCorridorAxis = AiGameplayManager.strategicAxes
             .filter(a => a.nodoTipo === 'corredor_comercial' && (a.destinoTipo === 'banca' || !a.destinoTipo))
             .sort((a, b) => (b.prioridad || 0) - (a.prioridad || 0))[0];
@@ -1279,9 +1284,18 @@ const AiGameplayManager = {
             .filter(a => a.nodoTipo === 'camino_enemigo_critico')
             .sort((a, b) => (b.prioridad || 0) - (a.prioridad || 0))[0];
 
-        const corridorCapturePending = (corridorStatus?.unownedCount ?? 0) > 0;
-        const forceBankCorridor = gameState.turnNumber <= 6 && !corridorStatus?.operational && corridorCapturePending;
+        const ownCapital = gameState.cities?.find(c => c.owner === playerNumber && c.isCapital);
+        const corridorPath = (ownCapital && bankCorridorAxis)
+            ? this._buildCommercialCorridorPath(playerNumber, ownCapital, bankCorridorAxis.target)
+            : [];
+
+        if (bankCorridorAxis && corridorPath.length > 0 && (!corridorStatus || corridorStatus.turnNumber !== gameState.turnNumber)) {
+            corridorStatus = this._updateCommercialCorridorState(playerNumber, bankCorridorAxis, corridorPath);
+        }
+
         const corridorPendingHexes = bankCorridorAxis ? this._getCommercialCorridorPendingHexes(playerNumber, bankCorridorAxis.target) : [];
+        const corridorCapturePending = corridorPendingHexes.length > 0;
+        const forceBankCorridor = gameState.turnNumber <= 6 && !(corridorStatus?.operational) && corridorCapturePending;
         const pickCorridorObjective = (unit) => {
             if (!corridorPendingHexes.length) return bankCorridorAxis?.target || null;
             return corridorPendingHexes
@@ -1307,11 +1321,6 @@ const AiGameplayManager = {
                 .some(m => m && m.type === 'OCCUPY_THEN_BUILD' && m.nodoRazon === 'CORREDOR_COMERCIAL');
 
             if (!hasCorridorBuilder) {
-                const ownCapital = gameState.cities?.find(c => c.owner === playerNumber && c.isCapital);
-                const corridorPath = ownCapital
-                    ? this._buildCommercialCorridorPath(playerNumber, ownCapital, bankCorridorAxis.target)
-                    : [];
-
                 const missingHex = this._getCommercialCorridorPendingHexes(playerNumber, bankCorridorAxis.target)[0];
 
                 if (missingHex) {
@@ -1380,7 +1389,7 @@ const AiGameplayManager = {
 
         const assignUnit = (unit, preferDistant) => {
             const existingMission = AiGameplayManager.missionAssignments.get(unit.id);
-            if (existingMission && ['OCCUPY_THEN_BUILD', 'URGENT_DEFENSE', 'CONSOLIDATE_FORCES', 'AWAIT_REINFORCEMENTS'].includes(existingMission.type)) {
+            if (existingMission && ['OCCUPY_THEN_BUILD', 'VACATE_CORRIDOR_FOR_ROADWORK', 'URGENT_DEFENSE', 'CONSOLIDATE_FORCES', 'AWAIT_REINFORCEMENTS'].includes(existingMission.type)) {
                 return;
             }
 
@@ -1705,6 +1714,33 @@ const AiGameplayManager = {
                 }
             }
             
+            if (mission.type === 'VACATE_CORRIDOR_FOR_ROADWORK') {
+                const tgt = mission.objective;
+                if (tgt && !getUnitOnHex(tgt.r, tgt.c) && (unit.currentMovement || unit.movement || 0) > 0) {
+                    console.log(`[IA VACATE_CORRIDOR] ${unit.name} despeja corredor hacia (${tgt.r},${tgt.c})`);
+                    await _executeMoveUnit(unit, tgt.r, tgt.c);
+                    AiGameplayManager._trace('unit_decision_result', {
+                        unitId: unit.id,
+                        unitName: unit.name,
+                        missionType: mission.type,
+                        result: 'corridor_vacated',
+                        to: { r: tgt.r, c: tgt.c },
+                        corridorHex: mission.corridorHex || null
+                    });
+                    return;
+                }
+
+                AiGameplayManager._trace('unit_decision_result', {
+                    unitId: unit.id,
+                    unitName: unit.name,
+                    missionType: mission.type,
+                    result: 'corridor_vacate_blocked',
+                    target: tgt ? { r: tgt.r, c: tgt.c } : null,
+                    corridorHex: mission.corridorHex || null
+                });
+                return;
+            }
+
             if (mission.type === 'URGENT_DEFENSE') {
                 const threat = getUnitById(mission.objective.id);
                 const validThreat = threat && threat.currentHealth > 0;
