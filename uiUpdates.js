@@ -1477,7 +1477,16 @@ const UIManager = {
             content += ` • <strong>Neutral</strong>`;
         }
         
-        return content;
+        // LÍNEA INFERIOR: Información de Estabilidad y Nacionalidad
+        let tooltip = `<p>${content}`;
+        if (hexData.owner !== null) {
+            const stability = hexData.estabilidad || 0;
+            const nationality = hexData.nacionalidad?.[hexData.owner] || 0;
+            tooltip += `<br><span style="font-size: 0.9em; color: #aaa;">Est: ${stability}/${MAX_STABILITY} • Nac: ${nationality}/${MAX_NACIONALIDAD}</span>`;
+        }
+        tooltip += '</p>';
+        
+        return tooltip;
     },
     
     showTutorialMessage: function(message) {
