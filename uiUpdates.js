@@ -1187,6 +1187,7 @@ const UIManager = {
         line2.style.display = 'block';
 
         // --- Muestra el panel ---
+        this._domElements.contextualInfoPanel.classList.remove('hex-tooltip-compact');
         this._domElements.contextualInfoPanel.classList.add('visible');
         if (this._reopenBtn) this._reopenBtn.style.display = 'none';
         this._showHexSelectionProgressVisual(unit.r, unit.c, board[unit.r]?.[unit.c]);
@@ -1364,6 +1365,7 @@ const UIManager = {
         line2.style.display = 'block';
 
         // --- Muestra el panel ---
+        this._domElements.contextualInfoPanel.classList.add('hex-tooltip-compact');
         this._domElements.contextualInfoPanel.classList.add('visible');
         if (this._reopenBtn) this._reopenBtn.style.display = 'none';
         this._showHexSelectionProgressVisual(r, c, hexData);
@@ -1458,28 +1460,21 @@ const UIManager = {
         if (!hexData) return 'Datos no disponibles.';
         
         const terrainName = TERRAIN_TYPES[hexData.terrain]?.name || 'Desconocido';
-        let content = `${terrainName} (${r},${c})`;
+        let content = `${terrainName} ${r},${c}`;
 
         if (hexData.owner !== null) {
-            content += ` | <strong>J${hexData.owner}</strong>`;
-            
-            // LÓGICA DE NOMBRE:
-            // 1. Si tiene cityName (ej: "Gadir"), úsalo.
-            // 2. Si no, pero tiene estructura (ej: "Fortaleza"), úsalo.
-            // 3. Si no, nada.
-            if (hexData.cityName) {
-                // Si es capital, le ponemos el icono
-                const prefix = hexData.isCapital ? '👑 ' : (hexData.isCity ? '🏙️ ' : '');
-                // Mostramos: "🏙️ Gadir (Aldea)"
-                const structType = hexData.structure ? ` (${hexData.structure})` : '';
-                content += ` | ${prefix}<strong>${hexData.cityName}</strong>${structType}`;
-            } 
-            else if (hexData.structure) {
-                content += ` | ${hexData.structure}`;
+            content += ` • <strong>J${hexData.owner}</strong>`;
+
+            if (hexData.isCapital) {
+                content += ' • Capital';
+            } else if (hexData.isCity) {
+                content += ' • Ciudad';
+            } else if (hexData.structure) {
+                content += ` • ${hexData.structure}`;
             }
 
         } else {
-            content += ` | <strong>Neutral</strong>`;
+            content += ` • <strong>Neutral</strong>`;
         }
         
         return content;

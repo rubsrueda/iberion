@@ -1699,9 +1699,12 @@ function updateTerritoryMetrics(playerEndingTurn) {
             // Si hay una unidad, y NO es del dueño del hexágono.
             if (unitOnHex && !isBankUnit && hex.owner !== null && unitOnHex.player !== hex.owner) {
                 const originalOwner = hex.owner;
+                const barbarianPlayerId = (typeof BARBARIAN_PLAYER_ID !== 'undefined') ? BARBARIAN_PLAYER_ID : 9;
 
-                // Si la estabilidad es suficiente (umbral de 3), se reduce la nacionalidad.
-                if (hex.estabilidad >= 3) {
+                // Las casillas bárbaras deben poder conquistarse siempre al estar ocupadas,
+                // incluso si su estabilidad quedó por debajo del umbral normal.
+                const canApplyOccupationPressure = (hex.estabilidad >= 3) || (originalOwner === barbarianPlayerId);
+                if (canApplyOccupationPressure) {
                     if (!hex.nacionalidad || typeof hex.nacionalidad !== 'object') {
                         hex.nacionalidad = {};
                     }
