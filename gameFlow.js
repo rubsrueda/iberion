@@ -1285,9 +1285,8 @@ async function simpleAiDeploymentTurn() {
         await initializeIaConfig();
     }
 
-    const useArchipelagoDeployment = gameState.gameMode === 'invasion' || !!gameState.setupTempSettings?.navalMap;
-
-    if (useArchipelagoDeployment && typeof IAArchipielago !== 'undefined' && typeof IAArchipielago.deployUnitsAI === 'function') {
+    // Default: intentar usar IAArchipielago. Fallback a AiDeploymentManager si no disponible.
+    if (typeof IAArchipielago !== 'undefined' && typeof IAArchipielago.deployUnitsAI === 'function') {
         IAArchipielago.deployUnitsAI(aiPlayerNumber);
         setTimeout(() => {
             const aiUnits = units.filter(u => u.player === aiPlayerNumber);
@@ -1334,33 +1333,26 @@ async function simpleAiTurn() {
         await initializeIaConfig();
     }
 
-    // Ahora busca AiGameplayManager en lugar de AiManager.
-    if (typeof AiGameplayManager === 'undefined' || typeof AiGameplayManager.executeTurn !== 'function') {
-        console.error("[simpleAiTurn] AiGameplayManager no está definido. Revisa que ai_gameplayLogic.js esté cargado. Forzando fin de turno.");
-        logMessage("Error crítico: Módulo de IA de juego no disponible. Pasando turno.");
-        // Fallback de emergencia para no bloquear la partida.
-        setTimeout(() => {
-            if (typeof handleEndTurn === 'function') handleEndTurn();
-        }, 500);
-        return;
-    }
-   
-    const useArchipelagoAI = gameState.gameMode === 'invasion' || !!gameState.setupTempSettings?.navalMap;
-    if (useArchipelagoAI && typeof IAArchipielago !== 'undefined' && typeof IAArchipielago.ejecutarTurno === 'function') {
-        logMessage(`IA (Jugador ${aiActualPlayerNumber}) inicia su turno en Archipiélago... (IAArchipielago)`);
+    // Default: intentar usar IAArchipielago primero. Fallback a AiGameplayManager si no disponible.
+    if (typeof IAArchipielago !== 'undefined' && typeof IAArchipielago.ejecutarTurno === 'function') {
+        logMessage(`IA (Jugador ${aiActualPlayerNumber}) inicia su turno... (IAArchipielago)`);
         IAArchipielago.ejecutarTurno(aiActualPlayerNumber);
         return;
     }
-    
-    if (useArchipelagoAI) {
-        console.warn(`[simpleAiTurn] Modo Archipiélago/Invasión detectado pero IAArchipielago NO disponible`);
-        console.warn(`  - IAArchipielago definido: ${typeof IAArchipielago !== 'undefined'}`);
-        console.warn(`  - Método ejecutarTurno disponible: ${typeof IAArchipielago?.ejecutarTurno === 'function'}`);
+
+    // Fallback: usar AiGameplayManager (nueva IA)
+    if (typeof AiGameplayManager !== 'undefined' && typeof AiGameplayManager.executeTurn === 'function') {
+        logMessage(`IA (Jugador ${aiActualPlayerNumber}, Nivel: ${aiLevel}) inicia su turno... (Usando AiGameplayManager)`);
+        await AiGameplayManager.executeTurn(aiActualPlayerNumber, aiLevel);
+        return;
     }
 
-    logMessage(`IA (Jugador ${aiActualPlayerNumber}, Nivel: ${aiLevel}) inicia su turno... (Usando AiGameplayManager)`);
-    // Esperar para capturar errores asíncronos del turno IA.
-    await AiGameplayManager.executeTurn(aiActualPlayerNumber, aiLevel);
+    // Fallback final: error
+    console.error("[simpleAiTurn] Ni IAArchipielago ni AiGameplayManager disponibles.");
+    logMessage("Error crítico: Módulo de IA no disponible. Pasando turno.");
+    setTimeout(() => {
+        if (typeof handleEndTurn === 'function') handleEndTurn();
+    }, 500);
 }
 
 function initializeTutorialState() {
