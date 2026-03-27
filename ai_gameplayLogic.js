@@ -1434,7 +1434,7 @@ const AiGameplayManager = {
         const ownCities = (gameState.cities || []).filter(c => c.owner === playerNumber);
         if (ownCities.length === 0) return [];
 
-        // Nodos de destino: ciudades del mapa + Banca (si existe fuera de cities).
+        // Destino por ciudad origen: la ciudad permitida más cercana.
         const bankCity = AiGameplayManager._getBankCity ? AiGameplayManager._getBankCity() : null;
         const allCities = (gameState.cities || []).slice();
         const bankAlreadyInCities = bankCity && allCities.some(c => c.r === bankCity.r && c.c === bankCity.c);
@@ -1443,36 +1443,67 @@ const AiGameplayManager = {
         const pairs = [];
         const seen = new Set();
 
-        ownCities.forEach(origin => {
-            tradeNodes.forEach(dest => {
-                if (dest.r === origin.r && dest.c === origin.c) return;
+        for (const origin of ownCities) {
+            const candidates = tradeNodes
+                .filter(dest => !(dest.r === origin.r && dest.c === origin.c))
+                .filter(dest => AiGameplayManager._isOrganicTradeDestinationAllowed(playerNumber, dest))
+                .map(dest => {
+                    const rawPath = AiGameplayManager._buildCommercialCorridorPath(playerNumber, origin, dest);
+                    if (!rawPath || rawPath.length < 2) return null;
+                    return {
+                        dest,
+                        rawPath,
+                        dist: hexDistance(origin.r, origin.c, dest.r, dest.c)
+                    };
+                })
+                .filter(Boolean)
+                .sort((a, b) => {
+                    const ownerA = a.dest.owner;
+                    const ownerB = b.dest.owner;
+                    const aBank = Number(ownerA === 0 && !!a.dest.isBank);
+                    const bBank = Number(ownerB === 0 && !!b.dest.isBank);
+                    const aOwn = Number(ownerA === playerNumber);
+                    const bOwn = Number(ownerB === playerNumber);
+                    const aBarb = Number(AiGameplayManager._isBarbarianOwner(ownerA));
+                    const bBarb = Number(AiGameplayManager._isBarbarianOwner(ownerB));
 
-                if (!AiGameplayManager._isOrganicTradeDestinationAllowed(playerNumber, dest)) return;
+                    // Preferencia: propia > bárbara > banca, y luego la más cercana.
+                    const scoreA = (aOwn * 300) + (aBarb * 220) + (aBank * 120) - (a.dist * 10) - a.rawPath.length;
+                    const scoreB = (bOwn * 300) + (bBarb * 220) + (bBank * 120) - (b.dist * 10) - b.rawPath.length;
+                    return scoreB - scoreA;
+                });
 
-                const key = `${origin.r},${origin.c}|${dest.r},${dest.c}`;
-                if (seen.has(key)) return;
-                seen.add(key);
-
-                pairs.push({ key, origin, dest });
-            });
-        });
+            if (candidates.length === 0) continue;
+            const chosen = candidates[0];
+            const key = `${origin.r},${origin.c}|${chosen.dest.r},${chosen.dest.c}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            pairs.push({ key, origin, dest: chosen.dest, rawPath: chosen.rawPath });
+        }
 
         return pairs;
+    },
+
+    _isBarbarianOwner: function(owner) {
+        if (owner === null || owner === undefined) return false;
+        if (typeof BARBARIAN_PLAYER_ID !== 'undefined' && owner === BARBARIAN_PLAYER_ID) return true;
+        return Number(owner) === 9;
     },
 
     _isOrganicTradeDestinationAllowed: function(playerNumber, destinationCity) {
         if (!destinationCity) return false;
         const owner = destinationCity.owner;
 
-        // Libre / neutral / banca siempre permitido.
-        if (owner === null || owner === undefined || owner === 0) return true;
+        // Regla pedida: destino válido = propia, bárbara o Banca.
         if (owner === playerNumber) return true;
+        if (owner === 0) return true; // Banca
+        if (AiGameplayManager._isBarbarianOwner(owner)) return true;
 
-        // Ciudad de otro jugador: respetar bloqueo diplomático si existe.
-        if (typeof isTradeBlockedBetweenPlayers === 'function') {
-            return !isTradeBlockedBetweenPlayers(playerNumber, owner);
-        }
-        return true;
+        // Opcional defensivo: algunos mapas marcan ciudades bárbaras sin owner fijo.
+        if (destinationCity.isBarbarianCity) return true;
+
+        // No abrir rutas orgánicas con otros jugadores aquí.
+        return false;
     },
 
     _findFirstMissingOwnedRoadSegment: function(playerNumber, path) {
@@ -1496,10 +1527,59 @@ const AiGameplayManager = {
         const playerRes = gameState.playerResources[playerNumber];
         if (!playerRes) return;
 
-        for (const { origin, dest } of pairs) {
-            const rawPath = AiGameplayManager._buildCommercialCorridorPath(playerNumber, origin, dest);
+        const claimedTargets = new Set();
+        const assignedUnitIds = new Set();
+        const availableUnits = units
+            .filter(u => u.player === playerNumber && u.currentHealth > 0 && !u.hasMoved)
+            .filter(u => {
+                const mission = AiGameplayManager.missionAssignments.get(u.id);
+                return !mission || ['IA_NODE', 'AXIS_ADVANCE', 'DEFAULT'].includes(mission.type);
+            });
+
+        for (const { origin, dest, rawPath: prebuiltPath } of pairs) {
+            const rawPath = prebuiltPath || AiGameplayManager._buildCommercialCorridorPath(playerNumber, origin, dest);
             if (!rawPath || rawPath.length < 2) continue;
 
+            // PASO 1: ocupar primera casilla no propia del corredor para habilitar futuro camino.
+            const unownedTarget = rawPath
+                .map((p, idx) => ({ ...p, idx }))
+                .find(p => {
+                    const isEndpoint = p.idx === 0 || p.idx === rawPath.length - 1;
+                    if (isEndpoint) return false;
+                    const hex = board[p.r]?.[p.c];
+                    if (!hex || hex.isCity) return false;
+                    if (!AiGameplayManager._canBuildRoadOnHex(hex)) return false;
+                    return hex.owner !== playerNumber;
+                });
+
+            if (unownedTarget) {
+                const targetKey = `${unownedTarget.r},${unownedTarget.c}`;
+                if (!claimedTargets.has(targetKey)) {
+                    const chosenUnit = availableUnits
+                        .slice()
+                        .filter(u => !assignedUnitIds.has(u.id))
+                        .sort((a, b) => hexDistance(a.r, a.c, unownedTarget.r, unownedTarget.c) - hexDistance(b.r, b.c, unownedTarget.r, unownedTarget.c))
+                        .find(u => {
+                            const pathToTarget = AiGameplayManager.findPathToTarget(u, unownedTarget.r, unownedTarget.c);
+                            return !!(pathToTarget && pathToTarget.length > 1);
+                        });
+
+                    if (chosenUnit) {
+                        AiGameplayManager.missionAssignments.set(chosenUnit.id, {
+                            type: 'OCCUPY_THEN_BUILD',
+                            objective: { r: unownedTarget.r, c: unownedTarget.c },
+                            structureType: 'Camino',
+                            nodoRazon: 'ORGANIC_CARAVAN_CORRIDOR'
+                        });
+                        assignedUnitIds.add(chosenUnit.id);
+                        claimedTargets.add(targetKey);
+                        console.log(`[IA ORG PASO1] J${playerNumber}: ${chosenUnit.name} ocupa (${unownedTarget.r},${unownedTarget.c}) para corredor ${origin.name || 'origen'}→${dest.name || 'destino'}`);
+                    }
+                }
+                continue;
+            }
+
+            // PASO 2: corredor ya propio, construir siguiente tramo de Camino faltante.
             const missingRoad = AiGameplayManager._findFirstMissingOwnedRoadSegment(playerNumber, rawPath);
             if (!missingRoad) continue;
 
@@ -1511,7 +1591,7 @@ const AiGameplayManager = {
             const canAfford = Object.keys(cost).every(r => r === 'Colono' || (playerRes[r] || 0) >= (cost[r] || 0));
             if (!canAfford) continue;
 
-            console.log(`[IA ORG CAMINO] J${playerNumber}: Camino en (${missingRoad.r},${missingRoad.c}) para ${origin.name || 'origen'}→${dest.name || 'destino'}`);
+            console.log(`[IA ORG PASO2] J${playerNumber}: Camino en (${missingRoad.r},${missingRoad.c}) para ${origin.name || 'origen'}→${dest.name || 'destino'}`);
             handleConfirmBuildStructure({ playerId: playerNumber, r: missingRoad.r, c: missingRoad.c, structureType: 'Camino' });
         }
     },
@@ -1524,7 +1604,7 @@ const AiGameplayManager = {
             if (!pairKey || existingPairs.has(pairKey)) continue;
 
             if (typeof findInfrastructurePath !== 'function') continue;
-            const infraPath = findInfrastructurePath(origin, dest, { allowForeignInfrastructure: true });
+            const infraPath = findInfrastructurePath(origin, dest, { allowForeignInfrastructure: true, requireRoadCorridor: true });
             if (!infraPath || infraPath.length === 0) continue;
 
             let routed = false;
@@ -1534,7 +1614,7 @@ const AiGameplayManager = {
 
             if (routed) {
                 existingPairs.add(pairKey);
-                console.log(`[IA ORG CARAVANA] J${playerNumber}: caravana ${origin.name || `${origin.r},${origin.c}`}→${dest.name || `${dest.r},${dest.c}`}`);
+                console.log(`[IA ORG PASO3-4] J${playerNumber}: columna->caravana ${origin.name || `${origin.r},${origin.c}`}→${dest.name || `${dest.r},${dest.c}`}`);
             } else {
                 console.log(`[IA ORG CARAVANA] J${playerNumber}: no se pudo crear ruta ${origin.name || `${origin.r},${origin.c}`}→${dest.name || `${dest.r},${dest.c}`}`);
             }

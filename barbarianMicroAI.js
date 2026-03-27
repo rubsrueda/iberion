@@ -21,10 +21,10 @@ const BarbarianMicroAI = {
 
         try {
             // 1. FUSIÓN PRIMERO: consolidar divisiones bárbaras en pocas grandes
-            mergedDivisions = await this._mergeAllBarbarianDivisions();
+            const mergedBeforeActions = await this._mergeAllBarbarianDivisions();
             
             // 2. Crear/reforzar divisiones solo en ciudades que J9 posee AHORA
-            this._ensureMainDivisionPerCity();
+            await this._ensureMainDivisionPerCity();
             reinforced = await this._tryIncreaseCityDefense();
             
             // 3. Caravanas (económico, bajo prioridad)
@@ -37,6 +37,10 @@ const BarbarianMicroAI = {
             if (actionsSpent < this.MAX_TACTICAL_ACTIONS_PER_TURN) {
                 ringActions = await this._tryControlCityRing(this.MAX_TACTICAL_ACTIONS_PER_TURN - actionsSpent);
             }
+
+            // 5. FUSIÓN FINAL: unir divisiones que quedaron adyacentes tras movimientos/creaciones.
+            const mergedAfterActions = await this._mergeAllBarbarianDivisions();
+            mergedDivisions = mergedBeforeActions + mergedAfterActions;
         } catch (err) {
             console.error('[BarbarianMicroAI] Error durante pasada de ronda:', err);
         }
@@ -83,103 +87,94 @@ const BarbarianMicroAI = {
     },
 
     _mergeAllBarbarianDivisions: async function() {
-        // Fusionar TODAS las divisiones bárbaras entre sí para obtener pocas divisiones grandes.
-        // Prioridad: guardianes se fusionan en divisiones normales; divisiones normales se fusionan entre sí.
+        // Fusión por pares cercanos + movimiento de aproximación cuando no hay parejas adyacentes.
         let mergeCount = 0;
 
-        const barbDivisions = units.filter(u =>
-            u.player === this.BARBARIAN_ID &&
-            u.currentHealth > 0 &&
-            !u.tradeRoute &&
-            !u.isGuardian
-        );
+        const liveDivs = () => (units || [])
+            .filter(u =>
+                u.player === this.BARBARIAN_ID &&
+                (u.currentHealth || 0) > 0 &&
+                !u.tradeRoute
+            )
+            .sort((a, b) => (b.regiments?.length || 0) - (a.regiments?.length || 0));
 
-        const guardians = units.filter(u =>
-            u.player === this.BARBARIAN_ID &&
-            u.currentHealth > 0 &&
-            !u.tradeRoute &&
-            u.isGuardian
-        );
+        const canMergeBySize = (a, b) => ((a.regiments?.length || 0) + (b.regiments?.length || 0)) <= MAX_REGIMENTS_PER_DIVISION;
 
-        // 1. Fusionar guardianes en la división normal más cercana
-        for (const guardian of guardians) {
-            if (!getUnitById(guardian.id)) continue;
+        // 1) Fusionar todas las parejas adyacentes posibles (no solo contra un núcleo).
+        let mergedInPass = true;
+        while (mergedInPass) {
+            mergedInPass = false;
+            const snapshot = liveDivs();
+            if (snapshot.length < 2) break;
 
-            const targets = barbDivisions
-                .map(div => ({
-                    unit: div,
-                    dist: hexDistance(guardian.r, guardian.c, div.r, div.c)
-                }))
-                .filter(t => t.dist <= 2)
-                .sort((a, b) => a.dist - b.dist);
+            for (let i = 0; i < snapshot.length; i++) {
+                const a = getUnitById(snapshot[i].id);
+                if (!a) continue;
 
-            if (targets.length === 0) continue;
+                const neighbors = snapshot
+                    .slice(i + 1)
+                    .map(s => getUnitById(s.id))
+                    .filter(Boolean)
+                    .filter(b => hexDistance(a.r, a.c, b.r, b.c) <= 1)
+                    .sort((x, y) => (x.regiments?.length || 0) - (y.regiments?.length || 0));
 
-            const target = targets[0].unit;
-            const targetLive = getUnitById(target.id);
-            const guardianLive = getUnitById(guardian.id);
-            if (!targetLive || !guardianLive) continue;
+                if (neighbors.length === 0) continue;
 
-            const totalRegs = (targetLive.regiments?.length || 0) + (guardianLive.regiments?.length || 0);
-            if (totalRegs > MAX_REGIMENTS_PER_DIVISION) continue;
-
-            if (guardianLive.r !== targetLive.r || guardianLive.c !== targetLive.c) {
-                if (typeof _executeMoveUnit === 'function') {
-                    await _executeMoveUnit(guardianLive, targetLive.r, targetLive.c, true);
+                const b = neighbors[0];
+                if (!canMergeBySize(a, b)) {
+                    console.log(`[BarbarianAI] No fusionan ${a.id}+${b.id}: limite de regimientos.`);
+                    continue;
                 }
-            }
 
-            const targetAfterMove = getUnitById(target.id);
-            const guardianAfterMove = getUnitById(guardian.id);
-            if (!targetAfterMove || !guardianAfterMove) continue;
-            if (targetAfterMove.r !== guardianAfterMove.r || targetAfterMove.c !== guardianAfterMove.c) continue;
-
-            const merged = await mergeUnits(guardianAfterMove, targetAfterMove);
-            if (merged) {
-                mergeCount++;
-                barbDivisions.push(targetAfterMove);
+                const larger = (a.regiments?.length || 0) >= (b.regiments?.length || 0) ? a : b;
+                const smaller = larger === a ? b : a;
+                const merged = await mergeUnits(smaller, larger);
+                if (merged) {
+                    mergeCount++;
+                    mergedInPass = true;
+                    console.log(`[BarbarianAI] Fusion local: ${smaller.id} -> ${larger.id}`);
+                    break;
+                }
             }
         }
 
-        // 2. Fusionar divisiones bárbaras normales entre sí (mantener las más grandes)
-        for (let i = 0; i < barbDivisions.length - 1; i++) {
-            const division1 = getUnitById(barbDivisions[i].id);
-            if (!division1 || !division1.currentHealth || division1.currentHealth <= 0) continue;
+        // 2) Si quedan varias divisiones, acercarlas hacia la mayor que aun pueda absorberlas.
+        const current = liveDivs();
+        if (current.length < 2) return mergeCount;
 
-            for (let j = i + 1; j < barbDivisions.length; j++) {
-                const division2 = getUnitById(barbDivisions[j].id);
-                if (!division2 || !division2.currentHealth || division2.currentHealth <= 0) continue;
+        for (let i = 1; i < current.length; i++) {
+            const source = getUnitById(current[i].id);
+            if (!source || source.hasMoved) continue;
 
-                const dist = hexDistance(division1.r, division1.c, division2.r, division2.c);
-                if (dist > 2) continue;
+            const targets = liveDivs()
+                .filter(t => t.id !== source.id)
+                .filter(t => canMergeBySize(source, t))
+                .sort((a, b) => {
+                    const da = hexDistance(source.r, source.c, a.r, a.c);
+                    const db = hexDistance(source.r, source.c, b.r, b.c);
+                    if (da !== db) return da - db;
+                    return (b.regiments?.length || 0) - (a.regiments?.length || 0);
+                });
 
-                const totalRegs = (division1.regiments?.length || 0) + (division2.regiments?.length || 0);
-                if (totalRegs > MAX_REGIMENTS_PER_DIVISION) continue;
+            if (targets.length === 0) {
+                console.log(`[BarbarianAI] ${source.id} sin objetivo de fusion por limite.`);
+                continue;
+            }
 
-                // Fusionar la más pequeña en la más grande
-                const smaller = (division1.regiments?.length || 0) < (division2.regiments?.length || 0) ? division1 : division2;
-                const larger = smaller === division1 ? division2 : division1;
-                const largerLive = getUnitById(larger.id);
-                const smallerLive = getUnitById(smaller.id);
-                if (!largerLive || !smallerLive) continue;
+            const target = getUnitById(targets[0].id);
+            if (!target) continue;
 
-                if (smallerLive.r !== largerLive.r || smallerLive.c !== largerLive.c) {
-                    if (typeof _executeMoveUnit === 'function') {
-                        await _executeMoveUnit(smallerLive, largerLive.r, largerLive.c, true);
-                    }
-                }
-
-                const largerAfterMove = getUnitById(larger.id);
-                const smallerAfterMove = getUnitById(smaller.id);
-                if (!largerAfterMove || !smallerAfterMove) continue;
-                if (largerAfterMove.r !== smallerAfterMove.r || largerAfterMove.c !== smallerAfterMove.c) continue;
-
-                const merged = await mergeUnits(smallerAfterMove, largerAfterMove);
+            const dist = hexDistance(source.r, source.c, target.r, target.c);
+            if (dist <= 1) {
+                const larger = (target.regiments?.length || 0) >= (source.regiments?.length || 0) ? target : source;
+                const smaller = larger === target ? source : target;
+                const merged = await mergeUnits(smaller, larger);
                 if (merged) {
                     mergeCount++;
-                    barbDivisions.splice(j, 1);
-                    j--;
+                    console.log(`[BarbarianAI] Fusion directa: ${smaller.id} -> ${larger.id}`);
                 }
+            } else {
+                await this._moveOneStepToward(source, target);
             }
         }
 
@@ -218,7 +213,7 @@ const BarbarianMicroAI = {
         }
     },
 
-    _ensureMainDivisionPerCity: function() {
+    _ensureMainDivisionPerCity: async function() {
         const cities = this._getBarbarianCitiesOwned();
         for (const city of cities) {
             const hasMainDivision = units.some(u =>
@@ -250,7 +245,50 @@ const BarbarianMicroAI = {
             if (!unit) continue;
 
             placeFinalizedDivision(unit, deployHex.r, deployHex.c);
+            await this._tryImmediateMergeForUnit(unit);
         }
+    },
+
+    _tryImmediateMergeForUnit: async function(newUnit) {
+        const source = getUnitById(newUnit?.id);
+        if (!source || source.player !== this.BARBARIAN_ID) return false;
+        if ((source.currentHealth || 0) <= 0 || source.tradeRoute) return false;
+
+        const candidates = (units || [])
+            .filter(u =>
+                u.player === this.BARBARIAN_ID &&
+                u.id !== source.id &&
+                (u.currentHealth || 0) > 0 &&
+                !u.tradeRoute &&
+                ((u.regiments?.length || 0) + (source.regiments?.length || 0)) <= MAX_REGIMENTS_PER_DIVISION
+            )
+            .sort((a, b) => {
+                const da = hexDistance(source.r, source.c, a.r, a.c);
+                const db = hexDistance(source.r, source.c, b.r, b.c);
+                if (da !== db) return da - db;
+                return (b.regiments?.length || 0) - (a.regiments?.length || 0);
+            });
+
+        if (candidates.length === 0) return false;
+
+        let target = getUnitById(candidates[0].id);
+        let sourceLive = getUnitById(source.id);
+        if (!target || !sourceLive) return false;
+
+        if (hexDistance(sourceLive.r, sourceLive.c, target.r, target.c) > 1) {
+            if (!sourceLive.hasMoved && (sourceLive.currentMovement || 0) > 0) {
+                await this._moveOneStepToward(sourceLive, target);
+            }
+            sourceLive = getUnitById(source.id);
+            target = getUnitById(target.id);
+            if (!sourceLive || !target) return false;
+        }
+
+        if (hexDistance(sourceLive.r, sourceLive.c, target.r, target.c) > 1) return false;
+
+        const larger = (target.regiments?.length || 0) >= (sourceLive.regiments?.length || 0) ? target : sourceLive;
+        const smaller = larger.id === sourceLive.id ? target : sourceLive;
+        return await mergeUnits(smaller, larger);
     },
 
     _getBarbarianCitiesOwned: function() {
@@ -505,6 +543,7 @@ const BarbarianMicroAI = {
             defender.hasMoved = true;
             defender.hasAttacked = true;
             placeFinalizedDivision(defender, deployHex.r, deployHex.c);
+            await this._tryImmediateMergeForUnit(defender);
             logMessage(`Los Barbaros refuerzan la defensa de ${city.name}.`, 'event');
             return true;
         }
