@@ -123,6 +123,9 @@ const Chronicle = {
 
             case 'ia_decision':
                 return null;
+
+            case 'barbarian_round':
+                return `🏴 Día ${gameState.turnNumber || 1}: ${data.summary}`;
             
             // Podemos añadir muchos más tipos de eventos aquí...
             

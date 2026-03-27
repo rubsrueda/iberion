@@ -2345,6 +2345,10 @@ async function handleEndTurn(isHostProcessing = false) {
                 
                 // Justo aquí, cuando una ronda completa ha terminado, ejecutamos el turno de La Banca.
                 if (typeof BankManager !== 'undefined' && BankManager.executeTurn) BankManager.executeTurn();
+                // Los Barbaros (J9) no suelen estar en el ciclo 1..numPlayers; por eso ejecutamos su micro-IA por ronda.
+                if (typeof BarbarianMicroAI !== 'undefined' && typeof BarbarianMicroAI.executeRoundPass === 'function') {
+                    await BarbarianMicroAI.executeRoundPass();
+                }
                 // --- calculamos los puntos de victoria ---
                 calculateVictoryPoints();
             }

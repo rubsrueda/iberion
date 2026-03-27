@@ -3,7 +3,74 @@
 
 const BarbarianMicroAI = {
     BARBARIAN_ID: (typeof BARBARIAN_PLAYER_ID !== 'undefined') ? BARBARIAN_PLAYER_ID : 9,
-    MAX_TACTICAL_ACTIONS_PER_TURN: 2,
+    MAX_TACTICAL_ACTIONS_PER_TURN: 4,
+
+    executeRoundPass: async function() {
+        if (gameState.currentPhase !== 'play') return;
+
+        this._ensureTrackedBarbarianCities();
+        const startGold = gameState.playerResources?.[this.BARBARIAN_ID]?.oro || 0;
+        const startRecruit = gameState.playerResources?.[this.BARBARIAN_ID]?.puntosReclutamiento || 0;
+        this._collectEconomyByInfrastructure();
+        this._ensureMainDivisionPerCity();
+
+        let caravanCreated = false;
+        let reinforced = false;
+        let recoveredActions = 0;
+        let ringActions = 0;
+
+        try {
+            caravanCreated = await this._tryCreateCaravanFromRoadTouch();
+            reinforced = await this._tryIncreaseCityDefense();
+
+            let actionsSpent = 0;
+            recoveredActions = await this._tryRecoverLostBarbarianCities(this.MAX_TACTICAL_ACTIONS_PER_TURN - actionsSpent);
+            actionsSpent += recoveredActions;
+            if (actionsSpent < this.MAX_TACTICAL_ACTIONS_PER_TURN) {
+                ringActions = await this._tryControlCityRing(this.MAX_TACTICAL_ACTIONS_PER_TURN - actionsSpent);
+            }
+        } catch (err) {
+            console.error('[BarbarianMicroAI] Error durante pasada de ronda:', err);
+        }
+
+        this._logRoundSummary({
+            startGold,
+            startRecruit,
+            caravanCreated,
+            reinforced,
+            recoveredActions,
+            ringActions
+        });
+    },
+
+    _logRoundSummary: function(data) {
+        const endGold = gameState.playerResources?.[this.BARBARIAN_ID]?.oro || 0;
+        const endRecruit = gameState.playerResources?.[this.BARBARIAN_ID]?.puntosReclutamiento || 0;
+        const ownedCities = this._getBarbarianCitiesOwned().length;
+        const lostCities = this._getLostBarbarianCities().length;
+
+        const summary = `[BarbarianAI] Ronda ${gameState.turnNumber || 1} | ciudades=${ownedCities} perdidas=${lostCities} | oro ${data.startGold}->${endGold} | recluta ${data.startRecruit}->${endRecruit} | caravana=${data.caravanCreated ? 1 : 0} refuerzo=${data.reinforced ? 1 : 0} recuperar=${data.recoveredActions} anillo=${data.ringActions}`;
+
+        console.log(summary);
+        if (typeof logMessage === 'function') {
+            logMessage(summary, 'event');
+        }
+        if (typeof Chronicle !== 'undefined' && typeof Chronicle.logEvent === 'function') {
+            Chronicle.logEvent('barbarian_round', {
+                summary,
+                ownedCities,
+                lostCities,
+                startGold: data.startGold,
+                endGold,
+                startRecruit: data.startRecruit,
+                endRecruit,
+                caravanCreated: data.caravanCreated,
+                reinforced: data.reinforced,
+                recoveredActions: data.recoveredActions,
+                ringActions: data.ringActions
+            });
+        }
+    },
 
     executeTurn: async function(playerNumber) {
         if (playerNumber !== this.BARBARIAN_ID) {
@@ -15,23 +82,61 @@ const BarbarianMicroAI = {
             return;
         }
 
-        this._ensureTrackedBarbarianCities();
-
-        try {
-            await this._tryCreateCaravanFromRoadTouch();
-            await this._tryIncreaseCityDefense();
-
-            let actionsSpent = 0;
-            actionsSpent += await this._tryRecoverLostBarbarianCities(this.MAX_TACTICAL_ACTIONS_PER_TURN - actionsSpent);
-
-            if (actionsSpent < this.MAX_TACTICAL_ACTIONS_PER_TURN) {
-                actionsSpent += await this._tryControlCityRing(this.MAX_TACTICAL_ACTIONS_PER_TURN - actionsSpent);
-            }
-        } catch (err) {
-            console.error('[BarbarianMicroAI] Error durante turno:', err);
-        }
+        await this.executeRoundPass();
 
         this._finishTurn(playerNumber);
+    },
+
+    _collectEconomyByInfrastructure: function() {
+        if (typeof collectPlayerResources === 'function') {
+            collectPlayerResources(this.BARBARIAN_ID);
+        }
+
+        if (typeof updateTradeRoutes === 'function') {
+            updateTradeRoutes(this.BARBARIAN_ID);
+        }
+
+        if (typeof calculateTradeIncome === 'function') {
+            const tradeGold = calculateTradeIncome(this.BARBARIAN_ID);
+            if (tradeGold > 0 && gameState.playerResources?.[this.BARBARIAN_ID]) {
+                gameState.playerResources[this.BARBARIAN_ID].oro += tradeGold;
+            }
+        }
+    },
+
+    _ensureMainDivisionPerCity: function() {
+        const cities = this._getBarbarianCitiesOwned();
+        for (const city of cities) {
+            const hasMainDivision = units.some(u =>
+                u.player === this.BARBARIAN_ID &&
+                !u.isGuardian &&
+                u.currentHealth > 0 &&
+                hexDistance(u.r, u.c, city.r, city.c) <= 1
+            );
+
+            if (hasMainDivision) continue;
+
+            const deployHex = this._findFreeDeployHexNearCity(city);
+            if (!deployHex) continue;
+
+            const res = gameState.playerResources?.[this.BARBARIAN_ID];
+            const initialRegTypes = ['Infantería Ligera', 'Arqueros'];
+            const initialCost = initialRegTypes.reduce((sum, t) => sum + (REGIMENT_TYPES[t]?.cost?.oro || 0), 0);
+            if (!res || (res.oro || 0) < initialCost) continue;
+
+            res.oro -= initialCost;
+            const mainDef = {
+                name: `Division Libre de ${city.name}`,
+                regiments: [
+                    { ...REGIMENT_TYPES['Infantería Ligera'], type: 'Infantería Ligera', health: REGIMENT_TYPES['Infantería Ligera'].health },
+                    { ...REGIMENT_TYPES['Arqueros'], type: 'Arqueros', health: REGIMENT_TYPES['Arqueros'].health }
+                ]
+            };
+            const unit = this._createUnitByDefinition(mainDef, deployHex);
+            if (!unit) continue;
+
+            placeFinalizedDivision(unit, deployHex.r, deployHex.c);
+        }
     },
 
     _ensureTrackedBarbarianCities: function() {
@@ -63,10 +168,63 @@ const BarbarianMicroAI = {
         return (units || []).filter(u =>
             u.player === this.BARBARIAN_ID &&
             u.currentHealth > 0 &&
-            !u.isGuardian &&
+            (!u.isGuardian || (u.name || '').startsWith('Division Libre')) &&
             !u.hasMoved &&
             (u.currentMovement || 0) > 0
         );
+    },
+
+    _findMainDivisionNearCity: function(city) {
+        const candidates = units.filter(u =>
+            u.player === this.BARBARIAN_ID &&
+            u.currentHealth > 0 &&
+            !u.tradeRoute &&
+            !u.isGuardian &&
+            hexDistance(u.r, u.c, city.r, city.c) <= 1
+        );
+
+        if (candidates.length === 0) return null;
+
+        candidates.sort((a, b) => (b.regiments?.length || 0) - (a.regiments?.length || 0));
+        return candidates[0];
+    },
+
+    _reinforceMainDivision: function(city) {
+        const res = gameState.playerResources?.[this.BARBARIAN_ID];
+        if (!res) return false;
+
+        const mainDivision = this._findMainDivisionNearCity(city);
+        if (!mainDivision) return false;
+
+        if ((mainDivision.regiments?.length || 0) >= MAX_REGIMENTS_PER_DIVISION) return false;
+
+        const preferredOrder = ['Infantería Pesada', 'Arqueros', 'Infantería Ligera'];
+        const preferredType = preferredOrder.find(t => {
+            const oroCost = REGIMENT_TYPES[t]?.cost?.oro || 0;
+            return !!REGIMENT_TYPES[t] && (res.oro || 0) >= oroCost;
+        });
+        if (!preferredType) return false;
+
+        const oroCost = REGIMENT_TYPES[preferredType]?.cost?.oro || 0;
+        if ((res.oro || 0) < oroCost) return false;
+        res.oro -= oroCost;
+
+        mainDivision.regiments.push({
+            ...REGIMENT_TYPES[preferredType],
+            type: preferredType,
+            health: REGIMENT_TYPES[preferredType].health,
+            id: `r${Date.now()}${Math.floor(Math.random() * 1000)}`
+        });
+
+        calculateRegimentStats(mainDivision);
+        mainDivision.currentHealth = Math.min(mainDivision.maxHealth, (mainDivision.currentHealth || 0) + REGIMENT_TYPES[preferredType].health);
+        mainDivision.currentMovement = Math.max(mainDivision.currentMovement || 0, mainDivision.movement || 0);
+
+        if (typeof UIManager !== 'undefined' && typeof UIManager.updateUnitStrengthDisplay === 'function') {
+            UIManager.updateUnitStrengthDisplay(mainDivision);
+        }
+
+        return true;
     },
 
     _hasRoadTouchingCity: function(city) {
@@ -121,15 +279,12 @@ const BarbarianMicroAI = {
         const res = gameState.playerResources?.[this.BARBARIAN_ID];
         if (!res) return false;
 
-        const hasRecruit = (res.puntosReclutamiento || 0) >= 120;
-        const hasGold = (res.oro || 0) >= 250;
-
-        if (!hasRecruit && !hasGold) {
+        const defenseCost = 250;
+        if ((res.oro || 0) < defenseCost) {
             return false;
         }
 
-        if (hasRecruit) res.puntosReclutamiento -= 120;
-        if (hasGold) res.oro -= 250;
+        res.oro -= defenseCost;
 
         return true;
     },
@@ -138,12 +293,12 @@ const BarbarianMicroAI = {
         const res = gameState.playerResources?.[this.BARBARIAN_ID];
         if (!res) return false;
 
-        if ((res.madera || 0) < 1 || (res.comida || 0) < 1) {
+        const supplyCost = REGIMENT_TYPES['Columna de Suministro']?.cost?.oro || 0;
+        if ((res.oro || 0) < supplyCost) {
             return false;
         }
 
-        res.madera -= 1;
-        res.comida -= 1;
+        res.oro -= supplyCost;
         return true;
     },
 
@@ -151,25 +306,20 @@ const BarbarianMicroAI = {
         const barbCities = this._getBarbarianCitiesOwned();
         if (barbCities.length < 1) return false;
 
-        const activeCaravans = units.filter(u => u.player === this.BARBARIAN_ID && u.tradeRoute).length;
-        if (activeCaravans >= 2) return false;
-
         const originCandidates = barbCities.filter(city => this._hasRoadTouchingCity(city));
         if (originCandidates.length === 0) return false;
 
-        const allCities = (gameState.cities || []).filter(c => c.owner !== null && c.owner !== this.BARBARIAN_ID);
+        const allCities = (gameState.cities || []).filter(c => c.owner !== null);
         if (allCities.length === 0) return false;
 
-        const existingRoutes = new Set(
-            units
-                .filter(u => u.player === this.BARBARIAN_ID && u.tradeRoute?.origin && u.tradeRoute?.destination)
-                .map(u => `${u.tradeRoute.origin.r},${u.tradeRoute.origin.c}|${u.tradeRoute.destination.r},${u.tradeRoute.destination.c}`)
-        );
+        let createdOne = false;
 
         for (const origin of originCandidates) {
             for (const target of allCities) {
-                const routeKey = `${origin.r},${origin.c}|${target.r},${target.c}`;
-                if (existingRoutes.has(routeKey)) continue;
+                if (origin.r === target.r && origin.c === target.c) continue;
+                if (typeof isTradeBlockedBetweenPlayers === 'function' && target.owner !== this.BARBARIAN_ID) {
+                    if (isTradeBlockedBetweenPlayers(this.BARBARIAN_ID, target.owner)) continue;
+                }
 
                 const path = findInfrastructurePath(origin, target, {
                     allowForeignInfrastructure: true,
@@ -182,39 +332,38 @@ const BarbarianMicroAI = {
                 if (!deployHex) continue;
 
                 if (!this._consumeCaravanResources()) {
-                    return false;
+                    return createdOne;
                 }
 
                 const caravanDef = {
                     name: `Caravana Barbarica: ${origin.name} -> ${target.name}`,
                     regiments: [
-                        { ...REGIMENT_TYPES['Columna de Suministro'], type: 'Columna de Suministro', health: REGIMENT_TYPES['Columna de Suministro'].health },
-                        { ...REGIMENT_TYPES['Arqueros a Caballo'], type: 'Arqueros a Caballo', health: REGIMENT_TYPES['Arqueros a Caballo'].health }
+                        { ...REGIMENT_TYPES['Columna de Suministro'], type: 'Columna de Suministro', health: REGIMENT_TYPES['Columna de Suministro'].health }
                     ]
                 };
 
                 const caravan = this._createUnitByDefinition(caravanDef, deployHex);
                 if (!caravan) return false;
 
-                caravan.tradeRoute = {
-                    origin: { r: origin.r, c: origin.c, name: origin.name },
-                    destination: { r: target.r, c: target.c, name: target.name },
-                    path,
-                    position: 0,
-                    goldCarried: 0,
-                    cargoCapacity: caravan.regiments.reduce((sum, reg) => sum + (REGIMENT_TYPES[reg.type]?.goldValueOnDestroy || 0), 0),
-                    forward: true
-                };
-                caravan.hasMoved = true;
-                caravan.hasAttacked = true;
-
                 placeFinalizedDivision(caravan, deployHex.r, deployHex.c);
-                logMessage(`Los Barbaros envian una caravana desde ${origin.name}.`, 'event');
-                return true;
+
+                const established = (typeof _executeEstablishTradeRoute === 'function')
+                    ? _executeEstablishTradeRoute({ unitId: caravan.id, origin, destination: target, path })
+                    : false;
+
+                if (!established) {
+                    if (typeof _executeDisbandUnit === 'function') {
+                        _executeDisbandUnit(caravan);
+                    }
+                    continue;
+                }
+
+                createdOne = true;
+                logMessage(`Los Barbaros envian una caravana desde ${origin.name} hacia ${target.name}.`, 'event');
             }
         }
 
-        return false;
+        return createdOne;
     },
 
     _tryIncreaseCityDefense: async function() {
@@ -222,6 +371,12 @@ const BarbarianMicroAI = {
         if (barbCities.length === 0) return false;
 
         for (const city of barbCities) {
+            // Prioridad: reforzar la división principal de la ciudad con nuevos regimientos.
+            if (this._reinforceMainDivision(city)) {
+                logMessage(`Los Barbaros refuerzan su division en ${city.name}.`, 'event');
+                return true;
+            }
+
             const localDefenders = units.filter(u =>
                 u.player === this.BARBARIAN_ID &&
                 u.currentHealth > 0 &&
@@ -288,7 +443,11 @@ const BarbarianMicroAI = {
 
             if (defendingUnit && defendingUnit.player !== this.BARBARIAN_ID) {
                 if (distance <= 1 && !unit.hasAttacked && typeof isValidAttack === 'function' && isValidAttack(unit, defendingUnit)) {
-                    await RequestAttackUnit(unit, defendingUnit);
+                    if (typeof attackUnit === 'function') {
+                        await attackUnit(unit, defendingUnit);
+                    } else {
+                        await RequestAttackUnit(unit, defendingUnit);
+                    }
                     actionsDone++;
                     continue;
                 }
@@ -300,7 +459,11 @@ const BarbarianMicroAI = {
 
             if (!defendingUnit) {
                 if (distance <= 1 && !getUnitOnHex(targetCity.r, targetCity.c)) {
-                    await RequestMoveUnit(unit, targetCity.r, targetCity.c);
+                    if (typeof _executeMoveUnit === 'function') {
+                        await _executeMoveUnit(unit, targetCity.r, targetCity.c);
+                    } else {
+                        await RequestMoveUnit(unit, targetCity.r, targetCity.c);
+                    }
                     actionsDone++;
                     continue;
                 }
@@ -354,7 +517,11 @@ const BarbarianMicroAI = {
 
             const dist = hexDistance(unit.r, unit.c, objective.r, objective.c);
             if (dist <= 1 && !getUnitOnHex(objective.r, objective.c)) {
-                await RequestMoveUnit(unit, objective.r, objective.c);
+                if (typeof _executeMoveUnit === 'function') {
+                    await _executeMoveUnit(unit, objective.r, objective.c);
+                } else {
+                    await RequestMoveUnit(unit, objective.r, objective.c);
+                }
                 actionsDone++;
                 continue;
             }
@@ -394,7 +561,11 @@ const BarbarianMicroAI = {
         const best = candidates.find(c => hexDistance(c.r, c.c, target.r, target.c) < currentDistance) || candidates[0];
         if (!best) return false;
 
-        await RequestMoveUnit(unit, best.r, best.c);
+        if (typeof _executeMoveUnit === 'function') {
+            await _executeMoveUnit(unit, best.r, best.c);
+        } else {
+            await RequestMoveUnit(unit, best.r, best.c);
+        }
         return true;
     },
 
