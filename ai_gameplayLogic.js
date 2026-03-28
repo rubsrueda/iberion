@@ -149,6 +149,7 @@ const AiGameplayManager = {
 
             // 3. Finalmente, se asignan misiones de expansión (AXIS_ADVANCE)
             //    SOLAMENTE a aquellas unidades que AÚN NO tienen una misión asignada.
+        this._assignDeterministicBootstrapMissions(playerNumber, unitsToAction);
         const unassignedUnits = unitsToAction.filter(u => !this.missionAssignments.has(u.id));
         this.assignUnitsToAxes(playerNumber, unassignedUnits);
         AiGameplayManager._trace('planner_assignments_ready', {
@@ -2531,8 +2532,11 @@ const AiGameplayManager = {
                 } else {
                     // El hex NO es nuestro → ocupar primero
                     console.log(`[IA OCCUPY_THEN_BUILD] ${unit.name} → ocupa (${tgt.r},${tgt.c}) ANTES de construir ${mission.structureType}`);
-                    // Intentar avance relay (fusión con aliado adyacente) antes de mover solo
-                    const relayDone = await this._attemptCorridorRelayAdvance(unit, tgt);
+                    // Intentar avance determinista tipo "gusano" (fusión-split en bucle) antes de mover solo.
+                    const relayDone = await this._executeDeterministicFusionSplitWorm(unit, tgt, {
+                        maxCycles: 4,
+                        missionType: 'OCCUPY_THEN_BUILD'
+                    });
                     if (relayDone) {
                         AiGameplayManager.missionAssignments.set(unit.id, mission);
                         return;
@@ -2609,7 +2613,10 @@ const AiGameplayManager = {
                 const tgt = mission.objective;
 
                 if (mission.nodoTipo === 'corredor_comercial') {
-                    const relayAdvanced = await this._attemptCorridorRelayAdvance(unit, tgt);
+                    const relayAdvanced = await this._executeDeterministicFusionSplitWorm(unit, tgt, {
+                        maxCycles: 4,
+                        missionType: 'IA_NODE'
+                    });
                     if (relayAdvanced) {
                         return;
                     }
@@ -2869,6 +2876,95 @@ const AiGameplayManager = {
         this._checkAndActivateCorridorEconomy(_relayPlayer);
 
         return true;
+    },
+
+    // Bucle determinista de avance tipo gusano:
+    // mover -> fusionar -> dividir -> nueva división vuelve a avanzar.
+    // Ejecuta varios ciclos en el mismo turno hasta llegar al objetivo o agotar ciclos.
+    _executeDeterministicFusionSplitWorm: async function(seedUnit, target, opts = {}) {
+        if (!seedUnit || !target) return false;
+        if (gameState.currentPhase !== 'play') return false;
+
+        const maxCycles = Math.max(1, Number(opts.maxCycles || 4));
+        const missionType = opts.missionType || 'CORRIDOR_WORM';
+        const player = seedUnit.player;
+
+        let progressed = false;
+        let currentUnit = getUnitById(seedUnit.id) || seedUnit;
+
+        for (let cycle = 0; cycle < maxCycles; cycle++) {
+            if (!currentUnit || currentUnit.player !== player || currentUnit.currentHealth <= 0) break;
+
+            const distBefore = hexDistance(currentUnit.r, currentUnit.c, target.r, target.c);
+            if (distBefore <= 0) break;
+
+            const movedThisCycle = await this._attemptCorridorRelayAdvance(currentUnit, target);
+            if (!movedThisCycle) break;
+            progressed = true;
+
+            const candidates = units
+                .filter(u => u.player === player && u.currentHealth > 0 && !u.hasMoved)
+                .sort((a, b) => hexDistance(a.r, a.c, target.r, target.c) - hexDistance(b.r, b.c, target.r, target.c));
+
+            if (!candidates.length) break;
+
+            const bestNext = candidates[0];
+            const distAfter = hexDistance(bestNext.r, bestNext.c, target.r, target.c);
+
+            AiGameplayManager._trace('worm_cycle', {
+                playerNumber: player,
+                cycle: cycle + 1,
+                missionType,
+                unitId: bestNext.id,
+                fromDistance: distBefore,
+                toDistance: distAfter,
+                target: { r: target.r, c: target.c }
+            });
+
+            if (distAfter >= distBefore) break;
+            currentUnit = bestNext;
+        }
+
+        AiGameplayManager._trace('worm_result', {
+            playerNumber: player,
+            missionType,
+            progressed,
+            seedUnitId: seedUnit.id,
+            target: { r: target.r, c: target.c }
+        });
+
+        return progressed;
+    },
+
+    _assignDeterministicBootstrapMissions: function(playerNumber, unitsToAction) {
+        if (!Array.isArray(unitsToAction) || unitsToAction.length === 0) return;
+
+        for (const unit of unitsToAction) {
+            if (!unit || unit.player !== playerNumber) continue;
+            if (this.missionAssignments.has(unit.id)) continue;
+
+            const bootstrap = unit.iaBootstrapObjective;
+            if (!bootstrap || !Number.isInteger(bootstrap.r) || !Number.isInteger(bootstrap.c)) continue;
+
+            this.missionAssignments.set(unit.id, {
+                type: 'IA_NODE',
+                objective: { r: bootstrap.r, c: bootstrap.c },
+                nodoTipo: 'corredor_comercial',
+                axisName: `bootstrap_stage_${bootstrap.stageIndex || 0}`,
+                bootstrapStageLabel: bootstrap.stageLabel || null
+            });
+
+            AiGameplayManager._trace('bootstrap_mission_assigned', {
+                playerNumber,
+                unitId: unit.id,
+                unitName: unit.name,
+                stageIndex: bootstrap.stageIndex || 0,
+                stageLabel: bootstrap.stageLabel || null,
+                objective: { r: bootstrap.r, c: bootstrap.c },
+                fromNode: bootstrap.fromNode || null,
+                toNode: bootstrap.toNode || null
+            });
+        }
     },
 
     _checkAndActivateCorridorEconomy: function(playerNumber) {

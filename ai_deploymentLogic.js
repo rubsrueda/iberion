@@ -20,8 +20,14 @@ const AiDeploymentManager = {
 
             const analysis = this.analyzeEnvironment(playerNumber);
             const strategy = this.determineDeploymentStrategy(analysis);
-            const missionList = this.generateMissionList(strategy, analysis);
+            const missionList = this.generateMissionList(strategy, analysis, playerNumber);
             if (missionList.length === 0) { console.warn("No se generaron misiones. Finalizando despliegue."); console.groupEnd(); return; }
+
+            // En bootstrap determinista no queremos "3 a la vez": 1 división por acción de despliegue.
+            const hasDeterministicBootstrap = missionList.some(m => m?.deterministicBootstrap);
+            if (hasDeterministicBootstrap) {
+                unitsToPlaceCount = Math.min(unitsToPlaceCount, 1);
+            }
 
             let deployedCount = 0;
             let tempOccupiedSpots = new Set();
@@ -61,6 +67,18 @@ const AiDeploymentManager = {
                     playerResources.oro -= unitDefinition.cost;
                 }
                 const newUnitData = this.createUnitObject(unitDefinition, playerNumber, placementSpot);
+                if (mission?.deterministicBootstrap) {
+                    newUnitData.iaBootstrapObjective = {
+                        r: mission.objectiveHex?.r,
+                        c: mission.objectiveHex?.c,
+                        stageIndex: mission.stageIndex,
+                        stageLabel: mission.stageLabel,
+                        fromNode: mission.fromNode,
+                        toNode: mission.toNode
+                    };
+                    this._advanceDeterministicBootstrapStage(playerNumber, mission);
+                    console.log(`[IA DEPLOY][PIPELINE] J${playerNumber} etapa=${mission.stageIndex + 1}/3 ${mission.stageLabel} unidad=${newUnitData.name} regs=${newUnitData.regiments?.length || 0} objetivo=(${mission.objectiveHex?.r},${mission.objectiveHex?.c})`);
+                }
                 placeFinalizedDivision(newUnitData, placementSpot.r, placementSpot.c);
                 
                 // <<== Se asegura que llama a AiGameplayManager ==>>
@@ -148,14 +166,19 @@ const AiDeploymentManager = {
         return 'max_expansion';
     },
 
-    generateMissionList: function(strategy, analysis) {
+    generateMissionList: function(strategy, analysis, playerNumber = null) {
         const { valuableResources, defensivePoints, capital, bankHex, barbarianCities, citySites } = analysis;
         let missionList = [];
         
         // EN DEPLOYMENT: SOLO OCUPAR HACIA BANCA. NADA MAS.
         const isDeploymentPhase = gameState.currentPhase === 'deployment';
         
-        if (isDeploymentPhase && strategy === 'economic_network_bootstrap') {
+        if (isDeploymentPhase && strategy === 'economic_network_bootstrap' && playerNumber != null) {
+            const stagedMissions = this._getDeterministicBootstrapMissions(playerNumber, analysis);
+            if (stagedMissions.length > 0) {
+                return stagedMissions;
+            }
+
             // ÚNICA MISIÓN EN DEPLOYMENT: ocupar casillas de la ruta corta capital->banca
             if (capital && bankHex) {
                 const roadPath = this._computeShortestRoadPath(capital, bankHex);
@@ -269,6 +292,118 @@ const AiDeploymentManager = {
         return missionList;
     },
 
+    _getDeterministicBootstrapMissions: function(playerNumber, analysis) {
+        const stages = this._buildDeterministicBootstrapStages(analysis);
+        if (!stages.length) return [];
+
+        if (!gameState.aiDeterministicBootstrap) gameState.aiDeterministicBootstrap = {};
+        if (!gameState.aiDeterministicBootstrap[playerNumber]) {
+            gameState.aiDeterministicBootstrap[playerNumber] = { stageIndex: 0, completed: [] };
+        }
+
+        const state = gameState.aiDeterministicBootstrap[playerNumber];
+        const stageIndex = Math.max(0, Math.min(state.stageIndex || 0, stages.length - 1));
+        const active = stages[stageIndex];
+
+        console.log(
+            `[IA DEPLOY][PIPELINE] J${playerNumber} stage=${stageIndex + 1}/${stages.length} ` +
+            `${active.label} from=(${active.fromNode.r},${active.fromNode.c}) to=(${active.toNode.r},${active.toNode.c}) ` +
+            `objective=(${active.objectiveHex.r},${active.objectiveHex.c})`
+        );
+
+        return [{
+            type: 'BOOTSTRAP_BANK_CORRIDOR',
+            objectiveHex: active.objectiveHex,
+            priority: 1200,
+            deterministicBootstrap: true,
+            stageIndex,
+            stageLabel: active.label,
+            fromNode: active.fromNode,
+            toNode: active.toNode
+        }];
+    },
+
+    _advanceDeterministicBootstrapStage: function(playerNumber, mission) {
+        if (!mission?.deterministicBootstrap) return;
+        if (!gameState.aiDeterministicBootstrap) gameState.aiDeterministicBootstrap = {};
+        if (!gameState.aiDeterministicBootstrap[playerNumber]) {
+            gameState.aiDeterministicBootstrap[playerNumber] = { stageIndex: 0, completed: [] };
+        }
+
+        const state = gameState.aiDeterministicBootstrap[playerNumber];
+        const completedEntry = {
+            stageIndex: mission.stageIndex,
+            stageLabel: mission.stageLabel,
+            objectiveHex: mission.objectiveHex,
+            turn: gameState.turnNumber
+        };
+        state.completed = Array.isArray(state.completed) ? state.completed : [];
+        state.completed.push(completedEntry);
+
+        const next = Math.max(0, Number(mission.stageIndex || 0) + 1);
+        state.stageIndex = Math.min(next, 2);
+    },
+
+    _buildDeterministicBootstrapStages: function(analysis) {
+        const { capital, bankHex, citySites } = analysis || {};
+        if (!capital || !bankHex) return [];
+
+        const pickObjectiveFromPath = (path, fallback) => {
+            const buildableRoadTerrains = new Set(STRUCTURE_TYPES?.Camino?.buildableOn || ['plains', 'hills']);
+            const interior = (path || [])
+                .slice(1, -1)
+                .filter(p => {
+                    const hex = board[p.r]?.[p.c];
+                    return !!(hex && !hex.isCity && buildableRoadTerrains.has(hex.terrain));
+                });
+            return interior[0] || fallback;
+        };
+
+        const nearestTo = (origin, excluded = new Set()) => {
+            const sites = (citySites || []).filter(s => s && !excluded.has(`${s.r},${s.c}`));
+            if (!sites.length || !origin) return null;
+            return sites.slice().sort((a, b) => hexDistance(origin.r, origin.c, a.r, a.c) - hexDistance(origin.r, origin.c, b.r, b.c))[0];
+        };
+
+        const stages = [];
+
+        const pathPrimary = this._computeShortestRoadPath(capital, bankHex);
+        const objPrimary = pickObjectiveFromPath(pathPrimary, bankHex);
+        stages.push({
+            label: 'PRIMARIO capital->banca',
+            fromNode: { r: capital.r, c: capital.c },
+            toNode: { r: bankHex.r, c: bankHex.c },
+            objectiveHex: { r: objPrimary.r, c: objPrimary.c }
+        });
+
+        const cityX = nearestTo(bankHex);
+        if (!cityX) return stages;
+
+        const pathSecondary = this._computeShortestRoadPath(bankHex, cityX);
+        const objSecondary = pickObjectiveFromPath(pathSecondary, cityX);
+        stages.push({
+            label: 'SECUNDARIO banca->ciudad_libre_X',
+            fromNode: { r: bankHex.r, c: bankHex.c },
+            toNode: { r: cityX.r, c: cityX.c },
+            objectiveHex: { r: objSecondary.r, c: objSecondary.c }
+        });
+
+        const excluded = new Set([`${cityX.r},${cityX.c}`]);
+        const cityY = nearestTo(cityX, excluded);
+        if (!cityY) return stages;
+
+        const pathTertiary = this._computeShortestRoadPath(cityX, cityY);
+        const objTertiary = pickObjectiveFromPath(pathTertiary, cityY);
+        stages.push({
+            label: 'TERCIARIO ciudad_libre_X->ciudad_libre_Y',
+            fromNode: { r: cityX.r, c: cityX.c },
+            toNode: { r: cityY.r, c: cityY.c },
+            objectiveHex: { r: objTertiary.r, c: objTertiary.c }
+        });
+
+        return stages.slice(0, 3);
+    },
+
     /**
      * CREAR UNIDAD DE EMERGENCIA (Pueblo)
      * Cuando no hay oro para unidades normales
@@ -299,10 +434,15 @@ const AiDeploymentManager = {
         let compositionTypes = [], role = 'explorer', name = 'Tropa';
         const isFreeDeployment = gameState.currentPhase === 'deployment';
         if (mission.type === 'BOOTSTRAP_BANK_CORRIDOR') {
-            // Unidad barata y funcional para ocupar hex de corredor desde turno 1.
-            compositionTypes = (isFreeDeployment || playerResources.oro >= ((REGIMENT_TYPES['Infantería Ligera']?.cost?.oro) || 150))
-                ? ['Infantería Ligera']
-                : ['Pueblo'];
+            // División determinista de 2 regimientos para activar bucle fusión-split (gusano).
+            const lightCost = (REGIMENT_TYPES['Infantería Ligera']?.cost?.oro) || 150;
+            if (isFreeDeployment || playerResources.oro >= (lightCost * 2)) {
+                compositionTypes = ['Infantería Ligera', 'Infantería Ligera'];
+            } else if (playerResources.oro >= lightCost) {
+                compositionTypes = ['Infantería Ligera', 'Pueblo'];
+            } else {
+                compositionTypes = ['Pueblo', 'Pueblo'];
+            }
             role = 'builder';
             name = 'Pionero de Corredor';
         }
