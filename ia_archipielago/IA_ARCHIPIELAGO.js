@@ -169,17 +169,23 @@ const IAArchipielago = {
     console.log(`========================================\n`);
 
     const situacion = {
-      amenazas,
-      frente,
-      economia,
-      recursosEnMapa,
-      recursosVulnerables,
-      myPlayer,
-      ciudades,
-      hexesPropios,
-      recursos: recursos,
-      infraestructura: infraestructura
+	  amenazas,
+	  frente,
+	  economia,
+	  recursosEnMapa,
+	  recursosVulnerables,
+	  myPlayer,
+	  ciudades,
+	  hexesPropios,
+	  recursos: recursos,
+	  infraestructura: infraestructura
     };
+
+    // LOG de flujos paralelos
+    console.log(`[IA_ARCHIPIELAGO][FLUJO] --- INICIO FLUJOS PARA JUGADOR ${myPlayer} TURNO ${gameState.turnNumber} ---`);
+    console.log(`[IA_ARCHIPIELAGO][FLUJO] OCUPACIÓN: Unidades y hexágonos propios: ${hexesPropios.length}`);
+    console.log(`[IA_ARCHIPIELAGO][FLUJO] CONSTRUCCIÓN: Infraestructura propia: ${infraestructura.length}`);
+    console.log(`[IA_ARCHIPIELAGO][FLUJO] CARAVANA: Ciudades propias: ${ciudades.length}`);
 
     const snapshotAntesAcciones = this._snapshotTurnActivity(myPlayer);
 
@@ -1357,8 +1363,12 @@ const IAArchipielago = {
     if (typeof isNetworkGame === 'function' && isNetworkGame() && hasNetworkMatch && typeof NetworkManager !== 'undefined' && !NetworkManager.esAnfitrion) {
       if (NetworkManager.enviarDatos) {
         NetworkManager.enviarDatos({ type: 'actionRequest', action });
-        // Registro de ocupación tras movimiento exitoso
-        if (typeof registrarMetaFlujo === 'function') registrarMetaFlujo('ocupacion', r, c);
+        // Log de flujo ocupación
+        console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Unidad ${unit.id} movida a (${r},${c})`);
+        if (typeof registrarMetaFlujo === 'function') {
+          registrarMetaFlujo('ocupacion', r, c);
+          console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Meta registrada en (${r},${c})`);
+        }
         return true;
       }
       return false;
@@ -1366,13 +1376,21 @@ const IAArchipielago = {
 
     if (typeof processActionRequest === 'function') {
       processActionRequest(action);
-      if (typeof registrarMetaFlujo === 'function') registrarMetaFlujo('ocupacion', r, c);
+      console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Unidad ${unit.id} movida a (${r},${c})`);
+      if (typeof registrarMetaFlujo === 'function') {
+        registrarMetaFlujo('ocupacion', r, c);
+        console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Meta registrada en (${r},${c})`);
+      }
       return true;
     }
 
     if (typeof RequestMoveUnit === 'function') {
       RequestMoveUnit(unit, r, c);
-      if (typeof registrarMetaFlujo === 'function') registrarMetaFlujo('ocupacion', r, c);
+      console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Unidad ${unit.id} movida a (${r},${c})`);
+      if (typeof registrarMetaFlujo === 'function') {
+        registrarMetaFlujo('ocupacion', r, c);
+        console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Meta registrada en (${r},${c})`);
+      }
       return true;
     }
 
@@ -1597,12 +1615,20 @@ const IAArchipielago = {
     if (typeof isNetworkGame === 'function' && isNetworkGame()) {
       if (typeof NetworkManager !== 'undefined' && NetworkManager.esAnfitrion && typeof processActionRequest === 'function') {
         processActionRequest(action);
-        if (typeof registrarMetaFlujo === 'function') registrarMetaFlujo('construccion', r, c);
+        console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Intento construir ${structureType} en (${r},${c})`);
+        if (typeof registrarMetaFlujo === 'function') {
+          registrarMetaFlujo('construccion', r, c);
+          console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Meta registrada en (${r},${c})`);
+        }
         return true;
       }
       if (typeof NetworkManager !== 'undefined' && NetworkManager.enviarDatos) {
         NetworkManager.enviarDatos({ type: 'actionRequest', action });
-        if (typeof registrarMetaFlujo === 'function') registrarMetaFlujo('construccion', r, c);
+        console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Intento construir ${structureType} en (${r},${c})`);
+        if (typeof registrarMetaFlujo === 'function') {
+          registrarMetaFlujo('construccion', r, c);
+          console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Meta registrada en (${r},${c})`);
+        }
         return true;
       }
       return false;
@@ -1611,7 +1637,13 @@ const IAArchipielago = {
     if (typeof handleConfirmBuildStructure === 'function') {
       handleConfirmBuildStructure(action.payload);
       const built = board[r]?.[c]?.structure === structureType;
-      if (built && typeof registrarMetaFlujo === 'function') registrarMetaFlujo('construccion', r, c);
+      if (built) {
+        console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Construido ${structureType} en (${r},${c})`);
+        if (typeof registrarMetaFlujo === 'function') {
+          registrarMetaFlujo('construccion', r, c);
+          console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Meta registrada en (${r},${c})`);
+        }
+      }
       if (!built) playerRetryState.keys.add(retryKey);
       return built;
     }
@@ -1659,12 +1691,20 @@ const IAArchipielago = {
     if (typeof isNetworkGame === 'function' && isNetworkGame()) {
       if (typeof NetworkManager !== 'undefined' && NetworkManager.esAnfitrion && typeof processActionRequest === 'function') {
         processActionRequest(action);
-        if (typeof registrarMetaFlujo === 'function') registrarMetaFlujo('caravana', origin.r, origin.c);
+        console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Intento crear ruta comercial de (${origin.r},${origin.c}) a (${destination.r},${destination.c})`);
+        if (typeof registrarMetaFlujo === 'function') {
+          registrarMetaFlujo('caravana', origin.r, origin.c);
+          console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Meta registrada en (${origin.r},${origin.c})`);
+        }
         return true;
       }
       if (typeof NetworkManager !== 'undefined' && NetworkManager.enviarDatos) {
         NetworkManager.enviarDatos({ type: 'actionRequest', action });
-        if (typeof registrarMetaFlujo === 'function') registrarMetaFlujo('caravana', origin.r, origin.c);
+        console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Intento crear ruta comercial de (${origin.r},${origin.c}) a (${destination.r},${destination.c})`);
+        if (typeof registrarMetaFlujo === 'function') {
+          registrarMetaFlujo('caravana', origin.r, origin.c);
+          console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Meta registrada en (${origin.r},${origin.c})`);
+        }
         return true;
       }
       return false;
@@ -1672,7 +1712,11 @@ const IAArchipielago = {
 
     if (typeof _executeEstablishTradeRoute === 'function') {
       _executeEstablishTradeRoute(action.payload);
-      if (typeof registrarMetaFlujo === 'function') registrarMetaFlujo('caravana', origin.r, origin.c);
+      console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Intento crear ruta comercial de (${origin.r},${origin.c}) a (${destination.r},${destination.c})`);
+      if (typeof registrarMetaFlujo === 'function') {
+        registrarMetaFlujo('caravana', origin.r, origin.c);
+        console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Meta registrada en (${origin.r},${origin.c})`);
+      }
       return true;
     }
 
