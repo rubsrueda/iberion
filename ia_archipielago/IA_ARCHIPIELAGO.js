@@ -10,6 +10,9 @@ const IAArchipielago = {
   HUNT_SMALL_DIVISIONS_TARGET: 3,
   BIG_ENEMY_DIVISION_THRESHOLD: 12,
   HEAVY_DIVISION_TARGET: 20,
+  WORM_MIN_SPLIT_REGIMENTS: 10,
+  WORM_MAX_ACTIONS_PER_TURN: 3,
+  CUT_SUPPLY_MAX_TARGETS: 4,
   deployUnitsAI(myPlayer) {
     console.log(`[IA_ARCHIPIELAGO] Despliegue IA iniciado para Jugador ${myPlayer}.`);
     if (gameState.currentPhase !== 'deployment') {
@@ -203,8 +206,11 @@ const IAArchipielago = {
     const hasCrisis = amenazas.length > 0 || frente.length > 0;
     if (!hasCrisis) {
       this._ejecutarRutaLarga(situacion);
+      this._ejecutarGusanoCorredor(situacion, { maxActions: this.WORM_MAX_ACTIONS_PER_TURN });
     } else {
       console.log('[IA_ARCHIPIELAGO] Ruta Larga pausada por crisis tactica.');
+      // Incluso en crisis mantenemos un avance minimo del corredor para no congelar la red.
+      this._ejecutarGusanoCorredor(situacion, { maxActions: 1 });
     }
 
     if (enemyProfile?.mode === 'spread_small') {
@@ -395,11 +401,6 @@ const IAArchipielago = {
   ejecutarDivisionesEstrategicas(myPlayer, misUnidades, hexesPropios, enemyProfile) {
     console.log(`[IA_ARCHIPIELAGO] DIVISIÓN ESTRATÉGICA: ${misUnidades.length} unidades`);
 
-    if (this._isHumanOpponent(myPlayer) && (enemyProfile?.maxRegiments || 0) > 0) {
-      console.log('[IA_ARCHIPIELAGO] DIVISIÓN ESTRATÉGICA: omitida por presencia humana.');
-      return;
-    }
-
     for (const unit of misUnidades) {
       const regimientosActuales = unit.regiments?.length || 0;
 
@@ -442,6 +443,8 @@ const IAArchipielago = {
     const enemyProfile = situacion.enemyProfile;
     const ruins = this._getUnexploredRuins();
     const canExploreRuins = ruins.length > 0 && this._ensureTech(myPlayer, 'RECONNAISSANCE');
+    const supplyCutTargets = this._collectSupplyCutTargets(myPlayer, this.CUT_SUPPLY_MAX_TARGETS);
+    const sabotageTargets = this._collectSabotageTargets(myPlayer);
 
     console.log(`[IA_ARCHIPIELAGO] MOVIMIENTOS TÁCTICOS: ${misUnidades.length} unidades`);
 
@@ -487,21 +490,35 @@ const IAArchipielago = {
           console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Objetivo defensivo en (${objetivo.r},${objetivo.c})`);
         }
       }
-      // PRIORIDAD 3: Atacar recurso vulnerable
+      // PRIORIDAD 3: Cortar suministro enemigo
+      else if (supplyCutTargets.length > 0) {
+        if (!objetivo) objetivo = this._pickObjective(supplyCutTargets, unit, myPlayer);
+        if (objetivo) {
+          console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Cortando suministro en (${objetivo.r},${objetivo.c})`);
+        }
+      }
+      // PRIORIDAD 4: Sabotaje de progreso enemigo (caravanas/exploradores/rutas)
+      else if (sabotageTargets.length > 0) {
+        if (!objetivo) objetivo = this._pickObjective(sabotageTargets, unit, myPlayer);
+        if (objetivo) {
+          console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Sabotaje en (${objetivo.r},${objetivo.c})`);
+        }
+      }
+      // PRIORIDAD 5: Atacar recurso vulnerable
       else if (situacion.recursosVulnerables.length > 0) {
         if (!objetivo) objetivo = this._pickObjective(situacion.recursosVulnerables, unit, myPlayer);
         if (objetivo) {
           console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Objetivo ofensivo (recurso vulnerable) en (${objetivo.r},${objetivo.c})`);
         }
       }
-      // PRIORIDAD 4: Expandir hacia recursos propios descubiertos
+      // PRIORIDAD 6: Expandir hacia recursos propios descubiertos
       else if (recursosEnHexes.length > 0) {
         if (!objetivo) objetivo = this._pickObjective(recursosEnHexes, unit, myPlayer);
         if (objetivo) {
           console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Objetivo exploratorio en (${objetivo.r},${objetivo.c})`);
         }
       }
-      // PRIORIDAD 5: Presión directa al enemigo
+      // PRIORIDAD 7: Presión directa al enemigo
       else if (unidadesEnemigas.length > 0) {
         objetivo = this._pickObjective(unidadesEnemigas, unit, myPlayer);
         if (objetivo) {
@@ -1844,6 +1861,151 @@ const IAArchipielago = {
     });
   },
 
+  _splitUnitTowardsObjective(unit, objective) {
+    if (!unit || !objective) return false;
+    const regimientosActuales = unit.regiments?.length || 0;
+    if (regimientosActuales < this.WORM_MIN_SPLIT_REGIMENTS) return false;
+
+    const splitCandidates = getHexNeighbors(unit.r, unit.c)
+      .filter(n => {
+        const hex = board[n.r]?.[n.c];
+        if (!hex || hex.terrain === 'water' || hex.unit) return false;
+        return this._isTerrainPassableForUnit(unit, hex.terrain);
+      })
+      .sort((a, b) => hexDistance(a.r, a.c, objective.r, objective.c) - hexDistance(b.r, b.c, objective.r, objective.c));
+
+    const splitHex = splitCandidates[0];
+    if (!splitHex) return false;
+
+    const mitad = Math.ceil(regimientosActuales / 2);
+    gameState.preparingAction = {
+      type: 'split_unit',
+      unitId: unit.id,
+      newUnitRegiments: unit.regiments.slice(0, mitad),
+      remainingOriginalRegiments: unit.regiments.slice(mitad)
+    };
+
+    return this._requestSplitUnit(unit, splitHex.r, splitHex.c);
+  },
+
+  _getTopCorridorObjectives(myPlayer, maxObjectives = 3) {
+    const roadPlan = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
+    if (!roadPlan.connections?.length) return [];
+
+    const candidates = roadPlan.connections
+      .map(conn => {
+        const pending = conn.pendingCaptureSegments?.[0] || null;
+        const missing = conn.missingOwnedSegments?.[0] || null;
+        const objective = pending || missing || null;
+        if (!objective) return null;
+        return {
+          objective,
+          score: (pending ? 0 : 10) + (conn.landPath?.length || 0),
+          from: conn.from,
+          to: conn.to
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.score - b.score)
+      .slice(0, maxObjectives);
+
+    return candidates;
+  },
+
+  _ejecutarGusanoCorredor(situacion, opts = {}) {
+    const { myPlayer } = situacion;
+    const maxActions = Math.max(1, Number(opts.maxActions || this.WORM_MAX_ACTIONS_PER_TURN));
+    const corridorObjectives = this._getTopCorridorObjectives(myPlayer, maxActions);
+    if (!corridorObjectives.length) return 0;
+
+    let actions = 0;
+    for (const node of corridorObjectives) {
+      if (actions >= maxActions) break;
+      const objective = node.objective;
+      const myUnits = IASentidos.getUnits(myPlayer)
+        .filter(u => this._isLandUnit(u))
+        .filter(u => (u.currentMovement || 0) > 0)
+        .filter(u => !u.iaExpeditionTarget)
+        .sort((a, b) => hexDistance(a.r, a.c, objective.r, objective.c) - hexDistance(b.r, b.c, objective.r, objective.c));
+
+      if (!myUnits.length) break;
+
+      let acted = false;
+      const splitCandidate = myUnits.find(u => (u.regiments?.length || 0) >= this.WORM_MIN_SPLIT_REGIMENTS);
+      if (splitCandidate && this._splitUnitTowardsObjective(splitCandidate, objective)) {
+        console.log(`[IA_ARCHIPIELAGO] [Gusano] Split corredor hacia (${objective.r},${objective.c}) para ${node.from?.name} -> ${node.to?.name}`);
+        actions += 1;
+        acted = true;
+      }
+
+      if (actions >= maxActions) break;
+
+      if (!acted) {
+        const mover = myUnits.find(u => this._findPathForUnit(u, objective.r, objective.c));
+        if (mover && this._requestMoveOrAttack(mover, objective.r, objective.c)) {
+          console.log(`[IA_ARCHIPIELAGO] [Gusano] Avance corredor hacia (${objective.r},${objective.c}) para ${node.from?.name} -> ${node.to?.name}`);
+          actions += 1;
+        }
+      }
+    }
+
+    return actions;
+  },
+
+  _collectSupplyCutTargets(myPlayer, limit = null) {
+    const enemyPlayer = this._getEnemyPlayerId(myPlayer);
+    if (enemyPlayer == null || typeof getSupplyPath !== 'function') return [];
+
+    const enemyUnits = IASentidos.getUnits(enemyPlayer) || [];
+    const scoreByHex = new Map();
+
+    for (const unit of enemyUnits) {
+      const path = getSupplyPath(unit.r, unit.c, enemyPlayer);
+      if (!Array.isArray(path) || path.length < 3) continue;
+
+      const middlePath = path.slice(1, -1);
+      const take = Math.min(2, middlePath.length);
+      for (let i = 0; i < take; i++) {
+        const step = middlePath[i];
+        const key = `${step.r},${step.c}`;
+        const hex = board[step.r]?.[step.c];
+        if (!hex) continue;
+        const base = hex.structure === 'Camino' ? 4 : 2;
+        scoreByHex.set(key, (scoreByHex.get(key) || 0) + base);
+      }
+    }
+
+    const roadNodes = board.flat().filter(h => h && h.owner === enemyPlayer && h.structure === 'Camino');
+    for (const road of roadNodes) {
+      const key = `${road.r},${road.c}`;
+      scoreByHex.set(key, (scoreByHex.get(key) || 0) + 1);
+    }
+
+    const effectiveLimit = Math.max(1, Number(limit || this.CUT_SUPPLY_MAX_TARGETS));
+    return Array.from(scoreByHex.entries())
+      .map(([key, score]) => {
+        const [r, c] = key.split(',').map(Number);
+        return { r, c, score };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, effectiveLimit);
+  },
+
+  _collectSabotageTargets(myPlayer) {
+    const enemyPlayer = this._getEnemyPlayerId(myPlayer);
+    if (enemyPlayer == null) return [];
+
+    const enemyUnits = IASentidos.getUnits(enemyPlayer) || [];
+    const caravans = enemyUnits.filter(u => !!u.tradeRoute).map(u => ({ r: u.r, c: u.c, score: 9 }));
+    const explorers = enemyUnits
+      .filter(u => u.regiments?.some(r => r.type === 'Explorador'))
+      .map(u => ({ r: u.r, c: u.c, score: 6 }));
+    const supplyCuts = this._collectSupplyCutTargets(myPlayer, 3).map(t => ({ ...t, score: (t.score || 0) + 5 }));
+
+    return caravans.concat(explorers).concat(supplyCuts)
+      .sort((a, b) => (b.score || 0) - (a.score || 0));
+  },
+
   _snapshotTurnActivity(myPlayer) {
     const snapshot = new Map();
     const myUnits = IASentidos.getUnits(myPlayer);
@@ -2349,6 +2511,139 @@ const IAArchipielago = {
     return { action: 'presion_militar', executed: true, note: reason };
   },
 
+  _ejecutarRutaSabotaje(situacion) {
+    const { myPlayer } = situacion;
+    const targets = this._collectSabotageTargets(myPlayer);
+    if (!targets.length) {
+      return { action: 'sabotaje', executed: false, reason: 'sin_objetivos' };
+    }
+
+    const raiders = IASentidos.getUnits(myPlayer)
+      .filter(u => this._isLandUnit(u))
+      .filter(u => (u.currentMovement || 0) > 0)
+      .sort((a, b) => (a.regiments?.length || 0) - (b.regiments?.length || 0));
+
+    const unit = raiders[0] || this._findClosestUnitToTarget(myPlayer, targets[0]);
+    if (!unit) {
+      return { action: 'sabotaje', executed: false, reason: 'sin_unidades' };
+    }
+
+    const objective = this._pickObjective(targets, unit, myPlayer);
+    if (!objective) {
+      return { action: 'sabotaje', executed: false, reason: 'objetivo_invalido' };
+    }
+
+    return this._requestMoveOrAttack(unit, objective.r, objective.c)
+      ? { action: 'sabotaje', executed: true, note: `${objective.r},${objective.c}` }
+      : { action: 'sabotaje', executed: false, reason: 'sin_movimiento' };
+  },
+
+  _ejecutarRutaCortarSuministro(situacion) {
+    const { myPlayer } = situacion;
+    const targets = this._collectSupplyCutTargets(myPlayer, this.CUT_SUPPLY_MAX_TARGETS);
+    if (!targets.length) {
+      return { action: 'cortar_suministro', executed: false, reason: 'sin_objetivos' };
+    }
+
+    const attacker = this._findClosestUnitToTarget(myPlayer, targets[0]);
+    if (!attacker) {
+      return { action: 'cortar_suministro', executed: false, reason: 'sin_unidades' };
+    }
+
+    const objective = this._pickObjective(targets, attacker, myPlayer);
+    if (!objective) {
+      return { action: 'cortar_suministro', executed: false, reason: 'objetivo_invalido' };
+    }
+
+    return this._requestMoveOrAttack(attacker, objective.r, objective.c)
+      ? { action: 'cortar_suministro', executed: true, note: `${objective.r},${objective.c}` }
+      : { action: 'cortar_suministro', executed: false, reason: 'sin_movimiento' };
+  },
+
+  _ejecutarRutaDominarCasillas(situacion) {
+    const { myPlayer } = situacion;
+    const enemyPlayers = this._getEnemyPlayerIds(myPlayer);
+    const frontier = [];
+
+    for (const row of board) {
+      for (const hex of row) {
+        if (!hex || hex.owner === myPlayer || hex.terrain === 'water') continue;
+        if (!enemyPlayers.includes(hex.owner) && hex.owner !== null) continue;
+        const nearOwn = getHexNeighbors(hex.r, hex.c).some(n => board[n.r]?.[n.c]?.owner === myPlayer);
+        if (nearOwn) frontier.push({ r: hex.r, c: hex.c });
+      }
+    }
+
+    if (!frontier.length) {
+      return { action: 'dominar_casillas', executed: false, reason: 'sin_frontera' };
+    }
+
+    const unit = this._findClosestUnitToTarget(myPlayer, frontier[0]);
+    if (!unit) {
+      return { action: 'dominar_casillas', executed: false, reason: 'sin_unidades' };
+    }
+
+    const objective = this._pickObjective(frontier, unit, myPlayer);
+    if (!objective) {
+      return { action: 'dominar_casillas', executed: false, reason: 'objetivo_invalido' };
+    }
+
+    return this._requestMoveOrAttack(unit, objective.r, objective.c)
+      ? { action: 'dominar_casillas', executed: true, note: `${objective.r},${objective.c}` }
+      : { action: 'dominar_casillas', executed: false, reason: 'sin_movimiento' };
+  },
+
+  _ejecutarRutaFrenteHumano(situacion) {
+    const { myPlayer, ciudades } = situacion;
+    const enemyUnits = IASentidos.getEnemyUnits(myPlayer);
+    const threats = enemyUnits.filter(e => (ciudades || []).some(c => hexDistance(e.r, e.c, c.r, c.c) <= 4));
+
+    if (threats.length) {
+      const target = threats.sort((a, b) => (a.regiments?.length || 0) - (b.regiments?.length || 0))[0];
+      const defender = this._findClosestUnitToTarget(myPlayer, target);
+      if (defender && this._requestMoveOrAttack(defender, target.r, target.c)) {
+        return { action: 'frente_humano', executed: true, note: 'intercepcion' };
+      }
+    }
+
+    const enemyCity = this._findNearestCityTarget(myPlayer);
+    if (!enemyCity) {
+      return { action: 'frente_humano', executed: false, reason: 'sin_objetivos' };
+    }
+
+    const attacker = this._findClosestUnitToTarget(myPlayer, enemyCity);
+    if (!attacker) {
+      return { action: 'frente_humano', executed: false, reason: 'sin_unidades' };
+    }
+
+    return this._requestMoveOrAttack(attacker, enemyCity.r, enemyCity.c)
+      ? { action: 'frente_humano', executed: true, note: 'presion_ciudad' }
+      : { action: 'frente_humano', executed: false, reason: 'sin_movimiento' };
+  },
+
+  _ejecutarRutaCazaEnvolvente(situacion) {
+    const { myPlayer } = situacion;
+    const enemyUnits = IASentidos.getEnemyUnits(myPlayer)
+      .filter(u => (u.regiments?.length || 0) <= Math.max(6, this.BIG_ENEMY_DIVISION_THRESHOLD))
+      .sort((a, b) => (a.regiments?.length || 0) - (b.regiments?.length || 0));
+
+    if (!enemyUnits.length) {
+      return { action: 'caza_envolvente', executed: false, reason: 'sin_enemigos' };
+    }
+
+    const target = enemyUnits[0];
+    const attackers = IASentidos.getUnits(myPlayer)
+      .filter(u => this._isLandUnit(u))
+      .filter(u => hexDistance(u.r, u.c, target.r, target.c) <= 6);
+
+    if (!attackers.length) {
+      return { action: 'caza_envolvente', executed: false, reason: 'sin_unidades' };
+    }
+
+    this._ejecutarEnvolvimiento(myPlayer, attackers, target);
+    return { action: 'caza_envolvente', executed: true, note: `${target.r},${target.c}` };
+  },
+
   _crearUnidadNaval(myPlayer, unitType) {
     if (!REGIMENT_TYPES?.[unitType]) return null;
     if (typeof AiGameplayManager === 'undefined' || !AiGameplayManager.createUnitObject) return null;
@@ -2480,6 +2775,52 @@ const IAArchipielago = {
     pushTitleRoute('ruta_conquistador_barbaro', 'Conquistador Barbaro', 'barbaraCities', 'mostBarbaraCities');
     pushTitleRoute('ruta_almirante_supremo', 'Almirante Supremo', 'navalVictories', 'mostNavalVictories');
 
+    const enemyCities = (gameState.cities || []).filter(c => c.owner != null && c.owner === enemyPlayer);
+    const enemyThreatOnOurCities = (IASentidos.getEnemyUnits(myPlayer) || []).filter(e => ciudades.some(c => hexDistance(e.r, e.c, c.r, c.c) <= 4)).length;
+    const supplyCuts = this._collectSupplyCutTargets(myPlayer, this.CUT_SUPPLY_MAX_TARGETS).length;
+    const sabotageTargets = this._collectSabotageTargets(myPlayer).length;
+    const territoryDelta = (enemyMetrics.territoryHexes || 0) - (myMetrics.territoryHexes || 0);
+
+    rutas.push({
+      id: 'ruta_sabotaje',
+      label: 'Sabotaje al Humano',
+      weight: 165 + (sabotageTargets * 25),
+      canExecute: sabotageTargets > 0,
+      meta: { sabotageTargets }
+    });
+
+    rutas.push({
+      id: 'ruta_cortar_suministro',
+      label: 'Cortar Suministro',
+      weight: 170 + (supplyCuts * 30),
+      canExecute: supplyCuts > 0,
+      meta: { supplyCuts }
+    });
+
+    rutas.push({
+      id: 'ruta_dominar_casillas',
+      label: 'Dominar Casillas',
+      weight: 150 + Math.max(0, territoryDelta) * 2,
+      canExecute: true,
+      meta: { territoryDelta }
+    });
+
+    rutas.push({
+      id: 'ruta_frente_humano',
+      label: 'Gestionar Frente Humano',
+      weight: 175 + (enemyThreatOnOurCities * 18),
+      canExecute: enemyThreatOnOurCities > 0 || enemyCities.length > 0,
+      meta: { enemyThreatOnOurCities, enemyCities: enemyCities.length }
+    });
+
+    rutas.push({
+      id: 'ruta_caza_envolvente',
+      label: 'Envolver y Cazar',
+      weight: 160 + (enemyMetrics.unitCount || 0) * 6,
+      canExecute: (enemyMetrics.unitCount || 0) > 0,
+      meta: { enemyUnits: enemyMetrics.unitCount || 0 }
+    });
+
     rutas.sort((a, b) => b.weight - a.weight);
     return rutas;
   },
@@ -2546,6 +2887,7 @@ const IAArchipielago = {
       routesCount: playerUnits.filter(u => u.tradeRoute).length,
       wealthSum: (res.oro || 0) + (res.hierro || 0) + (res.piedra || 0) + (res.madera || 0) + (res.comida || 0),
       cities: board.flat().filter(h => h && h.owner === playerNumber && (h.isCity || h.structure === 'Aldea')).length,
+      territoryHexes: board.flat().filter(h => h && h.owner === playerNumber).length,
       armySize: playerUnits.reduce((sum, u) => sum + (u.maxHealth || 0), 0),
       kills: gameState.playerStats?.unitsDestroyed?.[pKey] || 0,
       techs: (res.researchedTechnologies || []).length,
@@ -2647,6 +2989,16 @@ const IAArchipielago = {
         return this._ejecutarRutaConquistadorBarbaro(situacion);
       case 'ruta_almirante_supremo':
         return this._ejecutarRutaAlmiranteSupremo(situacion);
+      case 'ruta_sabotaje':
+        return this._ejecutarRutaSabotaje(situacion);
+      case 'ruta_cortar_suministro':
+        return this._ejecutarRutaCortarSuministro(situacion);
+      case 'ruta_dominar_casillas':
+        return this._ejecutarRutaDominarCasillas(situacion);
+      case 'ruta_frente_humano':
+        return this._ejecutarRutaFrenteHumano(situacion);
+      case 'ruta_caza_envolvente':
+        return this._ejecutarRutaCazaEnvolvente(situacion);
       default:
         return { action: 'sin_accion_directa', executed: false, reason: 'sin_handler_ruta' };
     }
