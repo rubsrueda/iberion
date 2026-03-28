@@ -104,12 +104,22 @@ const IAArchipielago = {
     console.log(`[IA_ARCHIPIELAGO] Recopilando objetivos propios...`);
     // --- SISTEMA DE METAS CUMPLIDAS ---
     if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
-    if (!gameState.iaCompletedGoals[myPlayer]) gameState.iaCompletedGoals[myPlayer] = [];
+    if (!gameState.iaCompletedGoals[myPlayer]) gameState.iaCompletedGoals[myPlayer] = { ocupacion: [], construccion: [], caravana: [] };
     const completedGoals = gameState.iaCompletedGoals[myPlayer];
 
-    // Helper para identificar objetivos únicos
-    function isGoalCompleted(tipo, r, c) {
-      return completedGoals.some(g => g.tipo === tipo && g.r === r && g.c === c);
+    // --- SISTEMA DE FLUJOS INDEPENDIENTES ---
+    // Registrar meta cumplida por flujo
+    function registrarMetaFlujo(flujo, r, c) {
+      if (!completedGoals[flujo]) completedGoals[flujo] = [];
+      if (!completedGoals[flujo].some(g => g.r === r && g.c === c)) {
+        completedGoals[flujo].push({ r, c, turno: gameState.turnNumber });
+        console.log(`[IA_ARCHIPIELAGO] Meta registrada en flujo '${flujo}': (${r},${c})`);
+      }
+    }
+
+    // Helper para saber si una meta está cumplida en un flujo
+    function isGoalCompletedFlujo(flujo, r, c) {
+      return completedGoals[flujo] && completedGoals[flujo].some(g => g.r === r && g.c === c);
     }
 
     const ciudades = IASentidos.getCities(myPlayer).filter(c => !isGoalCompleted('ciudad', c.r, c.c));
@@ -126,16 +136,9 @@ const IAArchipielago = {
     const objetivos = ciudades.concat(recursos).concat(infraestructura);
     console.log(`[IA_ARCHIPIELAGO][RESUMEN] Metas disponibles: ${ciudades.length + recursos.length + infraestructura.length}, Metas cumplidas (filtradas): ${totalFiltradas}, Total históricas: ${totalMetas}`);
   // --- REGISTRO DE META CUMPLIDA ---
-  // Llamar esto cuando la IA complete una meta relevante
-  registrarMetaCumplida(myPlayer, tipo, r, c) {
-    if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
-    if (!gameState.iaCompletedGoals[myPlayer]) gameState.iaCompletedGoals[myPlayer] = [];
-    // Evitar duplicados
-    if (!gameState.iaCompletedGoals[myPlayer].some(g => g.tipo === tipo && g.r === r && g.c === c)) {
-      gameState.iaCompletedGoals[myPlayer].push({ tipo, r, c, turno: gameState.turnNumber });
-      console.log(`[IA_ARCHIPIELAGO] Meta registrada como cumplida: tipo=${tipo} (${r},${c})`);
-    }
-  },
+  // Llamar esto cuando la IA complete una sub-fase de meta
+  registrarMetaProgreso,
+  isMetaTotalmenteCumplida,
 
     console.log(`\n[IA_ARCHIPIELAGO] Analizando situación táctica...`);
     const amenazas = (typeof IATactica !== 'undefined') ? IATactica.detectarAmenazasSobreObjetivos(myPlayer, objetivos, 3) : [];
