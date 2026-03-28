@@ -268,11 +268,13 @@ const AiDeploymentManager = {
             }
 
             // Fase 1 pedida por usuario: tras crear división, intentar avance inmediato en despliegue.
-            const moveResult = await this._attemptBootstrapMoveInDeployment(newUnitData, mission.objectiveHex);
+            const moveTarget = mission.toNode || mission.objectiveHex;
+            const moveResult = await this._attemptBootstrapMoveInDeployment(newUnitData, moveTarget);
             if (moveResult) {
                 console.log(
                     `[IA DEPLOY][PIPELINE][MOVE_VALIDATE] J${playerNumber} etapa=${(mission.stageIndex || 0) + 1}/3 ` +
-                    `status=${moveResult.status} distBefore=${moveResult.distBefore} distAfter=${moveResult.distAfter}`
+                    `status=${moveResult.status} distBefore=${moveResult.distBefore} distAfter=${moveResult.distAfter} ` +
+                    `target=(${moveTarget.r},${moveTarget.c})`
                 );
                 if (moveResult.status === 'MOVED' && moveResult.distAfter >= moveResult.distBefore) {
                     console.warn(`[IA DEPLOY][PIPELINE][MOVE_VALIDATE] J${playerNumber} etapa=${(mission.stageIndex || 0) + 1} movimiento sin progreso real.`);
@@ -519,7 +521,7 @@ const AiDeploymentManager = {
     },
 
     _getDeterministicBootstrapMissions: function(playerNumber, analysis) {
-        const stages = this._buildDeterministicBootstrapStages(analysis);
+        const stages = this._buildDeterministicBootstrapStages(analysis, playerNumber);
         if (!stages.length) return [];
 
         if (!gameState.aiDeterministicBootstrap) gameState.aiDeterministicBootstrap = {};
@@ -604,7 +606,7 @@ const AiDeploymentManager = {
         console.log(`[IA DEPLOY][PIPELINE] J${playerNumber} etapa=${Number(mission.stageIndex || 0) + 1}/3 completada en despliegue. Siguiente etapa=${state.stageIndex + 1}`);
     },
 
-    _buildDeterministicBootstrapStages: function(analysis) {
+    _buildDeterministicBootstrapStages: function(analysis, playerNumber = null) {
         const { capital, bankHex, citySites } = analysis || {};
         if (!capital || !bankHex) return [];
 
@@ -636,10 +638,19 @@ const AiDeploymentManager = {
             return pickDeployableNear(fallbackNode);
         };
 
+        const freeCityNodes = (gameState.cities || [])
+            .filter(c => c && Number.isInteger(c.r) && Number.isInteger(c.c))
+            .filter(c => c.owner === null || c.owner === undefined || c.owner === 0)
+            .filter(c => !c.isBank && !c.isCapital)
+            .filter(c => playerNumber == null || c.owner !== playerNumber)
+            .map(c => ({ r: c.r, c: c.c, owner: c.owner, name: c.name || null }));
+
         const nearestTo = (origin, excluded = new Set()) => {
-            const sites = (citySites || []).filter(s => s && !excluded.has(`${s.r},${s.c}`));
-            if (!sites.length || !origin) return null;
-            return sites.slice().sort((a, b) => hexDistance(origin.r, origin.c, a.r, a.c) - hexDistance(origin.r, origin.c, b.r, b.c))[0];
+            const freeCities = freeCityNodes.filter(s => s && !excluded.has(`${s.r},${s.c}`));
+            const fallbackSites = (citySites || []).filter(s => s && !excluded.has(`${s.r},${s.c}`));
+            const pool = freeCities.length > 0 ? freeCities : fallbackSites;
+            if (!pool.length || !origin) return null;
+            return pool.slice().sort((a, b) => hexDistance(origin.r, origin.c, a.r, a.c) - hexDistance(origin.r, origin.c, b.r, b.c))[0];
         };
 
         const stages = [];
@@ -677,6 +688,11 @@ const AiDeploymentManager = {
             toNode: { r: cityY.r, c: cityY.c },
             objectiveHex: { r: objTertiary.r, c: objTertiary.c }
         });
+
+        console.log(
+            `[IA DEPLOY][PIPELINE][CITY_PICK] J${playerNumber ?? 'N/A'} X=(${cityX.r},${cityX.c}) owner=${cityX.owner ?? 'null'} ` +
+            `Y=(${cityY.r},${cityY.c}) owner=${cityY.owner ?? 'null'}`
+        );
 
         return stages.slice(0, 3);
     },
