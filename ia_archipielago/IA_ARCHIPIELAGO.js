@@ -127,7 +127,8 @@ const IAArchipielago = {
       return completedGoals[flujo] && completedGoals[flujo].some(g => g.r === r && g.c === c);
     }
 
-    const ciudades = IASentidos.getCities(myPlayer).filter(c => !isGoalCompleted('ciudad', c.r, c.c));
+    // Usar el helper correcto para el flujo de ocupación
+    const ciudades = IASentidos.getCities(myPlayer).filter(c => !isGoalCompletedFlujo('ocupacion', c.r, c.c));
     const hexesPropios = IASentidos.getOwnedHexes(myPlayer);
     // Flujos independientes: ocupación, construcción, caravana
     const recursos = hexesPropios.filter(h => {
