@@ -1116,14 +1116,25 @@ const UIManager = {
         let ratio = 0;
         let barColor = '#4caf50';
         let shouldGlowDispute = false;
+        const occupyingUnit = (typeof getUnitOnHex === 'function') ? getUnitOnHex(r, c) : null;
+        const bankPlayerId = (typeof BankManager !== 'undefined') ? BankManager.PLAYER_ID : null;
 
         if (hexData.owner === gameState.currentPlayer) {
-            const stability = Number(hexData.estabilidad || 0);
-            const maxStability = Number(MAX_STABILITY || 5);
-            ratio = Math.max(0, Math.min(1, maxStability > 0 ? (stability / maxStability) : 0));
-            label = `Estabilidad ${stability}/${maxStability}`;
+            const isEnemyOccupation = occupyingUnit && occupyingUnit.player !== gameState.currentPlayer && occupyingUnit.player !== bankPlayerId;
+            if (isEnemyOccupation) {
+                const nationality = Number(hexData.nacionalidad?.[hexData.owner] || 0);
+                const maxNationality = Number(MAX_NACIONALIDAD || 5);
+                ratio = Math.max(0, Math.min(1, maxNationality > 0 ? (nationality / maxNationality) : 0));
+                label = `Nacionalidad ${nationality}/${maxNationality}`;
+                barColor = '#ef5350';
+                shouldGlowDispute = true;
+            } else {
+                const stability = Number(hexData.estabilidad || 0);
+                const maxStability = Number(MAX_STABILITY || 5);
+                ratio = Math.max(0, Math.min(1, maxStability > 0 ? (stability / maxStability) : 0));
+                label = `Estabilidad ${stability}/${maxStability}`;
+            }
         } else if (hexData.owner !== null) {
-            const occupyingUnit = (typeof getUnitOnHex === 'function') ? getUnitOnHex(r, c) : null;
             const isDisputed = occupyingUnit && occupyingUnit.player === gameState.currentPlayer;
             if (!isDisputed) return;
 
