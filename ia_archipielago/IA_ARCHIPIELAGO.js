@@ -156,7 +156,6 @@ const IAArchipielago = {
     console.log(`[IA_ARCHIPIELAGO][RESUMEN] Metas disponibles: ${ciudades.length + recursos.length + infraestructura.length}, Metas cumplidas (filtradas): ${totalFiltradas}, Total históricas: ${totalMetas}`);
   // --- REGISTRO DE META CUMPLIDA ---
   // Llamar esto cuando la IA complete una sub-fase de meta
-  isMetaTotalmenteCumplida,
 
     console.log(`\n[IA_ARCHIPIELAGO] Analizando situación táctica...`);
     const amenazas = (typeof IATactica !== 'undefined') ? IATactica.detectarAmenazasSobreObjetivos(myPlayer, objetivos, 3) : [];
