@@ -113,30 +113,37 @@ const IAArchipielago = {
     // const completedGoals = gameState.iaCompletedGoals[myPlayer];
 
     // --- SISTEMA DE FLUJOS INDEPENDIENTES ---
-    // Registrar meta cumplida por flujo
-    function registrarMetaFlujo(flujo, r, c) {
-      if (!completedGoals[flujo]) completedGoals[flujo] = [];
-      if (!completedGoals[flujo].some(g => g.r === r && g.c === c)) {
-        completedGoals[flujo].push({ r, c, turno: gameState.turnNumber });
-        console.log(`[IA_ARCHIPIELAGO] Meta registrada en flujo '${flujo}': (${r},${c})`);
-      }
-    }
 
-    // Helper para saber si una meta está cumplida en un flujo
-    function isGoalCompletedFlujo(flujo, r, c) {
-      return completedGoals[flujo] && completedGoals[flujo].some(g => g.r === r && g.c === c);
+  // --- Helpers globales para metas ---
+  registrarMetaFlujo(flujo, r, c, myPlayer = null) {
+    if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
+    if (!myPlayer) myPlayer = gameState.currentPlayer;
+    if (!gameState.iaCompletedGoals[myPlayer]) gameState.iaCompletedGoals[myPlayer] = { ocupacion: [], construccion: [], caravana: [] };
+    const completedGoals = gameState.iaCompletedGoals[myPlayer];
+    if (!completedGoals[flujo]) completedGoals[flujo] = [];
+    if (!completedGoals[flujo].some(g => g.r === r && g.c === c)) {
+      completedGoals[flujo].push({ r, c, turno: gameState.turnNumber });
+      console.log(`[IA_ARCHIPIELAGO] Meta registrada en flujo '${flujo}': (${r},${c})`);
     }
+  },
+
+  isGoalCompletedFlujo(flujo, r, c, myPlayer = null) {
+    if (!gameState.iaCompletedGoals) return false;
+    if (!myPlayer) myPlayer = gameState.currentPlayer;
+    const completedGoals = gameState.iaCompletedGoals[myPlayer];
+    return completedGoals && completedGoals[flujo] && completedGoals[flujo].some(g => g.r === r && g.c === c);
+  },
 
     // --- FLUJO 1: OCUPACIÓN EXHAUSTIVA ---
-    const ciudades = IASentidos.getCities(myPlayer).filter(c => !isGoalCompletedFlujo('ocupacion', c.r, c.c));
+    const ciudades = IASentidos.getCities(myPlayer).filter(c => !this.isGoalCompletedFlujo('ocupacion', c.r, c.c, myPlayer));
     const hexesPropios = IASentidos.getOwnedHexes(myPlayer);
-    const recursos = hexesPropios.filter(h => h.resourceNode && !isGoalCompletedFlujo('ocupacion', h.r, h.c));
+    const recursos = hexesPropios.filter(h => h.resourceNode && !this.isGoalCompletedFlujo('ocupacion', h.r, h.c, myPlayer));
     let ocupacionesRealizadas = 0;
     for (const ciudad of ciudades) {
       if (this._requestMoveOrAttack) {
         const result = this._requestMoveOrAttack({ r: ciudad.r, c: ciudad.c, player: myPlayer }, ciudad.r, ciudad.c);
         if (result) {
-          registrarMetaFlujo('ocupacion', ciudad.r, ciudad.c);
+          this.registrarMetaFlujo('ocupacion', ciudad.r, ciudad.c, myPlayer);
           ocupacionesRealizadas++;
           console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Conquistada ciudad objetivo (${ciudad.r},${ciudad.c})`);
         }
@@ -146,7 +153,7 @@ const IAArchipielago = {
       if (this._requestMoveOrAttack) {
         const result = this._requestMoveOrAttack({ r: hex.r, c: hex.c, player: myPlayer }, hex.r, hex.c);
         if (result) {
-          registrarMetaFlujo('ocupacion', hex.r, hex.c);
+          this.registrarMetaFlujo('ocupacion', hex.r, hex.c, myPlayer);
           ocupacionesRealizadas++;
           console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Conquistado recurso objetivo (${hex.r},${hex.c})`);
         }
@@ -1231,7 +1238,7 @@ const IAArchipielago = {
     // Si la ciudad ya es nuestra, registrar meta cumplida
     const cityObj = board[targetCity.r]?.[targetCity.c];
     if (cityObj && cityObj.owner === myPlayer) {
-      registrarMetaFlujo('ocupacion', targetCity.r, targetCity.c);
+      this.registrarMetaFlujo('ocupacion', targetCity.r, targetCity.c, myPlayer);
       return;
     }
 
@@ -1270,7 +1277,7 @@ const IAArchipielago = {
       const built = this._requestBuildStructure(myPlayer, invaderFortSpot.r, invaderFortSpot.c, 'Fortaleza');
       if (built) {
         this._startFortressPressure(myPlayer, invaderFortSpot);
-        registrarMetaFlujo('construccion', invaderFortSpot.r, invaderFortSpot.c);
+        this.registrarMetaFlujo('construccion', invaderFortSpot.r, invaderFortSpot.c, myPlayer);
         hizoAlgo = true;
       }
       return;
@@ -1295,7 +1302,7 @@ const IAArchipielago = {
         console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Construyendo camino en (${nextHex.r},${nextHex.c})`);
         const built = this._requestBuildStructure(myPlayer, nextHex.r, nextHex.c, 'Camino');
         if (built) {
-          registrarMetaFlujo('construccion', nextHex.r, nextHex.c);
+          this.registrarMetaFlujo('construccion', nextHex.r, nextHex.c, myPlayer);
           hizoAlgo = true;
         }
       }
@@ -1357,7 +1364,7 @@ const IAArchipielago = {
         console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Construyendo fortaleza estratégica en (${bestFort.h.r},${bestFort.h.c}) score=${bestFort.score}`);
         const built = this._requestBuildStructure(myPlayer, bestFort.h.r, bestFort.h.c, 'Fortaleza');
         if (built) {
-          registrarMetaFlujo('construccion', bestFort.h.r, bestFort.h.c);
+          this.registrarMetaFlujo('construccion', bestFort.h.r, bestFort.h.c, myPlayer);
           hizoAlgo = true;
         }
       }
