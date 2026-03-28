@@ -1231,7 +1231,7 @@ const IAArchipielago = {
     // Si la ciudad ya es nuestra, registrar meta cumplida
     const cityObj = board[targetCity.r]?.[targetCity.c];
     if (cityObj && cityObj.owner === myPlayer) {
-      this.registrarMetaCumplida(myPlayer, 'ciudad', targetCity.r, targetCity.c);
+      registrarMetaFlujo('ocupacion', targetCity.r, targetCity.c);
       return;
     }
 
@@ -1270,7 +1270,7 @@ const IAArchipielago = {
       const built = this._requestBuildStructure(myPlayer, invaderFortSpot.r, invaderFortSpot.c, 'Fortaleza');
       if (built) {
         this._startFortressPressure(myPlayer, invaderFortSpot);
-        this.registrarMetaCumplida(myPlayer, 'infraestructura', invaderFortSpot.r, invaderFortSpot.c);
+        registrarMetaFlujo('construccion', invaderFortSpot.r, invaderFortSpot.c);
         hizoAlgo = true;
       }
       return;
@@ -1295,7 +1295,7 @@ const IAArchipielago = {
         console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Construyendo camino en (${nextHex.r},${nextHex.c})`);
         const built = this._requestBuildStructure(myPlayer, nextHex.r, nextHex.c, 'Camino');
         if (built) {
-          this.registrarMetaCumplida(myPlayer, 'infraestructura', nextHex.r, nextHex.c);
+          registrarMetaFlujo('construccion', nextHex.r, nextHex.c);
           hizoAlgo = true;
         }
       }
@@ -1357,7 +1357,7 @@ const IAArchipielago = {
         console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Construyendo fortaleza estratégica en (${bestFort.h.r},${bestFort.h.c}) score=${bestFort.score}`);
         const built = this._requestBuildStructure(myPlayer, bestFort.h.r, bestFort.h.c, 'Fortaleza');
         if (built) {
-          this.registrarMetaCumplida(myPlayer, 'infraestructura', bestFort.h.r, bestFort.h.c);
+          registrarMetaFlujo('construccion', bestFort.h.r, bestFort.h.c);
           hizoAlgo = true;
         }
       }
