@@ -268,7 +268,7 @@ const AiDeploymentManager = {
             }
 
             // Fase 1 pedida por usuario: tras crear división, intentar avance inmediato en despliegue.
-            const moveTarget = mission.toNode || mission.objectiveHex;
+            const moveTarget = this._getNextUnsecuredStageHex(playerNumber, mission) || mission.toNode || mission.objectiveHex;
             const moveResult = await this._attemptBootstrapMoveInDeployment(newUnitData, moveTarget);
             if (moveResult) {
                 console.log(
@@ -295,15 +295,39 @@ const AiDeploymentManager = {
         if (typeof isValidMove !== 'function') return { status: 'SKIP_NO_VALIDATOR', distBefore: null, distAfter: null };
 
         const distBefore = hexDistance(unit.r, unit.c, objectiveHex.r, objectiveHex.c);
+        const buildableRoadTerrains = new Set(STRUCTURE_TYPES?.Camino?.buildableOn || ['plains', 'hills']);
 
         if (unit.r === objectiveHex.r && unit.c === objectiveHex.c) {
             console.log(`[IA DEPLOY][PIPELINE] MOV_SKIP_REACHED unidad=${unit.name} ya en objetivo (${objectiveHex.r},${objectiveHex.c})`);
             return { status: 'SKIP_REACHED', distBefore, distAfter: distBefore };
         }
 
+        // Intento principal: seguir ruta de camino construible hacia el objetivo de fase.
+        const path = this._computeShortestRoadPath({ r: unit.r, c: unit.c }, objectiveHex);
+        if (path && path.length > 1) {
+            const next = path[1];
+            const nextHex = board[next.r]?.[next.c];
+            const nextDist = hexDistance(next.r, next.c, objectiveHex.r, objectiveHex.c);
+            const terrainOk = !!(nextHex && (nextHex.isCity || buildableRoadTerrains.has(nextHex.terrain)));
+
+            if (terrainOk && nextDist < distBefore && isValidMove(unit, next.r, next.c)) {
+                const fromR = unit.r;
+                const fromC = unit.c;
+                try {
+                    await _executeMoveUnit(unit, next.r, next.c);
+                    console.log(`[IA DEPLOY][PIPELINE] MOV_OK_PATH unidad=${unit.name} (${fromR},${fromC})->(${next.r},${next.c})`);
+                    return { status: 'MOVED_PATH', distBefore, distAfter: nextDist, from: { r: fromR, c: fromC }, to: { r: next.r, c: next.c } };
+                } catch (e) {
+                    console.warn(`[IA DEPLOY][PIPELINE] MOV_FAIL_PATH unidad=${unit.name} motivo=${e?.message || e}`);
+                    return { status: 'FAIL_PATH_EXCEPTION', distBefore, distAfter: distBefore };
+                }
+            }
+        }
+
         const neighbors = getHexNeighbors(unit.r, unit.c)
             .map(n => board[n.r]?.[n.c])
             .filter(h => h && !h.unit)
+            .filter(h => h.isCity || buildableRoadTerrains.has(h.terrain))
             .filter(h => hexDistance(h.r, h.c, objectiveHex.r, objectiveHex.c) < distBefore)
             .sort((a, b) => hexDistance(a.r, a.c, objectiveHex.r, objectiveHex.c) - hexDistance(b.r, b.c, objectiveHex.r, objectiveHex.c));
 
@@ -532,10 +556,11 @@ const AiDeploymentManager = {
         const state = gameState.aiDeterministicBootstrap[playerNumber];
         const stageIndex = Math.max(0, Math.min(state.stageIndex || 0, stages.length - 1));
         const active = stages[stageIndex];
+        const dynamicObjective = this._getNextUnsecuredStageHex(playerNumber, active) || active.objectiveHex;
 
         return [{
             type: 'BOOTSTRAP_BANK_CORRIDOR',
-            objectiveHex: active.objectiveHex,
+            objectiveHex: dynamicObjective,
             priority: 1200,
             deterministicBootstrap: true,
             stageIndex,
@@ -577,14 +602,21 @@ const AiDeploymentManager = {
         }
 
         const state = gameState.aiDeterministicBootstrap[playerNumber];
-        const objective = mission.objectiveHex || null;
-        const reachedByPlacement = !!(
-            objective &&
-            placementSpot.r === objective.r &&
-            placementSpot.c === objective.c
+        const stage = {
+            fromNode: mission.fromNode,
+            toNode: mission.toNode,
+            objectiveHex: mission.objectiveHex,
+            stageIndex: mission.stageIndex,
+            stageLabel: mission.stageLabel
+        };
+
+        const progress = this._getStageCorridorProgress(playerNumber, stage);
+        console.log(
+            `[IA DEPLOY][PIPELINE][STAGE_PROGRESS] J${playerNumber} etapa=${Number(mission.stageIndex || 0) + 1}/3 ` +
+            `secured=${progress.secured}/${progress.totalInterior} remaining=${progress.remaining}`
         );
 
-        if (!reachedByPlacement) return;
+        if (progress.remaining > 0) return;
 
         state.completed = Array.isArray(state.completed) ? state.completed : [];
         const alreadyReached = state.completed.some(c =>
@@ -594,7 +626,7 @@ const AiDeploymentManager = {
             state.completed.push({
                 stageIndex: Number(mission.stageIndex || 0),
                 stageLabel: mission.stageLabel || null,
-                objectiveHex: objective,
+                objectiveHex: mission.objectiveHex || null,
                 turn: gameState.turnNumber,
                 reached: true,
                 reachedInDeployment: true
@@ -604,6 +636,40 @@ const AiDeploymentManager = {
         const next = Math.max(0, Number(mission.stageIndex || 0) + 1);
         state.stageIndex = Math.min(next, 2);
         console.log(`[IA DEPLOY][PIPELINE] J${playerNumber} etapa=${Number(mission.stageIndex || 0) + 1}/3 completada en despliegue. Siguiente etapa=${state.stageIndex + 1}`);
+    },
+
+    _getStagePath: function(stage) {
+        if (!stage?.fromNode || !stage?.toNode) return [];
+        return this._computeShortestRoadPath(stage.fromNode, stage.toNode) || [];
+    },
+
+    _getUnsecuredStageHexes: function(playerNumber, stage) {
+        const path = this._getStagePath(stage);
+        if (!path || path.length < 3) return [];
+
+        const interior = path.slice(1, -1);
+        return interior.filter(step => {
+            const hex = board[step.r]?.[step.c];
+            if (!hex) return true;
+            if (hex.owner === playerNumber) return false;
+            const u = getUnitOnHex(step.r, step.c);
+            if (u && u.player === playerNumber) return false;
+            return true;
+        });
+    },
+
+    _getNextUnsecuredStageHex: function(playerNumber, stage) {
+        const remaining = this._getUnsecuredStageHexes(playerNumber, stage);
+        return remaining[0] || null;
+    },
+
+    _getStageCorridorProgress: function(playerNumber, stage) {
+        const path = this._getStagePath(stage);
+        const totalInterior = Math.max(0, path.length - 2);
+        const remainingHexes = this._getUnsecuredStageHexes(playerNumber, stage);
+        const remaining = remainingHexes.length;
+        const secured = Math.max(0, totalInterior - remaining);
+        return { totalInterior, secured, remaining, remainingHexes };
     },
 
     _buildDeterministicBootstrapStages: function(analysis, playerNumber = null) {
@@ -640,7 +706,7 @@ const AiDeploymentManager = {
 
         const freeCityNodes = (gameState.cities || [])
             .filter(c => c && Number.isInteger(c.r) && Number.isInteger(c.c))
-            .filter(c => c.owner === null || c.owner === undefined || c.owner === 0)
+            .filter(c => c.owner === null || c.owner === undefined)
             .filter(c => !c.isBank && !c.isCapital)
             .filter(c => playerNumber == null || c.owner !== playerNumber)
             .map(c => ({ r: c.r, c: c.c, owner: c.owner, name: c.name || null }));

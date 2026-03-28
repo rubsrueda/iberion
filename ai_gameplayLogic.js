@@ -2998,10 +2998,16 @@ const AiGameplayManager = {
             u.iaBootstrapObjective && Number(u.iaBootstrapObjective.stageIndex) === state.stageIndex
         );
 
-        const objectiveHexNow = board[stage.objectiveHex.r]?.[stage.objectiveHex.c];
-        const occupiedByUsNow = !!(objectiveHexNow && objectiveHexNow.owner === playerNumber);
-        const unitOnObjectiveNow = getUnitOnHex(stage.objectiveHex.r, stage.objectiveHex.c);
-        const reachedNow = occupiedByUsNow || !!(unitOnObjectiveNow && unitOnObjectiveNow.player === playerNumber);
+        let reachedNow = false;
+        if (typeof AiDeploymentManager !== 'undefined' && typeof AiDeploymentManager._getStageCorridorProgress === 'function') {
+            const p = AiDeploymentManager._getStageCorridorProgress(playerNumber, stage);
+            reachedNow = (p.remaining === 0);
+        } else {
+            const objectiveHexNow = board[stage.objectiveHex.r]?.[stage.objectiveHex.c];
+            const occupiedByUsNow = !!(objectiveHexNow && objectiveHexNow.owner === playerNumber);
+            const unitOnObjectiveNow = getUnitOnHex(stage.objectiveHex.r, stage.objectiveHex.c);
+            reachedNow = occupiedByUsNow || !!(unitOnObjectiveNow && unitOnObjectiveNow.player === playerNumber);
+        }
 
         if (reachedNow) {
             const alreadyCompleted = state.completed.some(c => c && c.stageIndex === state.stageIndex && c.reached === true);
