@@ -23,11 +23,7 @@ const AiDeploymentManager = {
             const missionList = this.generateMissionList(strategy, analysis, playerNumber);
             if (missionList.length === 0) { console.warn("No se generaron misiones. Finalizando despliegue."); console.groupEnd(); return; }
 
-            // En bootstrap determinista no queremos "3 a la vez": 1 división por acción de despliegue.
             const hasDeterministicBootstrap = missionList.some(m => m?.deterministicBootstrap);
-            if (hasDeterministicBootstrap) {
-                unitsToPlaceCount = Math.min(unitsToPlaceCount, 1);
-            }
 
             let deployedCount = 0;
             let tempOccupiedSpots = new Set();
@@ -35,12 +31,35 @@ const AiDeploymentManager = {
             
             // GARANTIZAR al menos 1 unidad para evitar derrota inmediata
             if (missionList.length > 0) {
-                for (let missionIdx = 0; missionIdx < missionList.length || deployedCount < unitsToPlaceCount; missionIdx++) {
-                    const mission = missionList[missionIdx % missionList.length];
-                if (deployedCount >= unitsToPlaceCount) break;
+                let missionIdx = 0;
+                let safetyGuard = 0;
+                while (deployedCount < unitsToPlaceCount && safetyGuard < 30) {
+                    safetyGuard++;
+                    let mission = null;
+                    if (hasDeterministicBootstrap) {
+                        // Recalcular misión en cada iteración para seguir pipeline stage 1->2->3.
+                        const dynamicList = this.generateMissionList(strategy, analysis, playerNumber);
+                        mission = dynamicList?.[0] || null;
+                    } else {
+                        mission = missionList[missionIdx % missionList.length];
+                        missionIdx++;
+                    }
+
+                    if (!mission) {
+                        console.warn(`[IA DEPLOY][PIPELINE] J${playerNumber} iter=${safetyGuard} NO_MISSION deployed=${deployedCount}/${unitsToPlaceCount}`);
+                        break;
+                    }
+                    if (mission?.deterministicBootstrap) {
+                        console.log(`[IA DEPLOY][PIPELINE] J${playerNumber} iter=${safetyGuard} etapa=${(mission.stageIndex || 0) + 1} deployed=${deployedCount}/${unitsToPlaceCount}`);
+                    }
                 
                 const unitDefinition = this.defineUnitForMission(mission, analysis.humanThreats, playerResources);
-                if (!unitDefinition) continue;
+                if (!unitDefinition) {
+                    if (mission?.deterministicBootstrap) {
+                        console.warn(`[IA DEPLOY][PIPELINE] J${playerNumber} NO_UNIT_DEF etapa=${(mission.stageIndex || 0) + 1}`);
+                    }
+                    continue;
+                }
                 
                 // Si no tenemos oro para esta unidad pero NO hemos desplegado nada, usar fallback
                 if (!isFreeDeployment && playerResources.oro < unitDefinition.cost) {
@@ -58,10 +77,33 @@ const AiDeploymentManager = {
                     }
                 }
                 
-                const currentAvailableSpots = analysis.availableSpots.filter(spot => !tempOccupiedSpots.has(`${spot.r},${spot.c}`));
+                // Recalcular spots en vivo para no depender del snapshot inicial del turno.
+                const currentAvailableSpots = board
+                    .flat()
+                    .filter(spot => spot && !spot.unit && spot.terrain !== 'water')
+                    .filter(spot => !tempOccupiedSpots.has(`${spot.r},${spot.c}`));
                 const isFirstUnit = deployedCount === 0;
-                const placementSpot = this.findBestSpotForMission(mission, currentAvailableSpots, unitDefinition, playerNumber, isFirstUnit, analysis.humanThreats);
-                if (!placementSpot) continue;
+                let placementSpot = this.findBestSpotForMission(mission, currentAvailableSpots, unitDefinition, playerNumber, isFirstUnit, analysis.humanThreats);
+                if (!placementSpot && mission?.deterministicBootstrap) {
+                    placementSpot = this._findDeterministicBootstrapFallbackSpot(mission, currentAvailableSpots, unitDefinition, playerNumber);
+                    if (!placementSpot) {
+                        // Último recurso: cualquier spot transitable disponible para no romper pipeline 1->2->3.
+                        const category = unitDefinition?.regiments?.[0]?.category;
+                        placementSpot = currentAvailableSpots.find(s => {
+                            const isImpassable = IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[category]?.includes(s.terrain) || TERRAIN_TYPES[s.terrain]?.isImpassableForLand;
+                            return !isImpassable;
+                        }) || null;
+                        if (placementSpot) {
+                            console.warn(`[IA DEPLOY][PIPELINE] J${playerNumber} etapa=${(mission.stageIndex || 0) + 1} usando fallback duro en (${placementSpot.r},${placementSpot.c})`);
+                        }
+                    }
+                }
+                if (!placementSpot) {
+                    if (mission?.deterministicBootstrap) {
+                        console.warn(`[IA DEPLOY][PIPELINE] J${playerNumber} NO_SPOT etapa=${(mission.stageIndex || 0) + 1} objetivo=(${mission.objectiveHex?.r},${mission.objectiveHex?.c})`);
+                    }
+                    continue;
+                }
 
                 if (!isFreeDeployment) {
                     playerResources.oro -= unitDefinition.cost;
@@ -98,7 +140,11 @@ const AiDeploymentManager = {
 
                 tempOccupiedSpots.add(`${placementSpot.r},${placementSpot.c}`);
                 deployedCount++;
-            }
+                }
+
+                if (hasDeterministicBootstrap) {
+                    console.log(`[IA DEPLOY][PIPELINE] J${playerNumber} fin_iteraciones deployed=${deployedCount}/${unitsToPlaceCount} guard=${safetyGuard}`);
+                }
             }
         } finally {
             console.groupEnd();
@@ -300,6 +346,38 @@ const AiDeploymentManager = {
             missionList = valuableResources.map(res => ({ type: 'CAPTURAR_RECURSO', objectiveHex: res.hex, priority: res.priority })).slice(0, 5);
         }
         return missionList;
+    },
+
+    _findDeterministicBootstrapFallbackSpot: function(mission, availableSpots, unitDefinition, playerNumber) {
+        const objective = mission?.objectiveHex;
+        if (!objective) return null;
+
+        const objectiveHex = board[objective.r]?.[objective.c];
+        const category = unitDefinition?.regiments?.[0]?.category;
+        const canPass = (hex) => {
+            if (!hex) return false;
+            if (hex.unit) return false;
+            if (hex.terrain === 'water') return false;
+            const isImpassable = IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[category]?.includes(hex.terrain) || TERRAIN_TYPES[hex.terrain]?.isImpassableForLand;
+            return !isImpassable;
+        };
+
+        // 1) Si el objetivo es desplegable, usarlo directamente.
+        if (canPass(objectiveHex)) {
+            return objectiveHex;
+        }
+
+        // 2) Si no, usar vecino más cercano al objetivo.
+        const near = getHexNeighbors(objective.r, objective.c)
+            .map(n => board[n.r]?.[n.c])
+            .filter(h => canPass(h))
+            .sort((a, b) => hexDistance(a.r, a.c, objective.r, objective.c) - hexDistance(b.r, b.c, objective.r, objective.c))[0];
+        if (near) return near;
+
+        // 3) Último recurso: mejor spot disponible más cercano al objetivo.
+        return (availableSpots || [])
+            .filter(h => canPass(h))
+            .sort((a, b) => hexDistance(a.r, a.c, objective.r, objective.c) - hexDistance(b.r, b.c, objective.r, objective.c))[0] || null;
     },
 
     _getDeterministicBootstrapMissions: function(playerNumber, analysis) {
