@@ -205,7 +205,11 @@ const AiDeploymentManager = {
                 break;
             }
 
-            console.log(`[IA DEPLOY][PIPELINE] J${playerNumber} iter=${guard} etapa=${(mission.stageIndex || 0) + 1}/3`);
+            console.log(
+                `[IA DEPLOY][PIPELINE] J${playerNumber} iter=${guard} etapa=${(mission.stageIndex || 0) + 1}/3 ` +
+                `${mission.stageLabel || 'N/A'} from=(${mission.fromNode?.r},${mission.fromNode?.c}) to=(${mission.toNode?.r},${mission.toNode?.c}) ` +
+                `objective=(${mission.objectiveHex?.r},${mission.objectiveHex?.c})`
+            );
 
             const unitDefinition = this.defineUnitForMission(mission, analysis.humanThreats, playerResources);
             if (!unitDefinition) {
@@ -252,8 +256,28 @@ const AiDeploymentManager = {
             this._markDeterministicBootstrapStageCreated(playerNumber, mission);
             this._completeDeterministicBootstrapStageFromDeployment(playerNumber, mission, placementSpot);
 
+            const placementDist = hexDistance(placementSpot.r, placementSpot.c, mission.objectiveHex.r, mission.objectiveHex.c);
+            const placementExact = placementDist === 0;
+            console.log(
+                `[IA DEPLOY][PIPELINE][VALIDATE] J${playerNumber} etapa=${(mission.stageIndex || 0) + 1}/3 ` +
+                `placementExact=${placementExact} placementDist=${placementDist} ` +
+                `placed=(${placementSpot.r},${placementSpot.c}) objective=(${mission.objectiveHex.r},${mission.objectiveHex.c})`
+            );
+            if (!placementExact) {
+                console.warn(`[IA DEPLOY][PIPELINE][VALIDATE] J${playerNumber} etapa=${(mission.stageIndex || 0) + 1} colocación fuera de objetivo.`);
+            }
+
             // Fase 1 pedida por usuario: tras crear división, intentar avance inmediato en despliegue.
-            this._attemptBootstrapMoveInDeployment(newUnitData, mission.objectiveHex);
+            const moveResult = await this._attemptBootstrapMoveInDeployment(newUnitData, mission.objectiveHex);
+            if (moveResult) {
+                console.log(
+                    `[IA DEPLOY][PIPELINE][MOVE_VALIDATE] J${playerNumber} etapa=${(mission.stageIndex || 0) + 1}/3 ` +
+                    `status=${moveResult.status} distBefore=${moveResult.distBefore} distAfter=${moveResult.distAfter}`
+                );
+                if (moveResult.status === 'MOVED' && moveResult.distAfter >= moveResult.distBefore) {
+                    console.warn(`[IA DEPLOY][PIPELINE][MOVE_VALIDATE] J${playerNumber} etapa=${(mission.stageIndex || 0) + 1} movimiento sin progreso real.`);
+                }
+            }
 
             console.log(`[IA DEPLOY][PIPELINE] J${playerNumber} etapa=${(mission.stageIndex || 0) + 1}/3 ${mission.stageLabel} unidad=${newUnitData.name} regs=${newUnitData.regiments?.length || 0} objetivo=(${mission.objectiveHex?.r},${mission.objectiveHex?.c})`);
             deployed++;
@@ -263,27 +287,40 @@ const AiDeploymentManager = {
         return deployed;
     },
 
-    _attemptBootstrapMoveInDeployment: function(unit, objectiveHex) {
-        if (!unit || !objectiveHex) return;
-        if (typeof _executeMoveUnit !== 'function') return;
-        if (typeof isValidMove !== 'function') return;
+    _attemptBootstrapMoveInDeployment: async function(unit, objectiveHex) {
+        if (!unit || !objectiveHex) return { status: 'SKIP_INVALID_INPUT', distBefore: null, distAfter: null };
+        if (typeof _executeMoveUnit !== 'function') return { status: 'SKIP_NO_EXECUTOR', distBefore: null, distAfter: null };
+        if (typeof isValidMove !== 'function') return { status: 'SKIP_NO_VALIDATOR', distBefore: null, distAfter: null };
+
+        const distBefore = hexDistance(unit.r, unit.c, objectiveHex.r, objectiveHex.c);
+
+        if (unit.r === objectiveHex.r && unit.c === objectiveHex.c) {
+            console.log(`[IA DEPLOY][PIPELINE] MOV_SKIP_REACHED unidad=${unit.name} ya en objetivo (${objectiveHex.r},${objectiveHex.c})`);
+            return { status: 'SKIP_REACHED', distBefore, distAfter: distBefore };
+        }
 
         const neighbors = getHexNeighbors(unit.r, unit.c)
             .map(n => board[n.r]?.[n.c])
             .filter(h => h && !h.unit)
+            .filter(h => hexDistance(h.r, h.c, objectiveHex.r, objectiveHex.c) < distBefore)
             .sort((a, b) => hexDistance(a.r, a.c, objectiveHex.r, objectiveHex.c) - hexDistance(b.r, b.c, objectiveHex.r, objectiveHex.c));
 
         const step = neighbors.find(h => isValidMove(unit, h.r, h.c));
         if (!step) {
-            console.log(`[IA DEPLOY][PIPELINE] MOV_SKIP unidad=${unit.name} sin paso válido en despliegue.`);
-            return;
+            console.log(`[IA DEPLOY][PIPELINE] MOV_SKIP_NO_PROGRESS unidad=${unit.name} sin paso que reduzca distancia.`);
+            return { status: 'SKIP_NO_PROGRESS_STEP', distBefore, distAfter: distBefore };
         }
 
+        const fromR = unit.r;
+        const fromC = unit.c;
         try {
-            _executeMoveUnit(unit, step.r, step.c);
-            console.log(`[IA DEPLOY][PIPELINE] MOV_OK unidad=${unit.name} (${unit.r},${unit.c})->(${step.r},${step.c})`);
+            await _executeMoveUnit(unit, step.r, step.c);
+            console.log(`[IA DEPLOY][PIPELINE] MOV_OK unidad=${unit.name} (${fromR},${fromC})->(${step.r},${step.c})`);
+            const distAfter = hexDistance(step.r, step.c, objectiveHex.r, objectiveHex.c);
+            return { status: 'MOVED', distBefore, distAfter, from: { r: fromR, c: fromC }, to: { r: step.r, c: step.c } };
         } catch (e) {
             console.warn(`[IA DEPLOY][PIPELINE] MOV_FAIL unidad=${unit.name} motivo=${e?.message || e}`);
+            return { status: 'FAIL_EXCEPTION', distBefore, distAfter: distBefore };
         }
     },
 
@@ -494,12 +531,6 @@ const AiDeploymentManager = {
         const stageIndex = Math.max(0, Math.min(state.stageIndex || 0, stages.length - 1));
         const active = stages[stageIndex];
 
-        console.log(
-            `[IA DEPLOY][PIPELINE] J${playerNumber} stage=${stageIndex + 1}/${stages.length} ` +
-            `${active.label} from=(${active.fromNode.r},${active.fromNode.c}) to=(${active.toNode.r},${active.toNode.c}) ` +
-            `objective=(${active.objectiveHex.r},${active.objectiveHex.c})`
-        );
-
         return [{
             type: 'BOOTSTRAP_BANK_CORRIDOR',
             objectiveHex: active.objectiveHex,
@@ -577,15 +608,32 @@ const AiDeploymentManager = {
         const { capital, bankHex, citySites } = analysis || {};
         if (!capital || !bankHex) return [];
 
-        const pickObjectiveFromPath = (path, fallback) => {
-            const buildableRoadTerrains = new Set(STRUCTURE_TYPES?.Camino?.buildableOn || ['plains', 'hills']);
+        const buildableRoadTerrains = new Set(STRUCTURE_TYPES?.Camino?.buildableOn || ['plains', 'hills']);
+
+        const pickDeployableNear = (node) => {
+            if (!node) return null;
+            const nodeHex = board[node.r]?.[node.c];
+            if (nodeHex && !nodeHex.isCity && buildableRoadTerrains.has(nodeHex.terrain) && !TERRAIN_TYPES[nodeHex.terrain]?.isImpassableForLand) {
+                return { r: node.r, c: node.c };
+            }
+
+            const near = getHexNeighbors(node.r, node.c)
+                .map(n => board[n.r]?.[n.c])
+                .filter(h => h && !h.isCity && buildableRoadTerrains.has(h.terrain) && !TERRAIN_TYPES[h.terrain]?.isImpassableForLand)
+                .sort((a, b) => hexDistance(a.r, a.c, node.r, node.c) - hexDistance(b.r, b.c, node.r, node.c))[0];
+
+            return near ? { r: near.r, c: near.c } : null;
+        };
+
+        const pickObjectiveFromPath = (path, fallbackNode) => {
             const interior = (path || [])
                 .slice(1, -1)
                 .filter(p => {
                     const hex = board[p.r]?.[p.c];
                     return !!(hex && !hex.isCity && buildableRoadTerrains.has(hex.terrain));
                 });
-            return interior[0] || fallback;
+            if (interior.length > 0) return { r: interior[0].r, c: interior[0].c };
+            return pickDeployableNear(fallbackNode);
         };
 
         const nearestTo = (origin, excluded = new Set()) => {
@@ -597,7 +645,7 @@ const AiDeploymentManager = {
         const stages = [];
 
         const pathPrimary = this._computeShortestRoadPath(capital, bankHex);
-        const objPrimary = pickObjectiveFromPath(pathPrimary, bankHex);
+        const objPrimary = pickObjectiveFromPath(pathPrimary, bankHex) || { r: bankHex.r, c: bankHex.c };
         stages.push({
             label: 'PRIMARIO capital->banca',
             fromNode: { r: capital.r, c: capital.c },
@@ -609,7 +657,7 @@ const AiDeploymentManager = {
         if (!cityX) return stages;
 
         const pathSecondary = this._computeShortestRoadPath(bankHex, cityX);
-        const objSecondary = pickObjectiveFromPath(pathSecondary, cityX);
+        const objSecondary = pickObjectiveFromPath(pathSecondary, cityX) || { r: cityX.r, c: cityX.c };
         stages.push({
             label: 'SECUNDARIO banca->ciudad_libre_X',
             fromNode: { r: bankHex.r, c: bankHex.c },
@@ -622,7 +670,7 @@ const AiDeploymentManager = {
         if (!cityY) return stages;
 
         const pathTertiary = this._computeShortestRoadPath(cityX, cityY);
-        const objTertiary = pickObjectiveFromPath(pathTertiary, cityY);
+        const objTertiary = pickObjectiveFromPath(pathTertiary, cityY) || { r: cityY.r, c: cityY.c };
         stages.push({
             label: 'TERCIARIO ciudad_libre_X->ciudad_libre_Y',
             fromNode: { r: cityX.r, c: cityX.c },
