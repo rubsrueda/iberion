@@ -43,8 +43,9 @@ const IAArchipielago = {
         console.log('[DIAG] IASentidos en window:', typeof window.IASentidos, window.IASentidos);
         console.log('[DIAG] IASentidos local:', typeof IASentidos, IASentidos);
         // LOG: Resumen de metas cumplidas y disponibles
+        // Unificación: sistema de metas cumplidas por flujo
         if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
-        if (!gameState.iaCompletedGoals[myPlayer]) gameState.iaCompletedGoals[myPlayer] = [];
+        if (!gameState.iaCompletedGoals[myPlayer]) gameState.iaCompletedGoals[myPlayer] = { ocupacion: [], construccion: [], caravana: [] };
         const completedGoals = gameState.iaCompletedGoals[myPlayer];
         let totalMetas = 0, totalFiltradas = 0;
         // Helper para loggear filtrado de metas
@@ -108,9 +109,8 @@ const IAArchipielago = {
 
     console.log(`[IA_ARCHIPIELAGO] Recopilando objetivos propios...`);
     // --- SISTEMA DE METAS CUMPLIDAS ---
-    if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
-    if (!gameState.iaCompletedGoals[myPlayer]) gameState.iaCompletedGoals[myPlayer] = { ocupacion: [], construccion: [], caravana: [] };
-    const completedGoals = gameState.iaCompletedGoals[myPlayer];
+    // Ya inicializado arriba: solo usar la referencia
+    // const completedGoals = gameState.iaCompletedGoals[myPlayer];
 
     // --- SISTEMA DE FLUJOS INDEPENDIENTES ---
     // Registrar meta cumplida por flujo
