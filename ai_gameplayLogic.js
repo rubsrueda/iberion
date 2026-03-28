@@ -373,8 +373,7 @@ const AiGameplayManager = {
             .filter(seg => {
                 const hex = board[seg.r]?.[seg.c];
                 return !!(hex && !hex.unit && this._canBuildRoadOnHex(hex));
-            })
-            .slice(0, 2);
+            });
 
         if (targets.length === 0) {
             return { assigned: 0, produced: 0, reason: 'sin_casillas_libres_para_ocupar' };
