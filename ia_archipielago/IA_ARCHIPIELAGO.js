@@ -112,10 +112,8 @@ const IAArchipielago = {
     // Ya inicializado arriba: solo usar la referencia
     // const completedGoals = gameState.iaCompletedGoals[myPlayer];
 
+
     // --- SISTEMA DE FLUJOS INDEPENDIENTES ---
-
-
-
   // --- Helpers globales para metas ---
   registrarMetaFlujo(flujo, r, c, myPlayer = null) {
     if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
