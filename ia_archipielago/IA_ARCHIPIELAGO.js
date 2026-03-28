@@ -37,6 +37,16 @@ const IAArchipielago = {
   },
 
   ejecutarTurno(myPlayer) {
+        // LOG: Resumen de metas cumplidas y disponibles
+        if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
+        if (!gameState.iaCompletedGoals[myPlayer]) gameState.iaCompletedGoals[myPlayer] = [];
+        const completedGoals = gameState.iaCompletedGoals[myPlayer];
+        let totalMetas = 0, totalFiltradas = 0;
+        // Helper para loggear filtrado de metas
+        function logFiltrado(tipo, r, c) {
+          totalFiltradas++;
+          console.log(`[IA_ARCHIPIELAGO][FILTRADO] Meta filtrada por cumplida: tipo=${tipo} (${r},${c})`);
+        }
     console.log(`\n========================================`);
     console.log(`[IA_ARCHIPIELAGO] ========= TURNO ${gameState.turnNumber} - JUGADOR ${myPlayer} =========`);
     console.log(`========================================\n`);
@@ -104,10 +114,17 @@ const IAArchipielago = {
 
     const ciudades = IASentidos.getCities(myPlayer).filter(c => !isGoalCompleted('ciudad', c.r, c.c));
     const hexesPropios = IASentidos.getOwnedHexes(myPlayer);
-    const recursos = hexesPropios.filter(h => h.resourceNode && !isGoalCompleted('recurso', h.r, h.c));
-    const infraestructura = hexesPropios.filter(h => h.structure && !isGoalCompleted('infraestructura', h.r, h.c));
+    const recursos = hexesPropios.filter(h => {
+      if (h.resourceNode && isGoalCompleted('recurso', h.r, h.c)) { logFiltrado('recurso', h.r, h.c); return false; }
+      return h.resourceNode;
+    });
+    const infraestructura = hexesPropios.filter(h => {
+      if (h.structure && isGoalCompleted('infraestructura', h.r, h.c)) { logFiltrado('infraestructura', h.r, h.c); return false; }
+      return h.structure;
+    });
+    totalMetas = ciudades.length + recursos.length + infraestructura.length + totalFiltradas;
     const objetivos = ciudades.concat(recursos).concat(infraestructura);
-    console.log(`[IA_ARCHIPIELAGO] Objetivos totales: ${objetivos.length} (${ciudades.length} ciudades, ${recursos.length} recursos, ${infraestructura.length} infraestructura)`);
+    console.log(`[IA_ARCHIPIELAGO][RESUMEN] Metas disponibles: ${ciudades.length + recursos.length + infraestructura.length}, Metas cumplidas (filtradas): ${totalFiltradas}, Total históricas: ${totalMetas}`);
   // --- REGISTRO DE META CUMPLIDA ---
   // Llamar esto cuando la IA complete una meta relevante
   registrarMetaCumplida(myPlayer, tipo, r, c) {
