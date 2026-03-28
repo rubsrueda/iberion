@@ -123,6 +123,9 @@ const AiGameplayManager = {
                 AiGameplayManager._trace('motor_decision_error', { playerNumber, error: e.message });
             }
         }
+
+        // Controlador bootstrap determinista global (capital->banca->ciudades), independiente del motor de mapa.
+        this._runDeterministicBootstrapController(playerNumber);
             
             // La gestión del imperio (construcción, investigación, producción normal) se ejecuta DESPUÉS
             // de la Gran Apertura o en su lugar en turnos posteriores.
@@ -2963,6 +2966,134 @@ const AiGameplayManager = {
                 objective: { r: bootstrap.r, c: bootstrap.c },
                 fromNode: bootstrap.fromNode || null,
                 toNode: bootstrap.toNode || null
+            });
+        }
+    },
+
+    _runDeterministicBootstrapController: function(playerNumber) {
+        if (gameState.currentPhase !== 'play') return;
+        if (typeof AiDeploymentManager === 'undefined') return;
+        if (typeof AiDeploymentManager.analyzeEnvironment !== 'function') return;
+        if (typeof AiDeploymentManager._buildDeterministicBootstrapStages !== 'function') return;
+
+        const analysis = AiDeploymentManager.analyzeEnvironment(playerNumber);
+        const stages = AiDeploymentManager._buildDeterministicBootstrapStages(analysis);
+        if (!Array.isArray(stages) || stages.length === 0) return;
+
+        if (!gameState.aiDeterministicBootstrap) gameState.aiDeterministicBootstrap = {};
+        if (!gameState.aiDeterministicBootstrap[playerNumber]) {
+            gameState.aiDeterministicBootstrap[playerNumber] = { stageIndex: 0, completed: [], createdStages: [] };
+        }
+
+        const state = gameState.aiDeterministicBootstrap[playerNumber];
+        state.stageIndex = Math.max(0, Math.min(Number(state.stageIndex || 0), stages.length - 1));
+        state.completed = Array.isArray(state.completed) ? state.completed : [];
+        state.createdStages = Array.isArray(state.createdStages) ? state.createdStages : [];
+
+        let stage = stages[state.stageIndex];
+        if (!stage) return;
+
+        const stageUnitsNow = units.filter(u =>
+            u && u.player === playerNumber && u.currentHealth > 0 &&
+            u.iaBootstrapObjective && Number(u.iaBootstrapObjective.stageIndex) === state.stageIndex
+        );
+
+        const objectiveHexNow = board[stage.objectiveHex.r]?.[stage.objectiveHex.c];
+        const occupiedByUsNow = !!(objectiveHexNow && objectiveHexNow.owner === playerNumber);
+        const unitOnObjectiveNow = getUnitOnHex(stage.objectiveHex.r, stage.objectiveHex.c);
+        const reachedNow = occupiedByUsNow || !!(unitOnObjectiveNow && unitOnObjectiveNow.player === playerNumber);
+
+        if (reachedNow) {
+            const alreadyCompleted = state.completed.some(c => c && c.stageIndex === state.stageIndex && c.reached === true);
+            if (!alreadyCompleted) {
+                state.completed.push({
+                    stageIndex: state.stageIndex,
+                    stageLabel: stage.label,
+                    objectiveHex: stage.objectiveHex,
+                    turn: gameState.turnNumber,
+                    reached: true
+                });
+                console.log(`[IA BOOTSTRAP] J${playerNumber} etapa ${state.stageIndex + 1} completada (${stage.label}).`);
+            }
+            if (state.stageIndex < stages.length - 1) {
+                state.stageIndex += 1;
+                stage = stages[state.stageIndex];
+            }
+        }
+
+        if (!stage) return;
+
+        const stageUnits = units.filter(u =>
+            u && u.player === playerNumber && u.currentHealth > 0 &&
+            u.iaBootstrapObjective && Number(u.iaBootstrapObjective.stageIndex) === state.stageIndex
+        );
+
+        if (stageUnits.length === 0 && !state.createdStages.includes(state.stageIndex)) {
+            let newUnit = this.produceUnit(
+                playerNumber,
+                ['Infantería Ligera', 'Infantería Ligera'],
+                'builder',
+                `Pionero Bootstrap S${state.stageIndex + 1}`
+            );
+
+            // Fallback determinista: si la producción normal falla por recursos/PR,
+            // crear igualmente la división de etapa para no romper la secuencia 1->2->3.
+            if (!newUnit) {
+                const centers = [
+                    ...(gameState.cities || []).filter(c => c && c.owner === playerNumber),
+                    ...board.flat().filter(h => h && h.owner === playerNumber && ['Aldea', 'Ciudad', 'Metrópoli', 'Fortaleza', 'Fortaleza con Muralla'].includes(h.structure))
+                ];
+                const spawn = centers.find(c => c && !getUnitOnHex(c.r, c.c));
+                if (spawn) {
+                    const def = {
+                        regiments: [
+                            { ...(REGIMENT_TYPES['Infantería Ligera'] || REGIMENT_TYPES['Pueblo']), type: REGIMENT_TYPES['Infantería Ligera'] ? 'Infantería Ligera' : 'Pueblo' },
+                            { ...(REGIMENT_TYPES['Infantería Ligera'] || REGIMENT_TYPES['Pueblo']), type: REGIMENT_TYPES['Infantería Ligera'] ? 'Infantería Ligera' : 'Pueblo' }
+                        ],
+                        cost: { oro: 0, puntosReclutamiento: 0 },
+                        role: 'builder',
+                        name: `Pionero Bootstrap S${state.stageIndex + 1}`
+                    };
+                    newUnit = this.createUnitObject(def, playerNumber, spawn);
+                    placeFinalizedDivision(newUnit, spawn.r, spawn.c);
+                    console.log(`[IA BOOTSTRAP] J${playerNumber} fallback spawn etapa ${state.stageIndex + 1} en (${spawn.r},${spawn.c})`);
+                }
+            }
+
+            if (newUnit) {
+                newUnit.iaBootstrapObjective = {
+                    r: stage.objectiveHex.r,
+                    c: stage.objectiveHex.c,
+                    stageIndex: state.stageIndex,
+                    stageLabel: stage.label,
+                    fromNode: stage.fromNode,
+                    toNode: stage.toNode
+                };
+                state.createdStages.push(state.stageIndex);
+                console.log(`[IA BOOTSTRAP] J${playerNumber} creada division etapa ${state.stageIndex + 1}: ${stage.label} objetivo=(${stage.objectiveHex.r},${stage.objectiveHex.c})`);
+            }
+        }
+
+        const assignable = units.filter(u =>
+            u && u.player === playerNumber && u.currentHealth > 0 &&
+            u.iaBootstrapObjective && Number(u.iaBootstrapObjective.stageIndex) === state.stageIndex
+        );
+
+        for (const unit of assignable) {
+            if (this.missionAssignments.has(unit.id)) continue;
+            this.missionAssignments.set(unit.id, {
+                type: 'IA_NODE',
+                objective: { r: stage.objectiveHex.r, c: stage.objectiveHex.c },
+                nodoTipo: 'corredor_comercial',
+                axisName: `bootstrap_stage_${state.stageIndex}`,
+                bootstrapStageLabel: stage.label
+            });
+            this._trace('bootstrap_mission_assigned_runtime', {
+                playerNumber,
+                stageIndex: state.stageIndex,
+                stageLabel: stage.label,
+                unitId: unit.id,
+                objective: { r: stage.objectiveHex.r, c: stage.objectiveHex.c }
             });
         }
     },
