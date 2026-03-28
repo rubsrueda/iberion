@@ -682,6 +682,9 @@ const AiGameplayManager = {
         const pendingCaptureConnections = networkPlan.connections
             .filter(conn => (conn.pendingCaptureSegments?.length || 0) > 0)
             .sort((a, b) => {
+                const aBank = a.hasBank ? 0 : 1;
+                const bBank = b.hasBank ? 0 : 1;
+                if (aBank !== bBank) return aBank - bBank;
                 const capDiff = a.pendingCaptureSegments.length - b.pendingCaptureSegments.length;
                 if (capDiff !== 0) return capDiff;
                 return a.path.length - b.path.length;
@@ -690,12 +693,21 @@ const AiGameplayManager = {
         const roadworkConnections = networkPlan.connections
             .filter(conn => (conn.pendingCaptureSegments?.length || 0) === 0 && (conn.missingOwnedSegments?.length || 0) > 0)
             .sort((a, b) => {
+                const aBank = a.hasBank ? 0 : 1;
+                const bBank = b.hasBank ? 0 : 1;
+                if (aBank !== bBank) return aBank - bBank;
                 const roadDiff = a.missingOwnedSegments.length - b.missingOwnedSegments.length;
                 if (roadDiff !== 0) return roadDiff;
                 return a.path.length - b.path.length;
             });
 
         const activeConnection = pendingCaptureConnections[0] || roadworkConnections[0] || networkPlan.connections[0];
+        console.log(
+            `[IA DIAG][CORREDOR_PICK] turn=${gameState.turnNumber} J${playerNumber} hasBank=${activeConnection.hasBank} ` +
+            `pendingConns=${pendingCaptureConnections.length} roadworkConns=${roadworkConnections.length} ` +
+            `from=${activeConnection.from.name || `${activeConnection.from.r},${activeConnection.from.c}`} ` +
+            `to=${activeConnection.to.name || `${activeConnection.to.r},${activeConnection.to.c}`}`
+        );
         const corridorNode = {
             ...nodoCorredor,
             origen: { r: activeConnection.from.r, c: activeConnection.from.c },
@@ -713,12 +725,20 @@ const AiGameplayManager = {
                 .filter(u => u.player === playerNumber && u.currentHealth > 0 && !u.hasMoved)
                 .filter(u => {
                     const mission = this.missionAssignments.get(u.id);
-                    return !mission || ['IA_NODE', 'AXIS_ADVANCE'].includes(mission.type);
+                    return !mission || ['IA_NODE', 'AXIS_ADVANCE', 'DEFAULT'].includes(mission.type);
                 });
 
             const assignedTargets = [];
             const assignedIds = new Set();
-            pendingCapture.slice(0, Math.min(2, pendingCapture.length)).forEach(targetHex => {
+            const captureBudget = Math.min(
+                pendingCapture.length,
+                Math.max(2, availableUnits.length * 2)
+            );
+            console.log(
+                `[IA DIAG][CORREDOR_CAPTURE] turn=${gameState.turnNumber} J${playerNumber} hasBank=${activeConnection.hasBank} ` +
+                `pendingHex=${pendingCapture.length} availUnits=${availableUnits.length} budget=${captureBudget}`
+            );
+            pendingCapture.slice(0, captureBudget).forEach(targetHex => {
                 const chosen = availableUnits
                     .filter(u => !assignedIds.has(u.id))
                     .sort((a, b) => {
@@ -756,6 +776,10 @@ const AiGameplayManager = {
                 assignedTargets,
                 hasBank: activeConnection.hasBank
             });
+            console.log(
+                `[IA DIAG][CORREDOR_CAPTURE_RESULT] turn=${gameState.turnNumber} J${playerNumber} ` +
+                `assigned=${assignedTargets.length}/${captureBudget} hasBank=${activeConnection.hasBank}`
+            );
             return gameState.ai_corridor_controller[playerNumber];
         }
 
@@ -1644,7 +1668,11 @@ const AiGameplayManager = {
         const enemyPlayer = playerNumber === 1 ? 2 : 1;
         const enemyCapital = gameState.cities.find(c => c.isCapital && c.owner === enemyPlayer);
         const aiCapital = gameState.cities.find(c => c.isCapital && c.owner === playerNumber);
-        const existingForts = board.flat().filter(h => h && h.owner === playerNumber && h.structure === 'Fortaleza');
+        const existingForts = board.flat().filter(h =>
+            h &&
+            h.owner === playerNumber &&
+            (h.structure === 'Fortaleza' || h.structure === 'Fortaleza con Muralla')
+        );
 
         // Construir fortalezas en el corredor es buena estrategia (Fortaleza→Muralla→Aldea = nueva ciudad conectada).
         // Pero deben espaciarse: mínimo 4 hexes de cualquier fortaleza o ciudad existente.
@@ -1671,7 +1699,7 @@ const AiGameplayManager = {
         } catch (_) {}
 
         let candidates = board.flat().filter(h => {
-            if (!h || !h.owner === playerNumber || h.structure || h.unit) return false;
+            if (!h || h.owner !== playerNumber || h.structure || h.unit) return false;
             if (h.owner !== playerNumber) return false;
             if (h.terrain === 'water') return false;
             // Separación mínima de cualquier fortaleza/ciudad existente.
@@ -1709,7 +1737,11 @@ const AiGameplayManager = {
     },
 
     fortressCount: function(playerNumber){
-        return board.flat().filter(h => h && h.owner === playerNumber && h.structure === 'Fortaleza').length;
+        return board.flat().filter(h =>
+            h &&
+            h.owner === playerNumber &&
+            (h.structure === 'Fortaleza' || h.structure === 'Fortaleza con Muralla')
+        ).length;
     },
 
     /**

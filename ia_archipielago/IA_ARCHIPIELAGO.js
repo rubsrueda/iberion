@@ -10,8 +10,8 @@ const IAArchipielago = {
   HUNT_SMALL_DIVISIONS_TARGET: 3,
   BIG_ENEMY_DIVISION_THRESHOLD: 12,
   HEAVY_DIVISION_TARGET: 20,
-  WORM_MIN_SPLIT_REGIMENTS: 6,
-  WORM_MAX_ACTIONS_PER_TURN: 3,
+  WORM_MIN_SPLIT_REGIMENTS: 2,
+  WORM_MAX_ACTIONS_PER_TURN: 8,
   CUT_SUPPLY_MAX_TARGETS: 4,
   deployUnitsAI(myPlayer) {
     console.log(`[IA_ARCHIPIELAGO] Despliegue IA iniciado para Jugador ${myPlayer}.`);
@@ -236,14 +236,18 @@ const IAArchipielago = {
     console.log(`[IA_ARCHIPIELAGO] PLAN: Ejecutando con ${misUnidades.length} unidades disponibles`);
 
     const hasCrisis = amenazas.length > 0 || frente.length >= 3;
+    let gusanoActions = 0;
+    let gusanoMaxActions = this.WORM_MAX_ACTIONS_PER_TURN;
     if (!hasCrisis) {
       this._ejecutarRutaLarga(situacion);
-      this._ejecutarGusanoCorredor(situacion, { maxActions: this.WORM_MAX_ACTIONS_PER_TURN });
+      gusanoActions = this._ejecutarGusanoCorredor(situacion, { maxActions: this.WORM_MAX_ACTIONS_PER_TURN });
     } else {
       console.log('[IA_ARCHIPIELAGO] Ruta Larga pausada por crisis tactica.');
       // Incluso en crisis mantenemos un avance minimo del corredor para no congelar la red.
-      this._ejecutarGusanoCorredor(situacion, { maxActions: 1 });
+      gusanoMaxActions = 1;
+      gusanoActions = this._ejecutarGusanoCorredor(situacion, { maxActions: gusanoMaxActions });
     }
+    console.log(`[IA DIAG][TURN ${gameState.turnNumber}] J${myPlayer} crisis=${hasCrisis} gusano=${gusanoActions}/${gusanoMaxActions} splitMin=${this.WORM_MIN_SPLIT_REGIMENTS}`);
 
     if (enemyProfile?.mode === 'spread_small') {
       const created = this._ensureHunterDivisions(myPlayer, enemyProfile.targetRegiments);
@@ -2013,6 +2017,10 @@ const IAArchipielago = {
     const maxActions = Math.max(1, Number(opts.maxActions || this.WORM_MAX_ACTIONS_PER_TURN));
     const corridorObjectives = this._getTopCorridorObjectives(myPlayer, maxActions);
     if (!corridorObjectives.length) return 0;
+    const bankCity = this._getBankCity();
+    const bankObjectives = corridorObjectives.filter(node =>
+      bankCity && node?.to?.r === bankCity.r && node?.to?.c === bankCity.c
+    ).length;
 
     let actions = 0;
     for (const node of corridorObjectives) {
@@ -2044,6 +2052,8 @@ const IAArchipielago = {
         }
       }
     }
+
+    console.log(`[IA DIAG][GUSANO] J${myPlayer} objetivos=${corridorObjectives.length} bankObj=${bankObjectives} acciones=${actions}/${maxActions}`);
 
     return actions;
   },
@@ -3239,6 +3249,7 @@ const IAArchipielago = {
   _getRoadNetworkPlan(myPlayer, ciudades) {
     const ownCities = (ciudades || []).filter(c => c && c.owner === myPlayer);
     const connections = [];
+    const bankCity = this._getBankCity();
 
     for (const origin of ownCities) {
       const candidate = (ciudades || [])
@@ -3258,6 +3269,9 @@ const IAArchipielago = {
         })
         .filter(Boolean)
         .sort((a, b) => {
+          const aBank = !!(bankCity && a.to.r === bankCity.r && a.to.c === bankCity.c);
+          const bBank = !!(bankCity && b.to.r === bankCity.r && b.to.c === bankCity.c);
+          if (aBank !== bBank) return aBank ? -1 : 1;
           const aState = a.pendingCaptureSegments?.length ? 0 : (a.missingOwnedSegments?.length ? 1 : 2);
           const bState = b.pendingCaptureSegments?.length ? 0 : (b.missingOwnedSegments?.length ? 1 : 2);
           if (aState !== bState) return aState - bState;
@@ -3276,6 +3290,7 @@ const IAArchipielago = {
     let best = null;
     const dummyUnit = { player: myPlayer, regiments: [{ type: 'Infantería Ligera' }] };
     const roadBuildable = STRUCTURE_TYPES['Camino']?.buildableOn || [];
+    const bankCity = this._getBankCity();
 
     for (let i = 0; i < ciudades.length; i++) {
       for (let j = i + 1; j < ciudades.length; j++) {
@@ -3308,9 +3323,14 @@ const IAArchipielago = {
         });
 
         const missingCount = missingOwnedSegments.length;
-        const score = (missingCount * 10) + landPath.length;
+        const touchesBank = !!(
+          bankCity &&
+          ((cityA.r === bankCity.r && cityA.c === bankCity.c) || (cityB.r === bankCity.r && cityB.c === bankCity.c))
+        );
+        const bankBonus = touchesBank ? -10000 : 0;
+        const score = bankBonus + (missingCount * 10) + landPath.length;
         if (!best || score < best.score) {
-          best = { cityA, cityB, landPath, infraPath, missingOwnedSegments, score };
+          best = { cityA, cityB, landPath, infraPath, missingOwnedSegments, score, touchesBank };
         }
       }
     }
