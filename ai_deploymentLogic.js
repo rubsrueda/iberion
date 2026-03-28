@@ -28,9 +28,13 @@ const AiDeploymentManager = {
             let deployedCount = 0;
             let tempOccupiedSpots = new Set();
             const isFreeDeployment = gameState.currentPhase === 'deployment';
+
+            if (hasDeterministicBootstrap) {
+                deployedCount = this._runDeterministicDeploymentPipeline(playerNumber, analysis, strategy, unitsToPlaceCount, playerResources, isFreeDeployment);
+            }
             
             // GARANTIZAR al menos 1 unidad para evitar derrota inmediata
-            if (missionList.length > 0) {
+            if (missionList.length > 0 && !hasDeterministicBootstrap) {
                 let missionIdx = 0;
                 let safetyGuard = 0;
                 while (deployedCount < unitsToPlaceCount && safetyGuard < 30) {
@@ -183,6 +187,103 @@ const AiDeploymentManager = {
                 }
             }, 1000); // 1 segundo de espera.
             
+        }
+    },
+
+    _runDeterministicDeploymentPipeline: function(playerNumber, analysis, strategy, unitsToPlaceCount, playerResources, isFreeDeployment) {
+        if (unitsToPlaceCount <= 0) return 0;
+
+        let deployed = 0;
+        let guard = 0;
+
+        while (deployed < unitsToPlaceCount && guard < 12) {
+            guard++;
+            const dynamicList = this.generateMissionList(strategy, analysis, playerNumber);
+            const mission = dynamicList?.[0] || null;
+            if (!mission || !mission.deterministicBootstrap) {
+                console.warn(`[IA DEPLOY][PIPELINE] J${playerNumber} NO_MISSION deployed=${deployed}/${unitsToPlaceCount}`);
+                break;
+            }
+
+            console.log(`[IA DEPLOY][PIPELINE] J${playerNumber} iter=${guard} etapa=${(mission.stageIndex || 0) + 1}/3`);
+
+            const unitDefinition = this.defineUnitForMission(mission, analysis.humanThreats, playerResources);
+            if (!unitDefinition) {
+                console.warn(`[IA DEPLOY][PIPELINE] J${playerNumber} NO_UNIT_DEF etapa=${(mission.stageIndex || 0) + 1}`);
+                break;
+            }
+
+            // Spots vivos desde tablero actual
+            const currentAvailableSpots = board.flat().filter(spot => spot && !spot.unit && spot.terrain !== 'water');
+            const isFirstUnit = deployed === 0;
+            let placementSpot = this.findBestSpotForMission(mission, currentAvailableSpots, unitDefinition, playerNumber, isFirstUnit, analysis.humanThreats);
+            if (!placementSpot) {
+                placementSpot = this._findDeterministicBootstrapFallbackSpot(mission, currentAvailableSpots, unitDefinition, playerNumber);
+            }
+            if (!placementSpot) {
+                console.warn(`[IA DEPLOY][PIPELINE] J${playerNumber} NO_SPOT etapa=${(mission.stageIndex || 0) + 1}`);
+                break;
+            }
+
+            if (!isFreeDeployment && playerResources.oro < unitDefinition.cost) {
+                console.warn(`[IA DEPLOY][PIPELINE] J${playerNumber} recursos insuficientes para etapa ${(mission.stageIndex || 0) + 1}`);
+                break;
+            }
+            if (!isFreeDeployment) {
+                playerResources.oro -= unitDefinition.cost;
+            }
+
+            const newUnitData = this.createUnitObject(unitDefinition, playerNumber, placementSpot);
+            newUnitData.iaBootstrapObjective = {
+                r: mission.objectiveHex?.r,
+                c: mission.objectiveHex?.c,
+                stageIndex: mission.stageIndex,
+                stageLabel: mission.stageLabel,
+                fromNode: mission.fromNode,
+                toNode: mission.toNode
+            };
+
+            placeFinalizedDivision(newUnitData, placementSpot.r, placementSpot.c);
+
+            if (typeof AiGameplayManager !== 'undefined' && AiGameplayManager.unitRoles) {
+                AiGameplayManager.unitRoles.set(newUnitData.id, unitDefinition.role);
+            }
+
+            this._markDeterministicBootstrapStageCreated(playerNumber, mission);
+            this._completeDeterministicBootstrapStageFromDeployment(playerNumber, mission, placementSpot);
+
+            // Fase 1 pedida por usuario: tras crear división, intentar avance inmediato en despliegue.
+            this._attemptBootstrapMoveInDeployment(newUnitData, mission.objectiveHex);
+
+            console.log(`[IA DEPLOY][PIPELINE] J${playerNumber} etapa=${(mission.stageIndex || 0) + 1}/3 ${mission.stageLabel} unidad=${newUnitData.name} regs=${newUnitData.regiments?.length || 0} objetivo=(${mission.objectiveHex?.r},${mission.objectiveHex?.c})`);
+            deployed++;
+        }
+
+        console.log(`[IA DEPLOY][PIPELINE] J${playerNumber} fin_iteraciones deployed=${deployed}/${unitsToPlaceCount} guard=${guard}`);
+        return deployed;
+    },
+
+    _attemptBootstrapMoveInDeployment: function(unit, objectiveHex) {
+        if (!unit || !objectiveHex) return;
+        if (typeof _executeMoveUnit !== 'function') return;
+        if (typeof isValidMove !== 'function') return;
+
+        const neighbors = getHexNeighbors(unit.r, unit.c)
+            .map(n => board[n.r]?.[n.c])
+            .filter(h => h && !h.unit)
+            .sort((a, b) => hexDistance(a.r, a.c, objectiveHex.r, objectiveHex.c) - hexDistance(b.r, b.c, objectiveHex.r, objectiveHex.c));
+
+        const step = neighbors.find(h => isValidMove(unit, h.r, h.c));
+        if (!step) {
+            console.log(`[IA DEPLOY][PIPELINE] MOV_SKIP unidad=${unit.name} sin paso válido en despliegue.`);
+            return;
+        }
+
+        try {
+            _executeMoveUnit(unit, step.r, step.c);
+            console.log(`[IA DEPLOY][PIPELINE] MOV_OK unidad=${unit.name} (${unit.r},${unit.c})->(${step.r},${step.c})`);
+        } catch (e) {
+            console.warn(`[IA DEPLOY][PIPELINE] MOV_FAIL unidad=${unit.name} motivo=${e?.message || e}`);
         }
     },
 
