@@ -37,6 +37,8 @@ const IAArchipielago = {
   },
 
   ejecutarTurno(myPlayer) {
+          // === LOG DE ENTRADA FLUJO OCUPACIÓN ===
+          console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] INICIO del flujo de ocupación para Jugador ${myPlayer}, Turno ${gameState.turnNumber}`);
         // LOG: Resumen de metas cumplidas y disponibles
         if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
         if (!gameState.iaCompletedGoals[myPlayer]) gameState.iaCompletedGoals[myPlayer] = [];
@@ -129,12 +131,18 @@ const IAArchipielago = {
       if (h.resourceNode && isGoalCompletedFlujo('ocupacion', h.r, h.c)) { logFiltrado('ocupacion', h.r, h.c); return false; }
       return h.resourceNode;
     });
+    // === LOG DE OCUPACIÓN: Estado de recursos ===
+    if (recursos.length === 0) {
+      console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] No hay recursos ocupables para este turno.`);
+    }
     const infraestructura = hexesPropios.filter(h => {
       if (h.structure && isGoalCompletedFlujo('construccion', h.r, h.c)) { logFiltrado('construccion', h.r, h.c); return false; }
       return h.structure;
     });
       // Cuando la IA ocupe una casilla:
       // registrarMetaFlujo('ocupacion', r, c);
+    // === LOG DE SALIDA FLUJO OCUPACIÓN ===
+    console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] FIN del flujo de ocupación para Jugador ${myPlayer}, Turno ${gameState.turnNumber}`);
       // Cuando construya infraestructura:
       // registrarMetaFlujo('construccion', r, c);
       // Cuando cree una caravana:
@@ -1224,25 +1232,30 @@ const IAArchipielago = {
    */
   construirInfraestructura(myPlayer, hexesPropios, economia) {
     const capital = gameState.cities.find(c => c.owner === myPlayer && c.isCapital);
-    if (!capital) return;
+    if (!capital) {
+      console.log('[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] No hay capital, no se puede construir.');
+      return;
+    }
 
-    console.log(`[IA_ARCHIPIELAGO] CONSTRUCCIÓN: Oro disponible: ${economia.oro}`);
+    console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Oro disponible: ${economia.oro}`);
+    let hizoAlgo = false;
 
     const invaderFortSpot = this._findInvaderIslandFortressSpot(myPlayer, hexesPropios);
     if (invaderFortSpot) {
       if (!this._ensureTech(myPlayer, 'FORTIFICATIONS')) {
-        console.log('[IA_ARCHIPIELAGO] CONSTRUCCIÓN: falta FORTIFICATIONS para fortaleza invasora.');
+        console.log('[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Falta FORTIFICATIONS para fortaleza invasora.');
         return;
       }
       if (!this._canAffordStructure(myPlayer, 'Fortaleza')) {
-        console.log('[IA_ARCHIPIELAGO] CONSTRUCCIÓN: recursos insuficientes para fortaleza invasora.');
+        console.log('[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Recursos insuficientes para fortaleza invasora.');
         return;
       }
-      console.log(`[IA_ARCHIPIELAGO] Construyendo fortaleza (Camino 16) en (${invaderFortSpot.r},${invaderFortSpot.c})`);
+      console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Construyendo fortaleza (Camino 16) en (${invaderFortSpot.r},${invaderFortSpot.c})`);
       const built = this._requestBuildStructure(myPlayer, invaderFortSpot.r, invaderFortSpot.c, 'Fortaleza');
       if (built) {
         this._startFortressPressure(myPlayer, invaderFortSpot);
         this.registrarMetaCumplida(myPlayer, 'infraestructura', invaderFortSpot.r, invaderFortSpot.c);
+        hizoAlgo = true;
       }
       return;
     }
@@ -1255,22 +1268,26 @@ const IAArchipielago = {
     const candidate = this._findBestTradeCityPair(ciudades, myPlayer, existingRouteKeys);
     // Construir todos los segmentos de camino pendientes mientras haya recursos (no solo 1 por turno).
     const missingSegments = candidate?.missingOwnedSegments || [];
+    if (missingSegments.length === 0) {
+      console.log('[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] No hay segmentos de camino pendientes.');
+    }
     for (const nextHex of missingSegments) {
       if (!this._canAffordStructure(myPlayer, 'Camino')) break;
       const nextHexData = board[nextHex.r]?.[nextHex.c];
       const terrainOk = !roadBuildable.length || roadBuildable.includes(nextHexData?.terrain);
       if (terrainOk) {
-        console.log(`[IA_ARCHIPIELAGO] Construyendo camino en (${nextHex.r},${nextHex.c})`);
+        console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Construyendo camino en (${nextHex.r},${nextHex.c})`);
         const built = this._requestBuildStructure(myPlayer, nextHex.r, nextHex.c, 'Camino');
-        if (built) this.registrarMetaCumplida(myPlayer, 'infraestructura', nextHex.r, nextHex.c);
+        if (built) {
+          this.registrarMetaCumplida(myPlayer, 'infraestructura', nextHex.r, nextHex.c);
+          hizoAlgo = true;
+        }
       }
     }
 
     // PRIORIDAD 2: Fortalezas estratégicas en el corredor comercial.
-    // Una Fortaleza → Fortaleza con Muralla → Aldea en el corredor = nueva ciudad conectada (más rutas).
-    // Guardrail: máximo 1 fortaleza y mínimo 5 hexes entre fortalezas.
     if (!this._ensureTech(myPlayer, 'FORTIFICATIONS')) {
-      console.log('[IA_ARCHIPIELAGO] CONSTRUCCIÓN: falta FORTIFICATIONS para fortaleza estratégica.');
+      console.log('[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Falta FORTIFICATIONS para fortaleza estratégica.');
       return;
     }
 
@@ -1321,10 +1338,17 @@ const IAArchipielago = {
         .sort((a, b) => b.score - a.score)[0];
 
       if (bestFort && this._canAffordStructure(myPlayer, 'Fortaleza')) {
-        console.log(`[IA_ARCHIPIELAGO] Construyendo fortaleza estratégica en (${bestFort.h.r},${bestFort.h.c}) score=${bestFort.score}`);
+        console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Construyendo fortaleza estratégica en (${bestFort.h.r},${bestFort.h.c}) score=${bestFort.score}`);
         const built = this._requestBuildStructure(myPlayer, bestFort.h.r, bestFort.h.c, 'Fortaleza');
-        if (built) this.registrarMetaCumplida(myPlayer, 'infraestructura', bestFort.h.r, bestFort.h.c);
+        if (built) {
+          this.registrarMetaCumplida(myPlayer, 'infraestructura', bestFort.h.r, bestFort.h.c);
+          hizoAlgo = true;
+        }
       }
+    }
+
+    if (!hizoAlgo) {
+      console.log('[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] No se realizó ninguna acción de construcción este turno.');
     }
   },
 
@@ -1334,13 +1358,20 @@ const IAArchipielago = {
    */
   crearCaravanas(myPlayer, ciudades) {
     if (ciudades.length < 2) {
-      console.log(`[IA_ARCHIPIELAGO] No hay suficientes ciudades para caravanas`);
+      console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] No hay suficientes ciudades para crear rutas/caravanas (actual: ${ciudades.length})`);
       return;
     }
 
-    console.log(`[IA_ARCHIPIELAGO] CARAVANAS: ${ciudades.length} ciudades disponibles`);
+    console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Intentando crear rutas/caravanas entre ${ciudades.length} ciudades`);
 
+    const antes = JSON.stringify(gameState.tradeRoutes || []);
     this._ejecutarRutaLarga({ myPlayer, ciudades });
+    const despues = JSON.stringify(gameState.tradeRoutes || []);
+    if (antes === despues) {
+      console.log('[IA_ARCHIPIELAGO][FLUJO CARAVANA] No se creó ninguna ruta/caravana nueva este turno.');
+    } else {
+      console.log('[IA_ARCHIPIELAGO][FLUJO CARAVANA] Se creó al menos una ruta/caravana nueva.');
+    }
   }
   ,
 
