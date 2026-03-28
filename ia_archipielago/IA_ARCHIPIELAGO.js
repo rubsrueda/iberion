@@ -124,14 +124,21 @@ const IAArchipielago = {
 
     const ciudades = IASentidos.getCities(myPlayer).filter(c => !isGoalCompleted('ciudad', c.r, c.c));
     const hexesPropios = IASentidos.getOwnedHexes(myPlayer);
+    // Flujos independientes: ocupación, construcción, caravana
     const recursos = hexesPropios.filter(h => {
-      if (h.resourceNode && isGoalCompleted('recurso', h.r, h.c)) { logFiltrado('recurso', h.r, h.c); return false; }
+      if (h.resourceNode && isGoalCompletedFlujo('ocupacion', h.r, h.c)) { logFiltrado('ocupacion', h.r, h.c); return false; }
       return h.resourceNode;
     });
     const infraestructura = hexesPropios.filter(h => {
-      if (h.structure && isGoalCompleted('infraestructura', h.r, h.c)) { logFiltrado('infraestructura', h.r, h.c); return false; }
+      if (h.structure && isGoalCompletedFlujo('construccion', h.r, h.c)) { logFiltrado('construccion', h.r, h.c); return false; }
       return h.structure;
     });
+      // Cuando la IA ocupe una casilla:
+      // registrarMetaFlujo('ocupacion', r, c);
+      // Cuando construya infraestructura:
+      // registrarMetaFlujo('construccion', r, c);
+      // Cuando cree una caravana:
+      // registrarMetaFlujo('caravana', r, c);
     totalMetas = ciudades.length + recursos.length + infraestructura.length + totalFiltradas;
     const objetivos = ciudades.concat(recursos).concat(infraestructura);
     console.log(`[IA_ARCHIPIELAGO][RESUMEN] Metas disponibles: ${ciudades.length + recursos.length + infraestructura.length}, Metas cumplidas (filtradas): ${totalFiltradas}, Total históricas: ${totalMetas}`);
@@ -1350,6 +1357,8 @@ const IAArchipielago = {
     if (typeof isNetworkGame === 'function' && isNetworkGame() && hasNetworkMatch && typeof NetworkManager !== 'undefined' && !NetworkManager.esAnfitrion) {
       if (NetworkManager.enviarDatos) {
         NetworkManager.enviarDatos({ type: 'actionRequest', action });
+        // Registro de ocupación tras movimiento exitoso
+        if (typeof registrarMetaFlujo === 'function') registrarMetaFlujo('ocupacion', r, c);
         return true;
       }
       return false;
@@ -1357,11 +1366,13 @@ const IAArchipielago = {
 
     if (typeof processActionRequest === 'function') {
       processActionRequest(action);
+      if (typeof registrarMetaFlujo === 'function') registrarMetaFlujo('ocupacion', r, c);
       return true;
     }
 
     if (typeof RequestMoveUnit === 'function') {
       RequestMoveUnit(unit, r, c);
+      if (typeof registrarMetaFlujo === 'function') registrarMetaFlujo('ocupacion', r, c);
       return true;
     }
 
@@ -1586,10 +1597,12 @@ const IAArchipielago = {
     if (typeof isNetworkGame === 'function' && isNetworkGame()) {
       if (typeof NetworkManager !== 'undefined' && NetworkManager.esAnfitrion && typeof processActionRequest === 'function') {
         processActionRequest(action);
+        if (typeof registrarMetaFlujo === 'function') registrarMetaFlujo('construccion', r, c);
         return true;
       }
       if (typeof NetworkManager !== 'undefined' && NetworkManager.enviarDatos) {
         NetworkManager.enviarDatos({ type: 'actionRequest', action });
+        if (typeof registrarMetaFlujo === 'function') registrarMetaFlujo('construccion', r, c);
         return true;
       }
       return false;
@@ -1598,6 +1611,7 @@ const IAArchipielago = {
     if (typeof handleConfirmBuildStructure === 'function') {
       handleConfirmBuildStructure(action.payload);
       const built = board[r]?.[c]?.structure === structureType;
+      if (built && typeof registrarMetaFlujo === 'function') registrarMetaFlujo('construccion', r, c);
       if (!built) playerRetryState.keys.add(retryKey);
       return built;
     }
@@ -1645,10 +1659,12 @@ const IAArchipielago = {
     if (typeof isNetworkGame === 'function' && isNetworkGame()) {
       if (typeof NetworkManager !== 'undefined' && NetworkManager.esAnfitrion && typeof processActionRequest === 'function') {
         processActionRequest(action);
+        if (typeof registrarMetaFlujo === 'function') registrarMetaFlujo('caravana', origin.r, origin.c);
         return true;
       }
       if (typeof NetworkManager !== 'undefined' && NetworkManager.enviarDatos) {
         NetworkManager.enviarDatos({ type: 'actionRequest', action });
+        if (typeof registrarMetaFlujo === 'function') registrarMetaFlujo('caravana', origin.r, origin.c);
         return true;
       }
       return false;
@@ -1656,6 +1672,7 @@ const IAArchipielago = {
 
     if (typeof _executeEstablishTradeRoute === 'function') {
       _executeEstablishTradeRoute(action.payload);
+      if (typeof registrarMetaFlujo === 'function') registrarMetaFlujo('caravana', origin.r, origin.c);
       return true;
     }
 
