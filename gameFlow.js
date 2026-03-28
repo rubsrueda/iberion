@@ -1538,10 +1538,16 @@ async function simpleAiTurn() {
         await initializeIaConfig();
     }
 
-    // Default: intentar usar IAArchipielago primero. Fallback a AiGameplayManager si no disponible.
+    // Diagnóstico: Comprobar disponibilidad de IAArchipielago e IASentidos
+    console.log('[DIAG] ¿IAArchipielago está en window?', typeof window.IAArchipielago, window.IAArchipielago);
+    console.log('[DIAG] ¿IASentidos está en window?', typeof window.IASentidos, window.IASentidos);
     if (typeof IAArchipielago !== 'undefined' && typeof IAArchipielago.ejecutarTurno === 'function') {
         logMessage(`IA (Jugador ${aiActualPlayerNumber}) inicia su turno... (IAArchipielago)`);
-        IAArchipielago.ejecutarTurno(aiActualPlayerNumber);
+        try {
+            IAArchipielago.ejecutarTurno(aiActualPlayerNumber);
+        } catch (e) {
+            console.error('[DIAG] Error al ejecutar IAArchipielago.ejecutarTurno:', e);
+        }
         return;
     }
 

@@ -39,6 +39,9 @@ const IAArchipielago = {
   ejecutarTurno(myPlayer) {
           // === LOG DE ENTRADA FLUJO OCUPACIÓN ===
           console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] INICIO del flujo de ocupación para Jugador ${myPlayer}, Turno ${gameState.turnNumber}`);
+        console.log('[DIAG] Entrando en IAArchipielago.ejecutarTurno para jugador', myPlayer);
+        console.log('[DIAG] IASentidos en window:', typeof window.IASentidos, window.IASentidos);
+        console.log('[DIAG] IASentidos local:', typeof IASentidos, IASentidos);
         // LOG: Resumen de metas cumplidas y disponibles
         if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
         if (!gameState.iaCompletedGoals[myPlayer]) gameState.iaCompletedGoals[myPlayer] = [];
