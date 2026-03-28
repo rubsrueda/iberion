@@ -1099,40 +1099,67 @@ const IAArchipielago = {
       }
     }
 
-    // PRIORIDAD 2: Construir fortalezas en puntos estratégicos
+    // PRIORIDAD 2: Fortalezas estratégicas en el corredor comercial.
+    // Una Fortaleza → Fortaleza con Muralla → Aldea en el corredor = nueva ciudad conectada (más rutas).
+    // Regla: mín. 4 hexes de separación entre fortalezas/ciudades; máx. 3 fortalezas de expansión.
     if (!this._ensureTech(myPlayer, 'FORTIFICATIONS')) {
       console.log('[IA_ARCHIPIELAGO] CONSTRUCCIÓN: falta FORTIFICATIONS para fortaleza estratégica.');
       return;
     }
-    const fortBuildable = STRUCTURE_TYPES['Fortaleza']?.buildableOn || [];
-    const landPath = candidate?.landPath || [];
-    const puntosEstrategicos = hexesPropios.filter(h => {
-      if (h.structure || h.unit) return false;
-      if (fortBuildable.length > 0 && !fortBuildable.includes(h.terrain)) return false;
-      return true;
-    });
 
-    const scoreFortressSpot = (hex) => {
-      let score = 0;
-      if (hex.terrain === 'mountain' || hex.terrain === 'mountains') score += 6;
-      if (hex.terrain === 'hills') score += 4;
-      if (landPath.some(step => step.r === hex.r && step.c === hex.c)) score += 4;
-      const nearRoad = getHexNeighbors(hex.r, hex.c).some(n => board[n.r]?.[n.c]?.structure === 'Camino');
-      if (nearRoad) score += 3;
-      return score;
-    };
+    const MAX_EXPANSION_FORTS = 3;
+    const MIN_FORT_SPACING = 4;
+    const existingExpandForts = board.flat().filter(h =>
+      h && h.owner === myPlayer && (h.structure === 'Fortaleza' || h.structure === 'Fortaleza con Muralla')
+    );
 
-    const bestFort = puntosEstrategicos
-      .map(h => ({ h, score: scoreFortressSpot(h) }))
-      .sort((a, b) => b.score - a.score)[0];
+    if (existingExpandForts.length < MAX_EXPANSION_FORTS) {
+      const allOccupied = [
+        ...existingExpandForts,
+        ...(gameState.cities || []).filter(c => c.owner === myPlayer)
+      ];
 
-    if (bestFort && bestFort.score > 0) {
-      const punto = bestFort.h;
-      if (!this._canAffordStructure(myPlayer, 'Fortaleza')) {
-        return;
+      // Segmentos del corredor → candidatos preferidos (serán ciudades conectadas).
+      const corridorSegments = new Set();
+      try {
+        if (typeof AiGameplayManager !== 'undefined' && AiGameplayManager._getCommercialNetworkPlan) {
+          const netPlan = AiGameplayManager._getCommercialNetworkPlan(myPlayer);
+          for (const conn of netPlan.connections || []) {
+            const path = conn.path || [];
+            for (let i = 1; i < path.length - 1; i++) {
+              corridorSegments.add(`${path[i].r},${path[i].c}`);
+            }
+          }
+        }
+      } catch (_) {}
+
+      const fortBuildable = STRUCTURE_TYPES['Fortaleza']?.buildableOn || [];
+      const fortCandidates = hexesPropios.filter(h => {
+        if (h.structure || h.unit) return false;
+        if (fortBuildable.length > 0 && !fortBuildable.includes(h.terrain)) return false;
+        if (h.terrain === 'water') return false;
+        return allOccupied.every(pos => hexDistance(h.r, h.c, pos.r, pos.c) >= MIN_FORT_SPACING);
+      });
+
+      const scoreFortSpot = (hex) => {
+        let score = 0;
+        if (hex.terrain === 'mountain' || hex.terrain === 'mountains') score += 8;
+        if (hex.terrain === 'hills') score += 5;
+        if (corridorSegments.has(`${hex.r},${hex.c}`)) score += 10; // Futuro nodo comercial
+        const nearRoad = getHexNeighbors(hex.r, hex.c).some(n => board[n.r]?.[n.c]?.structure === 'Camino');
+        if (nearRoad) score += 4;
+        return score;
+      };
+
+      const bestFort = fortCandidates
+        .map(h => ({ h, score: scoreFortSpot(h) }))
+        .filter(x => x.score > 0)
+        .sort((a, b) => b.score - a.score)[0];
+
+      if (bestFort && this._canAffordStructure(myPlayer, 'Fortaleza')) {
+        console.log(`[IA_ARCHIPIELAGO] Construyendo fortaleza estratégica en (${bestFort.h.r},${bestFort.h.c}) score=${bestFort.score}`);
+        this._requestBuildStructure(myPlayer, bestFort.h.r, bestFort.h.c, 'Fortaleza');
       }
-      console.log(`[IA_ARCHIPIELAGO] Construyendo fortaleza estratégica en (${punto.r},${punto.c})`);
-      this._requestBuildStructure(myPlayer, punto.r, punto.c, 'Fortaleza');
     }
   },
 

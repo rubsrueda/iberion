@@ -293,60 +293,60 @@ const AiGameplayManager = {
         const bankAlreadyInCities = bankCity && allCities.some(c => c.r === bankCity.r && c.c === bankCity.c);
         const tradeNodes = bankCity && !bankAlreadyInCities ? [...allCities, bankCity] : allCities;
         const roadReady = new Set(['Camino', 'Fortaleza', 'Fortaleza con Muralla', 'Aldea', 'Ciudad', 'Metrópoli']);
+
+        const buildPlan = (origin, dest) => {
+            const rawPath = this._buildCommercialCorridorPath(playerNumber, origin, dest);
+            if (!rawPath || rawPath.length < 2) return null;
+            const pendingCaptureSegments = [];
+            const missingOwnedSegments = [];
+            rawPath.forEach((step, idx) => {
+                const isEndpoint = idx === 0 || idx === rawPath.length - 1;
+                if (isEndpoint) return;
+                const hex = board[step.r]?.[step.c];
+                if (!hex || hex.isCity || !this._canBuildRoadOnHex(hex)) return;
+                if (hex.owner !== playerNumber) {
+                    pendingCaptureSegments.push({ r: step.r, c: step.c, idx });
+                    return;
+                }
+                const city = this._getCityAtHex(step.r, step.c);
+                const isOwnCity = !!(city && city.owner === playerNumber);
+                if (!isOwnCity && !roadReady.has(hex.structure)) {
+                    missingOwnedSegments.push({ r: step.r, c: step.c, idx });
+                }
+            });
+            const infraPath = (typeof findInfrastructurePath === 'function')
+                ? findInfrastructurePath(origin, dest, { allowForeignInfrastructure: true, requireRoadCorridor: true })
+                : null;
+            return { origin, dest, rawPath, pendingCaptureSegments, missingOwnedSegments, infraPath,
+                distance: hexDistance(origin.r, origin.c, dest.r, dest.c) };
+        };
+
         const plans = [];
 
         for (const origin of ownCities) {
-            const best = tradeNodes
+            // La banca es siempre el destino obligatorio si es alcanzable: genera el primer plan.
+            if (bankCity && !(bankCity.r === origin.r && bankCity.c === origin.c)) {
+                const bankPlan = buildPlan(origin, bankCity);
+                if (bankPlan) plans.push(bankPlan);
+            }
+
+            // Planes secundarios: resto de destinos válidos alcanzables (sin duplicar banco).
+            const secondaryDests = tradeNodes
                 .filter(dest => !(dest.r === origin.r && dest.c === origin.c))
-                .filter(dest => this._isOrganicTradeDestinationAllowed(playerNumber, dest))
-                .map(dest => {
-                    const rawPath = this._buildCommercialCorridorPath(playerNumber, origin, dest);
-                    if (!rawPath || rawPath.length < 2) return null;
+                .filter(dest => !(bankCity && dest.r === bankCity.r && dest.c === bankCity.c))
+                .filter(dest => this._isOrganicTradeDestinationAllowed(playerNumber, dest));
 
-                    const pendingCaptureSegments = [];
-                    const missingOwnedSegments = [];
-                    rawPath.forEach((step, idx) => {
-                        const isEndpoint = idx === 0 || idx === rawPath.length - 1;
-                        if (isEndpoint) return;
-                        const hex = board[step.r]?.[step.c];
-                        if (!hex || hex.isCity || !this._canBuildRoadOnHex(hex)) return;
-                        if (hex.owner !== playerNumber) {
-                            pendingCaptureSegments.push({ r: step.r, c: step.c, idx });
-                            return;
-                        }
-                        const city = this._getCityAtHex(step.r, step.c);
-                        const isOwnCity = !!(city && city.owner === playerNumber);
-                        if (!isOwnCity && !roadReady.has(hex.structure)) {
-                            missingOwnedSegments.push({ r: step.r, c: step.c, idx });
-                        }
-                    });
-
-                    const infraPath = (typeof findInfrastructurePath === 'function')
-                        ? findInfrastructurePath(origin, dest, { allowForeignInfrastructure: true, requireRoadCorridor: true })
-                        : null;
-
-                    return {
-                        origin,
-                        dest,
-                        rawPath,
-                        pendingCaptureSegments,
-                        missingOwnedSegments,
-                        infraPath,
-                        distance: hexDistance(origin.r, origin.c, dest.r, dest.c)
-                    };
-                })
-                .filter(Boolean)
-                .sort((a, b) => {
-                    const aState = (a.pendingCaptureSegments.length > 0) ? 0 : (a.missingOwnedSegments.length > 0 ? 1 : 2);
-                    const bState = (b.pendingCaptureSegments.length > 0) ? 0 : (b.missingOwnedSegments.length > 0 ? 1 : 2);
-                    if (aState !== bState) return aState - bState;
-                    return a.distance - b.distance;
-                })[0];
-
-            if (best) plans.push(best);
+            for (const dest of secondaryDests) {
+                const plan = buildPlan(origin, dest);
+                if (plan) plans.push(plan);
+            }
         }
 
+        // Banco primero, luego por trabajo pendiente (capturas > caminos > listo), luego distancia.
         return plans.sort((a, b) => {
+            const aBank = (a.dest?.isBank || a.dest?.owner === 0) ? -1 : 0;
+            const bBank = (b.dest?.isBank || b.dest?.owner === 0) ? -1 : 0;
+            if (aBank !== bBank) return aBank - bBank;
             const aState = (a.pendingCaptureSegments.length > 0) ? 0 : (a.missingOwnedSegments.length > 0 ? 1 : 2);
             const bState = (b.pendingCaptureSegments.length > 0) ? 0 : (b.missingOwnedSegments.length > 0 ? 1 : 2);
             if (aState !== bState) return aState - bState;
@@ -390,7 +390,12 @@ const AiGameplayManager = {
                 return !mission || ['IA_NODE', 'AXIS_ADVANCE', 'DEFAULT'].includes(mission.type);
             });
 
+        const globalClaimed = gameState.ai_corridor_claimed_hexes?.[playerNumber] || new Set();
+
         for (const target of targets) {
+            const hexKey = `${target.r},${target.c}`;
+            if (globalClaimed.has(hexKey)) continue; // Ya asignado por otro sistema este turno
+
             const chosen = availableUnits
                 .slice()
                 .filter(u => !claimedUnits.has(u.id))
@@ -409,6 +414,7 @@ const AiGameplayManager = {
                 nodoRazon: 'HEART_CARAVAN'
             });
             claimedUnits.add(chosen.id);
+            globalClaimed.add(hexKey);
             assigned++;
             console.log(`[IA HEART PASO1] J${playerNumber}: ${chosen.name} asignada a ocupar (${target.r},${target.c}) desde ${plan.origin.name}→${plan.dest.name}`);
         }
@@ -1640,7 +1646,40 @@ const AiGameplayManager = {
         const aiCapital = gameState.cities.find(c => c.isCapital && c.owner === playerNumber);
         const existingForts = board.flat().filter(h => h && h.owner === playerNumber && h.structure === 'Fortaleza');
 
-        let candidates = board.flat().filter(h => h && h.terrain === 'hills' && h.owner === playerNumber && !h.structure);
+        // Construir fortalezas en el corredor es buena estrategia (Fortaleza→Muralla→Aldea = nueva ciudad conectada).
+        // Pero deben espaciarse: mínimo 4 hexes de cualquier fortaleza o ciudad existente.
+        // Máximo 3 fortalezas de expansión simultáneas para no dilapidar piedra.
+        const MAX_EXPANSION_FORTS = 3;
+        const MIN_FORT_SPACING = 4;
+        if (existingForts.length >= MAX_EXPANSION_FORTS) return null;
+
+        const occupiedPositions = [
+            ...existingForts,
+            ...(gameState.cities || []).filter(c => c.owner === playerNumber)
+        ];
+
+        // Obtener segmentos interiores del corredor para puntuarlos positivamente.
+        const corridorHexSet = new Set();
+        try {
+            const netPlan = this._getCommercialNetworkPlan(playerNumber);
+            for (const conn of netPlan.connections || []) {
+                const path = conn.path || [];
+                for (let i = 1; i < path.length - 1; i++) {
+                    corridorHexSet.add(`${path[i].r},${path[i].c}`);
+                }
+            }
+        } catch (_) {}
+
+        let candidates = board.flat().filter(h => {
+            if (!h || !h.owner === playerNumber || h.structure || h.unit) return false;
+            if (h.owner !== playerNumber) return false;
+            if (h.terrain === 'water') return false;
+            // Separación mínima de cualquier fortaleza/ciudad existente.
+            const tooClose = occupiedPositions.some(pos =>
+                hexDistance(h.r, h.c, pos.r, pos.c) < MIN_FORT_SPACING
+            );
+            return !tooClose;
+        });
         if (candidates.length === 0) return null;
 
         let bestCandidate = null;
@@ -1648,18 +1687,24 @@ const AiGameplayManager = {
 
         candidates.forEach(hex => {
             let score = 0;
-            if (aiCapital) score += hexDistance(aiCapital.r, aiCapital.c, hex.r, hex.c) * 2;
-            if (enemyCapital) score += (100 - hexDistance(hex.r, hex.c, enemyCapital.r, enemyCapital.c));
-            if (existingForts.length > 0) {
-                const closestFortDist = existingForts.reduce((min, f) => Math.min(min, hexDistance(hex.r, hex.c, f.r, f.c)), Infinity);
-                score += closestFortDist * 1.5;
-            }
+            // Terreno elevado = mejor posición defensiva.
+            if (hex.terrain === 'mountain' || hex.terrain === 'mountains') score += 8;
+            if (hex.terrain === 'hills') score += 5;
+            // Si está en el corredor comercial → futura ciudad conectada. Alta prioridad.
+            if (corridorHexSet.has(`${hex.r},${hex.c}`)) score += 10;
+            // Adyacente a camino existente = conectividad inmediata.
+            const nearRoad = getHexNeighbors(hex.r, hex.c).some(n => board[n.r]?.[n.c]?.structure === 'Camino');
+            if (nearRoad) score += 4;
+            // Alejada de la capital propia = mayor expansión territorial.
+            if (aiCapital) score += hexDistance(aiCapital.r, aiCapital.c, hex.r, hex.c) * 1.5;
+            // Cerca del enemigo = presión ofensiva.
+            if (enemyCapital) score += (80 - hexDistance(hex.r, hex.c, enemyCapital.r, enemyCapital.c));
             if (score > maxScore) {
                 maxScore = score;
                 bestCandidate = hex;
             }
         });
-        
+
         return bestCandidate;
     },
 
@@ -1674,6 +1719,11 @@ const AiGameplayManager = {
      *   2. Creación de caravanas: por cada par con ruta de infraestructura válida, crea/usa columna y solicita ruta.
      */
     _ensureTradeInfrastructureOrganic: function(playerNumber) {
+        // Set compartido entre heartbeat y organic road flow: evita que dos sistemas
+        // envíen unidades distintas al mismo hex del corredor en el mismo turno.
+        if (!gameState.ai_corridor_claimed_hexes) gameState.ai_corridor_claimed_hexes = {};
+        gameState.ai_corridor_claimed_hexes[playerNumber] = new Set();
+
         const mandatoryFlow = typeof AiGameplayManager._runMandatoryCaravanHeartFlow === 'function'
             ? AiGameplayManager._runMandatoryCaravanHeartFlow(playerNumber)
             : null;
@@ -1846,7 +1896,8 @@ const AiGameplayManager = {
 
             if (unownedTarget) {
                 const targetKey = `${unownedTarget.r},${unownedTarget.c}`;
-                if (!claimedTargets.has(targetKey)) {
+                const globalClaimed2 = gameState.ai_corridor_claimed_hexes?.[playerNumber] || new Set();
+                if (!claimedTargets.has(targetKey) && !globalClaimed2.has(targetKey)) {
                     const chosenUnit = availableUnits
                         .slice()
                         .filter(u => !assignedUnitIds.has(u.id))
@@ -1865,6 +1916,7 @@ const AiGameplayManager = {
                         });
                         assignedUnitIds.add(chosenUnit.id);
                         claimedTargets.add(targetKey);
+                        globalClaimed2.add(targetKey);
                         console.log(`[IA ORG PASO1] J${playerNumber}: ${chosenUnit.name} ocupa (${unownedTarget.r},${unownedTarget.c}) para corredor ${origin.name || 'origen'}→${dest.name || 'destino'}`);
                     }
                 }
@@ -1920,62 +1972,55 @@ const AiGameplayManager = {
         const hasFort = board.flat().some(h => h && h.owner === playerNumber && h.structure === 'Fortaleza');
         if (!hasFort) return;
 
-        const hasResourceExcess =
+        const hasResources =
             (playerRes.oro || 0) >= 1500 &&
             (playerRes.piedra || 0) >= 300 &&
             (playerRes.madera || 0) >= 150 &&
             (playerRes.hierro || 0) >= 50;
 
-        if (!hasResourceExcess) return;
+        if (!hasResources) return;
 
-        const fortifiedToUpgrade = board.flat().find(h =>
-            h && h.owner === playerNumber && h.structure === 'Fortaleza' && !h.isCity && !getUnitOnHex(h.r, h.c)
-        );
-
-        if (fortifiedToUpgrade) {
-            const costMuralla = STRUCTURE_TYPES['Fortaleza con Muralla']?.cost || {};
-            const canUpgradeMuralla = Object.keys(costMuralla).every(r => r === 'Colono' || (playerRes[r] || 0) >= (costMuralla[r] || 0));
-            if (canUpgradeMuralla) {
-                console.log(`[IA ORG CIUDAD] J${playerNumber}: mejorando Fortaleza con Muralla en (${fortifiedToUpgrade.r},${fortifiedToUpgrade.c})`);
-                handleConfirmBuildStructure({
-                    playerId: playerNumber,
-                    r: fortifiedToUpgrade.r,
-                    c: fortifiedToUpgrade.c,
-                    structureType: 'Fortaleza con Muralla'
-                });
+        // PASO A: Mejorar TODOS los Fortaleza → Fortaleza con Muralla que sean elegibles.
+        const costMuralla = STRUCTURE_TYPES['Fortaleza con Muralla']?.cost || {};
+        const canAffordMuralla = Object.keys(costMuralla).every(r => r === 'Colono' || (playerRes[r] || 0) >= (costMuralla[r] || 0));
+        if (canAffordMuralla) {
+            const fortsToUpgrade = board.flat().filter(h =>
+                h && h.owner === playerNumber && h.structure === 'Fortaleza' && !h.isCity && !getUnitOnHex(h.r, h.c)
+            );
+            for (const fort of fortsToUpgrade) {
+                const stillAfford = Object.keys(costMuralla).every(r => r === 'Colono' || (playerRes[r] || 0) >= (costMuralla[r] || 0));
+                if (!stillAfford) break;
+                console.log(`[IA ORG CIUDAD] J${playerNumber}: mejorando Fortaleza con Muralla en (${fort.r},${fort.c})`);
+                handleConfirmBuildStructure({ playerId: playerNumber, r: fort.r, c: fort.c, structureType: 'Fortaleza con Muralla' });
             }
         }
 
-        const candidateAldeaHex = board.flat().find(h =>
+        // PASO B: En CADA Fortaleza con Muralla, intentar producir Colono y fundar Aldea.
+        const costAldea = STRUCTURE_TYPES['Aldea']?.cost || {};
+        const murallas = board.flat().filter(h =>
             h && h.owner === playerNumber && h.structure === 'Fortaleza con Muralla' && !h.isCity
         );
-        if (!candidateAldeaHex) return;
+        for (const mur of murallas) {
+            let settlerUnit = getUnitOnHex(mur.r, mur.c);
+            const hasSettler = !!(settlerUnit && settlerUnit.player === playerNumber && settlerUnit.regiments?.some(reg => reg.type === 'Colono'));
 
-        let settlerUnit = getUnitOnHex(candidateAldeaHex.r, candidateAldeaHex.c);
-        const hasSettlerOnHex = !!(settlerUnit && settlerUnit.player === playerNumber && settlerUnit.regiments?.some(reg => reg.type === 'Colono'));
+            if (!hasSettler) {
+                settlerUnit = AiGameplayManager.produceUnit(playerNumber, ['Colono'], 'settler', 'Colono Fundador', mur);
+            }
 
-        if (!hasSettlerOnHex) {
-            settlerUnit = AiGameplayManager.produceUnit(playerNumber, ['Colono'], 'settler', 'Colono Fundador', candidateAldeaHex);
+            const nowSettler = getUnitOnHex(mur.r, mur.c);
+            const canSettle = !!(nowSettler && nowSettler.player === playerNumber && nowSettler.regiments?.some(reg => reg.type === 'Colono'));
+            if (!canSettle) continue;
+
+            const canAffordAldea = Object.keys(costAldea).every(r => {
+                if (r === 'Colono') return true;
+                return (playerRes[r] || 0) >= (costAldea[r] || 0);
+            });
+            if (!canAffordAldea) continue;
+
+            console.log(`[IA ORG CIUDAD] J${playerNumber}: creando Aldea en (${mur.r},${mur.c})`);
+            handleConfirmBuildStructure({ playerId: playerNumber, r: mur.r, c: mur.c, structureType: 'Aldea' });
         }
-
-        const nowSettler = getUnitOnHex(candidateAldeaHex.r, candidateAldeaHex.c);
-        const canSettle = !!(nowSettler && nowSettler.player === playerNumber && nowSettler.regiments?.some(reg => reg.type === 'Colono'));
-        if (!canSettle) return;
-
-        const costAldea = STRUCTURE_TYPES['Aldea']?.cost || {};
-        const canAffordAldea = Object.keys(costAldea).every(r => {
-            if (r === 'Colono') return true;
-            return (playerRes[r] || 0) >= (costAldea[r] || 0);
-        });
-        if (!canAffordAldea) return;
-
-        console.log(`[IA ORG CIUDAD] J${playerNumber}: creando Aldea en (${candidateAldeaHex.r},${candidateAldeaHex.c})`);
-        handleConfirmBuildStructure({
-            playerId: playerNumber,
-            r: candidateAldeaHex.r,
-            c: candidateAldeaHex.c,
-            structureType: 'Aldea'
-        });
     },
     
     // PUNTO 2: Método helper para intentar construcción con trazabilidad enriquecida
