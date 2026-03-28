@@ -2,7 +2,7 @@
 
 const VERSION_CONFIG = {
     // Versión actual del juego
-    current: "1.050",
+    current: "1.051",
     
     /**
      * Incrementa la versión automáticamente

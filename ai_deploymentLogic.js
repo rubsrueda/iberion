@@ -77,6 +77,7 @@ const AiDeploymentManager = {
                         toNode: mission.toNode
                     };
                     this._markDeterministicBootstrapStageCreated(playerNumber, mission);
+                    this._completeDeterministicBootstrapStageFromDeployment(playerNumber, mission, placementSpot);
                     if (typeof AiGameplayManager !== 'undefined' && AiGameplayManager.missionAssignments?.set) {
                         AiGameplayManager.missionAssignments.set(newUnitData.id, {
                             type: 'IA_NODE',
@@ -354,6 +355,43 @@ const AiDeploymentManager = {
         };
         state.completed = Array.isArray(state.completed) ? state.completed : [];
         state.completed.push({ ...createdEntry, createdOnly: true });
+    },
+
+    _completeDeterministicBootstrapStageFromDeployment: function(playerNumber, mission, placementSpot) {
+        if (!mission?.deterministicBootstrap || !placementSpot) return;
+        if (!gameState.aiDeterministicBootstrap) gameState.aiDeterministicBootstrap = {};
+        if (!gameState.aiDeterministicBootstrap[playerNumber]) {
+            gameState.aiDeterministicBootstrap[playerNumber] = { stageIndex: 0, completed: [], createdStages: [] };
+        }
+
+        const state = gameState.aiDeterministicBootstrap[playerNumber];
+        const objective = mission.objectiveHex || null;
+        const reachedByPlacement = !!(
+            objective &&
+            placementSpot.r === objective.r &&
+            placementSpot.c === objective.c
+        );
+
+        if (!reachedByPlacement) return;
+
+        state.completed = Array.isArray(state.completed) ? state.completed : [];
+        const alreadyReached = state.completed.some(c =>
+            c && c.stageIndex === Number(mission.stageIndex || 0) && c.reached === true
+        );
+        if (!alreadyReached) {
+            state.completed.push({
+                stageIndex: Number(mission.stageIndex || 0),
+                stageLabel: mission.stageLabel || null,
+                objectiveHex: objective,
+                turn: gameState.turnNumber,
+                reached: true,
+                reachedInDeployment: true
+            });
+        }
+
+        const next = Math.max(0, Number(mission.stageIndex || 0) + 1);
+        state.stageIndex = Math.min(next, 2);
+        console.log(`[IA DEPLOY][PIPELINE] J${playerNumber} etapa=${Number(mission.stageIndex || 0) + 1}/3 completada en despliegue. Siguiente etapa=${state.stageIndex + 1}`);
     },
 
     _buildDeterministicBootstrapStages: function(analysis) {
