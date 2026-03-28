@@ -92,12 +92,33 @@ const IAArchipielago = {
     }
 
     console.log(`[IA_ARCHIPIELAGO] Recopilando objetivos propios...`);
-    const ciudades = IASentidos.getCities(myPlayer);
+    // --- SISTEMA DE METAS CUMPLIDAS ---
+    if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
+    if (!gameState.iaCompletedGoals[myPlayer]) gameState.iaCompletedGoals[myPlayer] = [];
+    const completedGoals = gameState.iaCompletedGoals[myPlayer];
+
+    // Helper para identificar objetivos únicos
+    function isGoalCompleted(tipo, r, c) {
+      return completedGoals.some(g => g.tipo === tipo && g.r === r && g.c === c);
+    }
+
+    const ciudades = IASentidos.getCities(myPlayer).filter(c => !isGoalCompleted('ciudad', c.r, c.c));
     const hexesPropios = IASentidos.getOwnedHexes(myPlayer);
-    const recursos = hexesPropios.filter(h => h.resourceNode);
-    const infraestructura = hexesPropios.filter(h => h.structure);
+    const recursos = hexesPropios.filter(h => h.resourceNode && !isGoalCompleted('recurso', h.r, h.c));
+    const infraestructura = hexesPropios.filter(h => h.structure && !isGoalCompleted('infraestructura', h.r, h.c));
     const objetivos = ciudades.concat(recursos).concat(infraestructura);
     console.log(`[IA_ARCHIPIELAGO] Objetivos totales: ${objetivos.length} (${ciudades.length} ciudades, ${recursos.length} recursos, ${infraestructura.length} infraestructura)`);
+  // --- REGISTRO DE META CUMPLIDA ---
+  // Llamar esto cuando la IA complete una meta relevante
+  registrarMetaCumplida(myPlayer, tipo, r, c) {
+    if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
+    if (!gameState.iaCompletedGoals[myPlayer]) gameState.iaCompletedGoals[myPlayer] = [];
+    // Evitar duplicados
+    if (!gameState.iaCompletedGoals[myPlayer].some(g => g.tipo === tipo && g.r === r && g.c === c)) {
+      gameState.iaCompletedGoals[myPlayer].push({ tipo, r, c, turno: gameState.turnNumber });
+      console.log(`[IA_ARCHIPIELAGO] Meta registrada como cumplida: tipo=${tipo} (${r},${c})`);
+    }
+  },
 
     console.log(`\n[IA_ARCHIPIELAGO] Analizando situación táctica...`);
     const amenazas = (typeof IATactica !== 'undefined') ? IATactica.detectarAmenazasSobreObjetivos(myPlayer, objetivos, 3) : [];
@@ -1112,7 +1133,6 @@ const IAArchipielago = {
    */
   conquistarCiudadesBarbaras(myPlayer, misUnidades) {
     const ciudadesBarbaras = this._getBarbarianCities();
-    
     if (ciudadesBarbaras.length === 0) {
       console.log(`[IA_ARCHIPIELAGO] No hay ciudades bárbaras disponibles`);
       return;
@@ -1151,6 +1171,13 @@ const IAArchipielago = {
       return;
     }
 
+    // Si la ciudad ya es nuestra, registrar meta cumplida
+    const cityObj = board[targetCity.r]?.[targetCity.c];
+    if (cityObj && cityObj.owner === myPlayer) {
+      this.registrarMetaCumplida(myPlayer, 'ciudad', targetCity.r, targetCity.c);
+      return;
+    }
+
     console.log(`[IA_ARCHIPIELAGO] CONQUISTA: expedición lista (${totalPower}/${requiredPower}) hacia (${targetCity.r},${targetCity.c}).`);
     for (const unit of expeditionUnits) {
       unit.iaExpeditionTarget = `${targetCity.r},${targetCity.c}`;
@@ -1182,6 +1209,7 @@ const IAArchipielago = {
       const built = this._requestBuildStructure(myPlayer, invaderFortSpot.r, invaderFortSpot.c, 'Fortaleza');
       if (built) {
         this._startFortressPressure(myPlayer, invaderFortSpot);
+        this.registrarMetaCumplida(myPlayer, 'infraestructura', invaderFortSpot.r, invaderFortSpot.c);
       }
       return;
     }
@@ -1200,7 +1228,8 @@ const IAArchipielago = {
       const terrainOk = !roadBuildable.length || roadBuildable.includes(nextHexData?.terrain);
       if (terrainOk) {
         console.log(`[IA_ARCHIPIELAGO] Construyendo camino en (${nextHex.r},${nextHex.c})`);
-        this._requestBuildStructure(myPlayer, nextHex.r, nextHex.c, 'Camino');
+        const built = this._requestBuildStructure(myPlayer, nextHex.r, nextHex.c, 'Camino');
+        if (built) this.registrarMetaCumplida(myPlayer, 'infraestructura', nextHex.r, nextHex.c);
       }
     }
 
@@ -1260,7 +1289,8 @@ const IAArchipielago = {
 
       if (bestFort && this._canAffordStructure(myPlayer, 'Fortaleza')) {
         console.log(`[IA_ARCHIPIELAGO] Construyendo fortaleza estratégica en (${bestFort.h.r},${bestFort.h.c}) score=${bestFort.score}`);
-        this._requestBuildStructure(myPlayer, bestFort.h.r, bestFort.h.c, 'Fortaleza');
+        const built = this._requestBuildStructure(myPlayer, bestFort.h.r, bestFort.h.c, 'Fortaleza');
+        if (built) this.registrarMetaCumplida(myPlayer, 'infraestructura', bestFort.h.r, bestFort.h.c);
       }
     }
   },
