@@ -3345,38 +3345,75 @@ async function RequestAttackUnit(attacker, defender) {
 }
 
 let _isMergingUnits = false;
+let _mergeQueue = [];
+let _isProcessingMergeQueue = false;
 
-async function RequestMergeUnits(mergingUnit, targetUnit, skipConfirm = false) {
-    // PROTECCIÓN: Prevenir múltiples llamadas simultáneas
-    if (_isMergingUnits) {
-        logMessage("Ya hay una fusión en proceso.", "warning");
-        return;
-    }
-    
-    _isMergingUnits = true; // Bloquear nuevas solicitudes
+async function _processMergeQueue() {
+    if (_isProcessingMergeQueue) return;
+    _isProcessingMergeQueue = true;
 
     try {
-        // ¡ACTUALIZAMOS EL RELOJ! Esto es lo que permitirá sincronizar al volver de la llamada
-        gameState.lastActionTimestamp = Date.now();
+        while (_mergeQueue.length > 0) {
+            const next = _mergeQueue.shift();
+            if (!next) continue;
 
-        // Generar ID único para esta acción (para deduplicación en el anfitrión)
-        const actionId = `merge_${mergingUnit.id}_${targetUnit.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        console.log(`%c[RequestMergeUnits] ID único generado: ${actionId}`, 'background: #FFD700; color: #000; font-weight: bold;');
-        const action = { type: 'mergeUnits', actionId: actionId, payload: { playerId: mergingUnit.player, mergingUnitId: mergingUnit.id, targetUnitId: targetUnit.id }};
-        if (isNetworkGame()) {
-            if (NetworkManager.esAnfitrion) {
-                await processActionRequest(action);
+            const mergingUnit = getUnitById(next.mergingUnitId);
+            const targetUnit = getUnitById(next.targetUnitId);
+            if (!mergingUnit || !targetUnit) continue;
+            if (mergingUnit.player !== targetUnit.player) continue;
+
+            gameState.lastActionTimestamp = Date.now();
+
+            const actionId = `merge_${mergingUnit.id}_${targetUnit.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            console.log(`%c[RequestMergeUnits] ID único generado: ${actionId}`, 'background: #FFD700; color: #000; font-weight: bold;');
+            const action = {
+                type: 'mergeUnits',
+                actionId: actionId,
+                payload: { playerId: mergingUnit.player, mergingUnitId: mergingUnit.id, targetUnitId: targetUnit.id }
+            };
+
+            if (isNetworkGame()) {
+                if (NetworkManager.esAnfitrion) {
+                    await processActionRequest(action);
+                } else {
+                    NetworkManager.enviarDatos({ type: 'actionRequest', action });
+                }
             } else {
-                NetworkManager.enviarDatos({ type: 'actionRequest', action });
+                await mergeUnits(mergingUnit, targetUnit);
             }
-            return;
+
+            // Pequeña separación para estabilizar cadena fusión-fisión.
+            await new Promise(resolve => setTimeout(resolve, 120));
         }
-        // CORRECCIÓN: Usar await también para juegos locales
-        await mergeUnits(mergingUnit, targetUnit);
     } finally {
-        // Desbloquear después de un breve delay para evitar clics accidentales
-        setTimeout(() => { _isMergingUnits = false; }, 500);
+        _isMergingUnits = false;
+        _isProcessingMergeQueue = false;
     }
+}
+
+async function RequestMergeUnits(mergingUnit, targetUnit, skipConfirm = false) {
+    if (!mergingUnit || !targetUnit) return false;
+
+    const duplicateQueued = _mergeQueue.some(item =>
+        item.mergingUnitId === mergingUnit.id && item.targetUnitId === targetUnit.id
+    );
+    if (duplicateQueued) return true;
+
+    _mergeQueue.push({
+        mergingUnitId: mergingUnit.id,
+        targetUnitId: targetUnit.id,
+        skipConfirm: !!skipConfirm,
+        queuedAt: Date.now()
+    });
+
+    if (_isMergingUnits) {
+        console.log(`[RequestMergeUnits] Fusión encolada: ${mergingUnit.id} -> ${targetUnit.id}`);
+        return true;
+    }
+
+    _isMergingUnits = true;
+    await _processMergeQueue();
+    return true;
 }
 
 function RequestPlaceUnit(unitToPlace, r, c) {

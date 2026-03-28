@@ -1443,6 +1443,60 @@ const AiGameplayManager = {
         return false;
     },
 
+    _resolveEconomicVacateObjective: function(playerNumber, blockedHex) {
+        if ((gameState.turnNumber || 0) <= 1 && typeof AiDeploymentManager !== 'undefined') {
+            const analysis = typeof AiDeploymentManager.analyzeEnvironment === 'function'
+                ? AiDeploymentManager.analyzeEnvironment(playerNumber)
+                : null;
+            const stages = typeof AiDeploymentManager._buildDeterministicBootstrapStages === 'function'
+                ? AiDeploymentManager._buildDeterministicBootstrapStages(analysis, playerNumber)
+                : [];
+
+            const stage2 = stages[1]?.objectiveHex;
+            const stage3 = stages[2]?.objectiveHex;
+            const prioritized = [stage2, stage3].filter(Boolean);
+            const selected = prioritized.find(o => o.r !== blockedHex.r || o.c !== blockedHex.c);
+            if (selected) return { r: selected.r, c: selected.c, reason: 'nodo_economico_t1' };
+        }
+
+        const bank = this._getBankCity ? this._getBankCity() : null;
+        if (bank) return { r: bank.r, c: bank.c, reason: 'fallback_banca' };
+
+        const ownCities = (gameState.cities || []).filter(c => c && c.owner === playerNumber);
+        if (ownCities.length > 0) return { r: ownCities[0].r, c: ownCities[0].c, reason: 'fallback_ciudad' };
+
+        return null;
+    },
+
+    _assignVacateMissionForBlockedBuild: function(playerNumber, blockingUnit, blockedHex, nodoRazon) {
+        if (!blockingUnit || blockingUnit.player !== playerNumber || !blockedHex) return false;
+
+        const objective = this._resolveEconomicVacateObjective(playerNumber, blockedHex);
+        if (!objective) return false;
+
+        this.missionAssignments.set(blockingUnit.id, {
+            type: 'IA_NODE',
+            objective: { r: objective.r, c: objective.c },
+            nodoTipo: 'corredor_comercial',
+            axisName: 'vacate_blocked_build',
+            nodoRazon: nodoRazon || 'VACATE_BLOCKED_BUILD'
+        });
+
+        // Si puede actuar ahora, intentamos el primer paso para liberar la casilla ya.
+        if (!blockingUnit.hasMoved && (blockingUnit.currentMovement || blockingUnit.movement || 0) > 0) {
+            const path = this.findPathToTarget(blockingUnit, objective.r, objective.c);
+            if (path && path.length > 1) {
+                const next = path[1];
+                if (next && !getUnitOnHex(next.r, next.c)) {
+                    _executeMoveUnit(blockingUnit, next.r, next.c);
+                }
+            }
+        }
+
+        console.log(`[IA BUILD VACATE] J${playerNumber}: ${blockingUnit.name} libera (${blockedHex.r},${blockedHex.c}) -> objetivo (${objective.r},${objective.c}) motivo=${objective.reason}`);
+        return true;
+    },
+
     _resolveTradeCityForCorridor: function(playerNumber, point, requireOwn, preferFreeCenter = false) {
         const cities = gameState.cities || [];
         const exact = point ? cities.find(c => c.r === point.r && c.c === point.c) : null;
@@ -2061,15 +2115,41 @@ const AiGameplayManager = {
     
     // PUNTO 2: Método helper para intentar construcción con trazabilidad enriquecida
     attemptConstructionAtHex: function(playerNumber, r, c, structureType, nodoRazon) {
+        if (!this._buildRetryBlock) this._buildRetryBlock = {};
+        if (!this._buildRetryBlock[playerNumber] || this._buildRetryBlock[playerNumber].turn !== gameState.turnNumber) {
+            this._buildRetryBlock[playerNumber] = { turn: gameState.turnNumber, keys: new Set() };
+        }
+
+        const retryKey = `${structureType}:${r},${c}`;
+        const playerRetryBlock = this._buildRetryBlock[playerNumber];
+        if (playerRetryBlock.keys.has(retryKey)) {
+            console.log(`[IA BUILD SKIP] J${playerNumber}: reintento omitido en turno ${gameState.turnNumber} para ${retryKey}`);
+            return false;
+        }
+
         const hex = board[r]?.[c];
         if (!hex) {
             console.error(`[IA CONSTRUCCIÓN] Hex inválido: (${r},${c})`);
+            playerRetryBlock.keys.add(retryKey);
             return false;
         }
         
         // VALIDACIÓN: ¿La IA posee el hex?
         if (hex.owner !== playerNumber) {
             console.warn(`%c[IA BUILD DECISION - RECHAZADA] TURNO=${gameState.turnNumber} FASE=${gameState.currentPhase} JUGADOR=${playerNumber} ESTR=${structureType} (${r},${c}) DUENO=${hex.owner} RAZON=${nodoRazon} MOTIVO=No es propietario`, "color: #FF6B6B; background: #FFE5E5; padding: 5px;");
+            playerRetryBlock.keys.add(retryKey);
+            return false;
+        }
+
+        const blockerUnit = getUnitOnHex(r, c);
+        if (blockerUnit) {
+            if (blockerUnit.player === playerNumber) {
+                this._assignVacateMissionForBlockedBuild(playerNumber, blockerUnit, { r, c }, nodoRazon);
+                console.log(`[IA BUILD DECISION - POSPUESTA] J${playerNumber} ${structureType} (${r},${c}) motivo=casilla_ocupada_por_aliado`);
+            } else {
+                console.log(`[IA BUILD DECISION - POSPUESTA] J${playerNumber} ${structureType} (${r},${c}) motivo=casilla_ocupada_por_enemigo`);
+            }
+            playerRetryBlock.keys.add(retryKey);
             return false;
         }
         
@@ -2083,6 +2163,7 @@ const AiGameplayManager = {
         });
         if (!canPay) {
             console.warn(`%c[IA BUILD DECISION - RECHAZADA] TURNO=${gameState.turnNumber} FASE=${gameState.currentPhase} JUGADOR=${playerNumber} ESTR=${structureType} (${r},${c}) DUENO=${playerNumber} RAZON=${nodoRazon} MOTIVO=Recursos insuficientes`, "color: #FFA500; background: #FFE0B2; padding: 5px;");
+            playerRetryBlock.keys.add(retryKey);
             return false;
         }
         
@@ -2091,6 +2172,11 @@ const AiGameplayManager = {
         console.log(`[BUILD BEFORE] hex.structure=${hex.structure}`);
         handleConfirmBuildStructure({ playerId: playerNumber, r: r, c: c, structureType: structureType });
         console.log(`[BUILD AFTER] hex.structure=${board[r][c].structure}`);
+
+        if (board[r][c].structure !== structureType) {
+            playerRetryBlock.keys.add(retryKey);
+            return false;
+        }
 
         if (structureType === 'Camino' && (nodoRazon === 'CORREDOR_COMERCIAL' || nodoRazon === 'BOA_CONSTRUCTION')) {
             this._checkAndActivateCorridorEconomy(playerNumber);

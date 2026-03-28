@@ -755,8 +755,11 @@ const AiDeploymentManager = {
             objectiveHex: { r: objTertiary.r, c: objTertiary.c }
         });
 
+        const cityPickPrefix = gameState.currentPhase === 'play'
+            ? '[IA PLAY][PIPELINE][CITY_PICK]'
+            : '[IA DEPLOY][PIPELINE][CITY_PICK]';
         console.log(
-            `[IA DEPLOY][PIPELINE][CITY_PICK] J${playerNumber ?? 'N/A'} X=(${cityX.r},${cityX.c}) owner=${cityX.owner ?? 'null'} ` +
+            `${cityPickPrefix} J${playerNumber ?? 'N/A'} X=(${cityX.r},${cityX.c}) owner=${cityX.owner ?? 'null'} ` +
             `Y=(${cityY.r},${cityY.c}) owner=${cityY.owner ?? 'null'}`
         );
 

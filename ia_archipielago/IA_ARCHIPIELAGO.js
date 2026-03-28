@@ -67,6 +67,12 @@ const IAArchipielago = {
       return;
     }
 
+    if (!this._turnBuildRetryBlock) this._turnBuildRetryBlock = {};
+    this._turnBuildRetryBlock[myPlayer] = {
+      turn: gameState.turnNumber,
+      keys: new Set()
+    };
+
     // Fallback crítico: si la IA no tiene unidades en el primer turno de Archipiélago, crear una unidad mínima
     const isArchipelago = !!gameState.setupTempSettings?.navalMap;
     if (isArchipelago && (gameState.turnNumber || 1) <= 1) {
@@ -313,7 +319,7 @@ const IAArchipielago = {
       ? AiDeploymentManager.analyzeEnvironment(myPlayer)
       : null;
     const stages = typeof AiDeploymentManager._buildDeterministicBootstrapStages === 'function'
-      ? AiDeploymentManager._buildDeterministicBootstrapStages(analysis)
+      ? AiDeploymentManager._buildDeterministicBootstrapStages(analysis, myPlayer)
       : [];
     if (!stages.length) return;
 
@@ -1404,7 +1410,103 @@ const IAArchipielago = {
     return true;
   },
 
+  _resolveVacateObjectiveForRoad(playerId, blockedR, blockedC) {
+    if ((gameState.turnNumber || 0) <= 1 && typeof AiDeploymentManager !== 'undefined') {
+      const analysis = typeof AiDeploymentManager.analyzeEnvironment === 'function'
+        ? AiDeploymentManager.analyzeEnvironment(playerId)
+        : null;
+      const stages = typeof AiDeploymentManager._buildDeterministicBootstrapStages === 'function'
+        ? AiDeploymentManager._buildDeterministicBootstrapStages(analysis, playerId)
+        : [];
+
+      const prioritized = [stages[1]?.objectiveHex, stages[2]?.objectiveHex].filter(Boolean);
+      const selected = prioritized.find(o => o.r !== blockedR || o.c !== blockedC);
+      if (selected) return { r: selected.r, c: selected.c, reason: 'nodo2_nodo3_t1' };
+    }
+
+    const bank = this._getBankCity();
+    if (bank) return { r: bank.r, c: bank.c, reason: 'fallback_banca' };
+
+    const ownCity = (gameState.cities || []).find(c => c && c.owner === playerId);
+    if (ownCity) return { r: ownCity.r, c: ownCity.c, reason: 'fallback_ciudad' };
+
+    return null;
+  },
+
+  _scheduleVacateForBlockedBuild(playerId, blockerUnit, r, c) {
+    if (!blockerUnit || blockerUnit.player !== playerId) return false;
+    if (typeof AiGameplayManager === 'undefined' || !AiGameplayManager.missionAssignments?.set) return false;
+
+    const objective = this._resolveVacateObjectiveForRoad(playerId, r, c);
+    if (!objective) return false;
+
+    AiGameplayManager.missionAssignments.set(blockerUnit.id, {
+      type: 'IA_NODE',
+      objective: { r: objective.r, c: objective.c },
+      nodoTipo: 'corredor_comercial',
+      axisName: 'vacate_blocked_build',
+      nodoRazon: 'VACATE_BLOCKED_BUILD'
+    });
+
+    if (!blockerUnit.hasMoved && (blockerUnit.currentMovement || blockerUnit.movement || 0) > 0) {
+      const step = this._getMoveStepTowards(blockerUnit, objective.r, objective.c);
+      if (step && !getUnitOnHex(step.r, step.c)) {
+        this._requestMoveUnit(blockerUnit, step.r, step.c);
+      }
+    }
+
+    console.log(`[IA_ARCHIPIELAGO] [VACATE] J${playerId}: ${blockerUnit.name} libera (${r},${c}) -> (${objective.r},${objective.c}) motivo=${objective.reason}`);
+    return true;
+  },
+
   _requestBuildStructure(playerId, r, c, structureType) {
+    if (!this._turnBuildRetryBlock) this._turnBuildRetryBlock = {};
+    if (!this._turnBuildRetryBlock[playerId] || this._turnBuildRetryBlock[playerId].turn !== gameState.turnNumber) {
+      this._turnBuildRetryBlock[playerId] = { turn: gameState.turnNumber, keys: new Set() };
+    }
+
+    const retryKey = `${structureType}:${r},${c}`;
+    const playerRetryState = this._turnBuildRetryBlock[playerId];
+    if (playerRetryState.keys.has(retryKey)) {
+      return false;
+    }
+
+    const hex = board[r]?.[c];
+    if (!hex || hex.owner !== playerId) {
+      playerRetryState.keys.add(retryKey);
+      return false;
+    }
+
+    const data = STRUCTURE_TYPES?.[structureType];
+    if (!data) {
+      playerRetryState.keys.add(retryKey);
+      return false;
+    }
+
+    const playerRes = gameState.playerResources?.[playerId] || {};
+    const playerTechs = playerRes.researchedTechnologies || [];
+    if (data.requiredTech && !playerTechs.includes(data.requiredTech)) {
+      if (this._ensureTech) this._ensureTech(playerId, data.requiredTech);
+      playerRetryState.keys.add(retryKey);
+      return false;
+    }
+
+    const blocker = getUnitOnHex(r, c);
+    if (blocker) {
+      if (blocker.player === playerId) {
+        this._scheduleVacateForBlockedBuild(playerId, blocker, r, c);
+      }
+      playerRetryState.keys.add(retryKey);
+      return false;
+    }
+
+    const cost = data.cost || {};
+    const canPay = Object.keys(cost).every(res => res === 'Colono' || (playerRes[res] || 0) >= (cost[res] || 0));
+    if (!canPay) {
+      playerRetryState.keys.add(retryKey);
+      return false;
+    }
+
     const action = {
       type: 'buildStructure',
       actionId: `build_${playerId}_${r}_${c}_${Date.now()}`,
@@ -1425,9 +1527,12 @@ const IAArchipielago = {
 
     if (typeof handleConfirmBuildStructure === 'function') {
       handleConfirmBuildStructure(action.payload);
-      return true;
+      const built = board[r]?.[c]?.structure === structureType;
+      if (!built) playerRetryState.keys.add(retryKey);
+      return built;
     }
 
+    playerRetryState.keys.add(retryKey);
     return false;
   },
 

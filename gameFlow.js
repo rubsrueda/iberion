@@ -2155,8 +2155,15 @@ function handleChangeCapital(r, c) {
 }
 
 let handleEndTurnCallCount = 0; // Se pondría fuera de la función
+let handleEndTurnInProgress = false;
 
 async function handleEndTurn(isHostProcessing = false) {
+    if (handleEndTurnInProgress) {
+        console.warn('[handleEndTurn] Llamada ignorada: ya hay un cambio de turno en progreso.');
+        return;
+    }
+
+    handleEndTurnInProgress = true;
     try {
 
     if (typeof UIManager !== 'undefined' && UIManager.clearEndTurnPendingWarning) {
@@ -2578,6 +2585,8 @@ async function handleEndTurn(isHostProcessing = false) {
         console.error("[handleEndTurn] ERROR CRÍTICO DURANTE CAMBIO DE TURNO:", err);
         console.error("[handleEndTurn] Stack:", err.stack);
         logMessage(`⚠️ ERROR durante el cambio de turno: ${err.message}`, "error");
+    } finally {
+        handleEndTurnInProgress = false;
     }
 }
 
