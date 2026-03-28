@@ -456,7 +456,7 @@ const AiGameplayManager = {
         return built;
     },
 
-    _runMandatoryCaravanHeartFlow: async function(playerNumber) {
+    _runMandatoryCaravanHeartFlow: function(playerNumber) {
         if (!gameState.aiMandatoryCaravanState) gameState.aiMandatoryCaravanState = {};
 
         const plans = this._getMandatoryCaravanPlans(playerNumber);
@@ -677,8 +677,6 @@ const AiGameplayManager = {
         const pendingCaptureConnections = networkPlan.connections
             .filter(conn => (conn.pendingCaptureSegments?.length || 0) > 0)
             .sort((a, b) => {
-                const bankDiff = Number(b.hasBank) - Number(a.hasBank);
-                if (bankDiff !== 0) return bankDiff;
                 const capDiff = a.pendingCaptureSegments.length - b.pendingCaptureSegments.length;
                 if (capDiff !== 0) return capDiff;
                 return a.path.length - b.path.length;
@@ -687,8 +685,6 @@ const AiGameplayManager = {
         const roadworkConnections = networkPlan.connections
             .filter(conn => (conn.pendingCaptureSegments?.length || 0) === 0 && (conn.missingOwnedSegments?.length || 0) > 0)
             .sort((a, b) => {
-                const bankDiff = Number(b.hasBank) - Number(a.hasBank);
-                if (bankDiff !== 0) return bankDiff;
                 const roadDiff = a.missingOwnedSegments.length - b.missingOwnedSegments.length;
                 if (roadDiff !== 0) return roadDiff;
                 return a.path.length - b.path.length;
@@ -699,7 +695,7 @@ const AiGameplayManager = {
             ...nodoCorredor,
             origen: { r: activeConnection.from.r, c: activeConnection.from.c },
             destino: { r: activeConnection.to.r, c: activeConnection.to.c },
-            destino_tipo: activeConnection.hasBank ? 'banca' : 'ciudad'
+            destino_tipo: activeConnection.hasBank ? 'banca' : 'nodo_red'
         };
         let corridorStatus = this._updateCommercialCorridorState(playerNumber, corridorNode, activeConnection.path);
         const corridorDebug = this._describeCommercialCorridor(playerNumber, activeConnection.path);
@@ -1005,15 +1001,9 @@ const AiGameplayManager = {
             const path = this._buildCommercialCorridorPath(playerNumber, originCity, city);
             if (!Array.isArray(path) || path.length < 2) continue;
 
-            const isBank = city.owner === 0 && !!city.isBank;
-            const isOwn = city.owner === playerNumber;
-            const isNeutral = city.owner === null || (city.owner === 0 && !city.isBank);
             const dist = hexDistance(originCity.r, originCity.c, city.r, city.c);
             let score = 0;
 
-            if (isOwn) score += 220;
-            if (isNeutral) score += 120;
-            if (isBank) score -= 80;
             if (preferredCity && city.r === preferredCity.r && city.c === preferredCity.c) score += 40;
 
             score -= path.length * 10;
@@ -1024,7 +1014,7 @@ const AiGameplayManager = {
                     city,
                     path,
                     score,
-                    destinationType: isBank ? 'banca' : (isOwn ? 'ciudad_propia' : 'ciudad_neutral')
+                    destinationType: city.isBank ? 'banca' : 'ciudad_red'
                 };
             }
         }
@@ -1061,10 +1051,25 @@ const AiGameplayManager = {
         };
     },
 
+    _isTradeDestinationAllowedForPlayer: function(playerNumber, city) {
+        if (!city) return false;
+        if (city.owner === null || city.owner === undefined) return false;
+        if (typeof BARBARIAN_PLAYER_ID !== 'undefined' && city.owner === BARBARIAN_PLAYER_ID) return true;
+        if (Number(city.owner) === 9) return true;
+        const bankId = typeof BankManager !== 'undefined' ? BankManager.PLAYER_ID : 0;
+        if (city.owner === playerNumber || city.owner === bankId || city.isBank) return true;
+        if (typeof isTradeBlockedBetweenPlayers === 'function') {
+            return !isTradeBlockedBetweenPlayers(playerNumber, city.owner);
+        }
+        return true;
+    },
+
     _getCommercialNetworkNodes: function(playerNumber) {
-        const ownCities = (gameState.cities || []).filter(c => c && c.owner === playerNumber);
+        const cities = (gameState.cities || []).filter(c => c && this._isTradeDestinationAllowedForPlayer(playerNumber, c));
         const bankCity = this._getBankCity();
-        return bankCity ? ownCities.concat([bankCity]) : ownCities;
+        if (!bankCity) return cities;
+        const bankAlreadyInCities = cities.some(c => c.r === bankCity.r && c.c === bankCity.c);
+        return bankAlreadyInCities ? cities : cities.concat([bankCity]);
     },
 
     _getCommercialNetworkConnection: function(playerNumber, cityA, cityB) {
@@ -1122,8 +1127,8 @@ const AiGameplayManager = {
                 for (const source of connected) {
                     const conn = this._getCommercialNetworkConnection(playerNumber, source, target);
                     if (!conn) continue;
-                    const connScore = conn.path.length - (conn.hasBank ? 1 : 0);
-                    const bestScore = best ? (best.path.length - (best.hasBank ? 1 : 0)) : Number.POSITIVE_INFINITY;
+                    const connScore = conn.path.length;
+                    const bestScore = best ? best.path.length : Number.POSITIVE_INFINITY;
                     if (!best || connScore < bestScore) {
                         best = conn;
                         bestIndex = i;
@@ -1150,7 +1155,7 @@ const AiGameplayManager = {
             const infraPath = findInfrastructurePath(connection.from, connection.to, { allowForeignInfrastructure: true });
             if (!infraPath || infraPath.length === 0) continue;
 
-            const score = (connection.hasBank ? 200 : 120) - infraPath.length;
+            const score = 120 - infraPath.length;
             if (!best || score > best.score) {
                 best = { ...connection, infraPath, score };
             }
@@ -1426,14 +1431,20 @@ const AiGameplayManager = {
             return ownCities.find(c => c.isCapital) || ownCities[0] || null;
         }
 
-        return cities.find(c => c.owner === 0) || cities.find(c => c.owner === playerNumber && (!point || (c.r !== point.r || c.c !== point.c))) || null;
+        if (exact && this._isTradeDestinationAllowedForPlayer(playerNumber, exact)) return exact;
+
+        const fallbackCities = cities
+            .filter(c => this._isTradeDestinationAllowedForPlayer(playerNumber, c))
+            .filter(c => !point || (c.r !== point.r || c.c !== point.c));
+
+        return fallbackCities[0] || null;
     },
 
     _selectTradeRouteDestination: function(playerNumber, origin, preferredPoint) {
         if (!origin) return null;
 
         const existingPairs = this._getExistingTradeRoutePairs(playerNumber);
-        const cities = (gameState.cities || []).filter(c => c && (c.owner === 0 || c.owner === playerNumber));
+        const cities = (gameState.cities || []).filter(c => c && this._isTradeDestinationAllowedForPlayer(playerNumber, c));
         const preferredCity = preferredPoint ? cities.find(c => c.r === preferredPoint.r && c.c === preferredPoint.c) : null;
 
         const orderedCandidates = [
@@ -1441,19 +1452,12 @@ const AiGameplayManager = {
             ...cities.filter(c => !preferredCity || c.r !== preferredCity.r || c.c !== preferredCity.c)
         ].filter(c => !(c.r === origin.r && c.c === origin.c));
 
-        const rutasActivas = units.filter(u => u.player === playerNumber && !!u.tradeRoute).length;
         orderedCandidates.sort((a, b) => {
-            const aIsBank = a.owner === 0 && !!a.isBank ? 1 : 0;
-            const bIsBank = b.owner === 0 && !!b.isBank ? 1 : 0;
-            const aOwnBias = a.owner === playerNumber ? 180 : 0;
-            const bOwnBias = b.owner === playerNumber ? 180 : 0;
-            const aNeutralBias = (a.owner === null || (a.owner === 0 && !a.isBank)) ? 80 : 0;
-            const bNeutralBias = (b.owner === null || (b.owner === 0 && !b.isBank)) ? 80 : 0;
-            const aBankBias = rutasActivas === 0 ? aIsBank * -60 : aIsBank * -120;
-            const bBankBias = rutasActivas === 0 ? bIsBank * -60 : bIsBank * -120;
             const aDist = hexDistance(origin.r, origin.c, a.r, a.c);
             const bDist = hexDistance(origin.r, origin.c, b.r, b.c);
-            return (bBankBias + bOwnBias + bNeutralBias - bDist * 8) - (aBankBias + aOwnBias + aNeutralBias - aDist * 8);
+            const aPreferred = preferredCity && a.r === preferredCity.r && a.c === preferredCity.c ? 80 : 0;
+            const bPreferred = preferredCity && b.r === preferredCity.r && b.c === preferredCity.c ? 80 : 0;
+            return (bPreferred - bDist * 8) - (aPreferred - aDist * 8);
         });
 
         for (const city of orderedCandidates) {
@@ -1671,23 +1675,40 @@ const AiGameplayManager = {
      *   2. Creación de caravanas: por cada par con ruta de infraestructura válida, crea/usa columna y solicita ruta.
      */
     _ensureTradeInfrastructureOrganic: function(playerNumber) {
+        const mandatoryFlow = typeof AiGameplayManager._runMandatoryCaravanHeartFlow === 'function'
+            ? AiGameplayManager._runMandatoryCaravanHeartFlow(playerNumber)
+            : null;
+
+        if (mandatoryFlow?.active) {
+            console.log(`[IA ORG TRADE] J${playerNumber}: latido obligatorio activo fase=${mandatoryFlow.phase}`);
+        }
+
         const pairs = AiGameplayManager._getOrganicTradePairs(playerNumber);
         if (pairs.length === 0) {
-            console.log(`[IA ORG TRADE] J${playerNumber}: sin pares comerciales válidos.`);
-            return;
+            console.log(`[IA ORG TRADE] J${playerNumber}: sin pares comerciales orgánicos. Forzando corredor global.`);
+            if (typeof AiGameplayManager._runCommercialCorridorController === 'function') {
+                try {
+                    AiGameplayManager._runCommercialCorridorController(playerNumber, { tipo: 'corredor_comercial' });
+                    return { active: !!mandatoryFlow?.active, phase: mandatoryFlow?.phase || 'corridor_fallback', pairs: 0 };
+                } catch (e) {
+                    console.warn(`[IA ORG TRADE] J${playerNumber}: fallback de corredor falló:`, e);
+                }
+            }
+            return { active: !!mandatoryFlow?.active, phase: mandatoryFlow?.phase || 'idle', pairs: 0 };
         }
 
         console.log(`[IA ORG TRADE] J${playerNumber}: pares comerciales detectados=${pairs.length}`);
 
         AiGameplayManager._runOrganicRoadCreationFlow(playerNumber, pairs);
         AiGameplayManager._runOrganicCaravanCreationFlow(playerNumber, pairs);
+        return { active: !!mandatoryFlow?.active, phase: mandatoryFlow?.phase || 'organic', pairs: pairs.length };
     },
 
     _getOrganicTradePairs: function(playerNumber) {
         const ownCities = (gameState.cities || []).filter(c => c.owner === playerNumber);
         if (ownCities.length === 0) return [];
 
-        // Destino por ciudad origen: la ciudad permitida más cercana.
+        // La banca es el eje central de toda red comercial: siempre es el par prioritario.
         const bankCity = AiGameplayManager._getBankCity ? AiGameplayManager._getBankCity() : null;
         const allCities = (gameState.cities || []).slice();
         const bankAlreadyInCities = bankCity && allCities.some(c => c.r === bankCity.r && c.c === bankCity.c);
@@ -1696,8 +1717,15 @@ const AiGameplayManager = {
         const pairs = [];
         const seen = new Set();
 
+        const addPair = (origin, candidate) => {
+            const key = `${origin.r},${origin.c}|${candidate.dest.r},${candidate.dest.c}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+            pairs.push({ key, origin, dest: candidate.dest, rawPath: candidate.rawPath });
+        };
+
         for (const origin of ownCities) {
-            const candidates = tradeNodes
+            const resolved = tradeNodes
                 .filter(dest => !(dest.r === origin.r && dest.c === origin.c))
                 .filter(dest => AiGameplayManager._isOrganicTradeDestinationAllowed(playerNumber, dest))
                 .map(dest => {
@@ -1706,32 +1734,28 @@ const AiGameplayManager = {
                     return {
                         dest,
                         rawPath,
-                        dist: hexDistance(origin.r, origin.c, dest.r, dest.c)
+                        dist: hexDistance(origin.r, origin.c, dest.r, dest.c),
+                        isBank: !!(dest.isBank || dest.owner === 0)
                     };
                 })
-                .filter(Boolean)
-                .sort((a, b) => {
-                    const ownerA = a.dest.owner;
-                    const ownerB = b.dest.owner;
-                    const aBank = Number(ownerA === 0 && !!a.dest.isBank);
-                    const bBank = Number(ownerB === 0 && !!b.dest.isBank);
-                    const aOwn = Number(ownerA === playerNumber);
-                    const bOwn = Number(ownerB === playerNumber);
-                    const aBarb = Number(AiGameplayManager._isBarbarianOwner(ownerA));
-                    const bBarb = Number(AiGameplayManager._isBarbarianOwner(ownerB));
+                .filter(Boolean);
 
-                    // Preferencia: propia > bárbara > banca, y luego la más cercana.
-                    const scoreA = (aOwn * 300) + (aBarb * 220) + (aBank * 120) - (a.dist * 10) - a.rawPath.length;
-                    const scoreB = (bOwn * 300) + (bBarb * 220) + (bBank * 120) - (b.dist * 10) - b.rawPath.length;
-                    return scoreB - scoreA;
-                });
+            if (resolved.length === 0) continue;
 
-            if (candidates.length === 0) continue;
-            const chosen = candidates[0];
-            const key = `${origin.r},${origin.c}|${chosen.dest.r},${chosen.dest.c}`;
-            if (seen.has(key)) continue;
-            seen.add(key);
-            pairs.push({ key, origin, dest: chosen.dest, rawPath: chosen.rawPath });
+            // PAR 1 (obligatorio): la banca siempre es el primer destino si es alcanzable.
+            const bankCandidate = resolved.find(c => c.isBank);
+            if (bankCandidate) {
+                addPair(origin, bankCandidate);
+            }
+
+            // Pares secundarios: todas las ciudades no-banca alcanzables, ordenadas por cercanía.
+            const nonBankSorted = resolved
+                .filter(c => !c.isBank)
+                .sort((a, b) => a.dist - b.dist);
+
+            for (const cand of nonBankSorted) {
+                addPair(origin, cand);
+            }
         }
 
         return pairs;
@@ -1744,19 +1768,7 @@ const AiGameplayManager = {
     },
 
     _isOrganicTradeDestinationAllowed: function(playerNumber, destinationCity) {
-        if (!destinationCity) return false;
-        const owner = destinationCity.owner;
-
-        // Regla pedida: destino válido = propia, bárbara o Banca.
-        if (owner === playerNumber) return true;
-        if (owner === 0) return true; // Banca
-        if (AiGameplayManager._isBarbarianOwner(owner)) return true;
-
-        // Opcional defensivo: algunos mapas marcan ciudades bárbaras sin owner fijo.
-        if (destinationCity.isBarbarianCity) return true;
-
-        // No abrir rutas orgánicas con otros jugadores aquí.
-        return false;
+        return this._isTradeDestinationAllowedForPlayer(playerNumber, destinationCity);
     },
 
     _findFirstMissingOwnedRoadSegment: function(playerNumber, path) {
@@ -1780,6 +1792,13 @@ const AiGameplayManager = {
         const playerRes = gameState.playerResources[playerNumber];
         if (!playerRes) return;
 
+        // La banca va siempre primero: es el eje de la red comercial.
+        const sortedPairs = pairs.slice().sort((a, b) => {
+            const aBank = !!(a.dest?.isBank || a.dest?.owner === 0) ? -1 : 0;
+            const bBank = !!(b.dest?.isBank || b.dest?.owner === 0) ? -1 : 0;
+            return aBank - bBank;
+        });
+
         const claimedTargets = new Set();
         const assignedUnitIds = new Set();
         const availableUnits = units
@@ -1789,7 +1808,7 @@ const AiGameplayManager = {
                 return !mission || ['IA_NODE', 'AXIS_ADVANCE', 'DEFAULT'].includes(mission.type);
             });
 
-        for (const { origin, dest, rawPath: prebuiltPath } of pairs) {
+        for (const { origin, dest, rawPath: prebuiltPath } of sortedPairs) {
             const rawPath = prebuiltPath || AiGameplayManager._buildCommercialCorridorPath(playerNumber, origin, dest);
             if (!rawPath || rawPath.length < 2) continue;
 

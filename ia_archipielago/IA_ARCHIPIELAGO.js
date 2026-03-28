@@ -131,6 +131,9 @@ const IAArchipielago = {
 
     situacion.enemyProfile = this._evaluateEnemyExpansionStrategy(myPlayer);
 
+    // Capa estructural previa a cualquier ponderacion: nodos, corredor y caravanas.
+    this._ejecutarCapaEstructuralRed(situacion);
+
     const rutas = this._evaluarRutasDeVictoria(situacion);
     situacion.rutas = rutas;
     this._logRutasDeVictoria(rutas);
@@ -179,6 +182,35 @@ const IAArchipielago = {
     return situacion;
   },
 
+  _ejecutarCapaEstructuralRed(situacion) {
+    const { myPlayer } = situacion;
+    console.log(`[IA_ARCHIPIELAGO] ========= CAPA ESTRUCTURAL DE RED =========`);
+
+    if (typeof AiGameplayManager !== 'undefined') {
+      if (typeof AiGameplayManager._ensureTradeInfrastructureOrganic === 'function') {
+        try {
+          console.log(`[IA_ARCHIPIELAGO] Red: ocupacion + camino + caravanas`);
+          AiGameplayManager._ensureTradeInfrastructureOrganic(myPlayer);
+        } catch (e) {
+          console.error(`[IA_ARCHIPIELAGO] Error en capa estructural de comercio:`, e);
+        }
+      }
+
+      if (typeof AiGameplayManager._ensureCityExpansionOrganic === 'function') {
+        try {
+          console.log(`[IA_ARCHIPIELAGO] Red: fundacion y evolucion de nodos`);
+          AiGameplayManager._ensureCityExpansionOrganic(myPlayer);
+        } catch (e) {
+          console.error(`[IA_ARCHIPIELAGO] Error en capa estructural de nodos:`, e);
+        }
+      }
+    }
+
+    // La conquista de ciudades barbaras tambien alimenta la red de nodos iniciales.
+    this.conquistarCiudadesBarbaras(myPlayer, IASentidos.getUnits(myPlayer));
+    console.log(`========================================\n`);
+  },
+
   /**
    * PLAN DE ACCIÓN PRINCIPAL
    * Prioridad de acciones:
@@ -203,7 +235,7 @@ const IAArchipielago = {
     
     console.log(`[IA_ARCHIPIELAGO] PLAN: Ejecutando con ${misUnidades.length} unidades disponibles`);
 
-    const hasCrisis = amenazas.length > 0 || frente.length > 0;
+    const hasCrisis = amenazas.length > 0 || frente.length >= 3;
     if (!hasCrisis) {
       this._ejecutarRutaLarga(situacion);
       this._ejecutarGusanoCorredor(situacion, { maxActions: this.WORM_MAX_ACTIONS_PER_TURN });
@@ -225,7 +257,7 @@ const IAArchipielago = {
     }
 
     // FASE 1: FUSIÓN DEFENSIVA (El latido del corazón)
-    if (amenazas.length > 0 || frente.length > 0) {
+    if (amenazas.length > 0 || frente.length >= 3) {
       console.log(`[IA_ARCHIPIELAGO] FASE 1: Detectado peligro. Buscando fusiones defensivas...`);
       this.ejecutarFusionesDefensivas(myPlayer, misUnidades, amenazas, frente, enemyProfile);
     }
@@ -358,6 +390,7 @@ const IAArchipielago = {
     // Buscar unidades cercanas que puedan fusionarse
     for (let i = 0; i < misUnidades.length; i++) {
       const unit1 = misUnidades[i];
+      if (amenazas.length === 0 && this._isCorridorPioneer(unit1)) continue;
       const regimentosActuales = unit1.regiments?.length || 0;
 
       const targetSize = Math.min(
@@ -369,6 +402,7 @@ const IAArchipielago = {
       // Buscar otra unidad cercana para fusionar
       for (let j = i + 1; j < misUnidades.length; j++) {
         const unit2 = misUnidades[j];
+        if (amenazas.length === 0 && this._isCorridorPioneer(unit2)) continue;
         const distancia = hexDistance(unit1.r, unit1.c, unit2.r, unit2.c);
 
         // Si están muy cerca y la suma no excede el máximo
@@ -1310,8 +1344,11 @@ const IAArchipielago = {
   },
 
   _getTradeCityCandidates(myPlayer) {
-    const cities = gameState.cities || [];
-    return cities.filter(c => c && Number.isInteger(c.r) && Number.isInteger(c.c));
+    const cities = (gameState.cities || []).filter(c => c && Number.isInteger(c.r) && Number.isInteger(c.c));
+    const bankCity = this._getBankCity();
+    if (!bankCity) return cities;
+    const alreadyIncluded = cities.some(c => c.r === bankCity.r && c.c === bankCity.c);
+    return alreadyIncluded ? cities : cities.concat([bankCity]);
   },
 
   _isBarbarianTradeCity(city) {
@@ -1323,9 +1360,14 @@ const IAArchipielago = {
 
   _isAllowedTradeDestinationForCaravan(city, myPlayer) {
     if (!city) return false;
+    if (city.owner === null || city.owner === undefined) return false;
     if (city.owner === myPlayer) return true;
     if (city.owner === 0 || city.isBank) return true;
-    return this._isBarbarianTradeCity(city);
+    if (this._isBarbarianTradeCity(city)) return true;
+    if (typeof isTradeBlockedBetweenPlayers === 'function') {
+      return !isTradeBlockedBetweenPlayers(myPlayer, city.owner);
+    }
+    return true;
   },
 
   _getBankCity() {
@@ -1831,7 +1873,6 @@ const IAArchipielago = {
 
     if (!candidates.length) return null;
     candidates.sort((a, b) => {
-      if (a.hasBank !== b.hasBank) return a.hasBank ? -1 : 1;
       return a.infraPath.length - b.infraPath.length;
     });
 
@@ -1859,6 +1900,14 @@ const IAArchipielago = {
       const currDist = hexDistance(unit.r, unit.c, curr.r, curr.c);
       return currDist < bestDist ? curr : best;
     });
+  },
+
+  _isCorridorPioneer(unit) {
+    if (!unit) return false;
+    if ((unit.name || '').includes('Pionero de Corredor')) return true;
+    const assignments = typeof AiGameplayManager !== 'undefined' ? AiGameplayManager.missionAssignments : null;
+    const mission = assignments?.get ? assignments.get(unit.id) : null;
+    return !!(mission && (mission.type === 'OCCUPY_THEN_BUILD' || mission.nodoRazon === 'ORGANIC_CARAVAN_CORRIDOR'));
   },
 
   _splitUnitTowardsObjective(unit, objective) {
@@ -2826,18 +2875,20 @@ const IAArchipielago = {
   },
 
   _evaluarRutaLarga(situacion, myMetrics, enemyMetrics, holders) {
-    const { myPlayer, ciudades } = situacion;
+    const { myPlayer } = situacion;
     const enemyPlayer = this._getEnemyPlayerId(myPlayer);
     const myKey = `player${myPlayer}`;
     const enemyKey = enemyPlayer != null ? `player${enemyPlayer}` : null;
+    const ownCities = (gameState.cities || []).filter(c => c && c.owner === myPlayer);
+    const tradeCities = this._getTradeCityCandidates(myPlayer).filter(c => this._isAllowedTradeDestinationForCaravan(c, myPlayer));
 
-    if (!ciudades || ciudades.length < 2) {
+    if (ownCities.length < 1 || tradeCities.length < 2) {
       return {
         id: 'ruta_larga',
         label: 'Ruta Larga',
         weight: 0,
         canExecute: false,
-        meta: { reason: 'sin_ciudades' }
+        meta: { reason: 'sin_nodos_comerciales' }
       };
     }
 
@@ -3221,9 +3272,12 @@ const IAArchipielago = {
   },
 
   _ejecutarRutaLarga(situacion) {
-    const { myPlayer, ciudades } = situacion;
-    if (!ciudades || ciudades.length < 2) {
-      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No hay suficientes ciudades.');
+    const { myPlayer } = situacion;
+    const ownCities = (gameState.cities || []).filter(c => c && c.owner === myPlayer);
+    const tradeCities = this._getTradeCityCandidates(myPlayer).filter(c => this._isAllowedTradeDestinationForCaravan(c, myPlayer));
+
+    if (ownCities.length < 1 || tradeCities.length < 2) {
+      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No hay nodos comerciales suficientes.');
       return;
     }
 
