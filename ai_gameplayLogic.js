@@ -1698,7 +1698,28 @@ const AiGameplayManager = {
 
         console.log(`[IA ORG TRADE] J${playerNumber}: pares comerciales detectados=${pairs.length}`);
 
-        AiGameplayManager._runOrganicRoadCreationFlow(playerNumber, pairs);
+        // Construcción de caminos: usa el árbol de expansión (spanning tree) para evitar rutas paralelas.
+        // Si A→B y B→C están en el árbol, no construye una ruta paralela A→C.
+        const networkPlan = AiGameplayManager._getCommercialNetworkPlan(playerNumber);
+        const networkRoadPairs = networkPlan.connections
+            .filter(conn => conn && conn.from && conn.to && conn.path && conn.path.length > 1)
+            .map(conn => ({
+                key: `${conn.from.r},${conn.from.c}|${conn.to.r},${conn.to.c}`,
+                origin: conn.from,
+                dest: conn.to,
+                rawPath: conn.path
+            }))
+            // La banca al frente
+            .sort((a, b) => {
+                const aBank = !!(a.dest?.isBank || a.dest?.owner === 0) ? -1 : 0;
+                const bBank = !!(b.dest?.isBank || b.dest?.owner === 0) ? -1 : 0;
+                return aBank - bBank;
+            });
+
+        const roadPairs = networkRoadPairs.length > 0 ? networkRoadPairs : pairs;
+        AiGameplayManager._runOrganicRoadCreationFlow(playerNumber, roadPairs);
+
+        // Creación de caravanas: usa todos los pares posibles (máximos ingresos).
         AiGameplayManager._runOrganicCaravanCreationFlow(playerNumber, pairs);
         return { active: !!mandatoryFlow?.active, phase: mandatoryFlow?.phase || 'organic', pairs: pairs.length };
     },
@@ -1900,11 +1921,10 @@ const AiGameplayManager = {
         if (!hasFort) return;
 
         const hasResourceExcess =
-            (playerRes.oro || 0) >= 6000 &&
-            (playerRes.piedra || 0) >= 2000 &&
-            (playerRes.madera || 0) >= 800 &&
-            (playerRes.hierro || 0) >= 400 &&
-            (playerRes.puntosReclutamiento || 0) >= 200;
+            (playerRes.oro || 0) >= 1500 &&
+            (playerRes.piedra || 0) >= 300 &&
+            (playerRes.madera || 0) >= 150 &&
+            (playerRes.hierro || 0) >= 50;
 
         if (!hasResourceExcess) return;
 

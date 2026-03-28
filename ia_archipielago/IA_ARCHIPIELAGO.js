@@ -10,7 +10,7 @@ const IAArchipielago = {
   HUNT_SMALL_DIVISIONS_TARGET: 3,
   BIG_ENEMY_DIVISION_THRESHOLD: 12,
   HEAVY_DIVISION_TARGET: 20,
-  WORM_MIN_SPLIT_REGIMENTS: 10,
+  WORM_MIN_SPLIT_REGIMENTS: 6,
   WORM_MAX_ACTIONS_PER_TURN: 3,
   CUT_SUPPLY_MAX_TARGETS: 4,
   deployUnitsAI(myPlayer) {
@@ -391,6 +391,9 @@ const IAArchipielago = {
     for (let i = 0; i < misUnidades.length; i++) {
       const unit1 = misUnidades[i];
       if (amenazas.length === 0 && this._isCorridorPioneer(unit1)) continue;
+      // No fundir unidades con misiones activas de expansión o corredor.
+      const mission1 = (typeof AiGameplayManager !== 'undefined') ? AiGameplayManager.missionAssignments?.get(unit1.id) : null;
+      if (mission1 && ['OCCUPY_THEN_BUILD', 'IA_NODE', 'AXIS_ADVANCE'].includes(mission1.type)) continue;
       const regimentosActuales = unit1.regiments?.length || 0;
 
       const targetSize = Math.min(
@@ -403,6 +406,8 @@ const IAArchipielago = {
       for (let j = i + 1; j < misUnidades.length; j++) {
         const unit2 = misUnidades[j];
         if (amenazas.length === 0 && this._isCorridorPioneer(unit2)) continue;
+        const mission2 = (typeof AiGameplayManager !== 'undefined') ? AiGameplayManager.missionAssignments?.get(unit2.id) : null;
+        if (mission2 && ['OCCUPY_THEN_BUILD', 'IA_NODE', 'AXIS_ADVANCE'].includes(mission2.type)) continue;
         const distancia = hexDistance(unit1.r, unit1.c, unit2.r, unit2.c);
 
         // Si están muy cerca y la suma no excede el máximo
@@ -438,8 +443,8 @@ const IAArchipielago = {
     for (const unit of misUnidades) {
       const regimientosActuales = unit.regiments?.length || 0;
 
-      // Solo dividir unidades GRANDES (más de 8 regimientos)
-      if (regimientosActuales <= 8) continue;
+      // Dividir unidades con más de 4 regimientos para expandir presencia en el mapa.
+      if (regimientosActuales <= 4) continue;
 
       // Buscar un hexágono adyacente desocupado
       const hexesCercanos = getHexNeighbors(unit.r, unit.c);
@@ -552,8 +557,25 @@ const IAArchipielago = {
           console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Objetivo exploratorio en (${objetivo.r},${objetivo.c})`);
         }
       }
-      // PRIORIDAD 7: Presión directa al enemigo
-      else if (unidadesEnemigas.length > 0) {
+      // PRIORIDAD 7: Expansión de frontera — ocupar casillas vacías adyacentes al territorio propio.
+      // Igual que el humano: siempre hay espacio que tomar en el mapa.
+      else if (!objetivo) {
+        const frontierHexes = board.flat().filter(h =>
+          h && (h.owner === null || h.owner === undefined) &&
+          !h.unit && !h.isCity &&
+          (h.terrain !== 'water') &&
+          getHexNeighbors(h.r, h.c).some(n => board[n.r]?.[n.c]?.owner === myPlayer)
+        );
+        if (frontierHexes.length > 0) {
+          objetivo = this._pickObjective(frontierHexes, unit, myPlayer);
+          if (objetivo) {
+            console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Expansión de frontera en (${objetivo.r},${objetivo.c})`);
+          }
+        }
+      }
+
+      // PRIORIDAD 8: Presión directa al enemigo cuando no hay frontera libre.
+      if (!objetivo && unidadesEnemigas.length > 0) {
         objetivo = this._pickObjective(unidadesEnemigas, unit, myPlayer);
         if (objetivo) {
           console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Presionando enemigo en (${objetivo.r},${objetivo.c})`);
@@ -1065,15 +1087,13 @@ const IAArchipielago = {
     const ciudades = this._getTradeCityCandidates(myPlayer);
     const existingRouteKeys = this._getExistingTradeRouteKeys(myPlayer);
     const candidate = this._findBestTradeCityPair(ciudades, myPlayer, existingRouteKeys);
-    const nextHex = candidate && !candidate.infraPath ? candidate.missingOwnedSegments[0] : null;
-
-    if (nextHex) {
+    // Construir todos los segmentos de camino pendientes mientras haya recursos (no solo 1 por turno).
+    const missingSegments = candidate?.missingOwnedSegments || [];
+    for (const nextHex of missingSegments) {
+      if (!this._canAffordStructure(myPlayer, 'Camino')) break;
       const nextHexData = board[nextHex.r]?.[nextHex.c];
       const terrainOk = !roadBuildable.length || roadBuildable.includes(nextHexData?.terrain);
       if (terrainOk) {
-        if (!this._canAffordStructure(myPlayer, 'Camino')) {
-          return;
-        }
         console.log(`[IA_ARCHIPIELAGO] Construyendo camino en (${nextHex.r},${nextHex.c})`);
         this._requestBuildStructure(myPlayer, nextHex.r, nextHex.c, 'Camino');
       }
@@ -1858,7 +1878,7 @@ const IAArchipielago = {
         const cityA = tradeCities[i];
         const cityB = tradeCities[j];
         if (!cityA || !cityB) continue;
-        if (bankCity && cityA === bankCity && cityB === bankCity) continue;
+        if ((cityA.isBank || cityA.owner === 0) && (cityB.isBank || cityB.owner === 0)) continue;
 
         const routeKey = this._getTradePairKey(cityA, cityB);
         if (routeKey && existingRouteKeys?.has(routeKey)) continue;
