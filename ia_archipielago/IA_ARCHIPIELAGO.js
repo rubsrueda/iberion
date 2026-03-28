@@ -127,33 +127,47 @@ const IAArchipielago = {
       return completedGoals[flujo] && completedGoals[flujo].some(g => g.r === r && g.c === c);
     }
 
-    // Usar el helper correcto para el flujo de ocupación
+    // --- FLUJO 1: OCUPACIÓN EXHAUSTIVA ---
     const ciudades = IASentidos.getCities(myPlayer).filter(c => !isGoalCompletedFlujo('ocupacion', c.r, c.c));
     const hexesPropios = IASentidos.getOwnedHexes(myPlayer);
-    // Flujos independientes: ocupación, construcción, caravana
-    const recursos = hexesPropios.filter(h => {
-      if (h.resourceNode && isGoalCompletedFlujo('ocupacion', h.r, h.c)) { logFiltrado('ocupacion', h.r, h.c); return false; }
-      return h.resourceNode;
-    });
-    // === LOG DE OCUPACIÓN: Estado de recursos ===
-    if (recursos.length === 0) {
-      console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] No hay recursos ocupables para este turno.`);
+    const recursos = hexesPropios.filter(h => h.resourceNode && !isGoalCompletedFlujo('ocupacion', h.r, h.c));
+    let ocupacionesRealizadas = 0;
+    for (const ciudad of ciudades) {
+      if (this._requestMoveOrAttack) {
+        const result = this._requestMoveOrAttack({ r: ciudad.r, c: ciudad.c, player: myPlayer }, ciudad.r, ciudad.c);
+        if (result) {
+          registrarMetaFlujo('ocupacion', ciudad.r, ciudad.c);
+          ocupacionesRealizadas++;
+          console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Conquistada ciudad objetivo (${ciudad.r},${ciudad.c})`);
+        }
+      }
     }
-    const infraestructura = hexesPropios.filter(h => {
-      if (h.structure && isGoalCompletedFlujo('construccion', h.r, h.c)) { logFiltrado('construccion', h.r, h.c); return false; }
-      return h.structure;
-    });
-      // Cuando la IA ocupe una casilla:
-      // registrarMetaFlujo('ocupacion', r, c);
+    for (const hex of recursos) {
+      if (this._requestMoveOrAttack) {
+        const result = this._requestMoveOrAttack({ r: hex.r, c: hex.c, player: myPlayer }, hex.r, hex.c);
+        if (result) {
+          registrarMetaFlujo('ocupacion', hex.r, hex.c);
+          ocupacionesRealizadas++;
+          console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Conquistado recurso objetivo (${hex.r},${hex.c})`);
+        }
+      }
+    }
+    if (ocupacionesRealizadas === 0) {
+      console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] No se conquistó ninguna casilla objetivo este turno.`);
+    } else {
+      console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Total conquistadas este turno: ${ocupacionesRealizadas}`);
+    }
     // === LOG DE SALIDA FLUJO OCUPACIÓN ===
     console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] FIN del flujo de ocupación para Jugador ${myPlayer}, Turno ${gameState.turnNumber}`);
-      // Cuando construya infraestructura:
-      // registrarMetaFlujo('construccion', r, c);
-      // Cuando cree una caravana:
-      // registrarMetaFlujo('caravana', r, c);
-    totalMetas = ciudades.length + recursos.length + infraestructura.length + totalFiltradas;
-    const objetivos = ciudades.concat(recursos).concat(infraestructura);
-    console.log(`[IA_ARCHIPIELAGO][RESUMEN] Metas disponibles: ${ciudades.length + recursos.length + infraestructura.length}, Metas cumplidas (filtradas): ${totalFiltradas}, Total históricas: ${totalMetas}`);
+
+    // --- FLUJO 2: CONSTRUCCIÓN EXHAUSTIVA ---
+    if (typeof this.construirInfraestructura === 'function') {
+      this.construirInfraestructura(myPlayer, hexesPropios, { oro: 99999 }); // fuerza recursos para testear exhaustividad
+    }
+
+    totalMetas = ciudades.length + recursos.length + totalFiltradas;
+    const objetivos = ciudades.concat(recursos);
+    console.log(`[IA_ARCHIPIELAGO][RESUMEN] Metas disponibles: ${ciudades.length + recursos.length}, Metas cumplidas (filtradas): ${totalFiltradas}, Total históricas: ${totalMetas}`);
   // --- REGISTRO DE META CUMPLIDA ---
   // Llamar esto cuando la IA complete una sub-fase de meta
 
