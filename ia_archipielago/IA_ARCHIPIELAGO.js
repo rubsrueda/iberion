@@ -350,16 +350,16 @@ const IAArchipielago = {
     console.log(`[IA_ARCHIPIELAGO] FASE 4: Preparando fusiones ofensivas para ataque...`);
     this.ejecutarFusionesOfensivas(myPlayer, misUnidades, situacion);
 
-    // FASE 5: CONSTRUCCIÓN DE INFRAESTRUCTURA
-    if (economia.oro >= 500) {
-      console.log(`[IA_ARCHIPIELAGO] FASE 5: Construyendo infraestructura (Oro: ${economia.oro})...`);
-      this.construirInfraestructura(myPlayer, hexesPropios, economia);
-    }
+    // FASE 5: CONSTRUCCIÓN DE INFRAESTRUCTURA (flujo siempre activo)
+    console.log(`[IA_ARCHIPIELAGO] FASE 5: Intentando construir infraestructura (Oro: ${economia.oro})...`);
+    this.construirInfraestructura(myPlayer, hexesPropios, economia);
 
-    // FASE 6: CARAVANAS COMERCIALES
-    if (economia.oro >= 1000 && ciudades.length > 0) {
-      console.log(`[IA_ARCHIPIELAGO] FASE 6: Creando caravanas comerciales...`);
+    // FASE 6: CARAVANAS COMERCIALES (flujo siempre activo)
+    if (ciudades.length > 0) {
+      console.log(`[IA_ARCHIPIELAGO] FASE 6: Intentando crear caravanas comerciales...`);
       this.crearCaravanas(myPlayer, ciudades);
+    } else {
+      console.log(`[IA_ARCHIPIELAGO] FASE 6: No hay ciudades disponibles para crear caravanas.`);
     }
   },
 
