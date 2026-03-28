@@ -76,7 +76,16 @@ const AiDeploymentManager = {
                         fromNode: mission.fromNode,
                         toNode: mission.toNode
                     };
-                    this._advanceDeterministicBootstrapStage(playerNumber, mission);
+                    this._markDeterministicBootstrapStageCreated(playerNumber, mission);
+                    if (typeof AiGameplayManager !== 'undefined' && AiGameplayManager.missionAssignments?.set) {
+                        AiGameplayManager.missionAssignments.set(newUnitData.id, {
+                            type: 'IA_NODE',
+                            objective: { r: mission.objectiveHex?.r, c: mission.objectiveHex?.c },
+                            nodoTipo: 'corredor_comercial',
+                            axisName: `bootstrap_stage_${mission.stageIndex || 0}`,
+                            bootstrapStageLabel: mission.stageLabel || null
+                        });
+                    }
                     console.log(`[IA DEPLOY][PIPELINE] J${playerNumber} etapa=${mission.stageIndex + 1}/3 ${mission.stageLabel} unidad=${newUnitData.name} regs=${newUnitData.regiments?.length || 0} objetivo=(${mission.objectiveHex?.r},${mission.objectiveHex?.c})`);
                 }
                 placeFinalizedDivision(newUnitData, placementSpot.r, placementSpot.c);
@@ -298,7 +307,7 @@ const AiDeploymentManager = {
 
         if (!gameState.aiDeterministicBootstrap) gameState.aiDeterministicBootstrap = {};
         if (!gameState.aiDeterministicBootstrap[playerNumber]) {
-            gameState.aiDeterministicBootstrap[playerNumber] = { stageIndex: 0, completed: [] };
+            gameState.aiDeterministicBootstrap[playerNumber] = { stageIndex: 0, completed: [], createdStages: [] };
         }
 
         const state = gameState.aiDeterministicBootstrap[playerNumber];
@@ -323,25 +332,28 @@ const AiDeploymentManager = {
         }];
     },
 
-    _advanceDeterministicBootstrapStage: function(playerNumber, mission) {
+    _markDeterministicBootstrapStageCreated: function(playerNumber, mission) {
         if (!mission?.deterministicBootstrap) return;
         if (!gameState.aiDeterministicBootstrap) gameState.aiDeterministicBootstrap = {};
         if (!gameState.aiDeterministicBootstrap[playerNumber]) {
-            gameState.aiDeterministicBootstrap[playerNumber] = { stageIndex: 0, completed: [] };
+            gameState.aiDeterministicBootstrap[playerNumber] = { stageIndex: 0, completed: [], createdStages: [] };
         }
 
         const state = gameState.aiDeterministicBootstrap[playerNumber];
-        const completedEntry = {
+        state.createdStages = Array.isArray(state.createdStages) ? state.createdStages : [];
+        const stageIndex = Number(mission.stageIndex || 0);
+        if (!state.createdStages.includes(stageIndex)) {
+            state.createdStages.push(stageIndex);
+        }
+
+        const createdEntry = {
             stageIndex: mission.stageIndex,
             stageLabel: mission.stageLabel,
             objectiveHex: mission.objectiveHex,
             turn: gameState.turnNumber
         };
         state.completed = Array.isArray(state.completed) ? state.completed : [];
-        state.completed.push(completedEntry);
-
-        const next = Math.max(0, Number(mission.stageIndex || 0) + 1);
-        state.stageIndex = Math.min(next, 2);
+        state.completed.push({ ...createdEntry, createdOnly: true });
     },
 
     _buildDeterministicBootstrapStages: function(analysis) {

@@ -223,6 +223,7 @@ const IAArchipielago = {
    */
   ejecutarPlanDeAccion(situacion) {
     const { myPlayer, amenazas, frente, economia, ciudades, hexesPropios, enemyProfile } = situacion;
+    this._runDeterministicBootstrapController(situacion);
     // Si hay un plan de presión por fortaleza, intentar producir fuerzas primero
     if (gameState.aiFortressPressure && gameState.aiFortressPressure[myPlayer]) {
       const finished = this._pressureProduceForFortress(myPlayer);
@@ -299,6 +300,98 @@ const IAArchipielago = {
     if (economia.oro >= 1000 && ciudades.length > 0) {
       console.log(`[IA_ARCHIPIELAGO] FASE 6: Creando caravanas comerciales...`);
       this.crearCaravanas(myPlayer, ciudades);
+    }
+  },
+
+  _runDeterministicBootstrapController(situacion) {
+    const { myPlayer } = situacion;
+    if (gameState.currentPhase !== 'play') return;
+    if (typeof AiDeploymentManager === 'undefined') return;
+    if (typeof AiGameplayManager === 'undefined') return;
+
+    const analysis = typeof AiDeploymentManager.analyzeEnvironment === 'function'
+      ? AiDeploymentManager.analyzeEnvironment(myPlayer)
+      : null;
+    const stages = typeof AiDeploymentManager._buildDeterministicBootstrapStages === 'function'
+      ? AiDeploymentManager._buildDeterministicBootstrapStages(analysis)
+      : [];
+    if (!stages.length) return;
+
+    if (!gameState.aiDeterministicBootstrap) gameState.aiDeterministicBootstrap = {};
+    if (!gameState.aiDeterministicBootstrap[myPlayer]) {
+      gameState.aiDeterministicBootstrap[myPlayer] = { stageIndex: 0, completed: [], createdStages: [] };
+    }
+
+    const state = gameState.aiDeterministicBootstrap[myPlayer];
+    state.createdStages = Array.isArray(state.createdStages) ? state.createdStages : [];
+    state.completed = Array.isArray(state.completed) ? state.completed : [];
+
+    const stageIndex = Math.max(0, Math.min(state.stageIndex || 0, stages.length - 1));
+    const stage = stages[stageIndex];
+    if (!stage) return;
+
+    const stageUnits = IASentidos.getUnits(myPlayer).filter(u =>
+      u && u.currentHealth > 0 && u.iaBootstrapObjective && Number(u.iaBootstrapObjective.stageIndex) === stageIndex
+    );
+
+    // Si no existe división de la etapa actual, crearla en una ciudad/fortaleza propia libre.
+    if (stageUnits.length === 0 && !state.createdStages.includes(stageIndex)) {
+      const newUnit = AiGameplayManager.produceUnit(
+        myPlayer,
+        ['Infantería Ligera', 'Infantería Ligera'],
+        'builder',
+        `Pionero Bootstrap S${stageIndex + 1}`
+      );
+      if (newUnit) {
+        newUnit.iaBootstrapObjective = {
+          r: stage.objectiveHex.r,
+          c: stage.objectiveHex.c,
+          stageIndex,
+          stageLabel: stage.label,
+          fromNode: stage.fromNode,
+          toNode: stage.toNode
+        };
+        state.createdStages.push(stageIndex);
+        console.log(`[IA BOOTSTRAP] J${myPlayer} creada division etapa ${stageIndex + 1}: ${stage.label} objetivo=(${stage.objectiveHex.r},${stage.objectiveHex.c})`);
+      }
+    }
+
+    const refreshedStageUnits = IASentidos.getUnits(myPlayer).filter(u =>
+      u && u.currentHealth > 0 && u.iaBootstrapObjective && Number(u.iaBootstrapObjective.stageIndex) === stageIndex
+    );
+    const actor = refreshedStageUnits
+      .slice()
+      .sort((a, b) => hexDistance(a.r, a.c, stage.objectiveHex.r, stage.objectiveHex.c) - hexDistance(b.r, b.c, stage.objectiveHex.r, stage.objectiveHex.c))[0];
+
+    if (actor) {
+      AiGameplayManager.missionAssignments.set(actor.id, {
+        type: 'IA_NODE',
+        objective: { r: stage.objectiveHex.r, c: stage.objectiveHex.c },
+        nodoTipo: 'corredor_comercial',
+        axisName: `bootstrap_stage_${stageIndex}`,
+        bootstrapStageLabel: stage.label
+      });
+
+      if (!actor.hasMoved && (actor.currentMovement || 0) > 0) {
+        this._requestMoveOrAttack(actor, stage.objectiveHex.r, stage.objectiveHex.c);
+        console.log(`[IA BOOTSTRAP] J${myPlayer} etapa ${stageIndex + 1} movimiento hacia (${stage.objectiveHex.r},${stage.objectiveHex.c})`);
+      }
+    }
+
+    const objectiveHex = board[stage.objectiveHex.r]?.[stage.objectiveHex.c];
+    const occupiedByUs = !!(objectiveHex && objectiveHex.owner === myPlayer);
+    const unitOnObjective = getUnitOnHex(stage.objectiveHex.r, stage.objectiveHex.c);
+    const reached = occupiedByUs || !!(unitOnObjective && unitOnObjective.player === myPlayer);
+
+    if (reached) {
+      const alreadyCompleted = state.completed.some(c => c && c.stageIndex === stageIndex && c.reached === true);
+      if (!alreadyCompleted) {
+        state.completed.push({ stageIndex, stageLabel: stage.label, objectiveHex: stage.objectiveHex, turn: gameState.turnNumber, reached: true });
+      }
+      if (stageIndex < stages.length - 1) {
+        state.stageIndex = stageIndex + 1;
+      }
+      console.log(`[IA BOOTSTRAP] J${myPlayer} etapa ${stageIndex + 1} completada (${stage.label}).`);
     }
   },
 
