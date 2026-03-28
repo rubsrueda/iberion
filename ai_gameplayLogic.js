@@ -562,7 +562,8 @@ const AiGameplayManager = {
         }
 
         // Programa BOA de fortificaciones: se mantiene desde turno 6.
-        if (gameState.turnNumber < 6 || AiGameplayManager.fortressCount(playerNumber) >= 2) {
+        // Guardrail: máximo 1 fortaleza activa por IA.
+        if (gameState.turnNumber < 6 || AiGameplayManager.fortressCount(playerNumber) >= 1) {
             return;
         }
 
@@ -1733,16 +1734,12 @@ const AiGameplayManager = {
         );
 
         // Construir fortalezas en el corredor es buena estrategia (Fortaleza→Muralla→Aldea = nueva ciudad conectada).
-        // Pero deben espaciarse: mínimo 4 hexes de cualquier fortaleza o ciudad existente.
-        // Máximo 3 fortalezas de expansión simultáneas para no dilapidar piedra.
-        const MAX_EXPANSION_FORTS = 3;
-        const MIN_FORT_SPACING = 4;
+        // Guardrails BOA: máximo 1 fortaleza de expansión y mínimo 5 hexes entre fortalezas.
+        const MAX_EXPANSION_FORTS = 1;
+        const MIN_FORT_SPACING = 5;
         if (existingForts.length >= MAX_EXPANSION_FORTS) return null;
 
-        const occupiedPositions = [
-            ...existingForts,
-            ...(gameState.cities || []).filter(c => c.owner === playerNumber)
-        ];
+        const occupiedPositions = [...existingForts];
 
         // Obtener segmentos interiores del corredor para puntuarlos positivamente.
         const corridorHexSet = new Set();
@@ -1760,7 +1757,7 @@ const AiGameplayManager = {
             if (!h || h.owner !== playerNumber || h.structure || h.unit) return false;
             if (h.owner !== playerNumber) return false;
             if (h.terrain === 'water') return false;
-            // Separación mínima de cualquier fortaleza/ciudad existente.
+            // Separación mínima de fortalezas existentes.
             const tooClose = occupiedPositions.some(pos =>
                 hexDistance(h.r, h.c, pos.r, pos.c) < MIN_FORT_SPACING
             );

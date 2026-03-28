@@ -1180,7 +1180,9 @@ const IAArchipielago = {
       }
       console.log(`[IA_ARCHIPIELAGO] Construyendo fortaleza (Camino 16) en (${invaderFortSpot.r},${invaderFortSpot.c})`);
       const built = this._requestBuildStructure(myPlayer, invaderFortSpot.r, invaderFortSpot.c, 'Fortaleza');
-      this._startFortressPressure(myPlayer, invaderFortSpot);
+      if (built) {
+        this._startFortressPressure(myPlayer, invaderFortSpot);
+      }
       return;
     }
 
@@ -1204,23 +1206,20 @@ const IAArchipielago = {
 
     // PRIORIDAD 2: Fortalezas estratégicas en el corredor comercial.
     // Una Fortaleza → Fortaleza con Muralla → Aldea en el corredor = nueva ciudad conectada (más rutas).
-    // Regla: mín. 4 hexes de separación entre fortalezas/ciudades; máx. 3 fortalezas de expansión.
+    // Guardrail: máximo 1 fortaleza y mínimo 5 hexes entre fortalezas.
     if (!this._ensureTech(myPlayer, 'FORTIFICATIONS')) {
       console.log('[IA_ARCHIPIELAGO] CONSTRUCCIÓN: falta FORTIFICATIONS para fortaleza estratégica.');
       return;
     }
 
-    const MAX_EXPANSION_FORTS = 3;
-    const MIN_FORT_SPACING = 4;
+    const MAX_EXPANSION_FORTS = 1;
+    const MIN_FORT_SPACING = 5;
     const existingExpandForts = board.flat().filter(h =>
       h && h.owner === myPlayer && (h.structure === 'Fortaleza' || h.structure === 'Fortaleza con Muralla')
     );
 
     if (existingExpandForts.length < MAX_EXPANSION_FORTS) {
-      const allOccupied = [
-        ...existingExpandForts,
-        ...(gameState.cities || []).filter(c => c.owner === myPlayer)
-      ];
+      const allOccupied = [...existingExpandForts];
 
       // Segmentos del corredor → candidatos preferidos (serán ciudades conectadas).
       const corridorSegments = new Set();
@@ -1481,6 +1480,27 @@ const IAArchipielago = {
     if (!data) {
       playerRetryState.keys.add(retryKey);
       return false;
+    }
+
+    // Guardrail global IA: nunca más de 1 fortaleza y mantener separación mínima de 5.
+    if (structureType === 'Fortaleza') {
+      const MIN_FORT_SPACING = 5;
+      const existingForts = board.flat().filter(h =>
+        h &&
+        h.owner === playerId &&
+        (h.structure === 'Fortaleza' || h.structure === 'Fortaleza con Muralla')
+      );
+
+      if (existingForts.length >= 1) {
+        playerRetryState.keys.add(retryKey);
+        return false;
+      }
+
+      const tooClose = existingForts.some(f => hexDistance(r, c, f.r, f.c) < MIN_FORT_SPACING);
+      if (tooClose) {
+        playerRetryState.keys.add(retryKey);
+        return false;
+      }
     }
 
     const playerRes = gameState.playerResources?.[playerId] || {};
