@@ -3756,12 +3756,8 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
     const fromC = unit.c;
     const targetHexData = board[toR]?.[toC];
 
-    const destinationTerrain = String(targetHexData?.terrain || '').toLowerCase();
-    const isDifficultTerrain = ['hills', 'forest', 'mountain', 'montana', 'bosque'].includes(destinationTerrain);
-    if (!isMergeMove && isDifficultTerrain && hexDistance(fromR, fromC, toR, toC) > 1) {
-        logMessage(`Movimiento inválido: ${destinationTerrain} solo permite avanzar una casilla por acción.`, 'warning');
-        return;
-    }
+    // La validez del movimiento se decide por pathfinding/coste efectivo,
+    // no por una distancia directa al terreno de destino.
 
     // Calcular coste
     unit.lastMove = {

@@ -246,6 +246,13 @@ const AiGameplayManager = {
             return;
         }
 
+        const mandatoryCaravanFlow = await this._runMandatoryCaravanHeartFlow(playerNumber);
+        if (mandatoryCaravanFlow?.active) {
+            console.log(`[IA HEART CARAVAN] Prioridad absoluta activa para J${playerNumber}. phase=${mandatoryCaravanFlow.phase}`);
+            console.groupEnd();
+            return;
+        }
+
         // SI NO HAY AMENAZA EN LA CAPITAL, CONTINÚA CON LA LÓGICA NORMAL:
 
         // TAREA CONTINUA: Flujos orgánicos autónomos (independientes del motor de decisión).
@@ -270,6 +277,252 @@ const AiGameplayManager = {
         AiGameplayManager.executeRoadProjects(playerNumber);
         
         console.groupEnd();
+    },
+
+    _hasMandatoryCaravanPressure: function(playerNumber) {
+        const state = gameState.aiMandatoryCaravanState?.[playerNumber];
+        return !!(state && state.active && state.turnNumber === gameState.turnNumber);
+    },
+
+    _getMandatoryCaravanPlans: function(playerNumber) {
+        const ownCities = (gameState.cities || []).filter(c => c && c.owner === playerNumber);
+        if (ownCities.length === 0) return [];
+
+        const bankCity = this._getBankCity();
+        const allCities = (gameState.cities || []).slice();
+        const bankAlreadyInCities = bankCity && allCities.some(c => c.r === bankCity.r && c.c === bankCity.c);
+        const tradeNodes = bankCity && !bankAlreadyInCities ? [...allCities, bankCity] : allCities;
+        const roadReady = new Set(['Camino', 'Fortaleza', 'Fortaleza con Muralla', 'Aldea', 'Ciudad', 'Metrópoli']);
+        const plans = [];
+
+        for (const origin of ownCities) {
+            const best = tradeNodes
+                .filter(dest => !(dest.r === origin.r && dest.c === origin.c))
+                .filter(dest => this._isOrganicTradeDestinationAllowed(playerNumber, dest))
+                .map(dest => {
+                    const rawPath = this._buildCommercialCorridorPath(playerNumber, origin, dest);
+                    if (!rawPath || rawPath.length < 2) return null;
+
+                    const pendingCaptureSegments = [];
+                    const missingOwnedSegments = [];
+                    rawPath.forEach((step, idx) => {
+                        const isEndpoint = idx === 0 || idx === rawPath.length - 1;
+                        if (isEndpoint) return;
+                        const hex = board[step.r]?.[step.c];
+                        if (!hex || hex.isCity || !this._canBuildRoadOnHex(hex)) return;
+                        if (hex.owner !== playerNumber) {
+                            pendingCaptureSegments.push({ r: step.r, c: step.c, idx });
+                            return;
+                        }
+                        const city = this._getCityAtHex(step.r, step.c);
+                        const isOwnCity = !!(city && city.owner === playerNumber);
+                        if (!isOwnCity && !roadReady.has(hex.structure)) {
+                            missingOwnedSegments.push({ r: step.r, c: step.c, idx });
+                        }
+                    });
+
+                    const infraPath = (typeof findInfrastructurePath === 'function')
+                        ? findInfrastructurePath(origin, dest, { allowForeignInfrastructure: true, requireRoadCorridor: true })
+                        : null;
+
+                    return {
+                        origin,
+                        dest,
+                        rawPath,
+                        pendingCaptureSegments,
+                        missingOwnedSegments,
+                        infraPath,
+                        distance: hexDistance(origin.r, origin.c, dest.r, dest.c)
+                    };
+                })
+                .filter(Boolean)
+                .sort((a, b) => {
+                    const aState = (a.pendingCaptureSegments.length > 0) ? 0 : (a.missingOwnedSegments.length > 0 ? 1 : 2);
+                    const bState = (b.pendingCaptureSegments.length > 0) ? 0 : (b.missingOwnedSegments.length > 0 ? 1 : 2);
+                    if (aState !== bState) return aState - bState;
+                    return a.distance - b.distance;
+                })[0];
+
+            if (best) plans.push(best);
+        }
+
+        return plans.sort((a, b) => {
+            const aState = (a.pendingCaptureSegments.length > 0) ? 0 : (a.missingOwnedSegments.length > 0 ? 1 : 2);
+            const bState = (b.pendingCaptureSegments.length > 0) ? 0 : (b.missingOwnedSegments.length > 0 ? 1 : 2);
+            if (aState !== bState) return aState - bState;
+            return a.distance - b.distance;
+        });
+    },
+
+    _canAffordCorridorPioneerPair: function(playerNumber) {
+        const res = gameState.playerResources?.[playerNumber];
+        const infCost = REGIMENT_TYPES['Infantería Ligera']?.cost || {};
+        if (!res || !infCost) return false;
+        return Object.keys(infCost).every(key => (res[key] || 0) >= ((infCost[key] || 0) * 2));
+    },
+
+    _ensureCityCenterAvailableForTrade: function(playerNumber, city) {
+        if (!city) return false;
+        const blocker = getUnitOnHex(city.r, city.c);
+        if (!blocker || blocker.player !== playerNumber || blocker.tradeRoute) return true;
+        return this._tryRelocateUnitFromCityCenter(blocker, city);
+    },
+
+    _assignMandatoryCorridorOccupiers: function(playerNumber, plan) {
+        const targets = (plan.pendingCaptureSegments || [])
+            .filter(seg => {
+                const hex = board[seg.r]?.[seg.c];
+                return !!(hex && !hex.unit && this._canBuildRoadOnHex(hex));
+            })
+            .slice(0, 2);
+
+        if (targets.length === 0) {
+            return { assigned: 0, produced: 0, reason: 'sin_casillas_libres_para_ocupar' };
+        }
+
+        let assigned = 0;
+        let produced = 0;
+        const claimedUnits = new Set();
+        const availableUnits = units
+            .filter(u => u.player === playerNumber && u.currentHealth > 0 && !u.hasMoved)
+            .filter(u => !u.tradeRoute)
+            .filter(u => {
+                const mission = this.missionAssignments.get(u.id);
+                return !mission || ['IA_NODE', 'AXIS_ADVANCE', 'DEFAULT'].includes(mission.type);
+            });
+
+        for (const target of targets) {
+            const chosen = availableUnits
+                .slice()
+                .filter(u => !claimedUnits.has(u.id))
+                .sort((a, b) => hexDistance(a.r, a.c, target.r, target.c) - hexDistance(b.r, b.c, target.r, target.c))
+                .find(u => {
+                    const path = this.findPathToTarget(u, target.r, target.c);
+                    return !!(path && path.length > 1);
+                });
+
+            if (!chosen) continue;
+
+            this.missionAssignments.set(chosen.id, {
+                type: 'OCCUPY_THEN_BUILD',
+                objective: { r: target.r, c: target.c },
+                structureType: 'Camino',
+                nodoRazon: 'HEART_CARAVAN'
+            });
+            claimedUnits.add(chosen.id);
+            assigned++;
+            console.log(`[IA HEART PASO1] J${playerNumber}: ${chosen.name} asignada a ocupar (${target.r},${target.c}) desde ${plan.origin.name}→${plan.dest.name}`);
+        }
+
+        if (assigned === 0 && this._canAffordCorridorPioneerPair(playerNumber) && this._ensureCityCenterAvailableForTrade(playerNumber, plan.origin)) {
+            const pioneer = this.produceUnit(
+                playerNumber,
+                ['Infantería Ligera', 'Infantería Ligera'],
+                'corridor_pioneer',
+                `Pionero de Corredor ${plan.origin.name}`,
+                plan.origin
+            );
+
+            if (pioneer) {
+                this.missionAssignments.set(pioneer.id, {
+                    type: 'OCCUPY_THEN_BUILD',
+                    objective: { r: targets[0].r, c: targets[0].c },
+                    structureType: 'Camino',
+                    nodoRazon: 'HEART_CARAVAN'
+                });
+                assigned++;
+                produced++;
+                console.log(`[IA HEART PASO0] J${playerNumber}: creado ${pioneer.name} en ${plan.origin.name} para corredor ${plan.origin.name}→${plan.dest.name}`);
+            }
+        }
+
+        return { assigned, produced, reason: assigned > 0 ? 'ocupacion_asignada' : 'sin_unidades_ni_produccion' };
+    },
+
+    _buildMandatoryOwnedRoads: function(playerNumber, plan) {
+        const playerRes = gameState.playerResources?.[playerNumber];
+        if (!playerRes) return 0;
+
+        let built = 0;
+        for (const segment of plan.missingOwnedSegments || []) {
+            const hex = board[segment.r]?.[segment.c];
+            if (!hex || hex.owner !== playerNumber || hex.isCity || hex.unit) continue;
+            const ok = this.attemptConstructionAtHex(playerNumber, segment.r, segment.c, 'Camino', 'HEART_CARAVAN');
+            if (ok) {
+                built++;
+                console.log(`[IA HEART PASO2] J${playerNumber}: camino construido en (${segment.r},${segment.c}) para ${plan.origin.name}→${plan.dest.name}`);
+            }
+        }
+        return built;
+    },
+
+    _runMandatoryCaravanHeartFlow: async function(playerNumber) {
+        if (!gameState.aiMandatoryCaravanState) gameState.aiMandatoryCaravanState = {};
+
+        const plans = this._getMandatoryCaravanPlans(playerNumber);
+        if (plans.length === 0) {
+            gameState.aiMandatoryCaravanState[playerNumber] = {
+                active: false,
+                phase: 'idle',
+                turnNumber: gameState.turnNumber
+            };
+            return gameState.aiMandatoryCaravanState[playerNumber];
+        }
+
+        for (const plan of plans) {
+            console.log(`[IA HEART TRACE] J${playerNumber}: ${plan.origin.name}→${plan.dest.name} dist=${plan.distance} capturas=${plan.pendingCaptureSegments.length} caminos=${plan.missingOwnedSegments.length} ruta=${plan.infraPath ? plan.infraPath.length : 0}`);
+
+            if (plan.pendingCaptureSegments.length > 0) {
+                const occupy = this._assignMandatoryCorridorOccupiers(playerNumber, plan);
+                if (occupy.assigned > 0) {
+                    gameState.aiMandatoryCaravanState[playerNumber] = {
+                        active: true,
+                        phase: 'occupy',
+                        turnNumber: gameState.turnNumber,
+                        origin: { r: plan.origin.r, c: plan.origin.c },
+                        destination: { r: plan.dest.r, c: plan.dest.c }
+                    };
+                    return gameState.aiMandatoryCaravanState[playerNumber];
+                }
+            }
+
+            if (plan.pendingCaptureSegments.length === 0 && plan.missingOwnedSegments.length > 0) {
+                const built = this._buildMandatoryOwnedRoads(playerNumber, plan);
+                if (built > 0) {
+                    gameState.aiMandatoryCaravanState[playerNumber] = {
+                        active: true,
+                        phase: 'roadwork',
+                        turnNumber: gameState.turnNumber,
+                        origin: { r: plan.origin.r, c: plan.origin.c },
+                        destination: { r: plan.dest.r, c: plan.dest.c }
+                    };
+                    return gameState.aiMandatoryCaravanState[playerNumber];
+                }
+            }
+
+            if (plan.pendingCaptureSegments.length === 0 && plan.missingOwnedSegments.length === 0) {
+                this._ensureCityCenterAvailableForTrade(playerNumber, plan.origin);
+                const routed = this._tryEstablishTradeRouteBetweenCities(playerNumber, plan.origin, plan.dest, plan.infraPath || null);
+                if (routed) {
+                    console.log(`[IA HEART PASO3-4] J${playerNumber}: columna y caravana activadas ${plan.origin.name}→${plan.dest.name}`);
+                    gameState.aiMandatoryCaravanState[playerNumber] = {
+                        active: true,
+                        phase: 'trade',
+                        turnNumber: gameState.turnNumber,
+                        origin: { r: plan.origin.r, c: plan.origin.c },
+                        destination: { r: plan.dest.r, c: plan.dest.c }
+                    };
+                    return gameState.aiMandatoryCaravanState[playerNumber];
+                }
+            }
+        }
+
+        gameState.aiMandatoryCaravanState[playerNumber] = {
+            active: false,
+            phase: 'idle',
+            turnNumber: gameState.turnNumber
+        };
+        return gameState.aiMandatoryCaravanState[playerNumber];
     },
     
     _handle_BOA_Construction: async function(playerNumber) {
@@ -3130,6 +3383,11 @@ const AiGameplayManager = {
      * @returns {boolean} - Devuelve true si el protocolo de consolidación se activó.
      */
     _checkForConsolidationProtocol: function(playerNumber) {
+        if (this._hasMandatoryCaravanPressure(playerNumber)) {
+            console.log(`[IA CONSOLIDATION] SKIP: corredor/caravana obligatorio activo para J${playerNumber}.`);
+            return false;
+        }
+
         // Early game: evitar secuestrar expansión económica por consolidación prematura.
         if (gameState.turnNumber <= 2) {
             console.log(`[IA CONSOLIDATION] SKIP turno ${gameState.turnNumber}: early-game, priorizar expansión.`);
