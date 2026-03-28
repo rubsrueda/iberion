@@ -30,7 +30,7 @@ const AiDeploymentManager = {
             const isFreeDeployment = gameState.currentPhase === 'deployment';
 
             if (hasDeterministicBootstrap) {
-                deployedCount = this._runDeterministicDeploymentPipeline(playerNumber, analysis, strategy, unitsToPlaceCount, playerResources, isFreeDeployment);
+                deployedCount = await this._runDeterministicDeploymentPipeline(playerNumber, analysis, strategy, unitsToPlaceCount, playerResources, isFreeDeployment);
             }
             
             // GARANTIZAR al menos 1 unidad para evitar derrota inmediata
@@ -190,7 +190,7 @@ const AiDeploymentManager = {
         }
     },
 
-    _runDeterministicDeploymentPipeline: function(playerNumber, analysis, strategy, unitsToPlaceCount, playerResources, isFreeDeployment) {
+    _runDeterministicDeploymentPipeline: async function(playerNumber, analysis, strategy, unitsToPlaceCount, playerResources, isFreeDeployment) {
         if (unitsToPlaceCount <= 0) return 0;
 
         let deployed = 0;
