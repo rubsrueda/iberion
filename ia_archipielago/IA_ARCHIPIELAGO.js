@@ -150,124 +150,106 @@ const IAArchipielago = {
   },
 
 
-  _ejecutarCapaEstructuralRed(situacion) {
-    const { myPlayer } = situacion;
-    console.log(`[IA_ARCHIPIELAGO] ========= CAPA ESTRUCTURAL DE RED =========`);
-
-    if (typeof AiGameplayManager !== 'undefined') {
-      if (typeof AiGameplayManager._ensureTradeInfrastructureOrganic === 'function') {
-        try {
-          console.log(`[IA_ARCHIPIELAGO] Red: ocupacion + camino + caravanas`);
-          AiGameplayManager._ensureTradeInfrastructureOrganic(myPlayer);
-        } catch (e) {
-          console.error(`[IA_ARCHIPIELAGO] Error en capa estructural de comercio:`, e);
-        }
-      }
-
-      if (typeof AiGameplayManager._ensureCityExpansionOrganic === 'function') {
-        try {
-          console.log(`[IA_ARCHIPIELAGO] Red: fundacion y evolucion de nodos`);
-          AiGameplayManager._ensureCityExpansionOrganic(myPlayer);
-        } catch (e) {
-          console.error(`[IA_ARCHIPIELAGO] Error en capa estructural de nodos:`, e);
-        }
-      }
-    }
-
-    // La conquista de ciudades barbaras tambien alimenta la red de nodos iniciales.
-    this.conquistarCiudadesBarbaras(myPlayer, IASentidos.getUnits(myPlayer));
-    console.log(`========================================\n`);
-  },
 
   /**
-   * PLAN DE ACCIÓN PRINCIPAL
-   * Prioridad de acciones:
-   * 1. Fusión de unidades para defensa
-   * 2. División estratégica de unidades
-  * 3. Conquista de ciudades bárbaras (expediciones)
-  * 4. Movimiento ofensivo/defensivo
-  * 5. Construcción de infraestructura
-  * 6. Creación de caravanas
+   * FASE 5: CONSTRUCCIÓN DE INFRAESTRUCTURA (REDISEÑADA)
+   * Reglas: Prioridad total al camino de la banca, Veda de fortalezas y Reserva de Piedra.
    */
-  ejecutarPlanDeAccion(situacion) {
-    const { myPlayer, amenazas, frente, economia, ciudades, hexesPropios, enemyProfile } = situacion;
-    this._runDeterministicBootstrapController(situacion);
-    // Si hay un plan de presión por fortaleza, intentar producir fuerzas primero
-    if (gameState.aiFortressPressure && gameState.aiFortressPressure[myPlayer]) {
-      const finished = this._pressureProduceForFortress(myPlayer);
-      if (finished) {
-        delete gameState.aiFortressPressure[myPlayer];
+  construirInfraestructura(myPlayer, hexesPropios, economia) {
+    const capital = gameState.cities.find(c => c.owner === myPlayer && c.isCapital);
+    if (!capital) return;
+
+    const playerRes = gameState.playerResources[myPlayer];
+    const piedraActual = playerRes?.piedra || 0;
+    const esTurnoTemprano = (gameState.turnNumber || 0) < 4; // REGLA: Turno de Veda
+
+    console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Análisis: Piedra=${piedraActual}, Turno=${gameState.turnNumber}`);
+
+    // --- PRIORIDAD 1: EL CAMINO (Hacia la Banca o entre nodos) ---
+    // Esta sección consumirá la piedra PRIMERO.
+    this._ensureTech(myPlayer, 'ENGINEERING');
+    const roadBuildable = STRUCTURE_TYPES['Camino']?.buildableOn || [];
+    const ciudades = this._getTradeCityCandidates(myPlayer);
+    const existingRouteKeys = this._getExistingTradeRouteKeys(myPlayer);
+    const candidate = this._findBestTradeCityPair(ciudades, myPlayer, existingRouteKeys);
+
+    const missingSegments = candidate?.missingOwnedSegments || [];
+    let caminosConstruidosEsteTurno = 0;
+
+    for (const nextHex of missingSegments) {
+      if (!this._canAffordStructure(myPlayer, 'Camino')) break;
+      
+      const built = this._requestBuildStructure(myPlayer, nextHex.r, nextHex.c, 'Camino');
+      if (built) {
+        this.registrarMetaFlujo('construccion', nextHex.r, nextHex.c, myPlayer);
+        caminosConstruidosEsteTurno++;
       }
     }
-    let misUnidades = IASentidos.getUnits(myPlayer);
-    const isNavalMap = !!gameState.setupTempSettings?.navalMap;
+
+    if (caminosConstruidosEsteTurno > 0) {
+      console.log(`[IA_ARCHIPIELAGO] Priorizando Piedra en ${caminosConstruidosEsteTurno} caminos.`);
+    }
+
+    // --- PRIORIDAD 2: FORTALEZAS (Solo si se cumplen las condiciones de seguridad) ---
     
-    console.log(`[IA_ARCHIPIELAGO] PLAN: Ejecutando con ${misUnidades.length} unidades disponibles`);
-
-    const hasCrisis = amenazas.length > 0 || frente.length >= 3;
-    let gusanoActions = 0;
-    let gusanoMaxActions = this.WORM_MAX_ACTIONS_PER_TURN;
-    if (!hasCrisis) {
-      this._ejecutarRutaLarga(situacion);
-      gusanoActions = this._ejecutarGusanoCorredor(situacion, { maxActions: this.WORM_MAX_ACTIONS_PER_TURN });
-    } else {
-      console.log('[IA_ARCHIPIELAGO] Ruta Larga pausada por crisis tactica.');
-      // Incluso en crisis mantenemos un avance minimo del corredor para no congelar la red.
-      gusanoMaxActions = 1;
-      gusanoActions = this._ejecutarGusanoCorredor(situacion, { maxActions: gusanoMaxActions });
+    // REGLA DE VEDA Y RESERVA: 
+    // No construir si es turno < 4 O si después del camino nos queda menos de 500 de piedra.
+    if (esTurnoTemprano) {
+      console.log(`[IA_ARCHIPIELAGO] Veda de fortalezas activa (Turno < 4).`);
+      return;
     }
-    console.log(`[IA DIAG][TURN ${gameState.turnNumber}] J${myPlayer} crisis=${hasCrisis} gusano=${gusanoActions}/${gusanoMaxActions} splitMin=${this.WORM_MIN_SPLIT_REGIMENTS}`);
+    if (piedraActual < 500) {
+      console.log(`[IA_ARCHIPIELAGO] Reserva de Piedra insuficiente para Fortaleza (${piedraActual}/500).`);
+      return;
+    }
 
-    if (enemyProfile?.mode === 'spread_small') {
-      const created = this._ensureHunterDivisions(myPlayer, enemyProfile.targetRegiments);
-      if (created > 0) {
-        console.log(`[IA_ARCHIPIELAGO] Hunter: divisiones creadas=${created}`);
+    // Si llegamos aquí, sobran recursos. Buscamos spot para fortaleza.
+    const MAX_EXPANSION_FORTS = 1;
+    const MIN_FORT_SPACING = 5;
+    const existingForts = board.flat().filter(h =>
+      h && h.owner === myPlayer && (h.structure === 'Fortaleza' || h.structure === 'Fortaleza con Muralla')
+    );
+
+    if (existingForts.length < MAX_EXPANSION_FORTS) {
+      const fortCandidates = hexesPropios.filter(h => {
+        if (h.structure || h.unit || h.terrain === 'water') return false;
+        return existingForts.every(pos => hexDistance(h.r, h.c, pos.r, pos.c) >= MIN_FORT_SPACING);
+      });
+
+      const scoreFortSpot = (hex) => {
+        let score = 0;
+        // Premiar altura
+        if (hex.terrain === 'mountain' || hex.terrain === 'mountains') score += 20;
+        if (hex.terrain === 'hills') score += 10;
+        
+        // REGLA: Penalizar llanuras
+        if (hex.terrain === 'plains' || hex.terrain === 'grassland' || hex.terrain === 'pampa') {
+          console.log(`[IA_ARCHIPIELAGO] Penalizando spot en llanura (${hex.r},${hex.c})`);
+          score -= 50; 
+        }
+
+        // REGLA: Asegurar cercanía a red existente (para que el camino sea corto)
+        const hasAdjacentRoad = getHexNeighbors(hex.r, hex.c).some(n => board[n.r]?.[n.c]?.structure === 'Camino');
+        if (hasAdjacentRoad) score += 15;
+
+        return score;
+      };
+
+      const bestFort = fortCandidates
+        .map(h => ({ h, score: scoreFortSpot(h) }))
+        .filter(x => x.score > 0) // Si el score es negativo (llanura), no se construye
+        .sort((a, b) => b.score - a.score)[0];
+
+      if (bestFort && this._canAffordStructure(myPlayer, 'Fortaleza')) {
+        console.log(`[IA_ARCHIPIELAGO] Construyendo Fortaleza Estratégica en (${bestFort.h.r},${bestFort.h.c}) con score ${bestFort.score}`);
+        const built = this._requestBuildStructure(myPlayer, bestFort.h.r, bestFort.h.c, 'Fortaleza');
+        
+        if (built) {
+          this.registrarMetaFlujo('construccion', bestFort.h.r, bestFort.h.c, myPlayer);
+          // REGLA: Forzar al sistema de caminos a conectar este nuevo nodo el próximo turno
+          // Al ser ahora un hexágono con estructura propia, el planificador de rutas lo verá como prioridad.
+        }
       }
-    }
-
-    if (enemyProfile?.mode === 'stack_large') {
-      this._ensureHeavyDivisions(myPlayer, enemyProfile.maxRegiments);
-    }
-
-    // FASE 1: FUSIÓN DEFENSIVA (El latido del corazón)
-    if (amenazas.length > 0 || frente.length >= 3) {
-      console.log(`[IA_ARCHIPIELAGO] FASE 1: Detectado peligro. Buscando fusiones defensivas...`);
-      this.ejecutarFusionesDefensivas(myPlayer, misUnidades, amenazas, frente, enemyProfile);
-    }
-
-    // FASE 2: DIVISIÓN ESTRATÉGICA (Para expandir presencia)
-    console.log(`[IA_ARCHIPIELAGO] FASE 2: Evaluando divisiones estratégicas...`);
-    this.ejecutarDivisionesEstrategicas(myPlayer, misUnidades, hexesPropios, enemyProfile);
-    misUnidades = IASentidos.getUnits(myPlayer);
-
-    // FASE 2.5: PRESENCIA NAVAL EN ARCHIPIÉLAGO
-    if (isNavalMap) {
-      this._ensureNavalPresence(myPlayer, economia);
-      this._pressEnemyHomeIsland(myPlayer);
-    }
-
-    // FASE 3: CONQUISTA DE CIUDADES BÁRBARAS (prioridad)
-    console.log(`[IA_ARCHIPIELAGO] FASE 3: Buscando ciudades bárbaras para conquistar...`);
-    this.conquistarCiudadesBarbaras(myPlayer, misUnidades);
-
-    // FASE 3.5: MOVIMIENTO TÁCTICO
-    console.log(`[IA_ARCHIPIELAGO] FASE 3.5: Ejecutando movimientos tácticos...`);
-    this.ejecutarMovimientosTacticos(myPlayer, misUnidades, situacion);
-
-    // FASE 4: FUSIÓN OFENSIVA (Antes de atacar)
-    console.log(`[IA_ARCHIPIELAGO] FASE 4: Preparando fusiones ofensivas para ataque...`);
-    this.ejecutarFusionesOfensivas(myPlayer, misUnidades, situacion);
-
-    // FASE 5: CONSTRUCCIÓN DE INFRAESTRUCTURA (flujo siempre activo)
-    console.log(`[IA_ARCHIPIELAGO] FASE 5: Intentando construir infraestructura (Oro: ${economia.oro})...`);
-    this.construirInfraestructura(myPlayer, hexesPropios, economia);
-
-    // FASE 6: CARAVANAS COMERCIALES (flujo siempre activo)
-    if (ciudades.length > 0) {
-      console.log(`[IA_ARCHIPIELAGO] FASE 6: Intentando crear caravanas comerciales...`);
-      this.crearCaravanas(myPlayer, ciudades);
-    } else {
-      console.log(`[IA_ARCHIPIELAGO] FASE 6: No hay ciudades disponibles para crear caravanas.`);
     }
   },
 
