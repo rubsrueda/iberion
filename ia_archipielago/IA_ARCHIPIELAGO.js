@@ -36,193 +36,96 @@ const IAArchipielago = {
     console.log(`[IA_ARCHIPIELAGO] Despliegue IA finalizado. Las rutas se procesan en fase 'play'.`);
   },
 
-  ejecutarTurno(myPlayer) {
-          // === LOG DE ENTRADA FLUJO OCUPACIÓN ===
-          console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] INICIO del flujo de ocupación para Jugador ${myPlayer}, Turno ${gameState.turnNumber}`);
-        console.log('[DIAG] Entrando en IAArchipielago.ejecutarTurno para jugador', myPlayer);
-        console.log('[DIAG] IASentidos en window:', typeof window.IASentidos, window.IASentidos);
-        console.log('[DIAG] IASentidos local:', typeof IASentidos, IASentidos);
-        // LOG: Resumen de metas cumplidas y disponibles
-        // Unificación: sistema de metas cumplidas por flujo
-        if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
-        if (!gameState.iaCompletedGoals[myPlayer]) gameState.iaCompletedGoals[myPlayer] = { ocupacion: [], construccion: [], caravana: [] };
-        const completedGoals = gameState.iaCompletedGoals[myPlayer];
-        let totalMetas = 0, totalFiltradas = 0;
-        // Helper para loggear filtrado de metas
-        function logFiltrado(tipo, r, c) {
-          totalFiltradas++;
-          console.log(`[IA_ARCHIPIELAGO][FILTRADO] Meta filtrada por cumplida: tipo=${tipo} (${r},${c})`);
-        }
-    console.log(`\n========================================`);
-    console.log(`[IA_ARCHIPIELAGO] ========= TURNO ${gameState.turnNumber} - JUGADOR ${myPlayer} =========`);
-    console.log(`========================================\n`);
-
-    // Verificaciones de módulos disponibles
-    if (typeof IASentidos === 'undefined') {
-      console.error(`[IA_ARCHIPIELAGO] ERROR CRÍTICO: IASentidos no está disponible. Abortando.`);
-      if (typeof handleEndTurn === 'function') {
-        setTimeout(() => handleEndTurn(), 500);
-      }
-      return;
+  // === Helpers globales para metas ===
+// === Helpers globales para metas ===
+  registrarMetaFlujo(flujo, r, c, myPlayer) {
+    if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
+    if (!gameState.iaCompletedGoals[myPlayer]) gameState.iaCompletedGoals[myPlayer] = { ocupacion: [], construccion: [], caravana: [] };
+    const goals = gameState.iaCompletedGoals[myPlayer][flujo];
+    if (!goals.some(g => g.r === r && g.c === c)) {
+      goals.push({ r, c, turno: gameState.turnNumber });
+      console.log(`[IA_ARCHIPIELAGO] Meta registrada en '${flujo}': (${r},${c})`);
     }
+  },
 
-    const infoTurno = IASentidos.getTurnInfo();
-    if (infoTurno.currentPhase !== 'play') {
-      console.log(`[IA_ARCHIPIELAGO] Fase incorrecta: ${infoTurno.currentPhase}, abortando`);
+  isGoalCompletedFlujo(flujo, r, c, myPlayer) {
+    if (!gameState.iaCompletedGoals?.[myPlayer]?.[flujo]) return false;
+    return gameState.iaCompletedGoals[myPlayer][flujo].some(g => g.r === r && g.c === c);
+  },
 
-      // Fallback: si por algún motivo se llamó en despliegue, intentar desplegar con IA clásica
-      if (infoTurno.currentPhase === 'deployment' && typeof AiDeploymentManager !== 'undefined' && AiDeploymentManager.deployUnitsAI) {
-        console.log(`[IA_ARCHIPIELAGO] Fallback de despliegue: llamando a AiDeploymentManager.deployUnitsAI(${myPlayer})`);
-        AiDeploymentManager.deployUnitsAI(myPlayer);
-        return;
-      }
+  // Método principal unificado
+  ejecutarTurno(myPlayer) {
 
-      if (typeof handleEndTurn === 'function') {
-        setTimeout(() => handleEndTurn(), 500);
-      }
+    console.log(`[IA_ARCHIPIELAGO] ========= TURNO ${gameState.turnNumber} - JUGADOR ${myPlayer} =========`);
+    // Variables para metas y filtrado
+    let totalMetas = 0;
+    let totalFiltradas = 0;
+
+    if (typeof IASentidos === 'undefined') {
+      console.error(`[IA_ARCHIPIELAGO] ERROR CRÍTICO: IASentidos no disponible.`);
+      if (typeof handleEndTurn === 'function') setTimeout(() => handleEndTurn(), 500);
       return;
     }
 
     if (!this._turnBuildRetryBlock) this._turnBuildRetryBlock = {};
-    this._turnBuildRetryBlock[myPlayer] = {
-      turn: gameState.turnNumber,
-      keys: new Set()
-    };
+    this._turnBuildRetryBlock[myPlayer] = { turn: gameState.turnNumber, keys: new Set() };
 
-    // Fallback crítico: si la IA no tiene unidades en el primer turno de Archipiélago, crear una unidad mínima
-    const isArchipelago = !!gameState.setupTempSettings?.navalMap;
-    if (isArchipelago && (gameState.turnNumber || 1) <= 1) {
-      const unidadesIA = IASentidos.getUnits(myPlayer);
-      if (!unidadesIA || unidadesIA.length === 0) {
-        console.warn(`[IA_ARCHIPIELAGO] ⚠️ IA sin unidades en turno inicial. Creando unidad de emergencia...`);
-        this.crearUnidadInicialDeEmergencia(myPlayer);
-      }
-    }
+    const infoTurno = IASentidos.getTurnInfo();
+    if (infoTurno.currentPhase !== 'play') return;
 
-    // Verificaciones de otros módulos
-    if (typeof IATactica === 'undefined') {
-      console.warn(`[IA_ARCHIPIELAGO] ADVERTENCIA: IATactica no está disponible`);
-    }
-    if (typeof IAEconomica === 'undefined') {
-      console.warn(`[IA_ARCHIPIELAGO] ADVERTENCIA: IAEconomica no está disponible`);
-    }
-
-    console.log(`[IA_ARCHIPIELAGO] Recopilando objetivos propios...`);
-    // --- SISTEMA DE METAS CUMPLIDAS ---
-    // Ya inicializado arriba: solo usar la referencia
-    // const completedGoals = gameState.iaCompletedGoals[myPlayer];
-
-
-    // --- SISTEMA DE FLUJOS INDEPENDIENTES ---
-  // --- Helpers globales para metas ---
-  registrarMetaFlujo(flujo, r, c, myPlayer = null) {
-    if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
-    if (!myPlayer) myPlayer = gameState.currentPlayer;
-    if (!gameState.iaCompletedGoals[myPlayer]) gameState.iaCompletedGoals[myPlayer] = { ocupacion: [], construccion: [], caravana: [] };
-    const completedGoals = gameState.iaCompletedGoals[myPlayer];
-    if (!completedGoals[flujo]) completedGoals[flujo] = [];
-    if (!completedGoals[flujo].some(g => g.r === r && g.c === c)) {
-      completedGoals[flujo].push({ r, c, turno: gameState.turnNumber });
-      console.log(`[IA_ARCHIPIELAGO] Meta registrada en flujo '${flujo}': (${r},${c})`);
-    }
-  },
-
-  isGoalCompletedFlujo(flujo, r, c, myPlayer = null) {
-    if (!gameState.iaCompletedGoals) return false;
-    if (!myPlayer) myPlayer = gameState.currentPlayer;
-    const completedGoals = gameState.iaCompletedGoals[myPlayer];
-    return completedGoals && completedGoals[flujo] && completedGoals[flujo].some(g => g.r === r && g.c === c);
-  },
-
-    // --- FLUJO 1: OCUPACIÓN EXHAUSTIVA ---
-    const ciudades = IASentidos.getCities(myPlayer).filter(c => !this.isGoalCompletedFlujo('ocupacion', c.r, c.c, myPlayer));
+    // --- 1. RECOPILACIÓN DE DATOS ---
     const hexesPropios = IASentidos.getOwnedHexes(myPlayer);
+    const ciudades = IASentidos.getCities(myPlayer).filter(c => !this.isGoalCompletedFlujo('ocupacion', c.r, c.c, myPlayer));
     const recursos = hexesPropios.filter(h => h.resourceNode && !this.isGoalCompletedFlujo('ocupacion', h.r, h.c, myPlayer));
+    const infraestructura = hexesPropios.filter(h => h.structure);
+
+    // --- 2. FLUJO 1: OCUPACIÓN ---
+    console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Iniciando...`);
     let ocupacionesRealizadas = 0;
-    for (const ciudad of ciudades) {
+    const objetivosOcupacion = [...ciudades, ...recursos];
+    for (const obj of objetivosOcupacion) {
       if (this._requestMoveOrAttack) {
-        const result = this._requestMoveOrAttack({ r: ciudad.r, c: ciudad.c, player: myPlayer }, ciudad.r, ciudad.c);
+        const result = this._requestMoveOrAttack({ r: obj.r, c: obj.c, player: myPlayer }, obj.r, obj.c);
         if (result) {
-          this.registrarMetaFlujo('ocupacion', ciudad.r, ciudad.c, myPlayer);
+          this.registrarMetaFlujo('ocupacion', obj.r, obj.c, myPlayer);
           ocupacionesRealizadas++;
-          console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Conquistada ciudad objetivo (${ciudad.r},${ciudad.c})`);
         }
       }
     }
-    for (const hex of recursos) {
-      if (this._requestMoveOrAttack) {
-        const result = this._requestMoveOrAttack({ r: hex.r, c: hex.c, player: myPlayer }, hex.r, hex.c);
-        if (result) {
-          this.registrarMetaFlujo('ocupacion', hex.r, hex.c, myPlayer);
-          ocupacionesRealizadas++;
-          console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Conquistado recurso objetivo (${hex.r},${hex.c})`);
-        }
-      }
-    }
-    if (ocupacionesRealizadas === 0) {
-      console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] No se conquistó ninguna casilla objetivo este turno.`);
-    } else {
-      console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Total conquistadas este turno: ${ocupacionesRealizadas}`);
-    }
-    // === LOG DE SALIDA FLUJO OCUPACIÓN ===
-    console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] FIN del flujo de ocupación para Jugador ${myPlayer}, Turno ${gameState.turnNumber}`);
+    console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Finalizado. Conquistas: ${ocupacionesRealizadas}`);
 
-    // --- FLUJO 2: CONSTRUCCIÓN EXHAUSTIVA ---
+    // --- 3. FLUJO 2: CONSTRUCCIÓN EXHAUSTIVA ---
     if (typeof this.construirInfraestructura === 'function') {
-      this.construirInfraestructura(myPlayer, hexesPropios, { oro: 99999 }); // fuerza recursos para testear exhaustividad
+      console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Ejecutando construcción preventiva...`);
+      this.construirInfraestructura(myPlayer, hexesPropios, { oro: 99999 }); 
     }
 
-    totalMetas = ciudades.length + recursos.length + totalFiltradas;
-    const objetivos = ciudades.concat(recursos);
-    console.log(`[IA_ARCHIPIELAGO][RESUMEN] Metas disponibles: ${ciudades.length + recursos.length}, Metas cumplidas (filtradas): ${totalFiltradas}, Total históricas: ${totalMetas}`);
-  // --- REGISTRO DE META CUMPLIDA ---
-  // Llamar esto cuando la IA complete una sub-fase de meta
-
-    console.log(`\n[IA_ARCHIPIELAGO] Analizando situación táctica...`);
-    const amenazas = (typeof IATactica !== 'undefined') ? IATactica.detectarAmenazasSobreObjetivos(myPlayer, objetivos, 3) : [];
-    const frente = (typeof IATactica !== 'undefined') ? IATactica.detectarFrente(myPlayer, 2) : [];
-    
-    console.log(`\n[IA_ARCHIPIELAGO] Analizando situación económica...`);
+    // --- 4. ANÁLISIS ECONÓMICO Y TÁCTICO ---
     const economia = (typeof IAEconomica !== 'undefined') ? IAEconomica.evaluarEconomia(myPlayer) : { oro: 0 };
+    const objetivosSiguientes = ciudades.concat(recursos);
+    const amenazas = (typeof IATactica !== 'undefined') ? IATactica.detectarAmenazasSobreObjetivos(myPlayer, objetivosSiguientes, 3) : [];
+    const frente = (typeof IATactica !== 'undefined') ? IATactica.detectarFrente(myPlayer, 2) : [];
     const recursosEnMapa = (typeof IAEconomica !== 'undefined') ? IAEconomica.contarRecursosEnMapa(myPlayer) : { total: 0 };
     const enemyPlayer = this._getEnemyPlayerId(myPlayer);
-    const recursosVulnerables = (typeof IAEconomica !== 'undefined' && enemyPlayer != null)
-      ? IAEconomica.detectarRecursosVulnerables(enemyPlayer)
-      : [];
-
-    console.log(`\n[IA_ARCHIPIELAGO] ========= RESUMEN DE SITUACIÓN =========`);
-    console.log(`Amenazas detectadas: ${amenazas.length}`);
-    console.log(`Puntos de frente: ${frente.length}`);
-    console.log(`Recursos disponibles: oro ${economia.oro}, comida ${economia.comida}, madera ${economia.madera}, piedra ${economia.piedra}, hierro ${economia.hierro}`);
-    console.log(`Investigacion/Recruit: ${economia.researchPoints || 0}/${economia.puntosReclutamiento || 0}`);
-    console.log(`Recursos en mapa: ${recursosEnMapa.total}`);
-    console.log(`Objetivos enemigos vulnerables: ${recursosVulnerables.length}`);
-    console.log(`========================================\n`);
+    const recursosVulnerables = (typeof IAEconomica !== 'undefined' && enemyPlayer != null) ? IAEconomica.detectarRecursosVulnerables(enemyPlayer) : [];
 
     const situacion = {
-	  amenazas,
-	  frente,
-	  economia,
-	  recursosEnMapa,
-	  recursosVulnerables,
-	  myPlayer,
-	  ciudades,
-	  hexesPropios,
-	  recursos: recursos,
-	  infraestructura: infraestructura
+      amenazas,
+      frente,
+      economia,
+      recursosEnMapa,
+      recursosVulnerables,
+      myPlayer,
+      ciudades,
+      hexesPropios,
+      recursos,
+      infraestructura,
+      snapshotActividad: this._snapshotTurnActivity(myPlayer)
     };
-
-    // LOG de flujos paralelos
-    console.log(`[IA_ARCHIPIELAGO][FLUJO] --- INICIO FLUJOS PARA JUGADOR ${myPlayer} TURNO ${gameState.turnNumber} ---`);
-    console.log(`[IA_ARCHIPIELAGO][FLUJO] OCUPACIÓN: Unidades y hexágonos propios: ${hexesPropios.length}`);
-    console.log(`[IA_ARCHIPIELAGO][FLUJO] CONSTRUCCIÓN: Infraestructura propia: ${infraestructura.length}`);
-    console.log(`[IA_ARCHIPIELAGO][FLUJO] CARAVANA: Ciudades propias: ${ciudades.length}`);
-
-    const snapshotAntesAcciones = this._snapshotTurnActivity(myPlayer);
 
     situacion.enemyProfile = this._evaluateEnemyExpansionStrategy(myPlayer);
 
-    // Capa estructural previa a cualquier ponderacion: nodos, corredor y caravanas.
+    // --- 5. EJECUCIÓN DE PLANES ESTRATÉGICOS ---
     this._ejecutarCapaEstructuralRed(situacion);
 
     const rutas = this._evaluarRutasDeVictoria(situacion);
@@ -230,48 +133,22 @@ const IAArchipielago = {
     this._logRutasDeVictoria(rutas);
     this._procesarRutasDeVictoria(situacion);
 
-    // <<==== IMPLEMENTACIÓN DE ACCIONES DE IA ====>>
-    console.log(`[IA_ARCHIPIELAGO] ========= EJECUTANDO PLAN DE ACCIÓN =========`);
     this.ejecutarPlanDeAccion(situacion);
 
-    if (!this._didMakeProgressThisTurn(myPlayer, snapshotAntesAcciones)) {
-      console.warn('[IA_ARCHIPIELAGO] Turno inerte detectado. Activando plan de emergencia...');
+    // Plan de emergencia si no hubo progreso
+    if (!this._didMakeProgressThisTurn(myPlayer, situacion.snapshotActividad)) {
+      console.warn('[IA_ARCHIPIELAGO] Turno inerte detectado. Activando emergencia...');
       this._ejecutarPlanEmergencia(situacion);
     }
 
-    console.log(`[IA_ARCHIPIELAGO] Plan de acción completado.`);
-    console.log(`========================================\n`);
-
-    // <<==== FLUJOS ORGÁNICOS AUTÓNOMOS ====>>
-    if (typeof AiGameplayManager !== 'undefined') {
-      console.log(`[IA_ARCHIPIELAGO] Iniciando flujos orgánicos autónomos...`);
-      if (typeof AiGameplayManager._ensureTradeInfrastructureOrganic === 'function') {
-        console.log(`[IA_ARCHIPIELAGO] Ejecutando: Infraestructura Comercial Orgánica (caminos + caravanas)`);
-        try {
-          AiGameplayManager._ensureTradeInfrastructureOrganic(myPlayer);
-        } catch (e) {
-          console.error(`[IA_ARCHIPIELAGO] Error en _ensureTradeInfrastructureOrganic:`, e);
-        }
-      }
-      if (typeof AiGameplayManager._ensureCityExpansionOrganic === 'function') {
-        console.log(`[IA_ARCHIPIELAGO] Ejecutando: Evolución de Ciudades Orgánica`);
-        try {
-          AiGameplayManager._ensureCityExpansionOrganic(myPlayer);
-        } catch (e) {
-          console.error(`[IA_ARCHIPIELAGO] Error en _ensureCityExpansionOrganic:`, e);
-        }
-      }
-    }
-
+    // --- 6. FINALIZACIÓN ---
+    console.log(`[IA_ARCHIPIELAGO] Turno completado para Jugador ${myPlayer}.`);
     if (typeof handleEndTurn === 'function') {
-      console.log(`[IA_ARCHIPIELAGO] Llamando a handleEndTurn()`);
       setTimeout(() => handleEndTurn(), 1500);
-    } else {
-      console.error(`[IA_ARCHIPIELAGO] ERROR: handleEndTurn no está disponible`);
     }
-
     return situacion;
   },
+
 
   _ejecutarCapaEstructuralRed(situacion) {
     const { myPlayer } = situacion;
