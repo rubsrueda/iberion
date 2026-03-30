@@ -35,62 +35,54 @@ const IAArchipielago = {
   ejecutarTurno(myPlayer) {
     console.log(`\n[IA_ARCHIPIELAGO] ========= TURNO ${gameState.turnNumber} - JUGADOR ${myPlayer} =========`);
     
-    // ASEGURAR CUADERNO DE METAS (SEGURIDAD)
+    // 1. SEGURIDAD: Asegurar cuaderno de metas
     if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
     if (!gameState.iaCompletedGoals[myPlayer]) {
       gameState.iaCompletedGoals[myPlayer] = { ocupacion: [], construccion: [], caravana: [] };
     }
+
     if (typeof IASentidos === 'undefined') {
       console.error("[IA_ARCHIPIELAGO] Error Crítico: Módulo IASentidos no disponible.");
       if (typeof handleEndTurn === 'function') setTimeout(() => handleEndTurn(), 500);
       return;
     }
 
-    const infoTurno = IASentidos.getTurnInfo();
-    if (infoTurno.currentPhase !== 'play') return;
+    // 2. SNAPSHOT: Tomar foto antes de empezar para detectar bloqueos
+    const snapshotAntes = this._snapshotTurnActivity(myPlayer);
 
-    if (!this._turnBuildRetryBlock) this._turnBuildRetryBlock = {};
-    this._turnBuildRetryBlock[myPlayer] = { turn: gameState.turnNumber, keys: new Set() };
-
-    // A. RECOPILACIÓN DE DATOS ESTRATÉGICOS
-    const hexesPropios = IASentidos.getOwnedHexes(myPlayer);
-    const ciudades = IASentidos.getCities(myPlayer).filter(c => !this.isGoalCompletedFlujo('ocupacion', c.r, c.c, myPlayer));
-    const recursos = hexesPropios.filter(h => h.resourceNode && !this.isGoalCompletedFlujo('ocupacion', h.r, h.c, myPlayer));
-    const infraestructura = hexesPropios.filter(h => h.structure);
-
-    // B. FLUJO 1: OCUPACIÓN INMEDIATA (Recursos y ciudades neutrales)
-    for (const obj of [...ciudades, ...recursos]) {
-      if (this._requestMoveOrAttack(obj, obj.r, obj.c)) {
-        this.registrarMetaFlujo('ocupacion', obj.r, obj.c, myPlayer);
-      }
+    // 3. PRIORIDAD 1: EL ARQUITECTO Y EL GUSANO (Ocupación y Construcción Integrada)
+    // El Gusano ahora capturará, liberará la casilla y construirá el camino en el mismo ciclo.
+    if (this._ejecutarGusanoCorredor) {
+      this._ejecutarGusanoCorredor({ myPlayer });
     }
 
-    // C. ANÁLISIS DE SITUACIÓN
+    // 4. PRIORIDAD 2: LA CARAVANA (Inversión de Oro)
+    // Si el camino está listo, compramos la Columna de Suministro antes que soldados.
+    if (this.crearCaravanas) {
+      const ciudades = IASentidos.getCities(myPlayer);
+      this.crearCaravanas(myPlayer, ciudades);
+    }
+
+    // 5. PRIORIDAD 3: ESTRATEGIA Y TÁCTICA (Las 10 Rutas y el General)
+    // Solo si sobra presupuesto tras asegurar el comercio.
     const economia = (typeof IAEconomica !== 'undefined') ? IAEconomica.evaluarEconomia(myPlayer) : { oro: 0 };
-    const objetivosActuales = ciudades.concat(recursos);
-    
-    const situacion = {
-      myPlayer, hexesPropios, economia,
+    const situacion = { 
+      myPlayer, 
+      economia,
       ciudades: IASentidos.getCities(myPlayer),
-      amenazas: (typeof IATactica !== 'undefined') ? IATactica.detectarAmenazasSobreObjetivos(myPlayer, objetivosActuales, 3) : [],
-      frente: (typeof IATactica !== 'undefined') ? IATactica.detectarFrente(myPlayer, 2) : [],
-      snapshotAntes: this._snapshotTurnActivity(myPlayer)
+      enemyProfile: this._evaluateEnemyExpansionStrategy ? this._evaluateEnemyExpansionStrategy(myPlayer) : { mode: 'mixed' }
     };
 
-    situacion.enemyProfile = this._evaluateEnemyExpansionStrategy ? this._evaluateEnemyExpansionStrategy(myPlayer) : { mode: 'mixed' };
-
-    // D. EJECUCIÓN ESTRATÉGICA (Llamadas seguras a Partes 2-5)
-    if (this._ejecutarCapaEstructuralRed) this._ejecutarCapaEstructuralRed(situacion);
     if (this._procesarEstrategiaVictoria) this._procesarEstrategiaVictoria(situacion);
     if (this.ejecutarPlanDeAccion) this.ejecutarPlanDeAccion(situacion);
 
-    // E. PROTOCOLO DE EMERGENCIA
-    if (this._didMakeProgressThisTurn && !this._didMakeProgressThisTurn(myPlayer, situacion.snapshotAntes)) {
-      if (this._ejecutarPlanEmergencia) this._ejecutarPlanEmergencia(situacion);
+    // 6. EMERGENCIA: Si no hubo progreso, forzar movimiento simple
+    if (!this._didMakeProgressThisTurn(myPlayer, snapshotAntes)) {
+      console.warn("[IA_ARCHIPIELAGO] Turno inerte. Activando Despertador.");
+      this._ejecutarPlanEmergencia(situacion);
     }
 
     if (typeof handleEndTurn === 'function') setTimeout(() => handleEndTurn(), 1500);
-    return situacion;
   },
 
   // 3. registrarMetaFlujo / isGoalCompletedFlujo
@@ -1103,37 +1095,70 @@ Object.assign(window.IAArchipielago, {
 
   // --- 2. LÓGICA DE GUSANO CORREDOR (OCUPACIÓN DE CAMINOS) ---
   // Usa la división de tropas para ocupar el corredor comercial paso a paso.
-  _ejecutarGusanoCorredor(situacion, opts = {}) {
+  _ejecutarGusanoCorredor(situacion) {
     const { myPlayer } = situacion;
-    const maxActions = opts.maxActions || this.WORM_MAX_ACTIONS_PER_TURN;
-    
-    // Obtener los hexágonos del corredor planificado (Hacia la Banca)
-    const plan = this._getRoadNetworkPlan ? this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer)) : [];
-    if (plan.length === 0) return 0;
+    // 1. Pedir al Arquitecto el plano hacia la Banca
+    const conexiones = this._getRoadNetworkPlan ? this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer)) : [];
+    if (conexiones.length === 0) return;
 
-    let actionsDone = 0;
-    const bestRoute = plan[0]; // La ruta más corta (Banca)
+    const rutaBanca = conexiones[0]; // La ruta prioritaria
+    let unidadActual = this._findClosestUnitToTarget(myPlayer, rutaBanca.landPath[0]);
 
-    for (const hexPos of bestRoute.landPath) {
-      if (actionsDone >= maxActions) break;
+    if (!unidadActual || unidadActual.regiments.length < 2) {
+      // Si no hay unidad de 2 regimientos, intentamos crear una de emergencia
+      this.crearUnidadInicialDeEmergencia(myPlayer);
+      return;
+    }
 
-      const unit = this._findClosestUnitToTarget(myPlayer, hexPos);
-      if (!unit || unit.hasMoved || unit.iaExpeditionTarget) continue;
+    console.log(`[IA_GUSANO] Iniciando ciclo infinito hacia la Banca.`);
 
-      // Si la unidad es apta para "estirarse", la dividimos
-      if (unit.regiments.length >= this.WORM_MIN_SPLIT_REGIMENTS) {
-        if (this._splitUnitTowardsObjective(unit, hexPos)) {
-          actionsDone++;
-          console.log(`[IA_CORREDOR] 'Gusano' ocupando (${hexPos.r},${hexPos.c}) mediante división.`);
-        }
-      } else {
-        // Si es pequeña, simplemente movemos para asegurar posesión del nodo
-        if (this._requestMoveOrAttack(unit, hexPos.r, hexPos.c)) {
-          actionsDone++;
+    // 2. CICLO INFINITO DE AVANCE
+    for (let i = 0; i < rutaBanca.landPath.length; i++) {
+      const posActual = { r: unidadActual.r, c: unidadActual.c };
+      const siguientePos = rutaBanca.landPath[i];
+
+      // Si la siguiente casilla ya es nuestra y tiene camino, solo saltamos
+      if (board[siguientePos.r][siguientePos.c].owner === myPlayer && board[siguientePos.r][siguientePos.c].structure === 'Camino') {
+        this._requestMoveUnit(unidadActual, siguientePos.r, siguientePos.c);
+        continue;
+      }
+
+      // A. DIVIDIR (Lanzar cabeza)
+      const mitad = Math.floor(unidadActual.regiments.length / 2);
+      gameState.preparingAction = { 
+        type: 'split_unit', unitId: unidadActual.id, 
+        newUnitRegiments: unidadActual.regiments.slice(0, mitad), 
+        remainingOriginalRegiments: unidadActual.regiments.slice(mitad) 
+      };
+      this._requestSplitUnit(unidadActual, siguientePos.r, siguientePos.c);
+
+      // B. MOVER COLA Y FUSIONAR (Cerrar el gusano)
+      // La unidad que quedó atrás se mueve a la nueva casilla
+      const unidadCola = getUnitOnHex(posActual.r, posActual.c);
+      const unidadCabeza = getUnitOnHex(siguientePos.r, siguientePos.c);
+      
+      if (unidadCola && unidadCabeza) {
+        this._requestMoveUnit(unidadCola, siguientePos.r, siguientePos.c);
+        this._requestMergeUnits(unidadCola, unidadCabeza);
+        // Ahora la unidad está unificada en la nueva casilla y lista para repetir
+        unidadActual = unidadCabeza; 
+      }
+
+      // C. CONSTRUCCIÓN INSTANTÁNEA (En la casilla que acabamos de vaciar)
+      const hexAVaciar = board[posActual.r][posActual.c];
+      if (hexAVaciar.owner === myPlayer && !hexAVaciar.structure) {
+        // ¿Tenemos Ingeniería? Si no, comprar ahora.
+        this._ensureTech(myPlayer, 'ENGINEERING');
+        
+        if (this._canAffordStructure(myPlayer, 'Camino')) {
+          this._requestBuildStructure(myPlayer, posActual.r, posActual.c, 'Camino');
+          this.registrarMetaFlujo('construccion', posActual.r, posActual.c, myPlayer);
         }
       }
+
+      // Si nos quedamos sin piedra o el camino se bloquea, paramos
+      if (gameState.playerResources[myPlayer].piedra < 10) break;
     }
-    return actionsDone;
   },
 
   // --- 3. RECLUTAMIENTO DINÁMICO SEGÚN TECNOLOGÍA ---
