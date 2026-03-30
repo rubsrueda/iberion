@@ -357,7 +357,10 @@ Object.assign(window.IAArchipielago, {
     const maxRegs = (typeof MAX_REGIMENTS_PER_DIVISION !== 'undefined') ? MAX_REGIMENTS_PER_DIVISION : 20;
     
     // Iniciar controladores deterministas (Bootstrap - Se inyecta en Parte 4)
-    if (this._runDeterministicBootstrapController) this._runDeterministicBootstrapController(situacion);
+    // Solo activamos el Bootstrap si NO estamos en fase de construcción de caminos
+    if (gameState.turnNumber > 3 && this._runDeterministicBootstrapController) {
+      this._runDeterministicBootstrapController(situacion);
+    }
     
     // Gestión de asedio por fortaleza activo
     if (gameState.aiFortressPressure && gameState.aiFortressPressure[myPlayer]) {
@@ -1104,7 +1107,11 @@ Object.assign(window.IAArchipielago, {
   // --- 2. LÓGICA DE GUSANO CORREDOR (OCUPACIÓN DE CAMINOS) ---
   // Usa la división de tropas para ocupar el corredor comercial paso a paso.
   _ejecutarGusanoCorredor(situacion) {
-    const { myPlayer } = situacion;
+
+    // ASEGURAR TECNOLOGÍA ANTES DE EMPEZAR EL CICLO
+    this._ensureTech(myPlayer, 'ENGINEERING');
+
+      const { myPlayer } = situacion;
     // 1. Pedir al Arquitecto el plano hacia la Banca
     const conexiones = this._getRoadNetworkPlan ? this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer)) : [];
     if (conexiones.length === 0) return;
@@ -1140,16 +1147,21 @@ Object.assign(window.IAArchipielago, {
       };
       this._requestSplitUnit(unidadActual, siguientePos.r, siguientePos.c);
 
-      // B. MOVER COLA Y FUSIONAR (Cerrar el gusano)
-      // La unidad que quedó atrás se mueve a la nueva casilla
+      // B. MOVER COLA Y FUSIONAR (Vaciar casilla para el camino)
       const unidadCola = getUnitOnHex(posActual.r, posActual.c);
       const unidadCabeza = getUnitOnHex(siguientePos.r, siguientePos.c);
       
       if (unidadCola && unidadCabeza) {
+        // Forzamos el movimiento de la cola a la posición de la cabeza
         this._requestMoveUnit(unidadCola, siguientePos.r, siguientePos.c);
         this._requestMergeUnits(unidadCola, unidadCabeza);
-        // Ahora la unidad está unificada en la nueva casilla y lista para repetir
         unidadActual = unidadCabeza; 
+
+        // C. CONSTRUCCIÓN INMEDIATA (Ahora que la casilla está 100% vacía)
+        if (this._canAffordStructure(myPlayer, 'Camino')) {
+          this._requestBuildStructure(myPlayer, posActual.r, posActual.c, 'Camino');
+          this.registrarMetaFlujo('construccion', posActual.r, posActual.c, myPlayer);
+        }
       }
 
       // C. CONSTRUCCIÓN INSTANTÁNEA (En la casilla que acabamos de vaciar)
