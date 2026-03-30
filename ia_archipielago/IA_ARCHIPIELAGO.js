@@ -35,44 +35,47 @@ const IAArchipielago = {
   ejecutarTurno(myPlayer) {
     console.log(`\n[IA_ARCHIPIELAGO] ========= TURNO ${gameState.turnNumber} - JUGADOR ${myPlayer} =========`);
     
-    // A. SEGURIDAD: Asegurar cuaderno de metas
     if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
     if (!gameState.iaCompletedGoals[myPlayer]) {
       gameState.iaCompletedGoals[myPlayer] = { ocupacion: [], construccion: [], caravana: [] };
     }
 
-    // B. SNAPSHOT: Foto inicial para detectar bloqueos
     const snapshotAntes = this._snapshotTurnActivity(myPlayer);
 
-    // C. JERARQUÍA 1: RECURSOS Y RED (La prioridad absoluta)
-    // El Gusano ahora es el encargado de: 1. Buscar piedra si falta, 2. Ocupar y 3. Construir.
-    if (this._ejecutarGusanoCorredor) {
-      this._ejecutarGusanoCorredor({ myPlayer });
-    }
+    // 1. EL GUSANO (Ocupación y Construcción)
+    if (this._ejecutarGusanoCorredor) this._ejecutarGusanoCorredor({ myPlayer });
 
-    // D. JERARQUÍA 2: INVERSIÓN (La Caravana)
-    // Solo si el Gusano ha terminado caminos, compramos el camión antes que soldados.
+    // 2. LA CARAVANA (Inversión - Ahora con candado de seguridad)
     if (this.crearCaravanas) {
-      const ciudades = IASentidos.getCities(myPlayer);
+      const ciudades = (typeof IASentidos !== 'undefined') ? IASentidos.getCities(myPlayer) : [];
       this.crearCaravanas(myPlayer, ciudades);
     }
 
-    // E. JERARQUÍA 3: ESTRATEGIA (Las 10 Rutas)
-    // Solo si sobra oro tras asegurar la red y la caravana.
-    const economia = (typeof IAEconomica !== 'undefined') ? IAEconomica.evaluarEconomia(myPlayer) : { oro: 0 };
+    // 3. PREPARAR SITUACIÓN (Blindaje total contra errores de 'undefined')
     const situacion = { 
       myPlayer, 
-      economia,
-      ciudades: IASentidos.getCities(myPlayer),
-      hexesPropios: IASentidos.getOwnedHexes(myPlayer),
-      amenazas: (typeof IATactica !== 'undefined') ? IATactica.detectarAmenazasSobreObjetivos(myPlayer, IASentidos.getCities(myPlayer), 3) : [],
-      enemyProfile: this._evaluateEnemyExpansionStrategy ? this._evaluateEnemyExpansionStrategy(myPlayer) : { mode: 'mixed' }
+      economia: (typeof IAEconomica !== 'undefined') ? IAEconomica.evaluarEconomia(myPlayer) : { oro: 0 },
+      ciudades: (typeof IASentidos !== 'undefined') ? IASentidos.getCities(myPlayer) : [],
+      hexesPropios: (typeof IASentidos !== 'undefined') ? IASentidos.getOwnedHexes(myPlayer) : [],
+      amenazas: [], // Se llenará abajo si existe el módulo
+      frente: [],   // Se llenará abajo si existe el módulo
+      enemyProfile: { mode: 'mixed' }
     };
 
+    if (typeof IATactica !== 'undefined') {
+      situacion.amenazas = IATactica.detectarAmenazasSobreObjetivos(myPlayer, situacion.ciudades, 3) || [];
+      situacion.frente = IATactica.detectarFrente(myPlayer, 2) || [];
+    }
+    
+    if (this._evaluateEnemyExpansionStrategy) {
+      situacion.enemyProfile = this._evaluateEnemyExpansionStrategy(myPlayer);
+    }
+
+    // 4. EJECUTAR PLANES
     if (this._procesarEstrategiaVictoria) this._procesarEstrategiaVictoria(situacion);
     if (this.ejecutarPlanDeAccion) this.ejecutarPlanDeAccion(situacion);
 
-    // F. EMERGENCIA: Si nada funcionó, el Despertador actúa
+    // 5. EMERGENCIA
     if (!this._didMakeProgressThisTurn(myPlayer, snapshotAntes)) {
       this._ejecutarPlanEmergencia(situacion);
     }
@@ -1065,35 +1068,36 @@ Object.assign(window.IAArchipielago, {
   crearCaravanas(myPlayer, ciudades) {
     const res = gameState.playerResources[myPlayer];
     
-    // 1. ¿Ya tenemos una unidad comercial (Columna o Caravana)?
+    // 1. REVISIÓN DEL ARQUITECTO: ¿El camino está terminado?
+    const conexiones = this._getRoadNetworkPlan(myPlayer, ciudades);
+    const rutaBanca = conexiones.find(c => c.to === this._getBankCity());
+    
+    // Si la ruta a la banca tiene tramos sin camino, NO compramos la columna aún
+    const caminoIncompleto = rutaBanca && rutaBanca.missingOwnedSegments.length > 0;
+    if (caminoIncompleto) {
+      console.log(`[IA_ECONOMIA] Camino incompleto. Postponiendo compra de Caravana.`);
+      return;
+    }
+
     const comercianteActivo = units.find(u => u.player === myPlayer && 
       u.regiments.some(r => (REGIMENT_TYPES[r.type].abilities || []).includes('provide_supply')));
 
-    // 2. Si NO tenemos, la prioridad absoluta es COMPRARLA
     if (!comercianteActivo) {
-      // Bloqueamos el oro para que el General no lo toque
       this._ahorrandoParaCaravana = true;
-
       if (res.oro >= 350 && res.madera >= 150) {
-        console.log(`[IA_ECONOMIA] J${myPlayer}: Compra obligatoria de Columna de Suministro.`);
         this._producirDivisiones(myPlayer, 1, 1, 'Columna de Suministro');
-        this._ahorrandoParaCaravana = false; // Compra hecha, liberamos
-        return;
-      } else {
-        console.log(`[IA_ECONOMIA] J${myPlayer}: Ahorrando 350 de oro para Caravana. Gasto militar bloqueado.`);
+        this._ahorrandoParaCaravana = false;
         return;
       }
+      return;
     }
 
-    // 3. Si ya tenemos la unidad, buscamos una ruta para activarla
     this._ahorrandoParaCaravana = false;
-    if (comercianteActivo.tradeRoute) return; // Ya está trabajando
+    if (comercianteActivo.tradeRoute) return;
 
     const rutasActuales = this._getExistingTradeRouteKeys(myPlayer);
     const candidato = this._pickNextTradeRouteCandidate(myPlayer, rutasActuales);
-    
     if (candidato) {
-      console.log(`[IA_COMERCIO] J${myPlayer}: Iniciando ruta comercial ${candidato.cityA.name} -> ${candidato.cityB.name}`);
       this._requestEstablishTradeRoute(comercianteActivo, candidato.cityA, candidato.cityB, candidato.infraPath);
     }
   },
@@ -1102,31 +1106,36 @@ Object.assign(window.IAArchipielago, {
   // Usa la división de tropas para ocupar el corredor comercial paso a paso.
   _ejecutarGusanoCorredor(situacion) {
     const { myPlayer } = situacion;
+    this._ensureTech(myPlayer, 'ENGINEERING');
+
     const conexiones = this._getRoadNetworkPlan ? this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer)) : [];
     if (conexiones.length === 0) return;
 
-    // Tomamos la ruta prioritaria (Banca o Montaña de emergencia)
     const rutaActiva = conexiones[0]; 
     let unidadActual = this._findClosestUnitToTarget(myPlayer, rutaActiva.landPath[0]);
 
-    if (!unidadActual || unidadActual.regiments.length < 2) {
-      this.crearUnidadInicialDeEmergencia(myPlayer);
-      return;
-    }
-
-    console.log(`[IA_GUSANO] Iniciando avance infinito y pavimentación.`);
+    if (!unidadActual || unidadActual.regiments.length < 2) return;
 
     for (const siguientePos of rutaActiva.landPath) {
-      const posAnterior = { r: unidadActual.r, c: unidadActual.c };
+      const hexAnterior = board[unidadActual.r][unidadActual.c];
+      const hexSiguiente = board[siguientePos.r][siguientePos.c];
 
-      // A. ¿SIGUIENTE CASILLA YA TIENE CAMINO? Si es así, solo movemos y seguimos
-      if (board[siguientePos.r][siguientePos.c].owner === myPlayer && board[siguientePos.r][siguientePos.c].structure === 'Camino') {
+      // Si la casilla de adelante ya es nuestra, nos movemos en bloque para vaciar la de atrás
+      if (hexSiguiente.owner === myPlayer) {
+        const posAConstruir = { r: unidadActual.r, c: unidadActual.c };
         this._requestMoveUnit(unidadActual, siguientePos.r, siguientePos.c);
+        
+        // CONSTRUCCIÓN INMEDIATA: La unidad ya no está en la casilla anterior
+        if (this._canAffordStructure(myPlayer, 'Camino') && !hexAnterior.structure) {
+          this._requestBuildStructure(myPlayer, posAConstruir.r, posAConstruir.c, 'Camino');
+        }
         continue;
       }
 
-      // B. DIVIDIR (Lanzar cabeza para tomar posesión)
+      // Si es neutral, usamos el Split-Merge
+      const posVacia = { r: unidadActual.r, c: unidadActual.c };
       const mitad = Math.floor(unidadActual.regiments.length / 2);
+      
       gameState.preparingAction = { 
         type: 'split_unit', unitId: unidadActual.id, 
         newUnitRegiments: unidadActual.regiments.slice(0, mitad), 
@@ -1134,34 +1143,19 @@ Object.assign(window.IAArchipielago, {
       };
       this._requestSplitUnit(unidadActual, siguientePos.r, siguientePos.c);
 
-      // C. FUSIONAR (Mover la cola adelante para vaciar la casilla anterior)
-      const unidadCola = getUnitOnHex(posAnterior.r, posAnterior.c);
-      const unidadCabeza = getUnitOnHex(siguientePos.r, siguientePos.c);
-      
-      if (unidadCola && unidadCabeza) {
-        this._requestMoveUnit(unidadCola, siguientePos.r, siguientePos.c);
-        this._requestMergeUnits(unidadCola, unidadCabeza);
-        // La unidad se unifica, se resetea y está lista para la siguiente casilla
-        unidadActual = unidadCabeza; 
-
-        // D. CONSTRUCCIÓN EN EL VACÍO (En la casilla que acabamos de dejar libre)
-        const hexAVaciar = board[posAnterior.r][posAnterior.c];
-        if (hexAVaciar.owner === myPlayer && !hexAVaciar.structure) {
-          // Si no sabemos construir, compramos el libro ahora mismo
-          this._ensureTech(myPlayer, 'ENGINEERING');
-          
-          if (this._canAffordStructure(myPlayer, 'Camino')) {
-            this._requestBuildStructure(myPlayer, posAnterior.r, posAnterior.c, 'Camino');
-            this.registrarMetaFlujo('construccion', posAnterior.r, posAnterior.c, myPlayer);
-          }
+      // Tras el split, movemos la cola inmediatamente para dejar el hueco
+      const cola = getUnitOnHex(posVacia.r, posVacia.c);
+      if (cola) {
+        this._requestMoveUnit(cola, siguientePos.r, siguientePos.c);
+        this._requestMergeUnits(cola, getUnitOnHex(siguientePos.r, siguientePos.c));
+        
+        // Ahora sí, construimos en el hueco garantizado
+        if (this._canAffordStructure(myPlayer, 'Camino') && !board[posVacia.r][posVacia.c].structure) {
+          this._requestBuildStructure(myPlayer, posVacia.r, posVacia.c, 'Camino');
         }
       }
 
-      // Parar si nos quedamos sin piedra para el siguiente tramo
-      if (gameState.playerResources[myPlayer].piedra < 50) {
-        console.log("[IA_GUSANO] Piedra insuficiente para continuar pavimentando.");
-        break;
-      }
+      if (gameState.playerResources[myPlayer].piedra < 50) break;
     }
   },
 
