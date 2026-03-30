@@ -1316,6 +1316,40 @@ Object.assign(window.IAArchipielago, {
     if (this.crearCaravanas) {
       this.crearCaravanas(situacion.myPlayer, situacion.ciudades);
     }
+  }, 
+
+  , // Coma para separar de la función anterior
+
+  // HERRAMIENTA: CONTAR DEFENSORES DE UNA CIUDAD
+  _getCityGarrisonStrength(ciudad) {
+    if (!ciudad) return 4;
+    // Si la ciudad tiene una lista de guarnición, la contamos. Si no, usamos un valor base.
+    return (ciudad.garrison && Array.isArray(ciudad.garrison)) ? ciudad.garrison.length : 4;
+  },
+
+  // HERRAMIENTA: CONTAR FUERZA DE UNA UNIDAD (REGIMIENTOS)
+  _getUnitPower(unit) {
+    return (unit && unit.regiments) ? unit.regiments.length : 0;
+  },
+
+  // HERRAMIENTA: SUMAR PODER DE VARIAS UNIDADES
+  _sumUnitPower(listaUnidades) {
+    if (!listaUnidades || !Array.isArray(listaUnidades)) return 0;
+    return listaUnidades.reduce((total, u) => total + this._getUnitPower(u), 0);
+  },
+
+  // HERRAMIENTA: COMPARAR PODER EN UNA ZONA (NUESTRO VS ENEMIGO)
+  _estimateLocalPowerRatio(myPlayer, centro, radio = 5) {
+    const misUnidades = IASentidos.getUnits(myPlayer).filter(u => hexDistance(u.r, u.c, centro.r, centro.c) <= radio);
+    const enemigoId = this._getEnemyPlayerId(myPlayer);
+    const susUnidades = IASentidos.getUnits(enemigoId).filter(u => hexDistance(u.r, u.c, centro.r, centro.c) <= radio);
+    
+    const miPoder = misUnidades.reduce((s, u) => s + (u.regiments?.length || 0), 0);
+    const suPoder = susUnidades.reduce((s, u) => s + (u.regiments?.length || 0), 0);
+    
+    // Evitamos dividir por cero. Si el enemigo tiene 0, devolvemos un ratio alto (ej. 10)
+    if (suPoder === 0) return miPoder > 0 ? 10 : 1;
+    return miPoder / suPoder;
   }
 
 }); // CIERRE FINAL DEL OBJETO IAArchipielago. BRAVO.
