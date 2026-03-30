@@ -483,14 +483,10 @@ Object.assign(window.IAArchipielago, {
   _requestMergeUnits(u1, u2) { if (typeof RequestMergeUnits === 'function') { RequestMergeUnits(u1, u2, true); return true; } return false; },
   _requestSplitUnit(u, r, c) { if (typeof RequestSplitUnit === 'function') { RequestSplitUnit(u, r, c); return true; } return false; },
   _getEnemyPlayerId(p) { return units.find(u => u.player !== p && u.player > 0)?.player || 1; },
-  _isCorridorPioneer(u) { return (u.name || '').includes('Pionero') || (u.name || '').includes('Suministro'); }
-
-});
+  _isCorridorPioneer(u) { return (u.name || '').includes('Pionero') || (u.name || '').includes('Suministro'); },
 
 // IA_EXPANSION.js - PARTE 3 DE 5
 // INTEGRA: Conquista de Ciudades Bárbaras, Detección de Islas (Flood Fill) y Logística Naval de Invasión.
-
-Object.assign(window.IAArchipielago, {
 
   // --- 1. COORDINADOR DE EXPANSIÓN Y LOGÍSTICA NAVAL ---
   ejecutarExpansionYNaval(situacion, misUnidades) {
@@ -753,14 +749,10 @@ Object.assign(window.IAArchipielago, {
           return this._requestBuildStructure(p, bestSpot.r, bestSpot.c, 'Fortaleza');
       }
       return false;
-  }
-
-});
+  },
 
 // IA_ESTRATEGIA.js - PARTE 4 DE 5
 // INTEGRA: Sistema de Puntuación de 10 Rutas de Victoria y Lógica de Decisión de Alto Nivel.
-
-Object.assign(window.IAArchipielago, {
 
   // --- 1. COORDINADOR DE ESTRATEGIA ALTA ---
   _procesarEstrategiaVictoria(situacion) {
@@ -953,13 +945,10 @@ Object.assign(window.IAArchipielago, {
       heroes: myUnits.filter(u => u.commander).length,
       oro: res.oro || 0
     };
-  }
-});
+  },
 
 // IA_COMERCIO.js - PARTE 5 DE 5
 // INTEGRA: Sistema de Caravanas, Algoritmo de Gusano Corredor y Logística de Suministros.
-
-Object.assign(window.IAArchipielago, {
 
   // --- 1. GESTIÓN DE CARAVANAS (INGRESOS PASIVOS) ---
   crearCaravanas(myPlayer, ciudades) {
