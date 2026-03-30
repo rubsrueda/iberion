@@ -66,10 +66,18 @@ const IAArchipielago = {
     // 5. PRIORIDAD 3: ESTRATEGIA Y TÁCTICA (Las 10 Rutas y el General)
     // Solo si sobra presupuesto tras asegurar el comercio.
     const economia = (typeof IAEconomica !== 'undefined') ? IAEconomica.evaluarEconomia(myPlayer) : { oro: 0 };
+    // 5. PRIORIDAD 3: ESTRATEGIA Y TÁCTICA
+    const hexesPropios = IASentidos.getOwnedHexes(myPlayer);
+    const objetivosActuales = IASentidos.getCities(myPlayer); 
+    
     const situacion = { 
       myPlayer, 
-      economia,
+      economia: (typeof IAEconomica !== 'undefined') ? IAEconomica.evaluarEconomia(myPlayer) : { oro: 0 },
       ciudades: IASentidos.getCities(myPlayer),
+      hexesPropios,
+      // Calculamos amenazas y frente para que el General no de error
+      amenazas: (typeof IATactica !== 'undefined') ? IATactica.detectarAmenazasSobreObjetivos(myPlayer, objetivosActuales, 3) : [],
+      frente: (typeof IATactica !== 'undefined') ? IATactica.detectarFrente(myPlayer, 2) : [],
       enemyProfile: this._evaluateEnemyExpansionStrategy ? this._evaluateEnemyExpansionStrategy(myPlayer) : { mode: 'mixed' }
     };
 
