@@ -1419,7 +1419,7 @@ Object.assign(window.IAArchipielago, {
     const conexiones = [];
 
     // El Arquitecto busca conectar cada ciudad propia con la ruta más corta
-    for (const origen de propias) {
+    for (const origen of propias) {
       const destinosPosibles = ciudades.filter(c => 
         c !== origen && this._isAllowedTradeDestinationForCaravan(c, myPlayer)
       );
