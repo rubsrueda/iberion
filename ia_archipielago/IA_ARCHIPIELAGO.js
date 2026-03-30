@@ -1318,8 +1318,6 @@ Object.assign(window.IAArchipielago, {
     }
   }, 
 
-  , // Coma para separar de la función anterior
-
   // HERRAMIENTA: CONTAR DEFENSORES DE UNA CIUDAD
   _getCityGarrisonStrength(ciudad) {
     if (!ciudad) return 4;
@@ -1350,6 +1348,146 @@ Object.assign(window.IAArchipielago, {
     // Evitamos dividir por cero. Si el enemigo tiene 0, devolvemos un ratio alto (ej. 10)
     if (suPoder === 0) return miPoder > 0 ? 10 : 1;
     return miPoder / suPoder;
+  },
+
+  // ACCIÓN: CONSTRUIR BARCO DE TRANSPORTE
+  _createTransportShip(p) {
+    console.log(`[IA_NAVAL] Solicitando construcción de transporte para J${p}`);
+    return this._crearUnidadNaval(p, 'Patache');
+  },
+
+  // HERRAMIENTA: ELEGIR SOLDADOS PARA SUBIR AL BARCO
+  _selectEmbarkUnit(p, transport) {
+    const misUnidades = IASentidos.getUnits(p);
+    // Buscamos una unidad de tierra (no naval) que esté a 2 pasos o menos del barco
+    return misUnidades.find(u => 
+      !u.regiments.some(r => REGIMENT_TYPES[r.type]?.is_naval) && 
+      hexDistance(u.r, u.c, transport.r, transport.c) <= 2
+    );
+  },
+
+  // HERRAMIENTA: BUSCAR SITIO PARA DESEMBARCAR EN ISLA ENEMIGA
+  _findEnemyLandingTarget(enemyLandmass, enemyCapital) {
+    let mejorSpot = null;
+    let maximaPuntuacion = -999;
+
+    // Convertimos el conjunto de la isla en una lista para revisarla
+    for (const hexKey of enemyLandmass) {
+      const [r, c] = hexKey.split(',').map(Number);
+      const hex = board[r][c];
+      if (hex.unit || hex.structure || hex.terrain === 'water') continue;
+
+      // Buscamos un vecino que sea agua para que el barco pueda aparcar
+      const vecinoAgua = getHexNeighbors(r, c).find(n => board[n.r]?.[n.c]?.terrain === 'water');
+      if (!vecinoAgua) continue;
+
+      // Puntuamos el sitio: cercanía a su capital pero con seguridad
+      const dist = hexDistance(r, c, enemyCapital.r, enemyCapital.c);
+      let score = 100 - dist;
+      if (hex.terrain === 'mountain') score += 20; // Mejor desembarcar en terreno defensivo
+
+      if (score > maximaPuntuacion) {
+        maximaPuntuacion = score;
+        mejorSpot = { land: {r, c}, water: vecinoAgua };
+      }
+    }
+    return mejorSpot;
+  },
+
+  // ACCIÓN: SOLTAR TROPAS EN LA COSTA
+  _requestDisembark(transport, landHex) {
+    // Separamos los soldados de tierra de los marineros
+    const regsTierra = transport.regiments.filter(r => !REGIMENT_TYPES[r.type]?.is_naval);
+    const regsNavales = transport.regiments.filter(r => REGIMENT_TYPES[r.type]?.is_naval);
+    
+    if (regsTierra.length === 0) return false;
+
+    gameState.preparingAction = { 
+        type: 'split_unit', 
+        unitId: transport.id, 
+        newUnitRegiments: regsTierra, 
+        remainingOriginalRegiments: regsNavales 
+    };
+    console.log(`[IA_NAVAL] Desembarcando tropas en (${landHex.r},${landHex.c})`);
+    return this._requestSplitUnit(transport, landHex.r, landHex.c);
+  }, // Coma para separar de la función anterior
+
+  // EL ARQUITECTO: DIBUJA EL PLANO DE LA RED COMERCIAL
+  _getRoadNetworkPlan(myPlayer, ciudades) {
+    const propias = ciudades.filter(c => c.owner === myPlayer);
+    const banca = this._getBankCity();
+    const conexiones = [];
+
+    // El Arquitecto busca conectar cada ciudad propia con la ruta más corta
+    for (const origen de propias) {
+      const destinosPosibles = ciudades.filter(c => 
+        c !== origen && this._isAllowedTradeDestinationForCaravan(c, myPlayer)
+      );
+
+      // Buscamos la conexión más eficiente (priorizando la Banca)
+      const mejorConexion = destinosPosibles.map(dest => {
+        const info = this._findRoadConnection(origen, dest, myPlayer);
+        if (!info) return null;
+        
+        let prioridad = info.landPath.length;
+        if (dest === banca) prioridad -= 100; // Prioridad absoluta a la Banca
+
+        return { 
+          from: origen, 
+          to: dest, 
+          landPath: info.landPath, 
+          missingOwnedSegments: info.missingOwnedSegments,
+          pendingCaptureSegments: info.pendingCaptureSegments,
+          score: prioridad 
+        };
+      }).filter(x => x !== null).sort((a, b) => a.score - b.score)[0];
+
+      if (mejorConexion) conexiones.push(mejorConexion);
+    }
+
+    return conexiones; // Devuelve el plano completo para que el Gusano lo siga
+  },
+
+  // EL TOPÓGRAFO: ANALIZA EL ESTADO DE UNA RUTA ESPECÍFICA
+  _findRoadConnection(cityA, cityB, myPlayer) {
+    const path = this._findRoadBuildPath({ myPlayer, start: cityA, goal: cityB });
+    if (!path) return null;
+
+    // Clasifica los trozos del camino
+    return {
+      landPath: path,
+      // Trozos nuestros que necesitan ladrillos (Camino)
+      missingOwnedSegments: path.filter(h => board[h.r][h.c].owner === myPlayer && !board[h.r][h.c].structure),
+      // Trozos neutrales que hay que invadir con soldados
+      pendingCaptureSegments: path.filter(h => board[h.r][h.c].owner === null)
+    };
+  },
+
+  // ETIQUETA DE SEGURIDAD: IDENTIFICA SOLDADOS EN MISIÓN COMERCIAL
+  _isCorridorPioneer(unit) {
+    // Si la unidad tiene el nombre de "Pionero" o está en una casilla del plano, no la molestamos
+    return (unit.name || '').includes('Pionero') || (unit.name || '').includes('Suministro');
+  }, 
+
+  // ESTRATEGIA: REFUERZO DE FORTALEZAS INVASORAS
+  _pressureProduceForFortress(myPlayer) {
+    const plan = (gameState.aiFortressPressure || {})[myPlayer];
+    if (!plan || !plan.target) return false;
+
+    // Si tenemos una fortaleza en asedio, fabricamos 3 divisiones pesadas allí
+    if (typeof AiGameplayManager !== 'undefined' && AiGameplayManager.produceUnit) {
+      console.log(`[IA_MILITAR] Reforzando posición estratégica en (${plan.target.r},${plan.target.c})`);
+      this._producirDivisiones(myPlayer, 3, 6); // 3 grupos de 6 soldados
+      return true;
+    }
+    return false;
+  },
+
+  // HERRAMIENTA: ESTIMAR SI UNA RUTA ES VIABLE
+  _getBarbarianCities() {
+    return (gameState.cities || []).filter(c => 
+      c.owner === null || c.isBarbarianCity || c.owner === 9 || c.isBarbaric
+    );
   }
 
 }); // CIERRE FINAL DEL OBJETO IAArchipielago. BRAVO.
