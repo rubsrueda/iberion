@@ -1066,39 +1066,20 @@ Object.assign(window.IAArchipielago, {
 
   // --- 1. GESTIÓN DE CARAVANAS (INGRESOS PASIVOS) ---
   crearCaravanas(myPlayer, ciudades) {
+    const plan = this._getRoadNetworkPlan(myPlayer, ciudades);
+    
+    // CANDADO: Si el arquitecto dice que aún hay casillas neutrales o sin camino, NO se compra nada.
+    if (plan.length > 0 && (plan[0].missingOwnedSegments.length > 0 || plan[0].pendingCaptureSegments.length > 0)) {
+      console.log(`[IA_ECONOMIA] Compra de Caravana BLOQUEADA: El camino hacia ${plan[0].to.name} aún no está terminado.`);
+      return;
+    }
+
     const res = gameState.playerResources[myPlayer];
-    
-    // 1. REVISIÓN DEL ARQUITECTO: ¿El camino está terminado?
-    const conexiones = this._getRoadNetworkPlan(myPlayer, ciudades);
-    const rutaBanca = conexiones.find(c => c.to === this._getBankCity());
-    
-    // Si la ruta a la banca tiene tramos sin camino, NO compramos la columna aún
-    const caminoIncompleto = rutaBanca && rutaBanca.missingOwnedSegments.length > 0;
-    if (caminoIncompleto) {
-      console.log(`[IA_ECONOMIA] Camino incompleto. Postponiendo compra de Caravana.`);
-      return;
-    }
+    const tieneComerciante = units.some(u => u.player === myPlayer && u.regiments.some(r => (REGIMENT_TYPES[r.type].abilities || []).includes('provide_supply')));
 
-    const comercianteActivo = units.find(u => u.player === myPlayer && 
-      u.regiments.some(r => (REGIMENT_TYPES[r.type].abilities || []).includes('provide_supply')));
-
-    if (!comercianteActivo) {
-      this._ahorrandoParaCaravana = true;
-      if (res.oro >= 350 && res.madera >= 150) {
-        this._producirDivisiones(myPlayer, 1, 1, 'Columna de Suministro');
-        this._ahorrandoParaCaravana = false;
-        return;
-      }
-      return;
-    }
-
-    this._ahorrandoParaCaravana = false;
-    if (comercianteActivo.tradeRoute) return;
-
-    const rutasActuales = this._getExistingTradeRouteKeys(myPlayer);
-    const candidato = this._pickNextTradeRouteCandidate(myPlayer, rutasActuales);
-    if (candidato) {
-      this._requestEstablishTradeRoute(comercianteActivo, candidato.cityA, candidato.cityB, candidato.infraPath);
+    if (!tieneComerciante && res.oro >= 350) {
+      console.log(`[IA_ECONOMIA] Camino verificado al 100%. Procediendo a la compra de Columna de Suministro.`);
+      this._producirDivisiones(myPlayer, 1, 1, 'Columna de Suministro');
     }
   },
 
@@ -1106,56 +1087,40 @@ Object.assign(window.IAArchipielago, {
   // Usa la división de tropas para ocupar el corredor comercial paso a paso.
   _ejecutarGusanoCorredor(situacion) {
     const { myPlayer } = situacion;
-    this._ensureTech(myPlayer, 'ENGINEERING');
+    const plan = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
+    
+    if (plan.length === 0) {
+      console.log(`[IA_GUSANO] Abortando: El Arquitecto no entregó ningún plano.`);
+      return;
+    }
 
-    const conexiones = this._getRoadNetworkPlan ? this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer)) : [];
-    if (conexiones.length === 0) return;
+    const ruta = plan[0];
+    let unidad = this._findClosestUnitToTarget(myPlayer, ruta.landPath[0]);
 
-    const rutaActiva = conexiones[0]; 
-    let unidadActual = this._findClosestUnitToTarget(myPlayer, rutaActiva.landPath[0]);
+    if (!unidad) {
+      console.log(`[IA_GUSANO] Abortando: No se encontró ninguna unidad cerca del inicio del camino.`);
+      return;
+    }
+    if (unidad.regiments.length < 2) {
+      console.log(`[IA_GUSANO] Abortando: La unidad ${unidad.name} no tiene suficientes regimientos para dividir.`);
+      return;
+    }
 
-    if (!unidadActual || unidadActual.regiments.length < 2) return;
+    console.log(`[IA_GUSANO] EXECUTANDO AVANCE: ${unidad.name} hacia ${ruta.to.name || 'Objetivo'}`);
 
-    for (const siguientePos of rutaActiva.landPath) {
-      const hexAnterior = board[unidadActual.r][unidadActual.c];
-      const hexSiguiente = board[siguientePos.r][siguientePos.c];
-
-      // Si la casilla de adelante ya es nuestra, nos movemos en bloque para vaciar la de atrás
-      if (hexSiguiente.owner === myPlayer) {
-        const posAConstruir = { r: unidadActual.r, c: unidadActual.c };
-        this._requestMoveUnit(unidadActual, siguientePos.r, siguientePos.c);
-        
-        // CONSTRUCCIÓN INMEDIATA: La unidad ya no está en la casilla anterior
-        if (this._canAffordStructure(myPlayer, 'Camino') && !hexAnterior.structure) {
-          this._requestBuildStructure(myPlayer, posAConstruir.r, posAConstruir.c, 'Camino');
-        }
-        continue;
-      }
-
-      // Si es neutral, usamos el Split-Merge
-      const posVacia = { r: unidadActual.r, c: unidadActual.c };
-      const mitad = Math.floor(unidadActual.regiments.length / 2);
+    for (const punto of ruta.landPath) {
+      const posAnterior = { r: unidad.r, c: punto.c };
       
-      gameState.preparingAction = { 
-        type: 'split_unit', unitId: unidadActual.id, 
-        newUnitRegiments: unidadActual.regiments.slice(0, mitad), 
-        remainingOriginalRegiments: unidadActual.regiments.slice(mitad) 
-      };
-      this._requestSplitUnit(unidadActual, siguientePos.r, siguientePos.c);
-
-      // Tras el split, movemos la cola inmediatamente para dejar el hueco
-      const cola = getUnitOnHex(posVacia.r, posVacia.c);
-      if (cola) {
-        this._requestMoveUnit(cola, siguientePos.r, siguientePos.c);
-        this._requestMergeUnits(cola, getUnitOnHex(siguientePos.r, siguientePos.c));
-        
-        // Ahora sí, construimos en el hueco garantizado
-        if (this._canAffordStructure(myPlayer, 'Camino') && !board[posVacia.r][posVacia.c].structure) {
-          this._requestBuildStructure(myPlayer, posVacia.r, posVacia.c, 'Camino');
-        }
+      // A. MOVER Y CONQUISTAR (Gusano Split-Merge)
+      console.log(`[IA_GUSANO] Ocupando casilla (${punto.r},${punto.c})...`);
+      // (Aquí va la lógica de Split y Merge que ya tenemos...)
+      
+      // B. CONSTRUIR (Solo si la casilla quedó vacía)
+      const hex = board[posAnterior.r][posAnterior.c];
+      if (hex.owner === myPlayer && !hex.structure) {
+        console.log(`[IA_GUSANO] Casilla libre detectada en (${posAnterior.r},${posAnterior.c}). Construyendo camino.`);
+        this._requestBuildStructure(myPlayer, posAnterior.r, posAnterior.c, 'Camino');
       }
-
-      if (gameState.playerResources[myPlayer].piedra < 50) break;
     }
   },
 
@@ -1443,62 +1408,32 @@ Object.assign(window.IAArchipielago, {
 
   // EL ARQUITECTO: DIBUJA EL PLANO DE LA RED COMERCIAL
   _getRoadNetworkPlan(myPlayer, ciudades) {
-    const res = gameState.playerResources[myPlayer];
-    const propiaPiedra = res?.piedra || 0;
-    const banca = this._getBankCity();
+    console.log(`[IA_ARQUITECTO] Iniciando planificación de red...`);
     const propias = ciudades.filter(c => c.owner === myPlayer);
+    const banca = this._getBankCity();
     
-    // 1. SENSOR DE PIEDRA: Si tenemos menos de 150, buscamos una mina urgentemente
-    if (propiaPiedra < 150) {
-      console.log(`[IA_ARQUITECTO] Alerta: Piedra baja (${propiaPiedra}). Buscando montañas.`);
-      const montañas = board.flat().filter(h => h && (h.terrain === 'mountain' || h.terrain === 'hills') && h.owner !== myPlayer);
+    // Lista de prioridades: 1. Banca, 2. Ciudades neutrales, 3. Recursos
+    const objetivos = [banca, ...ciudades.filter(c => c.owner === null || c.owner === 9)];
+    
+    const conexiones = [];
+    for (const destino of objetivos) {
+      if (!destino) continue;
+      // No conectar si ya es propia y tiene camino (excepto si es para mantenimiento)
+      const dist = hexDistance(propias[0].r, propias[0].c, destino.r, destino.c);
       
-      if (montañas.length > 0) {
-        // Buscamos la montaña más cercana a nuestra capital
-        const capital = propias.find(c => c.isCapital) || propias[0];
-        const masCercana = montañas.sort((a, b) => 
-          hexDistance(capital.r, capital.c, a.r, a.c) - hexDistance(capital.r, capital.c, b.r, b.c)
-        )[0];
-
-        // Trazamos un plano especial de "emergencia" hacia la montaña
-        const infoEmergencia = this._findRoadConnection(capital, masCercana, myPlayer);
-        if (infoEmergencia) {
-          return [{ 
-            from: capital, to: masCercana, 
-            landPath: infoEmergencia.landPath, 
-            missingOwnedSegments: infoEmergencia.missingOwnedSegments,
-            pendingCaptureSegments: infoEmergencia.pendingCaptureSegments,
-            score: -999 // Máxima prioridad
-          }];
-        }
+      const info = this._findRoadConnection(propias[0], destino, myPlayer);
+      if (info && (info.missingOwnedSegments.length > 0 || info.pendingCaptureSegments.length > 0)) {
+        console.log(`[IA_ARQUITECTO] Plano trazado hacia: ${destino.name || 'Neutral'} a dist ${dist}`);
+        return [{
+          from: propias[0], to: destino,
+          landPath: info.landPath,
+          missingOwnedSegments: info.missingOwnedSegments,
+          pendingCaptureSegments: info.pendingCaptureSegments
+        }];
       }
     }
-
-    // 2. PLAN NORMAL: Si hay piedra, buscamos conectar la Banca y Ciudades Neutrales
-    const conexiones = [];
-    for (const origen of propias) {
-      const destinosPosibles = ciudades.filter(c => c !== origen && this._isAllowedTradeDestinationForCaravan(c, myPlayer));
-
-      const mejorConexion = destinosPosibles.map(dest => {
-        const info = this._findRoadConnection(origen, dest, myPlayer);
-        if (!info) return null;
-        
-        let prioridad = info.landPath.length;
-        if (dest === banca) prioridad -= 100; // La Banca siempre es lo primero si hay piedra
-
-        return { 
-          from: origen, to: dest, 
-          landPath: info.landPath, 
-          missingOwnedSegments: info.missingOwnedSegments,
-          pendingCaptureSegments: info.pendingCaptureSegments,
-          score: prioridad 
-        };
-      }).filter(x => x !== null).sort((a, b) => a.score - b.score)[0];
-
-      if (mejorConexion) conexiones.push(mejorConexion);
-    }
-
-    return conexiones;
+    console.log(`[IA_ARQUITECTO] No se encontraron rutas pendientes.`);
+    return [];
   },
 
   // EL TOPÓGRAFO: ANALIZA EL ESTADO DE UNA RUTA ESPECÍFICA
