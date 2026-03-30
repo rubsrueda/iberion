@@ -200,7 +200,7 @@ const IAArchipielago = {
 // IA_ARCHIPIELAGO.js - PARTE 2 DE 5: TÁCTICA MILITAR Y COMBATE REAL
 // INTEGRA: Perfilado de Enemigo, Maniobras de Envolvimiento y Regla de Poder Relativo (1.3x)
 
-Object.assign(window.IAArchipielago, {
+//Object.assign(window.IAArchipielago, {
 
   // --- 1. COORDINADOR DE ACCIÓN TÁCTICA ---
   ejecutarPlanDeAccion(situacion) {
@@ -1166,6 +1166,6 @@ Object.assign(window.IAArchipielago, {
     }
   }
 
-}); // FIN DEL OBJETO IAArchipielago
+//}); // FIN DEL OBJETO IAArchipielago
 
 console.log("[IA_ARCHIPIELAGO] Inteligencia Estratégica Completa. Todos los sistemas operativos.");
