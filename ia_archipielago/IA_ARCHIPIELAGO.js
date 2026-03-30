@@ -1107,32 +1107,32 @@ Object.assign(window.IAArchipielago, {
   // --- 2. LÓGICA DE GUSANO CORREDOR (OCUPACIÓN DE CAMINOS) ---
   // Usa la división de tropas para ocupar el corredor comercial paso a paso.
   _ejecutarGusanoCorredor(situacion) {
+    // 1. EXTRAER DATOS (Primero esto, para que 'myPlayer' exista)
+    const { myPlayer } = situacion;
 
-    // ASEGURAR TECNOLOGÍA ANTES DE EMPEZAR EL CICLO
+    // 2. ASEGURAR TECNOLOGÍA (Libro antes que ladrillo)
     this._ensureTech(myPlayer, 'ENGINEERING');
 
-      const { myPlayer } = situacion;
-    // 1. Pedir al Arquitecto el plano hacia la Banca
+    // 3. PLANIFICAR RUTA
     const conexiones = this._getRoadNetworkPlan ? this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer)) : [];
     if (conexiones.length === 0) return;
 
-    const rutaBanca = conexiones[0]; // La ruta prioritaria
+    const rutaBanca = conexiones[0]; 
     let unidadActual = this._findClosestUnitToTarget(myPlayer, rutaBanca.landPath[0]);
 
     if (!unidadActual || unidadActual.regiments.length < 2) {
-      // Si no hay unidad de 2 regimientos, intentamos crear una de emergencia
       this.crearUnidadInicialDeEmergencia(myPlayer);
       return;
     }
 
     console.log(`[IA_GUSANO] Iniciando ciclo infinito hacia la Banca.`);
 
-    // 2. CICLO INFINITO DE AVANCE
+    // 4. CICLO DE AVANCE
     for (let i = 0; i < rutaBanca.landPath.length; i++) {
       const posActual = { r: unidadActual.r, c: unidadActual.c };
       const siguientePos = rutaBanca.landPath[i];
 
-      // Si la siguiente casilla ya es nuestra y tiene camino, solo saltamos
+      // Si ya hay camino, solo mover y seguir
       if (board[siguientePos.r][siguientePos.c].owner === myPlayer && board[siguientePos.r][siguientePos.c].structure === 'Camino') {
         this._requestMoveUnit(unidadActual, siguientePos.r, siguientePos.c);
         continue;
@@ -1147,36 +1147,23 @@ Object.assign(window.IAArchipielago, {
       };
       this._requestSplitUnit(unidadActual, siguientePos.r, siguientePos.c);
 
-      // B. MOVER COLA Y FUSIONAR (Vaciar casilla para el camino)
+      // B. MOVER COLA Y FUSIONAR (Vaciar casilla)
       const unidadCola = getUnitOnHex(posActual.r, posActual.c);
       const unidadCabeza = getUnitOnHex(siguientePos.r, siguientePos.c);
       
       if (unidadCola && unidadCabeza) {
-        // Forzamos el movimiento de la cola a la posición de la cabeza
         this._requestMoveUnit(unidadCola, siguientePos.r, siguientePos.c);
         this._requestMergeUnits(unidadCola, unidadCabeza);
         unidadActual = unidadCabeza; 
 
-        // C. CONSTRUCCIÓN INMEDIATA (Ahora que la casilla está 100% vacía)
+        // C. CONSTRUCCIÓN INSTANTÁNEA (En el hueco vacío)
         if (this._canAffordStructure(myPlayer, 'Camino')) {
           this._requestBuildStructure(myPlayer, posActual.r, posActual.c, 'Camino');
           this.registrarMetaFlujo('construccion', posActual.r, posActual.c, myPlayer);
         }
       }
 
-      // C. CONSTRUCCIÓN INSTANTÁNEA (En la casilla que acabamos de vaciar)
-      const hexAVaciar = board[posActual.r][posActual.c];
-      if (hexAVaciar.owner === myPlayer && !hexAVaciar.structure) {
-        // ¿Tenemos Ingeniería? Si no, comprar ahora.
-        this._ensureTech(myPlayer, 'ENGINEERING');
-        
-        if (this._canAffordStructure(myPlayer, 'Camino')) {
-          this._requestBuildStructure(myPlayer, posActual.r, posActual.c, 'Camino');
-          this.registrarMetaFlujo('construccion', posActual.r, posActual.c, myPlayer);
-        }
-      }
-
-      // Si nos quedamos sin piedra o el camino se bloquea, paramos
+      // Límite de recursos
       if (gameState.playerResources[myPlayer].piedra < 10) break;
     }
   },
