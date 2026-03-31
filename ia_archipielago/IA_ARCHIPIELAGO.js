@@ -778,10 +778,8 @@ Object.assign(window.IAArchipielago, {
         const hex = board[neighbor.r]?.[neighbor.c];
         // SEGURIDAD: No pasar por agua ni salirse del mapa
         if (!hex || hex.terrain === 'water') continue;
-        
-        // PRIORIDAD: Solo tierra propia o neutral
-        if (hex.owner !== myPlayer && hex.owner !== null) continue;
 
+        // Permitir cualquier hexágono que no sea agua, sin importar el owner
         queue.push({
           r: neighbor.r, c: neighbor.c,
           path: [...curr.path, neighbor],
@@ -1095,6 +1093,10 @@ Object.assign(window.IAArchipielago, {
     }
 
     const ruta = plan[0];
+    if (!ruta || !ruta.landPath || ruta.landPath.length === 0) {
+      console.log('[IA_GUSANO] ERROR: ruta.landPath está vacío o indefinido:', ruta);
+      return;
+    }
     let unidad = this._findClosestUnitToTarget(myPlayer, ruta.landPath[0]);
 
     if (!unidad) {
