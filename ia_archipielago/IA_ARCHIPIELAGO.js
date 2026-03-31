@@ -1462,15 +1462,19 @@ Object.assign(window.IAArchipielago, {
   // EL TOPÓGRAFO: ANALIZA EL ESTADO DE UNA RUTA ESPECÍFICA
   _findRoadConnection(cityA, cityB, myPlayer) {
     const path = this._findRoadBuildPath({ myPlayer, start: cityA, goal: cityB });
-    if (!path) return null;
+    
+    if (!path) {
+      console.log(`    ⚠️ GPS: No se pudo encontrar ruta física entre ${cityA.name || 'A'} y ${cityB.name || 'B'}.`);
+      return null;
+    }
 
-    // Clasifica los trozos del camino
+    const neutrales = path.filter(h => board[h.r][h.c].owner !== myPlayer);
+    const sinCamino = path.filter(h => board[h.r][h.c].owner === myPlayer && !board[h.r][h.c].structure);
+
     return {
       landPath: path,
-      // Trozos nuestros que necesitan ladrillos (Camino)
-      missingOwnedSegments: path.filter(h => board[h.r][h.c].owner === myPlayer && !board[h.r][h.c].structure),
-      // Trozos neutrales que hay que invadir con soldados
-      pendingCaptureSegments: path.filter(h => board[h.r][h.c].owner === null)
+      missingOwnedSegments: sinCamino,
+      pendingCaptureSegments: neutrales
     };
   },
 
