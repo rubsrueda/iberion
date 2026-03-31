@@ -31,58 +31,6 @@ const IAArchipielago = {
     }
   },
 
-  // 2. ejecutarTurno: El motor principal unificado
-  ejecutarTurno(myPlayer) {
-    console.log(`\n[IA_ARCHIPIELAGO] ========= TURNO ${gameState.turnNumber} - JUGADOR ${myPlayer} =========`);
-    
-    if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
-    if (!gameState.iaCompletedGoals[myPlayer]) {
-      gameState.iaCompletedGoals[myPlayer] = { ocupacion: [], construccion: [], caravana: [] };
-    }
-
-    const snapshotAntes = this._snapshotTurnActivity(myPlayer);
-
-    // 1. EL GUSANO (Ocupación y Construcción)
-    if (this._ejecutarGusanoCorredor) this._ejecutarGusanoCorredor({ myPlayer });
-
-    // 2. LA CARAVANA (Inversión - Ahora con candado de seguridad)
-    if (this.crearCaravanas) {
-      const ciudades = (typeof IASentidos !== 'undefined') ? IASentidos.getCities(myPlayer) : [];
-      this.crearCaravanas(myPlayer, ciudades);
-    }
-
-    // 3. PREPARAR SITUACIÓN (Blindaje total contra errores de 'undefined')
-    const situacion = { 
-      myPlayer, 
-      economia: (typeof IAEconomica !== 'undefined') ? IAEconomica.evaluarEconomia(myPlayer) : { oro: 0 },
-      ciudades: (typeof IASentidos !== 'undefined') ? IASentidos.getCities(myPlayer) : [],
-      hexesPropios: (typeof IASentidos !== 'undefined') ? IASentidos.getOwnedHexes(myPlayer) : [],
-      amenazas: [], // Se llenará abajo si existe el módulo
-      frente: [],   // Se llenará abajo si existe el módulo
-      enemyProfile: { mode: 'mixed' }
-    };
-
-    if (typeof IATactica !== 'undefined') {
-      situacion.amenazas = IATactica.detectarAmenazasSobreObjetivos(myPlayer, situacion.ciudades, 3) || [];
-      situacion.frente = IATactica.detectarFrente(myPlayer, 2) || [];
-    }
-    
-    if (this._evaluateEnemyExpansionStrategy) {
-      situacion.enemyProfile = this._evaluateEnemyExpansionStrategy(myPlayer);
-    }
-
-    // 4. EJECUTAR PLANES
-    if (this._procesarEstrategiaVictoria) this._procesarEstrategiaVictoria(situacion);
-    if (this.ejecutarPlanDeAccion) this.ejecutarPlanDeAccion(situacion);
-
-    // 5. EMERGENCIA
-    if (!this._didMakeProgressThisTurn(myPlayer, snapshotAntes)) {
-      this._ejecutarPlanEmergencia(situacion);
-    }
-
-    if (typeof handleEndTurn === 'function') setTimeout(() => handleEndTurn(), 1500);
-  },
-
   // 3. registrarMetaFlujo / isGoalCompletedFlujo
   registrarMetaFlujo(flujo, r, c, myPlayer) {
     if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
@@ -100,65 +48,6 @@ const IAArchipielago = {
   isGoalCompletedFlujo(flujo, r, c, myPlayer) {
     if (!gameState.iaCompletedGoals?.[myPlayer]?.[flujo]) return false;
     return gameState.iaCompletedGoals[myPlayer][flujo].some(g => g.r === r && g.c === c);
-  },
-
-  // 4. construirInfraestructura: LOGICA REAL CON REGLAS DE PIEDRA
-  construirInfraestructura(myPlayer, hexesPropios, economia) {
-    const capital = (gameState.cities || []).find(c => c.owner === myPlayer && c.isCapital);
-    if (!capital) return;
-
-    const playerRes = gameState.playerResources[myPlayer];
-    const piedraActual = playerRes?.piedra || 0;
-    const esTurnoTemprano = (gameState.turnNumber || 0) < 4;
-
-    // A. PRIORIDAD ABSOLUTA: CAMINOS HACIA LA BANCA (Motor A*)
-    this._ensureTech(myPlayer, 'ENGINEERING');
-    const ciudadesTrade = this._getTradeCityCandidates ? this._getTradeCityCandidates(myPlayer) : [];
-    const candidate = this._findBestTradeCityPair ? this._findBestTradeCityPair(ciudadesTrade, myPlayer) : null;
-    
-    if (candidate && candidate.missingOwnedSegments) {
-      for (const hex of candidate.missingOwnedSegments) {
-        if (!this._canAffordStructure(myPlayer, 'Camino')) break;
-        if (this._requestBuildStructure(myPlayer, hex.r, hex.c, 'Camino')) {
-          this.registrarMetaFlujo('construccion', hex.r, hex.c, myPlayer);
-          console.log(`[IA_CONSTRUCCION][Flujo:construccion] Camino construido en (${hex.r},${hex.c}) por J${myPlayer}`);
-        }
-      }
-    }
-
-    // B. REGLAS DE SEGURIDAD PARA FORTALEZAS
-    if (esTurnoTemprano) {
-      console.log("[IA_CONSTRUCCION] Veda de fortaleza activa (Turno < 4).");
-      return;
-    }
-    if (piedraActual < 500) {
-      console.log(`[IA_CONSTRUCCION] Reserva de Piedra insuficiente (${piedraActual}/500).`);
-      return;
-    }
-
-    // C. BÚSQUEDA DE SPOT ESTRATÉGICO CON PENALIZACIÓN DE LLANURA
-    const existingForts = board.flat().filter(h => h && h.owner === myPlayer && (h.structure === 'Fortaleza' || h.structure === 'Fortaleza con Muralla'));
-    if (existingForts.length < 1) {
-      const fortCandidates = hexesPropios.filter(h => !h.structure && !h.unit && h.terrain !== 'water');
-      const scoredSpots = fortCandidates.map(h => {
-        let score = 0;
-        if (h.terrain === 'mountain' || h.terrain === 'mountains') score += 50;
-        if (h.terrain === 'hills') score += 25;
-        // REGLA: Penalización drástica a las llanuras
-        if (['plains', 'grassland', 'pampa', 'field'].includes(h.terrain)) {
-          score -= 100; 
-        }
-        if (getHexNeighbors(h.r, h.c).some(n => board[n.r][n.c]?.structure === 'Camino')) score += 30;
-        return { h, score };
-      });
-
-      const best = scoredSpots.filter(x => x.score > 0).sort((a, b) => b.score - a.score)[0];
-
-      if (best && this._canAffordStructure(myPlayer, 'Fortaleza')) {
-        console.log(`[IA_CONSTRUCCION] Construyendo Fortaleza Real en (${best.h.r},${best.h.c})`);
-        this._requestBuildStructure(myPlayer, best.h.r, best.h.c, 'Fortaleza');
-      }
-    }
   },
 
   // 5. crearUnidadInicialDeEmergencia: Lógica de capital real
@@ -1046,75 +935,6 @@ Object.assign(window.IAArchipielago, {
 // INTEGRA: Sistema de Caravanas, Algoritmo de Gusano Corredor y Reclutamiento por Tecnología.
 
 
-// 1. GPS Y TOPÓGRAFO: SEPARACIÓN DE PROPIEDAD
-// 1. EL TOPÓGRAFO: EXCLUYE NODOS DE LA OCUPACIÓN
-// PARTE 3: GPS MEJORADO (EVITA BOSQUES Y NODOS)
-  _findRoadBuildPath({ myPlayer, start, goal }) {
-    const queue = [{ r: start.r, c: start.c, path: [], cost: 0 }];
-    const visited = new Set();
-    const target = { r: goal.r, c: goal.c };
-
-    while (queue.length > 0) {
-      queue.sort((a, b) => (a.cost + hexDistance(a.r, a.c, target.r, target.c)) - (b.cost + hexDistance(b.r, b.c, target.r, target.c)));
-      const curr = queue.shift();
-      const key = `${curr.r},${curr.c}`;
-      if (visited.has(key)) continue;
-      visited.add(key);
-
-      if (curr.r === target.r && curr.c === target.c) return curr.path;
-
-      for (const neighbor of getHexNeighbors(curr.r, curr.c)) {
-        const hex = board[neighbor.r]?.[neighbor.c];
-        if (!hex || hex.terrain === 'water') continue;
-        
-        // PENALIZACIÓN: El bosque es 10 veces más costoso que la llanura
-        let costStep = 1;
-        if (hex.terrain === 'forest' || hex.terrain === 'mountain') costStep = 10;
-
-        queue.push({
-          r: neighbor.r, c: neighbor.c,
-          path: [...curr.path, neighbor],
-          cost: curr.cost + costStep
-        });
-      }
-    }
-    return null;
-  },
-
-  // FUNCIÓN 1: GPS (A*) - EXCLUSIÓN DE BOSQUES
-  _findRoadBuildPath({ myPlayer, start, goal }) {
-    const queue = [{ r: start.r, c: start.c, path: [], cost: 0 }];
-    const visited = new Set();
-    const target = { r: goal.r, c: goal.c };
-
-    while (queue.length > 0) {
-      queue.sort((a, b) => (a.cost + hexDistance(a.r, a.c, target.r, target.c)) - (b.cost + hexDistance(b.r, b.c, target.r, target.c)));
-      const curr = queue.shift();
-      const key = `${curr.r},${curr.c}`;
-      if (visited.has(key)) continue;
-      visited.add(key);
-
-      if (curr.r === target.r && curr.c === target.c) return curr.path;
-
-      for (const neighbor of getHexNeighbors(curr.r, curr.c)) {
-        const hex = board[neighbor.r]?.[neighbor.c];
-        
-        // REGLA: No usar estas casillas (Exclusión total de agua y bosque)
-        if (!hex || hex.terrain === 'water' || hex.terrain === 'forest') continue;
-        
-        let costStep = 1; 
-        if (hex.structure === 'Camino') costStep = 0.5;
-
-        queue.push({
-          r: neighbor.r, c: neighbor.c,
-          path: [...curr.path, neighbor],
-          cost: curr.cost + costStep
-        });
-      }
-    }
-    return null;
-  },
-
   // FUNCIÓN 2: FILTRO - EXCLUSIÓN DE INICIO Y FIN (NODOS)
   _findRoadConnection(origen, destino, myPlayer) {
     const path = this._findRoadBuildPath({ myPlayer, start: origen, goal: destino });
@@ -1153,39 +973,151 @@ Object.assign(window.IAArchipielago, {
     return conexiones;
   },
 
-  _ejecutarGusanoCorredor(situacion) {
+_ejecutarGusanoCorredor(situacion) {
     const { myPlayer } = situacion;
+    // 1. Calculamos el plan de red actual
     const conexiones = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
-    const misUnidades = IASentidos.getUnits(myPlayer).filter(u => u.regiments.length >= 2 && !u.hasMoved);
+    
+    // 2. Buscamos la primera casilla en la ruta que no sea nuestra
+    const todasLasMetas = conexiones.flatMap(c => c.pendingCaptureSegments);
+    if (todasLasMetas.length === 0) return; // Ciclo 1 terminado
 
-    if (conexiones.length === 0) return;
+    const meta = todasLasMetas[0];
+    const unidad = this._findClosestUnitToTarget(myPlayer, meta);
 
-    console.log(`[PROCESO 1 y 2] Analizando red de J${myPlayer}. Rutas activas: ${conexiones.length}`);
+    // Solo operamos si tiene al menos 2 regimientos para el split
+    if (unidad && unidad.regiments.length >= 2) {
+        console.log(`[CICLO 1: GUSANO] Avanzando de (${unidad.r},${unidad.c}) a (${meta.r},${meta.c})`);
+        
+        const mitad = Math.floor(unidad.regiments.length / 2);
+        const regParaMover = unidad.regiments.slice(0, mitad);
+
+        if (typeof processActionRequest === 'function') {
+            // A. Split: Crea nueva unidad en la meta
+            processActionRequest({
+                type: 'splitUnit',
+                payload: { 
+                    unitId: unidad.id, 
+                    toR: meta.r, 
+                    toC: meta.c, 
+                    newUnitRegiments: regParaMover 
+                }
+            });
+
+            // B. Fusión: Movemos el resto a la misma casilla (el motor los unirá)
+            // No consume movimiento del motor según tu lógica de Gusano
+            this._requestMoveUnit(unidad, meta.r, meta.c);
+
+            // C. RECURSIVIDAD: Recalcular inmediatamente después de la fusión
+            this._ejecutarGusanoCorredor(situacion);
+        }
+    }
+},
+
+construirInfraestructura(myPlayer, hexesPropios, economia) {
+    const playerRes = gameState.playerResources[myPlayer];
+    const piedraActual = playerRes?.piedra || 0;
+    const conexiones = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
 
     for (const conexion of conexiones) {
-      // Prioridad PROCESO 1: Ocupar casillas sin dueño/camino
-      if (conexion.pendingCaptureSegments.length > 0) {
-        const meta = conexion.pendingCaptureSegments[0]; // La casilla más cercana al origen que falta
-        const unidad = this._findClosestUnitToTarget(myPlayer, meta);
-        
-        if (unidad && !unidad.hasMoved) {
-          console.log(`[PROCESO 1] Ocupando casilla intermedia en (${meta.r},${meta.c}) para conectar con ${conexion.to.name || 'Nodo'}`);
-          this._requestMoveOrAttack(unidad, meta.r, meta.c);
-          continue; 
-        }
-      }
-
-      // Prioridad PROCESO 2: Construir en casillas ya propias
-      if (conexion.missingRoadSegments.length > 0) {
         for (const hex of conexion.missingRoadSegments) {
-          if (this._canAffordStructure(myPlayer, 'Camino')) {
-            console.log(`[PROCESO 2] Construyendo Camino en propiedad (${hex.r},${hex.c})`);
-            this._requestBuildStructure(myPlayer, hex.r, hex.c, 'Camino');
-          }
+            
+            // A. ¿HAY UNA UNIDAD BLOQUEANDO? (Desalojo)
+            const unidadEnHex = getUnitOnHex(hex.r, hex.c);
+            if (unidadEnHex && unidadEnHex.player === myPlayer) {
+                const vecinoParaDesalojo = getHexNeighbors(hex.r, hex.c).find(n => 
+                    board[n.r]?.[n.c] && !board[n.r][n.c].unit && board[n.r][n.c].terrain !== 'water'
+                );
+                if (vecinoParaDesalojo) {
+                    console.log(`[CICLO 2] Despejando unidad en (${hex.r},${hex.c}) para construir.`);
+                    this._requestMoveUnit(unidadEnHex, vecinoParaDesalojo.r, vecinoParaDesalojo.c);
+                }
+            }
+
+            // B. ¿TENEMOS PIEDRA?
+            if (piedraActual >= 50 && this._canAffordStructure(myPlayer, 'Camino')) {
+                if (this._requestBuildStructure(myPlayer, hex.r, hex.c, 'Camino')) {
+                    console.log(`[CICLO 2] Camino construido en (${hex.r},${hex.c})`);
+                }
+            } else {
+                // C. FALLBACK: IR A POR PIEDRA (Ciclo 2b)
+                console.log(`[CICLO 2b] Sin piedra. Enviando divisiones a las montañas.`);
+                this._asignarUnidadesAPiedra(myPlayer);
+                return; // Priorizamos obtener el recurso antes de seguir con más caminos
+            }
         }
-      }
     }
-  },
+},
+
+_asignarUnidadesAPiedra(myPlayer) {
+    const unidadesLibres = IASentidos.getUnits(myPlayer).filter(u => !u.hasMoved && u.currentMovement > 0);
+    const montañas = board.flat().filter(h => h && h.terrain === 'mountain' && h.owner !== myPlayer);
+    
+    unidadesLibres.forEach(u => {
+        const meta = this._pickObjective(montañas, u, myPlayer);
+        if (meta) {
+            console.log(`[CICLO 2b] Unidad ${u.name} en misión de piedra hacia (${meta.r},${meta.c})`);
+            this._requestMoveOrAttack(u, meta.r, meta.c);
+        }
+    });
+},
+
+ejecutarTurno(myPlayer) {
+    console.log(`\n[IA_ARCHIPIELAGO] ========= TURNO ${gameState.turnNumber} - JUGADOR ${myPlayer} =========`);
+    
+    const situacion = { 
+        myPlayer, 
+        economia: (typeof IAEconomica !== 'undefined') ? IAEconomica.evaluarEconomia(myPlayer) : { oro: 0 },
+        ciudades: (typeof IASentidos !== 'undefined') ? IASentidos.getCities(myPlayer) : [],
+        hexesPropios: (typeof IASentidos !== 'undefined') ? IASentidos.getOwnedHexes(myPlayer) : []
+    };
+
+    // PASO 1: Ciclo Gusano (Ocupación recursiva sin gastar movimiento)
+    this._ejecutarGusanoCorredor(situacion);
+
+    // PASO 2: Construcción Física (Usa piedra y puede usar movimiento para desalojar)
+    this.construirInfraestructura(myPlayer, situacion.hexesPropios, situacion.economia);
+
+    // PASO 3: Prioridades Imperiales (Ciclo final con unidades y movimiento restante)
+    if (this._procesarEstrategiaVictoria) {
+        this._procesarEstrategiaVictoria(situacion);
+    }
+
+    if (typeof handleEndTurn === 'function') setTimeout(() => handleEndTurn(), 1500);
+},
+
+_findRoadBuildPath({ myPlayer, start, goal }) {
+    const queue = [{ r: start.r, c: start.c, path: [], cost: 0 }];
+    const visited = new Set();
+    const target = { r: goal.r, c: goal.c };
+
+    while (queue.length > 0) {
+        queue.sort((a, b) => (a.cost + hexDistance(a.r, a.c, target.r, target.c)) - (b.cost + hexDistance(b.r, b.c, target.r, target.c)));
+        const curr = queue.shift();
+        const key = `${curr.r},${curr.c}`;
+        if (visited.has(key)) continue;
+        visited.add(key);
+
+        if (curr.r === target.r && curr.c === target.c) return curr.path;
+
+        for (const neighbor of getHexNeighbors(curr.r, curr.c)) {
+            const hex = board[neighbor.r]?.[neighbor.c];
+            
+            // EXCLUSIÓN TOTAL: No usar estas casillas
+            if (!hex || hex.terrain === 'water' || hex.terrain === 'forest') continue;
+            
+            let costStep = 1; 
+            if (hex.structure === 'Camino') costStep = 0.1;
+
+            queue.push({
+                r: neighbor.r, c: neighbor.c,
+                path: [...curr.path, neighbor],
+                cost: curr.cost + costStep
+            });
+        }
+    }
+    return null;
+},
 
   // 4. ECONOMÍA: CREACIÓN DE SUMINISTROS (FLUJO 4 Y 5)
   crearCaravanas(myPlayer, ciudades) {
