@@ -1073,93 +1073,110 @@ Object.assign(window.IAArchipielago, {
   // IA_COMERCIO.js - PARTE 5 DE 5: COMERCIO, MOVIMIENTO Y RECLUTAMIENTO
 // INTEGRA: Sistema de Caravanas, Algoritmo de Gusano Corredor y Reclutamiento por Tecnología.
 
-  // --- 1. GESTIÓN DE CARAVANAS (INGRESOS PASIVOS) ---
-  crearCaravanas(myPlayer, ciudades) {
-    const plan = this._getRoadNetworkPlan(myPlayer, ciudades) || [];
-    
-    // CANDADO: Si el arquitecto dice que aún hay casillas neutrales o sin camino, NO se compra nada.
-    if (plan.length > 0 && (plan[0].missingOwnedSegments.length > 0 || plan[0].pendingCaptureSegments.length > 0)) {
-      console.log(`[IA_ECONOMIA] Compra de Caravana BLOQUEADA: El camino hacia ${plan[0].to.name} aún no está terminado.`);
-      return;
+
+// 1. GPS Y TOPÓGRAFO: SEPARACIÓN DE PROPIEDAD
+  _findRoadConnection(cityA, cityB, myPlayer) {
+    const path = this._findRoadBuildPath({ myPlayer, start: cityA, goal: cityB });
+    if (!path) return null;
+
+    return {
+      landPath: path,
+      // Solo lo que NO es mío (Flujo 1/2)
+      pendingCaptureSegments: path.filter(h => board[h.r][h.c].owner !== myPlayer),
+      // Solo lo que ES MÍO pero no tiene camino (Flujo 3)
+      missingRoadSegments: path.filter(h => board[h.r][h.c].owner === myPlayer && board[h.r][h.c].structure !== 'Camino' && !board[h.r][h.c].isCity)
+    };
+  },
+
+  // 2. EL ARQUITECTO: REPORTE DE ESTADO INICIAL
+  _getRoadNetworkPlan(myPlayer, ciudades) {
+    const propias = ciudades.filter(c => c.owner === myPlayer);
+    const todosLosNodos = ciudades.filter(c => c && c.r !== undefined);
+    const totalOcupar = new Set();
+    const totalConstruir = new Set();
+    const conexiones = [];
+
+    for (const origen of propias) {
+      for (const destino of todosLosNodos) {
+        if (origen === destino) continue;
+        const info = this._findRoadConnection(origen, destino, myPlayer);
+        if (info) {
+          info.pendingCaptureSegments.forEach(h => totalOcupar.add(`(${h.r},${h.c})`));
+          info.missingRoadSegments.forEach(h => totalConstruir.add(`(${h.r},${h.c})`));
+          conexiones.push({ from: origen, to: destino, ...info });
+        }
+      }
     }
 
-    const res = gameState.playerResources[myPlayer];
-    const tieneComerciante = units.some(u => u.player === myPlayer && u.regiments.some(r => (REGIMENT_TYPES[r.type].abilities || []).includes('provide_supply')));
+    if (totalOcupar.size > 0) console.log(`TENGO QUE OCUPAR en ${Array.from(totalOcupar).join(' ')}`);
+    if (totalConstruir.size > 0) console.log(`TENGO QUE CONSTRUIR Camino en ${Array.from(totalConstruir).join(' ')}`);
 
-    if (!tieneComerciante && res.oro >= 350) {
-      console.log(`[IA_ECONOMIA] Camino verificado al 100%. Procediendo a la compra de Columna de Suministro.`);
-      this._producirDivisiones(myPlayer, 1, 1, 'Columna de Suministro');
-      // Log de creación de suministros
-      const nuevaUnidad = units.find(u => u.player === myPlayer && u.regiments.some(r => (REGIMENT_TYPES[r.type].abilities || []).includes('provide_supply')));
-      if (nuevaUnidad) {
-        console.log(`[IA_ECONOMIA] Creando suministros en (${nuevaUnidad.r},${nuevaUnidad.c})`);
-        console.log(`[IA_ECONOMIA] Convirtiendo a caravana en (${nuevaUnidad.r},${nuevaUnidad.c})`);
+    return conexiones;
+  },
+
+  // 3. EL GUSANO: INVENTARIO, MOVIMIENTO Y CONSTRUCCIÓN EN EL VACÍO
+  _ejecutarGusanoCorredor(situacion) {
+    const { myPlayer } = situacion;
+    const conexiones = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
+    if (conexiones.length === 0) return;
+
+    // INVENTARIO DE DIVISIONES
+    const misUnidades = IASentidos.getUnits(myPlayer).filter(u => u.regiments.length > 0);
+    const listaPos = misUnidades.map(u => `(${u.r},${u.c})`).join(' ');
+    console.log(`PERO TENGO DIVISIONES EN: ${listaPos}`);
+
+    const ruta = conexiones[0];
+    let unidadActiva = this._findClosestUnitToTarget(myPlayer, ruta.landPath[0]);
+    if (!unidadActiva || unidadActiva.regiments.length < 2) return;
+
+    console.log(`ASIGNANDO MISIÓN A DIVISIÓN EN (${unidadActiva.r},${unidadActiva.c}) PARA EL NODO ${ruta.to.name || 'Objetivo'}`);
+
+    for (const punto of ruta.landPath) {
+      const posVacia = { r: unidadActiva.r, c: unidadActiva.c };
+      
+      // AVANCE DE GUSANO (Split -> Merge)
+      const mitad = Math.floor(unidadActiva.regiments.length / 2);
+      this._requestSplitUnit(unidadActiva, punto.r, punto.c);
+      
+      const cola = getUnitOnHex(posVacia.r, posVacia.c);
+      const cabeza = getUnitOnHex(punto.r, punto.c);
+
+      if (cola && cabeza) {
+        this._requestMoveUnit(cola, punto.r, punto.c);
+        this._requestMergeUnits(cola, cabeza);
+        unidadActiva = cabeza;
+
+        // COMPROBACIÓN DE CASILLA LIBRE TRAS LA FUSIÓN
+        const hexLibre = board[posVacia.r][posVacia.c];
+        if (hexLibre.owner === myPlayer && !getUnitOnHex(posVacia.r, posVacia.c)) {
+          console.log(`CASILLA LIBRE EN (${posVacia.r},${posVacia.c}). CONSTRUYENDO Camino.`);
+          this._ensureTech(myPlayer, 'ENGINEERING'); // Asegura el libro
+          this._requestBuildStructure(myPlayer, posVacia.r, posVacia.c, 'Camino');
+        }
       }
+      if (gameState.playerResources[myPlayer].piedra < 10) break;
     }
   },
 
-  // --- 2. LÓGICA DE GUSANO CORREDOR (OCUPACIÓN DE CAMINOS) ---
-  // Usa la división de tropas para ocupar el corredor comercial paso a paso.
-  _ejecutarGusanoCorredor(situacion) {
-    const { myPlayer } = situacion;
-    const plan = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
+  // 4. ECONOMÍA: CREACIÓN DE SUMINISTROS (FLUJO 4 Y 5)
+  crearCaravanas(myPlayer, ciudades) {
+    const conexiones = this._getRoadNetworkPlan(myPlayer, ciudades);
+    // Solo si el Arquitecto no reporta tareas pendientes para una ruta específica
+    const rutaBanca = conexiones.find(c => c.to.isBank || c.to.owner === 0);
     
-    if (plan.length === 0) {
-      console.log(`[IA_GUSANO] Abortando: El Arquitecto no entregó ningún plano.`);
-      return;
+    if (rutaBanca && (rutaBanca.pendingCaptureSegments.length > 0 || rutaBanca.missingRoadSegments.length > 0)) {
+        return; // Camino incompleto, no se invierte aún
     }
 
-    const ruta = plan[0];
-    if (!ruta || !ruta.landPath || ruta.landPath.length === 0) {
-      console.log('[IA_GUSANO] ERROR: ruta.landPath está vacío o indefinido:', ruta);
-      return;
-    }
+    const res = gameState.playerResources[myPlayer];
+    const tieneSuministros = units.some(u => u.player === myPlayer && u.regiments.some(r => (REGIMENT_TYPES[r.type].abilities || []).includes('provide_supply')));
 
-    // 1. Log de nodos a construir
-    const nodosConstruir = ruta.missingOwnedSegments.map(h => `(${h.r},${h.c})`).join(' ');
-    console.log(`[IA_GUSANO] Tengo que construir Camino en ${nodosConstruir}`);
-
-    // 2. Log de divisiones disponibles
-    const divisiones = IASentidos.getUnits(myPlayer).filter(u => u.regiments.length > 0);
-    const divisionesPos = divisiones.map(u => `(${u.r},${u.c})`).join(' ');
-    console.log(`[IA_GUSANO] Divisiones disponibles en: ${divisionesPos}`);
-
-    // 3. Asignación de divisiones a nodos
-    ruta.missingOwnedSegments.forEach(nodo => {
-      // Buscar la división más cercana
-      let division = divisiones.reduce((minU, u) => {
-        const dist = hexDistance(u.r, u.c, nodo.r, nodo.c);
-        return (minU === null || dist < minU.dist) ? {u, dist} : minU;
-      }, null);
-      if (division && division.u) {
-        console.log(`[IA_GUSANO] Asignando misión a división en (${division.u.r},${division.u.c}) para el nodo (${nodo.r},${nodo.c})`);
-      }
-    });
-
-    // 4. Movimiento y construcción
-    let unidad = this._findClosestUnitToTarget(myPlayer, ruta.landPath[0]);
-    if (!unidad) {
-      console.log(`[IA_GUSANO] Abortando: No se encontró ninguna unidad cerca del inicio del camino.`);
-      return;
-    }
-    if (unidad.regiments.length < 2) {
-      console.log(`[IA_GUSANO] Abortando: La unidad ${unidad.name} no tiene suficientes regimientos para dividir.`);
-      return;
-    }
-
-    console.log(`[IA_GUSANO] EXECUTANDO AVANCE: ${unidad.name} hacia ${ruta.to.name || 'Objetivo'}`);
-
-    for (const punto of ruta.landPath) {
-      const posAnterior = { r: unidad.r, c: punto.c };
-      // Movimiento
-      console.log(`[IA_MOVIMIENTO][Unidad:${unidad.id}] Movimiento a (${punto.r},${punto.c}) por J${unidad.player}`);
-      // (Aquí va la lógica de Split y Merge que ya tenemos...)
-      // Construcción
-      const hex = board[posAnterior.r][posAnterior.c];
-      if (hex.owner === myPlayer && !hex.structure) {
-        console.log(`[IA_CONSTRUCCION][Flujo:construccion] Camino construido en (${posAnterior.r},${posAnterior.c}) por J${myPlayer}`);
-        this._requestBuildStructure(myPlayer, posAnterior.r, posAnterior.c, 'Camino');
-      }
+    if (!tieneSuministros && res.oro >= 350) {
+      const spawnR = ciudades.find(c => c.owner === myPlayer).r;
+      const spawnC = ciudades.find(c => c.owner === myPlayer).c;
+      console.log(`CREANDO SUMINISTROS EN (${spawnR},${spawnC})`);
+      this._producirDivisiones(myPlayer, 1, 1, 'Columna de Suministro');
+      console.log(`CONVIRTIENDO A CARAVANA EN (${spawnR},${spawnC})`);
     }
   },
 
@@ -1445,52 +1462,9 @@ Object.assign(window.IAArchipielago, {
     return this._requestSplitUnit(transport, landHex.r, landHex.c);
   }, // Coma para separar de la función anterior
 
-  // EL ARQUITECTO: DIBUJA EL PLANO DE LA RED COMERCIAL
-  _getRoadNetworkPlan(myPlayer, ciudades) {
-    const propias = ciudades.filter(c => c.owner === myPlayer);
-    const todosLosNodos = ciudades.filter(c => c && c.r !== undefined);
-    
-    const totalOcupar = new Set();
-    const totalConstruir = new Set();
-    const conexiones = [];
 
-    for (const origen of propias) {
-      for (const destino of todosLosNodos) {
-        if (origen === destino) continue;
-        const info = this._findRoadConnection(origen, destino, myPlayer);
-        if (info) {
-          info.pendingCaptureSegments.forEach(h => totalOcupar.add(`(${h.r},${h.c})`));
-          info.missingRoadSegments.forEach(h => totalConstruir.add(`(${h.r},${h.c})`));
-          conexiones.push({ from: origen, to: destino, ...info });
-        }
-      }
-    }
 
-    // EMISIÓN DE LOGS EN EL ORDEN ACORDADO
-    if (totalOcupar.size > 0) {
-      console.log(`TENGO QUE OCUPAR en ${Array.from(totalOcupar).join(' ')}`);
-    }
-    
-    if (totalConstruir.size > 0) {
-      console.log(`TENGO QUE CONSTRUIR Camino en ${Array.from(totalConstruir).join(' ')}`);
-    }
-
-    return conexiones;
-  },
-
-  // EL TOPÓGRAFO: ANALIZA EL ESTADO DE UNA RUTA ESPECÍFICA
-  _findRoadConnection(cityA, cityB, myPlayer) {
-    const path = this._findRoadBuildPath({ myPlayer, start: cityA, goal: cityB });
-    if (!path) return null;
-
-    return {
-      landPath: path,
-      // FLUJO 1/2: Hexágonos que NO son del jugador
-      pendingCaptureSegments: path.filter(h => board[h.r][h.c].owner !== myPlayer),
-      // FLUJO 3: Hexágonos que no tienen la estructura 'Camino'
-      missingRoadSegments: path.filter(h => board[h.r][h.c].structure !== 'Camino' && !board[h.r][h.c].isCity)
-    };
-  },
+  
 
   // ETIQUETA DE SEGURIDAD: IDENTIFICA SOLDADOS EN MISIÓN COMERCIAL
   _isCorridorPioneer(unit) {
