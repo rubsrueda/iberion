@@ -1076,94 +1076,122 @@ Object.assign(window.IAArchipielago, {
 
 // 1. GPS Y TOPÓGRAFO: SEPARACIÓN DE PROPIEDAD
 // 1. EL TOPÓGRAFO: EXCLUYE NODOS DE LA OCUPACIÓN
-  _findRoadConnection(cityA, cityB, myPlayer) {
-    const path = this._findRoadBuildPath({ myPlayer, start: cityA, goal: cityB });
-    if (!path) return null;
+// PARTE 3: GPS MEJORADO (EVITA BOSQUES Y NODOS)
+  _findRoadBuildPath({ myPlayer, start, goal }) {
+    const queue = [{ r: start.r, c: start.c, path: [], cost: 0 }];
+    const visited = new Set();
+    const target = { r: goal.r, c: goal.c };
 
-    return {
-      landPath: path,
-      // Solo casillas de paso neutrales. EXCLUYE la ciudad destino.
-      pendingCaptureSegments: path.filter(h => board[h.r][h.c].owner !== myPlayer && !board[h.r][h.c].isCity),
-      // Solo casillas nuestras sin camino.
-      missingRoadSegments: path.filter(h => board[h.r][h.c].owner === myPlayer && board[h.r][h.c].structure !== 'Camino' && !board[h.r][h.c].isCity)
-    };
+    while (queue.length > 0) {
+      queue.sort((a, b) => (a.cost + hexDistance(a.r, a.c, target.r, target.c)) - (b.cost + hexDistance(b.r, b.c, target.r, target.c)));
+      const curr = queue.shift();
+      const key = `${curr.r},${curr.c}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+
+      if (curr.r === target.r && curr.c === target.c) return curr.path;
+
+      for (const neighbor of getHexNeighbors(curr.r, curr.c)) {
+        const hex = board[neighbor.r]?.[neighbor.c];
+        if (!hex || hex.terrain === 'water') continue;
+        
+        // PENALIZACIÓN: El bosque es 10 veces más costoso que la llanura
+        let costStep = 1;
+        if (hex.terrain === 'forest' || hex.terrain === 'mountain') costStep = 10;
+
+        queue.push({
+          r: neighbor.r, c: neighbor.c,
+          path: [...curr.path, neighbor],
+          cost: curr.cost + costStep
+        });
+      }
+    }
+    return null;
   },
 
-  // 2. EL ARQUITECTO: PRIORIZA NODOS CON TRABAJO REAL
+  // PARTE 5: ARQUITECTO, INVENTARIO Y MOTOR GUSANO
   _getRoadNetworkPlan(myPlayer, ciudades) {
     const propias = ciudades.filter(c => c.owner === myPlayer);
     const todosLosNodos = ciudades.filter(c => c && c.r !== undefined);
-    
-    const totalOcupar = new Set();
-    const totalConstruir = new Set();
+    const necesidades = new Set();
     const conexiones = [];
 
     for (const origen of propias) {
       for (const destino of todosLosNodos) {
         if (origen === destino) continue;
         const info = this._findRoadConnection(origen, destino, myPlayer);
-        if (info) {
-          info.pendingCaptureSegments.forEach(h => totalOcupar.add(`(${h.r},${h.c})`));
-          info.missingRoadSegments.forEach(h => totalConstruir.add(`(${h.r},${h.c})`));
+        if (info && info.missingRoadSegments.length > 0) {
+          info.missingRoadSegments.forEach(h => necesidades.add(`(${h.r},${h.c})`));
           conexiones.push({ from: origen, to: destino, ...info });
         }
       }
     }
 
-    if (totalOcupar.size > 0) console.log(`TENGO QUE OCUPAR en ${Array.from(totalOcupar).join(' ')}`);
-    if (totalConstruir.size > 0) console.log(`TENGO QUE CONSTRUIR Camino en ${Array.from(totalConstruir).join(' ')}`);
-
+    if (necesidades.size > 0) {
+      console.log(`TENGO QUE CONSTRUIR Camino en ${Array.from(necesidades).join(' ')}`);
+    }
     return conexiones;
   },
 
-  // 3. EL GUSANO: AVANCE DINÁMICO Y PREPARACIÓN DE ACCIÓN
   _ejecutarGusanoCorredor(situacion) {
     const { myPlayer } = situacion;
     const conexiones = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
-    if (conexiones.length === 0) return;
-
-    const misUnidades = IASentidos.getUnits(myPlayer).filter(u => u.regiments.length > 0);
+    
+    // INVENTARIO DE DIVISIONES
+    const misUnidades = IASentidos.getUnits(myPlayer).filter(u => u.regiments.length >= 2 && !u.hasMoved);
     console.log(`PERO TENGO DIVISIONES EN: ${misUnidades.map(u => `(${u.r},${u.c})`).join(' ')}`);
 
-    // Buscamos la ruta que REALMENTE necesite ocupación (Flujo 1/2)
-    const rutaPendiente = conexiones.find(c => c.pendingCaptureSegments.length > 0) || conexiones[0];
-    
-    // Buscamos la unidad más útil para este nodo
-    let unidadActiva = this._findClosestUnitToTarget(myPlayer, rutaPendiente.landPath[0]);
-    if (!unidadActiva || unidadActiva.regiments.length < 2) return;
+    if (conexiones.length === 0 || misUnidades.length === 0) return;
 
-    console.log(`ASIGNANDO MISIÓN A DIVISIÓN EN (${unidadActiva.r},${unidadActiva.c}) PARA EL NODO ${rutaPendiente.to.name || 'Objetivo'}`);
+    // ASIGNACIÓN POR CERCANÍA
+    for (const unidad de misUnidades) {
+      // Buscar el hexágono neutral o sin camino más cercano a esta unidad específica
+      let todasLasMetas = [];
+      conexiones.forEach(c => {
+        todasLasMetas.push(...c.pendingCaptureSegments);
+        todasLasMetas.push(...c.missingRoadSegments);
+      });
 
-    for (const punto of rutaPendiente.landPath) {
-      const posAnterior = { r: unidadActiva.r, c: unidadActiva.c };
+      if (todasLasMetas.length === 0) continue;
+
+      const meta = todasLasMetas.sort((a, b) => hexDistance(unidad.r, unidad.c, a.r, a.c) - hexDistance(unidad.r, unidad.c, b.r, b.c))[0];
       
-      // FIX TÉCNICO: Preparar la acción para el motor del juego
-      const mitad = Math.floor(unidadActiva.regiments.length / 2);
-      gameState.preparingAction = {
-        type: 'split_unit',
-        unitId: unidadActiva.id,
-        newUnitRegiments: unidadActiva.regiments.slice(0, mitad),
-        remainingOriginalRegiments: unidadActiva.regiments.slice(mitad)
-      };
+      console.log(`ASIGNANDO MISIÓN A DIVISIÓN EN (${unidad.r},${unidad.c}) PARA EL NODO (${meta.r},${meta.c})`);
 
-      this._requestSplitUnit(unidadActiva, punto.r, punto.c);
-      
-      const cola = getUnitOnHex(posAnterior.r, posAnterior.c);
-      const cabeza = getUnitOnHex(punto.r, punto.c);
+      // EJECUCIÓN GUSANO (SPLIT + MERGE)
+      const posVacia = { r: unidad.r, c: unidad.c };
+      const mitad = Math.floor(unidad.regiments.length / 2);
+      const regParaMover = unidad.regiments.slice(0, mitad);
+      const regParaQuedar = unidad.regiments.slice(mitad);
 
-      if (cola && cabeza) {
-        this._requestMoveUnit(cola, punto.r, punto.c);
-        this._requestMergeUnits(cola, cabeza);
-        unidadActiva = cabeza;
+      // Comando directo al motor para evitar el error de 'null'
+      if (typeof processActionRequest === 'function') {
+        processActionRequest({
+          type: 'splitUnit',
+          payload: {
+            unitId: unidad.id,
+            toR: meta.r,
+            toC: meta.c,
+            newUnitRegiments: regParaMover,
+            remainingRegiments: regParaQuedar
+          }
+        });
 
-        // FLUJO 3: Construcción tras dejar la casilla vacía
-        const hexLibre = board[posAnterior.r][posAnterior.c];
-        if (hexLibre.owner === myPlayer && !getUnitOnHex(posAnterior.r, posAnterior.c)) {
-          console.log(`CASILLA LIBRE EN (${posAnterior.r},${posAnterior.c}). CONSTRUYENDO Camino.`);
-          this._requestBuildStructure(myPlayer, posAnterior.r, posAnterior.c, 'Camino');
+        // Fusión inmediata
+        const cola = getUnitOnHex(posVacia.r, posVacia.c);
+        const cabeza = getUnitOnHex(meta.r, meta.c);
+        if (cola && cabeza) {
+          this._requestMoveUnit(cola, meta.r, meta.c);
+          this._requestMergeUnits(cola, cabeza);
+          
+          // CONSTRUCCIÓN TRAS DESALOJO
+          if (!getUnitOnHex(posVacia.r, posVacia.c)) {
+            console.log(`CASILLA LIBRE EN (${posVacia.r},${posVacia.c}). CONSTRUYENDO Camino.`);
+            this._ensureTech(myPlayer, 'ENGINEERING');
+            this._requestBuildStructure(myPlayer, posVacia.r, posVacia.c, 'Camino');
+          }
         }
       }
-      if (gameState.playerResources[myPlayer].piedra < 10) break;
     }
   },
 
