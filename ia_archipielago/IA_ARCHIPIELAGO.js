@@ -92,7 +92,8 @@ const IAArchipielago = {
     const goals = gameState.iaCompletedGoals[myPlayer][flujo];
     if (!goals.some(g => g.r === r && g.c === c)) {
       goals.push({ r, c, turno: gameState.turnNumber });
-      console.log(`[IA_METAS] Objetivo alcanzado en '${flujo}': (${r},${c})`);
+      // Log detallado por flujo
+      console.log(`[IA_METAS][Flujo:${flujo}] Objetivo alcanzado en (${r},${c}) por J${myPlayer}`);
     }
   },
 
@@ -120,6 +121,7 @@ const IAArchipielago = {
         if (!this._canAffordStructure(myPlayer, 'Camino')) break;
         if (this._requestBuildStructure(myPlayer, hex.r, hex.c, 'Camino')) {
           this.registrarMetaFlujo('construccion', hex.r, hex.c, myPlayer);
+          console.log(`[IA_CONSTRUCCION][Flujo:construccion] Camino construido en (${hex.r},${hex.c}) por J${myPlayer}`);
         }
       }
     }
@@ -196,6 +198,8 @@ const IAArchipielago = {
   _requestMoveUnit(unit, r, c) {
     if (typeof processActionRequest === 'function') {
       processActionRequest({ type: 'moveUnit', payload: { playerId: unit.player, unitId: unit.id, toR: r, toC: c } });
+      // Log de movimiento separado
+      console.log(`[IA_MOVIMIENTO][Unidad:${unit.id}] Movimiento a (${r},${c}) por J${unit.player}`);
       return true;
     }
     return false;
@@ -817,7 +821,9 @@ Object.assign(window.IAArchipielago, {
 
     const candidatas = propias.map(p => {
         const path = this._findRoadBuildPath({ myPlayer, start: p, goal: banca });
-        return { city: p, path: path, length: path ? path.length : 999 };
+        // La longitud no debe contar la ciudad destino
+        const realLength = path ? Math.max(0, path.length - 1) : 999;
+        return { city: p, path: path, length: realLength };
     }).filter(x => x.path !== null).sort((a, b) => a.length - b.length);
 
     if (candidatas.length > 0) {
@@ -839,15 +845,19 @@ Object.assign(window.IAArchipielago, {
   },
 
   _requestDisembark(transport, landHex) {
-    const landRegs = transport.regiments.filter(r => !REGIMENT_TYPES[r.type]?.is_naval);
-    const navalRegs = transport.regiments.filter(r => REGIMENT_TYPES[r.type]?.is_naval);
+    // Separamos los soldados de tierra de los marineros
+    const regsTierra = transport.regiments.filter(r => !REGIMENT_TYPES[r.type]?.is_naval);
+    const regsNavales = transport.regiments.filter(r => REGIMENT_TYPES[r.type]?.is_naval);
     
+    if (regsTierra.length === 0) return false;
+
     gameState.preparingAction = { 
         type: 'split_unit', 
         unitId: transport.id, 
-        newUnitRegiments: landRegs, 
-        remainingOriginalRegiments: navalRegs 
+        newUnitRegiments: regsTierra, 
+        remainingOriginalRegiments: regsNavales 
     };
+    console.log(`[IA_NAVAL] Desembarcando tropas en (${landHex.r},${landHex.c})`);
     return this._requestSplitUnit(transport, landHex.r, landHex.c);
   },
 
