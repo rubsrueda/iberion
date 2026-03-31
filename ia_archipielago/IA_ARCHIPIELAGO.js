@@ -765,35 +765,7 @@ Object.assign(window.IAArchipielago, {
     return bestSpot;
   },
 
-  // 64. _findRoadBuildPath: ALGORITMO A* (A-ESTRELLA) REAL
-  // Busca la ruta más corta y eficiente evitando obstáculos y priorizando tierra propia/neutral
-  _findRoadBuildPath({ myPlayer, start, goal }) {
-    const queue = [{ r: start.r, c: start.c, path: [], cost: 0 }];
-    const visited = new Set();
-    const target = { r: goal.r, c: goal.c };
-
-    while (queue.length > 0) {
-      queue.sort((a, b) => (a.cost + hexDistance(a.r, a.c, target.r, target.c)) - (b.cost + hexDistance(b.r, b.c, target.r, target.c)));
-      const curr = queue.shift();
-      const key = `${curr.r},${curr.c}`;
-
-      if (curr.r === target.r && curr.c === target.c) return curr.path;
-      if (visited.has(key)) continue;
-      visited.add(key);
-
-      for (const neighbor of getHexNeighbors(curr.r, curr.c)) {
-        const hex = board[neighbor.r]?.[neighbor.c];
-        if (!hex || hex.terrain === 'water') continue; // Solo nos detiene el agua
-        
-        queue.push({
-          r: neighbor.r, c: neighbor.c,
-          path: [...curr.path, neighbor],
-          cost: curr.cost + 1
-        });
-      }
-    }
-    return null;
-  },
+  
 
   // 68. _getLandmassFromHex: Detección de islas mediante BFS (Flood Fill)
   _getLandmassFromHex(startR, startC) {
@@ -1109,26 +1081,74 @@ Object.assign(window.IAArchipielago, {
     return null;
   },
 
-  // PARTE 5: ARQUITECTO, INVENTARIO Y MOTOR GUSANO
+  // FUNCIÓN 1: GPS (A*) - EXCLUSIÓN DE BOSQUES
+  _findRoadBuildPath({ myPlayer, start, goal }) {
+    const queue = [{ r: start.r, c: start.c, path: [], cost: 0 }];
+    const visited = new Set();
+    const target = { r: goal.r, c: goal.c };
+
+    while (queue.length > 0) {
+      queue.sort((a, b) => (a.cost + hexDistance(a.r, a.c, target.r, target.c)) - (b.cost + hexDistance(b.r, b.c, target.r, target.c)));
+      const curr = queue.shift();
+      const key = `${curr.r},${curr.c}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+
+      if (curr.r === target.r && curr.c === target.c) return curr.path;
+
+      for (const neighbor of getHexNeighbors(curr.r, curr.c)) {
+        const hex = board[neighbor.r]?.[neighbor.c];
+        
+        // REGLA: No usar estas casillas (Exclusión total de agua y bosque)
+        if (!hex || hex.terrain === 'water' || hex.terrain === 'forest') continue;
+        
+        let costStep = 1; 
+        if (hex.structure === 'Camino') costStep = 0.5;
+
+        queue.push({
+          r: neighbor.r, c: neighbor.c,
+          path: [...curr.path, neighbor],
+          cost: curr.cost + costStep
+        });
+      }
+    }
+    return null;
+  },
+
+  // FUNCIÓN 2: FILTRO - EXCLUSIÓN DE INICIO Y FIN (NODOS)
+  _findRoadConnection(origen, destino, myPlayer) {
+    const path = this._findRoadBuildPath({ myPlayer, start: origen, goal: destino });
+    if (!path || path.length < 2) return null;
+
+    // RECORTE: Quitar el primer (origen) y el último (destino) de la ruta
+    const tramoIntermedio = path.slice(1, -1);
+
+    return {
+      missingRoadSegments: tramoIntermedio.filter(h => board[h.r][h.c].owner === myPlayer && board[h.r][h.c].structure !== 'Camino'),
+      pendingCaptureSegments: tramoIntermedio.filter(h => board[h.r][h.c].owner !== myPlayer && board[h.r][h.c].structure !== 'Camino')
+    };
+  },
+
+  // FUNCIÓN 3: ORGANIZADOR - PRIORIDAD POR CERCANÍA
   _getRoadNetworkPlan(myPlayer, ciudades) {
     const propias = ciudades.filter(c => c.owner === myPlayer);
     const todosLosNodos = ciudades.filter(c => c && c.r !== undefined);
-    const necesidades = new Set();
     const conexiones = [];
 
     for (const origen of propias) {
-      for (const destino of todosLosNodos) {
-        if (origen === destino) continue;
+      // ORDENAR: Buscar primero los nodos más cercanos físicamente
+      const destinosCercanos = [...todosLosNodos]
+        .filter(d => d.r !== origen.r || d.c !== origen.c)
+        .sort((a, b) => hexDistance(origen.r, origen.c, a.r, a.c) - hexDistance(origen.r, origen.c, b.r, b.c));
+
+      for (const destino of destinosCercanos) {
         const info = this._findRoadConnection(origen, destino, myPlayer);
-        if (info && info.missingRoadSegments.length > 0) {
-          info.missingRoadSegments.forEach(h => necesidades.add(`(${h.r},${h.c})`));
+        // Si hay algo que ocupar o construir en esta ruta, es nuestra prioridad
+        if (info && (info.missingRoadSegments.length > 0 || info.pendingCaptureSegments.length > 0)) {
           conexiones.push({ from: origen, to: destino, ...info });
+          break; // Detener búsqueda para este origen una vez hallada su ruta más corta
         }
       }
-    }
-
-    if (necesidades.size > 0) {
-      console.log(`TENGO QUE CONSTRUIR Camino en ${Array.from(necesidades).join(' ')}`);
     }
     return conexiones;
   },
@@ -1136,59 +1156,31 @@ Object.assign(window.IAArchipielago, {
   _ejecutarGusanoCorredor(situacion) {
     const { myPlayer } = situacion;
     const conexiones = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
-    
-    // INVENTARIO DE DIVISIONES
     const misUnidades = IASentidos.getUnits(myPlayer).filter(u => u.regiments.length >= 2 && !u.hasMoved);
-    console.log(`PERO TENGO DIVISIONES EN: ${misUnidades.map(u => `(${u.r},${u.c})`).join(' ')}`);
 
-    if (conexiones.length === 0 || misUnidades.length === 0) return;
+    if (conexiones.length === 0) return;
 
-    // ASIGNACIÓN POR CERCANÍA
-    for (const unidad of misUnidades) {
-      // Buscar el hexágono neutral o sin camino más cercano a esta unidad específica
-      let todasLasMetas = [];
-      conexiones.forEach(c => {
-        todasLasMetas.push(...c.pendingCaptureSegments);
-        todasLasMetas.push(...c.missingRoadSegments);
-      });
+    console.log(`[PROCESO 1 y 2] Analizando red de J${myPlayer}. Rutas activas: ${conexiones.length}`);
 
-      if (todasLasMetas.length === 0) continue;
+    for (const conexion of conexiones) {
+      // Prioridad PROCESO 1: Ocupar casillas sin dueño/camino
+      if (conexion.pendingCaptureSegments.length > 0) {
+        const meta = conexion.pendingCaptureSegments[0]; // La casilla más cercana al origen que falta
+        const unidad = this._findClosestUnitToTarget(myPlayer, meta);
+        
+        if (unidad && !unidad.hasMoved) {
+          console.log(`[PROCESO 1] Ocupando casilla intermedia en (${meta.r},${meta.c}) para conectar con ${conexion.to.name || 'Nodo'}`);
+          this._requestMoveOrAttack(unidad, meta.r, meta.c);
+          continue; 
+        }
+      }
 
-      const meta = todasLasMetas.sort((a, b) => hexDistance(unidad.r, unidad.c, a.r, a.c) - hexDistance(unidad.r, unidad.c, b.r, b.c))[0];
-      
-      console.log(`ASIGNANDO MISIÓN A DIVISIÓN EN (${unidad.r},${unidad.c}) PARA EL NODO (${meta.r},${meta.c})`);
-
-      // EJECUCIÓN GUSANO (SPLIT + MERGE)
-      const posVacia = { r: unidad.r, c: unidad.c };
-      const mitad = Math.floor(unidad.regiments.length / 2);
-      const regParaMover = unidad.regiments.slice(0, mitad);
-      const regParaQuedar = unidad.regiments.slice(mitad);
-
-      // Comando directo al motor para evitar el error de 'null'
-      if (typeof processActionRequest === 'function') {
-        processActionRequest({
-          type: 'splitUnit',
-          payload: {
-            unitId: unidad.id,
-            toR: meta.r,
-            toC: meta.c,
-            newUnitRegiments: regParaMover,
-            remainingRegiments: regParaQuedar
-          }
-        });
-
-        // Fusión inmediata
-        const cola = getUnitOnHex(posVacia.r, posVacia.c);
-        const cabeza = getUnitOnHex(meta.r, meta.c);
-        if (cola && cabeza) {
-          this._requestMoveUnit(cola, meta.r, meta.c);
-          this._requestMergeUnits(cola, cabeza);
-          
-          // CONSTRUCCIÓN TRAS DESALOJO
-          if (!getUnitOnHex(posVacia.r, posVacia.c)) {
-            console.log(`CASILLA LIBRE EN (${posVacia.r},${posVacia.c}). CONSTRUYENDO Camino.`);
-            this._ensureTech(myPlayer, 'ENGINEERING');
-            this._requestBuildStructure(myPlayer, posVacia.r, posVacia.c, 'Camino');
+      // Prioridad PROCESO 2: Construir en casillas ya propias
+      if (conexion.missingRoadSegments.length > 0) {
+        for (const hex of conexion.missingRoadSegments) {
+          if (this._canAffordStructure(myPlayer, 'Camino')) {
+            console.log(`[PROCESO 2] Construyendo Camino en propiedad (${hex.r},${hex.c})`);
+            this._requestBuildStructure(myPlayer, hex.r, hex.c, 'Camino');
           }
         }
       }
