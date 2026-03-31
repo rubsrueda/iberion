@@ -764,13 +764,7 @@ Object.assign(window.IAArchipielago, {
     const target = { r: goal.r, c: goal.c };
 
     while (queue.length > 0) {
-      // Ordenar por cercanía al objetivo (A*)
-      queue.sort((a, b) => {
-        const fA = a.cost + hexDistance(a.r, a.c, target.r, target.c);
-        const fB = b.cost + hexDistance(b.r, b.c, target.r, target.c);
-        return fA - fB;
-      });
-      
+      queue.sort((a, b) => (a.cost + hexDistance(a.r, a.c, target.r, target.c)) - (b.cost + hexDistance(b.r, b.c, target.r, target.c)));
       const curr = queue.shift();
       const key = `${curr.r},${curr.c}`;
 
@@ -780,10 +774,8 @@ Object.assign(window.IAArchipielago, {
 
       for (const neighbor of getHexNeighbors(curr.r, curr.c)) {
         const hex = board[neighbor.r]?.[neighbor.c];
-        // SEGURIDAD: No pasar por agua ni salirse del mapa
-        if (!hex || hex.terrain === 'water') continue;
-
-        // Permitir cualquier hexágono que no sea agua, sin importar el owner
+        if (!hex || hex.terrain === 'water') continue; // Solo nos detiene el agua
+        
         queue.push({
           r: neighbor.r, c: neighbor.c,
           path: [...curr.path, neighbor],
@@ -791,7 +783,7 @@ Object.assign(window.IAArchipielago, {
         });
       }
     }
-    return null; // No hay ruta terrestre posible
+    return null;
   },
 
   // 68. _getLandmassFromHex: Detección de islas mediante BFS (Flood Fill)
@@ -1074,7 +1066,7 @@ Object.assign(window.IAArchipielago, {
 
   // --- 1. GESTIÓN DE CARAVANAS (INGRESOS PASIVOS) ---
   crearCaravanas(myPlayer, ciudades) {
-    const plan = this._getRoadNetworkPlan(myPlayer, ciudades);
+    const plan = this._getRoadNetworkPlan(myPlayer, ciudades) || [];
     
     // CANDADO: Si el arquitecto dice que aún hay casillas neutrales o sin camino, NO se compra nada.
     if (plan.length > 0 && (plan[0].missingOwnedSegments.length > 0 || plan[0].pendingCaptureSegments.length > 0)) {
@@ -1088,6 +1080,12 @@ Object.assign(window.IAArchipielago, {
     if (!tieneComerciante && res.oro >= 350) {
       console.log(`[IA_ECONOMIA] Camino verificado al 100%. Procediendo a la compra de Columna de Suministro.`);
       this._producirDivisiones(myPlayer, 1, 1, 'Columna de Suministro');
+      // Log de creación de suministros
+      const nuevaUnidad = units.find(u => u.player === myPlayer && u.regiments.some(r => (REGIMENT_TYPES[r.type].abilities || []).includes('provide_supply')));
+      if (nuevaUnidad) {
+        console.log(`[IA_ECONOMIA] Creando suministros en (${nuevaUnidad.r},${nuevaUnidad.c})`);
+        console.log(`[IA_ECONOMIA] Convirtiendo a caravana en (${nuevaUnidad.r},${nuevaUnidad.c})`);
+      }
     }
   },
 
@@ -1107,8 +1105,30 @@ Object.assign(window.IAArchipielago, {
       console.log('[IA_GUSANO] ERROR: ruta.landPath está vacío o indefinido:', ruta);
       return;
     }
-    let unidad = this._findClosestUnitToTarget(myPlayer, ruta.landPath[0]);
 
+    // 1. Log de nodos a construir
+    const nodosConstruir = ruta.missingOwnedSegments.map(h => `(${h.r},${h.c})`).join(' ');
+    console.log(`[IA_GUSANO] Tengo que construir Camino en ${nodosConstruir}`);
+
+    // 2. Log de divisiones disponibles
+    const divisiones = IASentidos.getUnits(myPlayer).filter(u => u.regiments.length > 0);
+    const divisionesPos = divisiones.map(u => `(${u.r},${u.c})`).join(' ');
+    console.log(`[IA_GUSANO] Divisiones disponibles en: ${divisionesPos}`);
+
+    // 3. Asignación de divisiones a nodos
+    ruta.missingOwnedSegments.forEach(nodo => {
+      // Buscar la división más cercana
+      let division = divisiones.reduce((minU, u) => {
+        const dist = hexDistance(u.r, u.c, nodo.r, nodo.c);
+        return (minU === null || dist < minU.dist) ? {u, dist} : minU;
+      }, null);
+      if (division && division.u) {
+        console.log(`[IA_GUSANO] Asignando misión a división en (${division.u.r},${division.u.c}) para el nodo (${nodo.r},${nodo.c})`);
+      }
+    });
+
+    // 4. Movimiento y construcción
+    let unidad = this._findClosestUnitToTarget(myPlayer, ruta.landPath[0]);
     if (!unidad) {
       console.log(`[IA_GUSANO] Abortando: No se encontró ninguna unidad cerca del inicio del camino.`);
       return;
@@ -1122,15 +1142,13 @@ Object.assign(window.IAArchipielago, {
 
     for (const punto of ruta.landPath) {
       const posAnterior = { r: unidad.r, c: punto.c };
-      
-      // A. MOVER Y CONQUISTAR (Gusano Split-Merge)
-      console.log(`[IA_GUSANO] Ocupando casilla (${punto.r},${punto.c})...`);
+      // Movimiento
+      console.log(`[IA_MOVIMIENTO][Unidad:${unidad.id}] Movimiento a (${punto.r},${punto.c}) por J${unidad.player}`);
       // (Aquí va la lógica de Split y Merge que ya tenemos...)
-      
-      // B. CONSTRUIR (Solo si la casilla quedó vacía)
+      // Construcción
       const hex = board[posAnterior.r][posAnterior.c];
       if (hex.owner === myPlayer && !hex.structure) {
-        console.log(`[IA_GUSANO] Casilla libre detectada en (${posAnterior.r},${posAnterior.c}). Construyendo camino.`);
+        console.log(`[IA_CONSTRUCCION][Flujo:construccion] Camino construido en (${posAnterior.r},${posAnterior.c}) por J${myPlayer}`);
         this._requestBuildStructure(myPlayer, posAnterior.r, posAnterior.c, 'Camino');
       }
     }
@@ -1420,73 +1438,41 @@ Object.assign(window.IAArchipielago, {
 
   // EL ARQUITECTO: DIBUJA EL PLANO DE LA RED COMERCIAL
   _getRoadNetworkPlan(myPlayer, ciudades) {
-    console.log(`\n--- [SONDA DIAGNÓSTICO J${myPlayer}] ---`);
     const propias = ciudades.filter(c => c.owner === myPlayer);
-    const todosLosNodos = ciudades.filter(c => c && (c.r !== undefined));
-    
-    console.log(`Nodos totales detectados: ${todosLosNodos.length}`);
-    console.log(`Nodos propios: ${propias.length}`);
-
-    let reportePlanes = [];
+    const todosLosNodos = ciudades.filter(c => c && c.r !== undefined);
+    const setNecesidades = new Set();
+    const conexiones = [];
 
     for (const origen of propias) {
       for (const destino of todosLosNodos) {
         if (origen === destino) continue;
-
         const info = this._findRoadConnection(origen, destino, myPlayer);
-        if (!info) continue;
-
-        const hexesSinDominio = info.pendingCaptureSegments.length;
-        const hexesSinCamino = info.missingOwnedSegments.length;
-        const totalDistancia = info.landPath.length;
-
-        // LOG DE VERDAD: Reporte crudo de cada ruta
-        console.log(`RUTA: ${origen.name || 'Origen'} -> ${destino.name || 'Destino'}`);
-        console.log(`  - [FLUJO 1/2] Hexágonos neutrales/enemigos: ${hexesSinDominio}`);
-        console.log(`  - [FLUJO 3] Hexágonos propios sin camino: ${hexesSinCamino}`);
-        console.log(`  - [ESTADO] Longitud total: ${totalDistancia}`);
-
-        if (hexesSinDominio > 0 || hexesSinCamino > 0) {
-          reportePlanes.push({
-            from: origen, to: destino,
-            landPath: info.landPath,
-            missingOwnedSegments: info.missingOwnedSegments,
-            pendingCaptureSegments: info.pendingCaptureSegments,
-            score: (hexesSinDominio * 10) + hexesSinCamino
-          });
+        if (info && info.missingOwnedSegments.length > 0) {
+          info.missingOwnedSegments.forEach(h => setNecesidades.add(`(${h.r},${h.c})`));
+          conexiones.push({ from: origen, to: destino, ...info });
         }
       }
     }
 
-    if (reportePlanes.length === 0) {
-      console.log(`[IA_DIAGNÓSTICO] ALERTA: No se han encontrado tareas pendientes en ningún nodo.`);
-      return [{ status: 'perfect' }];
+    if (setNecesidades.size > 0) {
+      const listaLog = Array.from(setNecesidades).join(' ');
+      console.log(`TENGO QUE CONSTRUIR Camino en ${listaLog}`);
+      return conexiones;
     }
 
-    // Ordenar por prioridad (rutas más cortas primero)
-    reportePlanes.sort((a, b) => a.score - b.score);
-    console.log(`[IA_DIAGNÓSTICO] Ruta prioritaria elegida: ${reportePlanes[0].from.name} -> ${reportePlanes[0].to.name}`);
-    console.log(`--- [FIN SONDA] ---\n`);
-
-    return reportePlanes;
+    return [];
   },
 
   // EL TOPÓGRAFO: ANALIZA EL ESTADO DE UNA RUTA ESPECÍFICA
   _findRoadConnection(cityA, cityB, myPlayer) {
     const path = this._findRoadBuildPath({ myPlayer, start: cityA, goal: cityB });
-    
-    if (!path) {
-      console.log(`    ⚠️ GPS: No se pudo encontrar ruta física entre ${cityA.name || 'A'} y ${cityB.name || 'B'}.`);
-      return null;
-    }
-
-    const neutrales = path.filter(h => board[h.r][h.c].owner !== myPlayer);
-    const sinCamino = path.filter(h => board[h.r][h.c].owner === myPlayer && !board[h.r][h.c].structure);
+    if (!path) return null;
 
     return {
       landPath: path,
-      missingOwnedSegments: sinCamino,
-      pendingCaptureSegments: neutrales
+      // Detecta cualquier casilla que no tenga la estructura 'Camino'
+      missingOwnedSegments: path.filter(h => board[h.r][h.c].structure !== 'Camino' && !board[h.r][h.c].isCity),
+      pendingCaptureSegments: path.filter(h => board[h.r][h.c].owner !== myPlayer)
     };
   },
 
