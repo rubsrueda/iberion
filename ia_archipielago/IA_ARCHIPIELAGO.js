@@ -1075,23 +1075,25 @@ Object.assign(window.IAArchipielago, {
 
 
 // 1. GPS Y TOPÓGRAFO: SEPARACIÓN DE PROPIEDAD
+// 1. EL TOPÓGRAFO: EXCLUYE NODOS DE LA OCUPACIÓN
   _findRoadConnection(cityA, cityB, myPlayer) {
     const path = this._findRoadBuildPath({ myPlayer, start: cityA, goal: cityB });
     if (!path) return null;
 
     return {
       landPath: path,
-      // Solo lo que NO es mío (Flujo 1/2)
-      pendingCaptureSegments: path.filter(h => board[h.r][h.c].owner !== myPlayer),
-      // Solo lo que ES MÍO pero no tiene camino (Flujo 3)
+      // Solo casillas de paso neutrales. EXCLUYE la ciudad destino.
+      pendingCaptureSegments: path.filter(h => board[h.r][h.c].owner !== myPlayer && !board[h.r][h.c].isCity),
+      // Solo casillas nuestras sin camino.
       missingRoadSegments: path.filter(h => board[h.r][h.c].owner === myPlayer && board[h.r][h.c].structure !== 'Camino' && !board[h.r][h.c].isCity)
     };
   },
 
-  // 2. EL ARQUITECTO: REPORTE DE ESTADO INICIAL
+  // 2. EL ARQUITECTO: PRIORIZA NODOS CON TRABAJO REAL
   _getRoadNetworkPlan(myPlayer, ciudades) {
     const propias = ciudades.filter(c => c.owner === myPlayer);
     const todosLosNodos = ciudades.filter(c => c && c.r !== undefined);
+    
     const totalOcupar = new Set();
     const totalConstruir = new Set();
     const conexiones = [];
@@ -1114,31 +1116,39 @@ Object.assign(window.IAArchipielago, {
     return conexiones;
   },
 
-  // 3. EL GUSANO: INVENTARIO, MOVIMIENTO Y CONSTRUCCIÓN EN EL VACÍO
+  // 3. EL GUSANO: AVANCE DINÁMICO Y PREPARACIÓN DE ACCIÓN
   _ejecutarGusanoCorredor(situacion) {
     const { myPlayer } = situacion;
     const conexiones = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
     if (conexiones.length === 0) return;
 
-    // INVENTARIO DE DIVISIONES
     const misUnidades = IASentidos.getUnits(myPlayer).filter(u => u.regiments.length > 0);
-    const listaPos = misUnidades.map(u => `(${u.r},${u.c})`).join(' ');
-    console.log(`PERO TENGO DIVISIONES EN: ${listaPos}`);
+    console.log(`PERO TENGO DIVISIONES EN: ${misUnidades.map(u => `(${u.r},${u.c})`).join(' ')}`);
 
-    const ruta = conexiones[0];
-    let unidadActiva = this._findClosestUnitToTarget(myPlayer, ruta.landPath[0]);
+    // Buscamos la ruta que REALMENTE necesite ocupación (Flujo 1/2)
+    const rutaPendiente = conexiones.find(c => c.pendingCaptureSegments.length > 0) || conexiones[0];
+    
+    // Buscamos la unidad más útil para este nodo
+    let unidadActiva = this._findClosestUnitToTarget(myPlayer, rutaPendiente.landPath[0]);
     if (!unidadActiva || unidadActiva.regiments.length < 2) return;
 
-    console.log(`ASIGNANDO MISIÓN A DIVISIÓN EN (${unidadActiva.r},${unidadActiva.c}) PARA EL NODO ${ruta.to.name || 'Objetivo'}`);
+    console.log(`ASIGNANDO MISIÓN A DIVISIÓN EN (${unidadActiva.r},${unidadActiva.c}) PARA EL NODO ${rutaPendiente.to.name || 'Objetivo'}`);
 
-    for (const punto of ruta.landPath) {
-      const posVacia = { r: unidadActiva.r, c: unidadActiva.c };
+    for (const punto of rutaPendiente.landPath) {
+      const posAnterior = { r: unidadActiva.r, c: unidadActiva.c };
       
-      // AVANCE DE GUSANO (Split -> Merge)
+      // FIX TÉCNICO: Preparar la acción para el motor del juego
       const mitad = Math.floor(unidadActiva.regiments.length / 2);
+      gameState.preparingAction = {
+        type: 'split_unit',
+        unitId: unidadActiva.id,
+        newUnitRegiments: unidadActiva.regiments.slice(0, mitad),
+        remainingOriginalRegiments: unidadActiva.regiments.slice(mitad)
+      };
+
       this._requestSplitUnit(unidadActiva, punto.r, punto.c);
       
-      const cola = getUnitOnHex(posVacia.r, posVacia.c);
+      const cola = getUnitOnHex(posAnterior.r, posAnterior.c);
       const cabeza = getUnitOnHex(punto.r, punto.c);
 
       if (cola && cabeza) {
@@ -1146,12 +1156,11 @@ Object.assign(window.IAArchipielago, {
         this._requestMergeUnits(cola, cabeza);
         unidadActiva = cabeza;
 
-        // COMPROBACIÓN DE CASILLA LIBRE TRAS LA FUSIÓN
-        const hexLibre = board[posVacia.r][posVacia.c];
-        if (hexLibre.owner === myPlayer && !getUnitOnHex(posVacia.r, posVacia.c)) {
-          console.log(`CASILLA LIBRE EN (${posVacia.r},${posVacia.c}). CONSTRUYENDO Camino.`);
-          this._ensureTech(myPlayer, 'ENGINEERING'); // Asegura el libro
-          this._requestBuildStructure(myPlayer, posVacia.r, posVacia.c, 'Camino');
+        // FLUJO 3: Construcción tras dejar la casilla vacía
+        const hexLibre = board[posAnterior.r][posAnterior.c];
+        if (hexLibre.owner === myPlayer && !getUnitOnHex(posAnterior.r, posAnterior.c)) {
+          console.log(`CASILLA LIBRE EN (${posAnterior.r},${posAnterior.c}). CONSTRUYENDO Camino.`);
+          this._requestBuildStructure(myPlayer, posAnterior.r, posAnterior.c, 'Camino');
         }
       }
       if (gameState.playerResources[myPlayer].piedra < 10) break;
