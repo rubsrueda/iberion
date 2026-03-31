@@ -1144,7 +1144,7 @@ Object.assign(window.IAArchipielago, {
     if (conexiones.length === 0 || misUnidades.length === 0) return;
 
     // ASIGNACIÓN POR CERCANÍA
-    for (const unidad de misUnidades) {
+    for (const unidad of misUnidades) {
       // Buscar el hexágono neutral o sin camino más cercano a esta unidad específica
       let todasLasMetas = [];
       conexiones.forEach(c => {
