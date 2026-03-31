@@ -1408,32 +1408,55 @@ Object.assign(window.IAArchipielago, {
 
   // EL ARQUITECTO: DIBUJA EL PLANO DE LA RED COMERCIAL
   _getRoadNetworkPlan(myPlayer, ciudades) {
-    console.log(`[IA_ARQUITECTO] Iniciando planificación de red...`);
+    console.log(`\n--- [SONDA DIAGNÓSTICO J${myPlayer}] ---`);
     const propias = ciudades.filter(c => c.owner === myPlayer);
-    const banca = this._getBankCity();
+    const todosLosNodos = ciudades.filter(c => c && (c.r !== undefined));
     
-    // Lista de prioridades: 1. Banca, 2. Ciudades neutrales, 3. Recursos
-    const objetivos = [banca, ...ciudades.filter(c => c.owner === null || c.owner === 9)];
-    
-    const conexiones = [];
-    for (const destino of objetivos) {
-      if (!destino) continue;
-      // No conectar si ya es propia y tiene camino (excepto si es para mantenimiento)
-      const dist = hexDistance(propias[0].r, propias[0].c, destino.r, destino.c);
-      
-      const info = this._findRoadConnection(propias[0], destino, myPlayer);
-      if (info && (info.missingOwnedSegments.length > 0 || info.pendingCaptureSegments.length > 0)) {
-        console.log(`[IA_ARQUITECTO] Plano trazado hacia: ${destino.name || 'Neutral'} a dist ${dist}`);
-        return [{
-          from: propias[0], to: destino,
-          landPath: info.landPath,
-          missingOwnedSegments: info.missingOwnedSegments,
-          pendingCaptureSegments: info.pendingCaptureSegments
-        }];
+    console.log(`Nodos totales detectados: ${todosLosNodos.length}`);
+    console.log(`Nodos propios: ${propias.length}`);
+
+    let reportePlanes = [];
+
+    for (const origen of propias) {
+      for (const destino of todosLosNodos) {
+        if (origen === destino) continue;
+
+        const info = this._findRoadConnection(origen, destino, myPlayer);
+        if (!info) continue;
+
+        const hexesSinDominio = info.pendingCaptureSegments.length;
+        const hexesSinCamino = info.missingOwnedSegments.length;
+        const totalDistancia = info.landPath.length;
+
+        // LOG DE VERDAD: Reporte crudo de cada ruta
+        console.log(`RUTA: ${origen.name || 'Origen'} -> ${destino.name || 'Destino'}`);
+        console.log(`  - [FLUJO 1/2] Hexágonos neutrales/enemigos: ${hexesSinDominio}`);
+        console.log(`  - [FLUJO 3] Hexágonos propios sin camino: ${hexesSinCamino}`);
+        console.log(`  - [ESTADO] Longitud total: ${totalDistancia}`);
+
+        if (hexesSinDominio > 0 || hexesSinCamino > 0) {
+          reportePlanes.push({
+            from: origen, to: destino,
+            landPath: info.landPath,
+            missingOwnedSegments: info.missingOwnedSegments,
+            pendingCaptureSegments: info.pendingCaptureSegments,
+            score: (hexesSinDominio * 10) + hexesSinCamino
+          });
+        }
       }
     }
-    console.log(`[IA_ARQUITECTO] No se encontraron rutas pendientes.`);
-    return [];
+
+    if (reportePlanes.length === 0) {
+      console.log(`[IA_DIAGNÓSTICO] ALERTA: No se han encontrado tareas pendientes en ningún nodo.`);
+      return [{ status: 'perfect' }];
+    }
+
+    // Ordenar por prioridad (rutas más cortas primero)
+    reportePlanes.sort((a, b) => a.score - b.score);
+    console.log(`[IA_DIAGNÓSTICO] Ruta prioritaria elegida: ${reportePlanes[0].from.name} -> ${reportePlanes[0].to.name}`);
+    console.log(`--- [FIN SONDA] ---\n`);
+
+    return reportePlanes;
   },
 
   // EL TOPÓGRAFO: ANALIZA EL ESTADO DE UNA RUTA ESPECÍFICA
