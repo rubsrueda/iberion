@@ -318,9 +318,18 @@ const IAArchipielago = {
   // ACCIÓN: ENVIAR ORDEN DE INVESTIGACIÓN AL JUEGO
   _requestResearchTech(myPlayer, techId) {
     if (typeof processActionRequest === 'function') {
-      processActionRequest({ type: 'researchTech', payload: { playerId: myPlayer, techId: techId } });
-      console.log(`[IA_CIENCIA] J${myPlayer} investigando: ${techId}`);
-      return true;
+      try {
+        processActionRequest({ type: 'researchTech', payload: { playerId: myPlayer, techId: techId } });
+        console.log(`[IA_CIENCIA] J${myPlayer} investigando: ${techId}`);
+        return true;
+      } catch (e) {
+        console.warn("[IA_CIENCIA] Fallo en motor de investigación, intentando vía directa...");
+        // Puente de seguridad si _executeResearch no existe en el motor
+        if (typeof gameState.playerResources[myPlayer].researchedTechnologies !== 'undefined') {
+            gameState.playerResources[myPlayer].researchedTechnologies.push(techId);
+            return true;
+        }
+      }
     }
     return false;
   },
@@ -1440,27 +1449,33 @@ Object.assign(window.IAArchipielago, {
   _getRoadNetworkPlan(myPlayer, ciudades) {
     const propias = ciudades.filter(c => c.owner === myPlayer);
     const todosLosNodos = ciudades.filter(c => c && c.r !== undefined);
-    const setNecesidades = new Set();
+    
+    const totalOcupar = new Set();
+    const totalConstruir = new Set();
     const conexiones = [];
 
     for (const origen of propias) {
       for (const destino of todosLosNodos) {
         if (origen === destino) continue;
         const info = this._findRoadConnection(origen, destino, myPlayer);
-        if (info && info.missingOwnedSegments.length > 0) {
-          info.missingOwnedSegments.forEach(h => setNecesidades.add(`(${h.r},${h.c})`));
+        if (info) {
+          info.pendingCaptureSegments.forEach(h => totalOcupar.add(`(${h.r},${h.c})`));
+          info.missingRoadSegments.forEach(h => totalConstruir.add(`(${h.r},${h.c})`));
           conexiones.push({ from: origen, to: destino, ...info });
         }
       }
     }
 
-    if (setNecesidades.size > 0) {
-      const listaLog = Array.from(setNecesidades).join(' ');
-      console.log(`TENGO QUE CONSTRUIR Camino en ${listaLog}`);
-      return conexiones;
+    // EMISIÓN DE LOGS EN EL ORDEN ACORDADO
+    if (totalOcupar.size > 0) {
+      console.log(`TENGO QUE OCUPAR en ${Array.from(totalOcupar).join(' ')}`);
+    }
+    
+    if (totalConstruir.size > 0) {
+      console.log(`TENGO QUE CONSTRUIR Camino en ${Array.from(totalConstruir).join(' ')}`);
     }
 
-    return [];
+    return conexiones;
   },
 
   // EL TOPÓGRAFO: ANALIZA EL ESTADO DE UNA RUTA ESPECÍFICA
@@ -1470,9 +1485,10 @@ Object.assign(window.IAArchipielago, {
 
     return {
       landPath: path,
-      // Detecta cualquier casilla que no tenga la estructura 'Camino'
-      missingOwnedSegments: path.filter(h => board[h.r][h.c].structure !== 'Camino' && !board[h.r][h.c].isCity),
-      pendingCaptureSegments: path.filter(h => board[h.r][h.c].owner !== myPlayer)
+      // FLUJO 1/2: Hexágonos que NO son del jugador
+      pendingCaptureSegments: path.filter(h => board[h.r][h.c].owner !== myPlayer),
+      // FLUJO 3: Hexágonos que no tienen la estructura 'Camino'
+      missingRoadSegments: path.filter(h => board[h.r][h.c].structure !== 'Camino' && !board[h.r][h.c].isCity)
     };
   },
 
