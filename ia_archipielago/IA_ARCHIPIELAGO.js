@@ -94,22 +94,6 @@ const IAArchipielago = {
     return false;
   },
 
-  _requestMoveOrAttack(unit, r, c) {
-    const target = getUnitOnHex(r, c);
-    if (target && target.player !== unit.player) {
-      if (typeof processActionRequest === 'function') {
-        processActionRequest({ type: 'attackUnit', payload: { playerId: unit.player, attackerId: unit.id, defenderId: target.id } });
-        return true;
-      }
-    }
-    // El motor A* se inyectará en la Parte 3 para el movimiento inteligente.
-    if (this._findRoadBuildPath) {
-      const path = this._findRoadBuildPath({ myPlayer: unit.player, start: unit, goal: {r, c} });
-      if (path && path.length > 0) return this._requestMoveUnit(unit, path[0].r, path[0].c);
-    }
-    return false;
-  },
-
   // FUNCIÓN: SACAR FOTO DEL ESTADO ACTUAL (SNAPSHOT)
   _snapshotTurnActivity(myPlayer) {
     const snapshot = {};
@@ -165,18 +149,6 @@ const IAArchipielago = {
         this._requestMoveOrAttack(unit, blanco.r, blanco.c);
       }
     });
-  },
-
-  // HERRAMIENTA: BUSCADOR DE OBJETIVO MÁS CERCANO
-  _pickObjective(lista, unidad, myPlayer) {
-    if (!lista || lista.length === 0) return null;
-    // Ordenar la lista de menor a mayor distancia
-    const ordenada = [...lista].sort((a, b) => {
-      const distA = hexDistance(unidad.r, unidad.c, a.r, a.c);
-      const distB = hexDistance(unidad.r, unidad.c, b.r, b.c);
-      return distA - distB;
-    });
-    return ordenada[0];
   },
 
   // HERRAMIENTA: ASEGURAR QUE TENEMOS UNA TECNOLOGÍA
@@ -852,36 +824,155 @@ Object.assign(window.IAArchipielago, {
   },
 
 // 1. RE-ESTRUCTURACIÓN: EJECUTAR TURNO (Bucle Maestro Silencioso)
-ejecutarTurno(myPlayer) {
-    console.log(`%c[IA_SISTEMA] >>> INICIO TURNO ${gameState.turnNumber} - JUGADOR ${myPlayer} <<<`, "background: #2c3e50; color: #ecf0f1; font-weight: bold;");
+// 1. BUCLE DE ACTIVIDAD: No suelta el mando hasta agotar posibilidades
+  ejecutarTurno(myPlayer) {
+    console.log(`%c[IA_SISTEMA] >>> INICIO CICLO DE ACTIVIDAD J${myPlayer} <<<`, "background: #2c3e50; color: #ecf0f1; font-weight: bold;");
     
-    const situacion = { 
-        myPlayer, 
+    let accionesRealizadas = 0;
+    const MAX_PASES = 5; // Evita bucles infinitos por bloqueos de motor
+
+    for (let pase = 1; pase <= MAX_PASES; pase++) {
+        let huboProgreso = false;
+        const situacion = this._obtenerSituacion(myPlayer);
+        
+        console.log(`[IA_SISTEMA] Pase ${pase}/${MAX_PASES}. Analizando unidades...`);
+
+        // Ciclos de prioridad
+        huboProgreso |= this._ejecutarGusanoCorredor(situacion);
+        huboProgreso |= this.construirInfraestructura(myPlayer, situacion.hexesPropios, situacion.economia);
+        huboProgreso |= this._procesarPoolEstrategico(situacion);
+        huboProgreso |= this._ejecutarBarridoResidual(situacion);
+
+        if (!huboProgreso) {
+            console.log(`[IA_SISTEMA] No hay más acciones posibles. Finalizando.`);
+            break;
+        }
+        accionesRealizadas++;
+    }
+
+    if (typeof handleEndTurn === 'function') {
+        setTimeout(() => handleEndTurn(), 1500);
+    }
+  },
+
+  // 2. PROTOCOLO GUSANO: Fusión Legal vía RequestMergeUnits
+  _ejecutarGusanoCorredor(situacion) {
+    let progreso = false;
+    const { myPlayer } = situacion;
+    const conexiones = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
+    const metas = conexiones.filter(c => !this._isAlreadyConnected(myPlayer, c.to))
+                             .flatMap(c => c.pendingCaptureSegments);
+
+    for (const meta of metas) {
+      const unidad = this._findClosestUnitToTarget(myPlayer, meta);
+      if (unidad && unidad.regiments.length >= 2 && !unidad.hasMoved) {
+        
+        const regParaMover = unidad.regiments.slice(0, Math.floor(unidad.regiments.length / 2));
+        const regQuedan = unidad.regiments.slice(regParaMover.length);
+
+        console.log(`[IA_GUSANO] u(${unidad.id}) Split legal a (${meta.r},${meta.c})`);
+        
+        if (this._requestSplitUnit(unidad, meta.r, meta.c, regParaMover, regQuedan)) {
+            // Buscamos la unidad recién creada para fusionar
+            setTimeout(() => {
+                const unidadNueva = getUnitOnHex(meta.r, meta.c);
+                if (unidadNueva && typeof RequestMergeUnits === 'function') {
+                    console.log(`[IA_GUSANO] u(${unidad.id}) iniciando Merge legal con u(${unidadNueva.id})`);
+                    RequestMergeUnits(unidad, unidadNueva, true);
+                }
+            }, 100);
+            progreso = true;
+        }
+      }
+    }
+    return progreso;
+  },
+
+  // 3. MOVIMIENTO O ATAQUE INTELIGENTE (Evita ataques a distancia)
+  _requestMoveOrAttack(unit, r, c) {
+    const dist = hexDistance(unit.r, unit.c, r, c);
+    
+    // CASO A: Adyacencia (Ataque/Conquista)
+    if (dist === 1) {
+        const target = getUnitOnHex(r, c);
+        if (target && target.player !== unit.player) {
+            return this._requestAttackUnit(unit, target);
+        }
+        // Si no hay unidad pero es ciudad enemiga/bárbara
+        const hex = board[r][c];
+        if (hex && hex.owner !== unit.player && (hex.isCity || hex.structure)) {
+            console.log(`[IA_MILITAR] u(${unit.id}) asaltando posición en (${r},${c})`);
+            return this._requestAttackUnit(unit, {id: 'city', r, c}); 
+        }
+    }
+
+    // CASO B: Distancia ( Superman no puede atacar, debe caminar )
+    if (dist > 1) {
+        const path = this._findRoadBuildPath({ myPlayer: unit.player, start: unit, goal: {r, c} });
+        if (path && path.length > 0) {
+            const nextStep = path[0];
+            console.log(`[IA_MOVIMIENTO] u(${unit.id}) caminando hacia objetivo en (${r},${c}). Siguiente paso: (${nextStep.r},${nextStep.c})`);
+            return this._requestMoveUnit(unit, nextStep.r, nextStep.c);
+        }
+    }
+    return false;
+  },
+
+  // 4. BÚSQUEDA DE OBJETIVOS PONDERADA (Prioriza cercanía)
+  _pickObjective(lista, unidad, myPlayer) {
+    if (!lista || lista.length === 0) return null;
+    
+    return lista.map(obj => {
+        const dist = hexDistance(unidad.r, unidad.c, obj.r, obj.c);
+        // Puntuación: el peso de la misión dividido por la distancia
+        let score = 1000 / (dist + 1);
+        if (obj.resourceNode === 'Piedra') score *= 1.5; // Priorizar piedra si es Banquero
+        return { obj, score };
+    }).sort((a, b) => b.score - a.score)[0].obj;
+  },
+
+  // 5. HELPER: OBTENER SITUACIÓN (Sincronizado con IASentidos)
+  _obtenerSituacion(myPlayer) {
+    return {
+        myPlayer,
         economia: (typeof IAEconomica !== 'undefined') ? IAEconomica.evaluarEconomia(myPlayer) : { oro: 0 },
         ciudades: (typeof IASentidos !== 'undefined') ? IASentidos.getCities(myPlayer) : [],
         hexesPropios: (typeof IASentidos !== 'undefined') ? IASentidos.getOwnedHexes(myPlayer) : []
     };
-
-    // Resetear estado de misión de las unidades para este turno
-    IASentidos.getUnits(myPlayer).forEach(u => u.ia_mision_procesada = false);
-
-    // PASO 1: Protocolo Gusano Lineal (Traslación de Pioneros/Expansión)
-    this._ejecutarGusanoCorredor(situacion);
-
-    // PASO 2: Construcción e Infraestructura con Protocolo de Desalojo
-    this.construirInfraestructura(myPlayer, situacion.hexesPropios, situacion.economia);
-
-    // PASO 3: Ejecución de las 10 Prioridades (No excluyente)
-    this._procesarEstrategiaVictoria(situacion);
-
-    // PASO 4: BARRIDO RESIDUAl (Para que ninguna unidad quede ociosa)
-    this._ejecutarBarridoResidual(situacion);
-
-    if (typeof handleEndTurn === 'function') {
-        console.log(`[IA_SISTEMA] Turno completado. Enviando fin de turno.`);
-        setTimeout(() => handleEndTurn(), 1200);
-    }
   },
+
+  // 6. HELPER: PROCESADOR DE POOL (Para no detenerse tras una ruta)
+  _procesarPoolEstrategico(situacion) {
+    let progreso = false;
+    const rutas = this._evaluarRutasDeVictoria(situacion);
+    const rutasOrdenadas = rutas.sort((a, b) => b.weight - a.weight);
+
+    for (const ruta of rutasOrdenadas) {
+        // _ejecutarAccionPorRuta debe devolver true si alguna unidad recibió orden
+        if (this._ejecutarAccionPorRuta(ruta, situacion)) {
+            progreso = true;
+        }
+    }
+    return progreso;
+  },
+
+  _requestAttackUnit(attacker, defender) {
+    if (typeof processActionRequest === 'function') {
+        processActionRequest({
+            type: 'attackUnit',
+            payload: {
+                playerId: attacker.player,
+                attackerId: attacker.id,
+                defenderId: defender.id,
+                targetR: defender.r, // Necesario para ciudades
+                targetC: defender.c
+            }
+        });
+        return true;
+    }
+    return false;
+  },
+
 
   // 2. CÁLCULO DE FUERZA REAL (Ciudad + Unidad sobre ella)
   _getCityGarrisonStrength(ciudad) {
@@ -910,38 +1001,6 @@ ejecutarTurno(myPlayer) {
 
     // Si todas las casillas del path ya tienen un camino, está conectada.
     return path.every(h => board[h.r][h.c].structure === 'Camino' || board[h.r][h.c].isCity);
-  },
-
-  // 4. PROTOCOLO GUSANO CORREGIDO (Payload para main.js y Merge)
-  _ejecutarGusanoCorredor(situacion) {
-    const { myPlayer } = situacion;
-    const conexiones = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
-    
-    // Filtrar conexiones: Solo las que NO estén ya conectadas
-    const tramosPendientes = conexiones.filter(c => !this._isAlreadyConnected(myPlayer, c.to))
-                                        .flatMap(c => c.pendingCaptureSegments);
-
-    for (const meta of tramosPendientes) {
-      const unidad = this._findClosestUnitToTarget(myPlayer, meta);
-      if (unidad && unidad.regiments.length >= 2 && !unidad.hasMoved && !unidad.ia_mision_procesada) {
-        
-        const mitad = Math.floor(unidad.regiments.length / 2);
-        const regParaMover = unidad.regiments.slice(0, mitad);
-        const regQuedan = unidad.regiments.slice(mitad);
-
-        console.log(`[IA_GUSANO] u(${unidad.id}) inicia Split hacia (${meta.r},${meta.c})`);
-        
-        // Acción 1: Split
-        if (this._requestSplitUnit(unidad, meta.r, meta.c, regParaMover, regQuedan)) {
-            // Acción 2: Merge (Mover la original al mismo destino para que el motor las una)
-            setTimeout(() => {
-                this._requestMoveUnit(unidad, meta.r, meta.c);
-                console.log(`[IA_GUSANO] u(${unidad.id}) moviendo para Merge en (${meta.r},${meta.c})`);
-            }, 100);
-            unidad.ia_mision_procesada = true;
-        }
-      }
-    }
   },
 
   // 5. PROTOCOLO DE DESALOJO PARA CONSTRUCCIÓN
