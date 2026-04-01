@@ -725,30 +725,6 @@ Object.assign(window.IAArchipielago, {
   _sumUnitPower(unitsList) { return unitsList.reduce((s, u) => s + this._getUnitPower(u), 0); },
   _isLandUnit(u) { return u.regiments?.some(r => !REGIMENT_TYPES[r.type]?.is_naval); },
 
-  // IA_ARCHIPIELAGO.js - PARTE 4 DE 5: RUTAS DE VICTORIA Y ESTRATEGIA ALTA
-// INTEGRA: Sistema de Pesos para 10 Rutas, Métricas de Partida y Bootstrap de Apertura.
-
-
-  // 71. _procesarEstrategiaVictoria: Elige y ejecuta el plan de victoria anual
-  _procesarEstrategiaVictoria(situacion) {
-    const { myPlayer } = situacion;
-    const rutas = this._evaluarRutasDeVictoria(situacion);
-    
-    if (!rutas || rutas.length === 0) return;
-
-    // Ordenar por peso (Scoring) y elegir la mejor
-    const rutaGanadora = rutas.sort((a, b) => b.weight - a.weight)[0];
-    
-    if (this.ARCHI_LOG_VERBOSE) {
-      console.log(`[IA_ESTRATEGIA] Evaluando prioridades para J${myPlayer}.`);
-      console.log(`[IA_ESTRATEGIA] Ruta Ganadora: ${rutaGanadora.label} (Peso: ${rutaGanadora.weight.toFixed(1)})`);
-    }
-
-    if (rutaGanadora.canExecute) {
-      this._ejecutarAccionPorRuta(rutaGanadora, situacion);
-    }
-  },
-
   // 72. _evaluarRutasDeVictoria: EL CEREBRO ESTRATÉGICO (Cálculo de Pesos)
   // Analiza las estadísticas globales para decidir la "personalidad" de la IA este turno.
   _evaluarRutasDeVictoria(situacion) {
@@ -876,8 +852,8 @@ Object.assign(window.IAArchipielago, {
   },
 
 // 1. RE-ESTRUCTURACIÓN: EJECUTAR TURNO (Bucle Maestro Silencioso)
-  ejecutarTurno(myPlayer) {
-    console.log(`%c[IA_TURNO] ========= INICIO TURNO ${gameState.turnNumber} - JUGADOR ${myPlayer} =========`, "background: #2c3e50; color: #ecf0f1; font-weight: bold;");
+ejecutarTurno(myPlayer) {
+    console.log(`%c[IA_SISTEMA] >>> INICIO TURNO ${gameState.turnNumber} - JUGADOR ${myPlayer} <<<`, "background: #2c3e50; color: #ecf0f1; font-weight: bold;");
     
     const situacion = { 
         myPlayer, 
@@ -886,77 +862,187 @@ Object.assign(window.IAArchipielago, {
         hexesPropios: (typeof IASentidos !== 'undefined') ? IASentidos.getOwnedHexes(myPlayer) : []
     };
 
-    // CICLO 1: Expansión y Traslación (Gusano Lineal)
+    // Resetear estado de misión de las unidades para este turno
+    IASentidos.getUnits(myPlayer).forEach(u => u.ia_mision_procesada = false);
+
+    // PASO 1: Protocolo Gusano Lineal (Traslación de Pioneros/Expansión)
     this._ejecutarGusanoCorredor(situacion);
 
-    // CICLO 2: Infraestructura (Construcción con Protocolo de Desalojo)
+    // PASO 2: Construcción e Infraestructura con Protocolo de Desalojo
     this.construirInfraestructura(myPlayer, situacion.hexesPropios, situacion.economia);
 
-    // CICLO 3: Comercio (Jerarquía de Caravanas)
-    this.crearCaravanas(myPlayer, situacion.ciudades);
+    // PASO 3: Ejecución de las 10 Prioridades (No excluyente)
+    this._procesarEstrategiaVictoria(situacion);
 
-    // CICLO FINAL: Estrategia de Victoria
-    if (this._procesarEstrategiaVictoria) {
-        this._procesarEstrategiaVictoria(situacion);
-    }
+    // PASO 4: BARRIDO RESIDUAl (Para que ninguna unidad quede ociosa)
+    this._ejecutarBarridoResidual(situacion);
 
     if (typeof handleEndTurn === 'function') {
-        console.log(`[IA_SISTEMA] Turno finalizado para J${myPlayer}.`);
-        setTimeout(() => handleEndTurn(), 1000);
+        console.log(`[IA_SISTEMA] Turno completado. Enviando fin de turno.`);
+        setTimeout(() => handleEndTurn(), 1200);
     }
   },
 
-  // 2. MÉTODO GUSANO: TRASLACIÓN LINEAL (Sin recursividad)
+  // 2. CÁLCULO DE FUERZA REAL (Ciudad + Unidad sobre ella)
+  _getCityGarrisonStrength(ciudad) {
+    if (!ciudad) return 2; // Fallback mínimo real
+
+    // 1. Poder de la guarnición interna
+    let poderInterno = (ciudad.garrison && Array.isArray(ciudad.garrison)) ? ciudad.garrison.length : 0;
+
+    // 2. Poder de la división que está sobre la ciudad (Si hay visibilidad)
+    const unidadEnHex = getUnitOnHex(ciudad.r, ciudad.c);
+    let poderExterno = (unidadEnHex) ? unidadEnHex.regiments.length : 0;
+
+    const total = poderInterno + poderExterno;
+    // Si no vemos nada pero es una ciudad enemiga, asumimos 2 mínimo, nunca 4 por defecto.
+    return total > 0 ? total : 2; 
+  },
+
+  // 3. TEST DE CONECTIVIDAD: Evitar redundancia (8,12)
+  _isAlreadyConnected(myPlayer, destino) {
+    const capital = (gameState.cities || []).find(c => c.owner === myPlayer && c.isCapital);
+    if (!capital) return false;
+
+    // Buscamos si existe un camino de structure === 'Camino' ininterrumpido
+    const path = this._findRoadBuildPath({ myPlayer, start: capital, goal: destino });
+    if (!path) return false;
+
+    // Si todas las casillas del path ya tienen un camino, está conectada.
+    return path.every(h => board[h.r][h.c].structure === 'Camino' || board[h.r][h.c].isCity);
+  },
+
+  // 4. PROTOCOLO GUSANO CORREGIDO (Payload para main.js y Merge)
   _ejecutarGusanoCorredor(situacion) {
     const { myPlayer } = situacion;
     const conexiones = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
-    const todasLasMetas = conexiones.flatMap(c => c.pendingCaptureSegments);
+    
+    // Filtrar conexiones: Solo las que NO estén ya conectadas
+    const tramosPendientes = conexiones.filter(c => !this._isAlreadyConnected(myPlayer, c.to))
+                                        .flatMap(c => c.pendingCaptureSegments);
 
-    if (todasLasMetas.length === 0) return;
-
-    // Procesamos cada meta de expansión una sola vez
-    for (const meta of todasLasMetas) {
+    for (const meta of tramosPendientes) {
       const unidad = this._findClosestUnitToTarget(myPlayer, meta);
-
-      // VALIDACIÓN PREVIA: Evitar rechazo del Host
-      if (unidad && unidad.regiments.length >= 2 && !unidad.hasMoved) {
+      if (unidad && unidad.regiments.length >= 2 && !unidad.hasMoved && !unidad.ia_mision_procesada) {
+        
         const mitad = Math.floor(unidad.regiments.length / 2);
         const regParaMover = unidad.regiments.slice(0, mitad);
         const regQuedan = unidad.regiments.slice(mitad);
 
-        console.log(`[IA_GUSANO] u(${unidad.id}) inicia traslación a (${meta.r},${meta.c})`);
+        console.log(`[IA_GUSANO] u(${unidad.id}) inicia Split hacia (${meta.r},${meta.c})`);
         
-        // PETICIÓN CORREGIDA: Payload exacto para main.js
-        this._requestSplitUnit(unidad, meta.r, meta.c, regParaMover, regQuedan);
-        
-        // Al ser lineal, la unidad original intentará la fusión en el siguiente ciclo o turno
-        // si el split fue exitoso, dejando espacio para que otras unidades actúen ahora.
+        // Acción 1: Split
+        if (this._requestSplitUnit(unidad, meta.r, meta.c, regParaMover, regQuedan)) {
+            // Acción 2: Merge (Mover la original al mismo destino para que el motor las una)
+            setTimeout(() => {
+                this._requestMoveUnit(unidad, meta.r, meta.c);
+                console.log(`[IA_GUSANO] u(${unidad.id}) moviendo para Merge en (${meta.r},${meta.c})`);
+            }, 100);
+            unidad.ia_mision_procesada = true;
+        }
       }
     }
   },
 
-  // 3. CONSTRUCCIÓN CON PROTOCOLO DE DESALOJO
+  // 5. PROTOCOLO DE DESALOJO PARA CONSTRUCCIÓN
   construirInfraestructura(myPlayer, hexesPropios, economia) {
     const conexiones = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
     const piedraActual = gameState.playerResources[myPlayer]?.piedra || 0;
 
     for (const conexion of conexiones) {
-      for (const hex of conexion.missingRoadSegments) {
-        
-        const unidadEnHex = getUnitOnHex(hex.r, hex.c);
+        if (this._isAlreadyConnected(myPlayer, conexion.to)) continue;
 
-        // DISPARADOR: Casilla ocupada por división propia
-        if (unidadEnHex && unidadEnHex.player === myPlayer) {
-          console.log(`[IA_PROTOCOLO] Bloqueo en (${hex.r},${hex.c}). u(${unidadEnHex.id}) re-asignada por desalojo.`);
-          this._asignarMisionPrioritaria(unidadEnHex); // La misión dictará si usa Gusano o Estándar
-          continue; // No construimos hasta que esté vacía
-        }
+        for (const hex of conexion.missingRoadSegments) {
+            const unidadEnHex = getUnitOnHex(hex.r, hex.c);
 
-        // Si está vacía y hay recursos, construir
-        if (!unidadEnHex && piedraActual >= 50 && this._canAffordStructure(myPlayer, 'Camino')) {
-          this._requestBuildStructure(myPlayer, hex.r, hex.c, 'Camino');
+            if (unidadEnHex && unidadEnHex.player === myPlayer) {
+                console.log(`[IA_CONSTRUCCION] Bloqueo en (${hex.r},${hex.c}). u(${unidadEnHex.id}) disparando Protocolo de Desalojo.`);
+                this._asignarMisionDesdePool(unidadEnHex); // Asigna misión de los 10 objetivos
+                continue;
+            }
+
+            if (!unidadEnHex && piedraActual >= 50 && this._canAffordStructure(myPlayer, 'Camino')) {
+                this._requestBuildStructure(myPlayer, hex.r, hex.c, 'Camino');
+            }
         }
-      }
+    }
+  },
+
+  // 6. ESTRATEGIA INCLUSIVA (Procesar todas las rutas)
+  _procesarEstrategiaVictoria(situacion) {
+    const rutas = this._evaluarRutasDeVictoria(situacion);
+    // Ordenar por peso
+    const rutasOrdenadas = rutas.sort((a, b) => b.weight - a.weight);
+
+    console.log(`[IA_ESTRATEGIA] Procesando pool de prioridades.`);
+
+    for (const ruta of rutasOrdenadas) {
+        // Ejecutamos la ruta para las unidades que sigan libres
+        this._ejecutarAccionPorRuta(ruta, situacion);
+    }
+  },
+
+  // 7. BARRIDO RESIDUAL (Ninguna unidad ociosa)
+  _ejecutarBarridoResidual(situacion) {
+    const unidadesLibres = IASentidos.getUnits(situacion.myPlayer)
+                           .filter(u => !u.hasMoved && !u.ia_mision_procesada);
+
+    if (unidadesLibres.length === 0) return;
+
+    console.log(`[IA_BARRIDO] Procesando ${unidadesLibres.length} unidades ociosas.`);
+
+    unidadesLibres.forEach(unit => {
+        // Prioridad 1: Nodos de recursos enemigos o bárbaros (owner !== myPlayer)
+        const nodosObjetivo = board.flat().filter(h => h && h.resourceNode && h.owner !== situacion.myPlayer);
+        const meta = this._pickObjective(nodosObjetivo, unit, situacion.myPlayer);
+
+        if (meta) {
+            console.log(`[IA_BARRIDO] u(${unit.id}) residual enviada a Nodo (${meta.r},${meta.c})`);
+            this._requestMoveOrAttack(unit, meta.r, meta.c);
+            unit.ia_mision_procesada = true;
+        }
+    });
+  },
+
+  // 8. CORRECCIÓN DE PAYLOAD splitUnit (Sincronizado con main.js)
+  _requestSplitUnit(u, r, c, newRegs, remainRegs) {
+    if (typeof processActionRequest === 'function') {
+        const action = {
+            type: 'splitUnit',
+            payload: {
+                playerId: u.player,
+                originalUnitId: u.id,      // ID correcto para main.js
+                targetR: r,                // R correcto para main.js
+                targetC: c,                // C correcto para main.js
+                newUnitRegiments: newRegs,
+                remainingOriginalRegiments: remainRegs
+            }
+        };
+        processActionRequest(action);
+        return true;
+    }
+    return false;
+  },
+
+  // 9. ASIGNADOR DE MISIÓN DESDE POOL (Para desalojo)
+  _asignarMisionDesdePool(unidad) {
+    // Intenta asignarle la misión de la prioridad 2 o 3 si la 1 (expansión) la bloquea
+    const nodosPiedra = board.flat().filter(h => h && h.resourceNode === 'Piedra' && h.owner !== unidad.player);
+    const meta = this._pickObjective(nodosPiedra, unidad, unidad.player);
+
+    if (meta) {
+        console.log(`[IA_MISION] u(${unidad.id}) desalojando vía Misión: Buscar Piedra en (${meta.r},${meta.c})`);
+        this._requestMoveOrAttack(unidad, meta.r, meta.c);
+        unidad.ia_mision_procesada = true;
+    } else {
+        // Si no hay piedra, buscar cualquier nodo bárbaro
+        const barbos = this._getBarbarianCities();
+        const city = this._pickObjective(barbos, unidad, unidad.player);
+        if (city) {
+            console.log(`[IA_MISION] u(${unidad.id}) desalojando vía Misión: Conquista en (${city.r},${city.c})`);
+            this._requestMoveOrAttack(unidad, city.r, city.c);
+            unidad.ia_mision_procesada = true;
+        }
     }
   },
 
@@ -1013,27 +1099,6 @@ Object.assign(window.IAArchipielago, {
       // La misión de "Ocupar" suele permitir Gusano en la traslación
       console.log(`[IA_MISION] u(${unidad.id}) asignada a Ocupar (${meta.r},${meta.c}) para liberar camino.`);
     }
-  },
-
-  // CORRECCIÓN: Adaptación exacta a main.js (Línea 2876)
-  _requestSplitUnit(u, r, c, newRegs, remainRegs) {
-    if (typeof processActionRequest === 'function') {
-      const action = {
-        type: 'splitUnit',
-        payload: {
-          playerId: u.player,
-          originalUnitId: u.id,      // Cambiado de unitId
-          targetR: r,                // Cambiado de toR
-          targetC: c,                // Cambiado de toC
-          newUnitRegiments: newRegs,
-          remainingOriginalRegiments: remainRegs // Añadido
-        }
-      };
-      
-      processActionRequest(action);
-      return true;
-    }
-    return false;
   },
 
   _requestBuildStructure(p, r, c, tipo) {
@@ -1366,13 +1431,6 @@ _findRoadBuildPath({ myPlayer, start, goal }) {
       this.crearCaravanas(situacion.myPlayer, situacion.ciudades);
     }
   }, 
-
-  // HERRAMIENTA: CONTAR DEFENSORES DE UNA CIUDAD
-  _getCityGarrisonStrength(ciudad) {
-    if (!ciudad) return 4;
-    // Si la ciudad tiene una lista de guarnición, la contamos. Si no, usamos un valor base.
-    return (ciudad.garrison && Array.isArray(ciudad.garrison)) ? ciudad.garrison.length : 4;
-  },
 
   // HERRAMIENTA: CONTAR FUERZA DE UNA UNIDAD (REGIMIENTOS)
   _getUnitPower(unit) {
