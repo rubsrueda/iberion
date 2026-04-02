@@ -94,43 +94,6 @@ const IAArchipielago = {
     return false;
   },
 
-  // FUNCIÓN: SACAR FOTO DEL ESTADO ACTUAL (SNAPSHOT)
-  _snapshotTurnActivity(myPlayer) {
-    const snapshot = {};
-    const unidadesIA = IASentidos.getUnits(myPlayer);
-    unidadesIA.forEach(u => {
-      snapshot[u.id] = {
-        r: u.r,
-        c: u.c,
-        mov: u.currentMovement || 0,
-        vida: u.currentHealth || 100,
-        ataque: u.hasAttacked || false
-      };
-    });
-    return snapshot;
-  },
-
-  // FUNCIÓN: DETECTOR DE BLOQUEO (¿HEMOS HECHO ALGO?)
-  _didMakeProgressThisTurn(myPlayer, snapshotAntes) {
-    const unidadesAhora = IASentidos.getUnits(myPlayer);
-    
-    // Si el número de unidades ha cambiado, hemos hecho algo (fusionar o morir)
-    if (unidadesAhora.length !== Object.keys(snapshotAntes).length) return true;
-
-    for (const u of unidadesAhora) {
-      const antes = snapshotAntes[u.id];
-      if (!antes) return true; // Unidad nueva detectada
-
-      // Si ha cambiado de sitio, de vida, de movimiento o ha atacado, hay progreso
-      if (u.r !== antes.r || u.c !== antes.c) return true;
-      if ((u.currentMovement || 0) !== antes.mov) return true;
-      if ((u.currentHealth || 100) !== antes.vida) return true;
-      if (u.hasAttacked !== antes.ataque) return true;
-    }
-    
-    return false;
-  },
-
   // FUNCIÓN: PLAN DE EMERGENCIA (EL DESPERTADOR)
   _ejecutarPlanEmergencia(situacion) {
     const { myPlayer } = situacion;
@@ -466,11 +429,6 @@ Object.assign(window.IAArchipielago, {
       if (hex?.feature === 'ruins' && !hex.looted) ruins.push(hex);
     }));
     return ruins;
-  },
-
-  _pickObjective(list, unit, myPlayer) {
-    if (!list || list.length === 0) return null;
-    return list.sort((a, b) => hexDistance(unit, a) - hexDistance(unit, b))[0];
   },
 
   _requestMergeUnits(u1, u2) { if (typeof RequestMergeUnits === 'function') { RequestMergeUnits(u1, u2, true); return true; } return false; },
@@ -825,97 +783,241 @@ Object.assign(window.IAArchipielago, {
 
 // 1. RE-ESTRUCTURACIÓN: EJECUTAR TURNO (Bucle Maestro Silencioso)
 // 1. BUCLE DE ACTIVIDAD: No suelta el mando hasta agotar posibilidades
+// 1. CICLO MAESTRO DE ACTIVIDAD (Basado en Progreso Real)
   ejecutarTurno(myPlayer) {
-    console.log(`%c[IA_SISTEMA] >>> INICIO CICLO DE ACTIVIDAD J${myPlayer} <<<`, "background: #2c3e50; color: #ecf0f1; font-weight: bold;");
+    console.log(`%c[IA_SISTEMA] >>> INICIO TURNO ${gameState.turnNumber} - JUGADOR ${myPlayer} <<<`, "background: #2c3e50; color: #ecf0f1; font-weight: bold;");
     
-    let accionesRealizadas = 0;
-    const MAX_PASES = 5; // Evita bucles infinitos por bloqueos de motor
+    let huboProgreso = true;
+    let pases = 0;
+    const MAX_PASES = 10; 
 
-    for (let pase = 1; pase <= MAX_PASES; pase++) {
-        let huboProgreso = false;
-        const situacion = this._obtenerSituacion(myPlayer);
+    // Resetear flags de misión de unidades
+    IASentidos.getUnits(myPlayer).forEach(u => u.ia_mision_procesada = false);
+
+    while (huboProgreso && pases < MAX_PASES) {
+        pases++;
+        console.log(`[IA_SISTEMA] Pase de actividad ${pases}. Analizando progreso...`);
         
-        console.log(`[IA_SISTEMA] Pase ${pase}/${MAX_PASES}. Analizando unidades...`);
+        // Sacamos foto del estado antes de actuar
+        const snapshotAntes = this._snapshotTurnActivity(myPlayer);
 
-        // Ciclos de prioridad
-        huboProgreso |= this._ejecutarGusanoCorredor(situacion);
-        huboProgreso |= this.construirInfraestructura(myPlayer, situacion.hexesPropios, situacion.economia);
-        huboProgreso |= this._procesarPoolEstrategico(situacion);
-        huboProgreso |= this._ejecutarBarridoResidual(situacion);
+        // EJECUCIÓN JERÁRQUICA
+        this._ejecutarGusanoCorredor(myPlayer);
+        this.construirInfraestructura(myPlayer);
+        this._procesarPrioridadesEstrategicas(myPlayer);
+        this._ejecutarBarridoResidual(myPlayer);
 
-        if (!huboProgreso) {
-            console.log(`[IA_SISTEMA] No hay más acciones posibles. Finalizando.`);
-            break;
-        }
-        accionesRealizadas++;
+        // Comprobamos si algo ha cambiado realmente en las unidades
+        huboProgreso = this._didMakeProgressThisTurn(myPlayer, snapshotAntes);
     }
 
-    if (typeof handleEndTurn === 'function') {
-        setTimeout(() => handleEndTurn(), 1500);
-    }
+    console.log(`[IA_SISTEMA] Turno finalizado tras ${pases} pases.`);
+    if (typeof handleEndTurn === 'function') setTimeout(() => handleEndTurn(), 1500);
   },
 
-  // 2. PROTOCOLO GUSANO: Fusión Legal vía RequestMergeUnits
-  _ejecutarGusanoCorredor(situacion) {
-    let progreso = false;
-    const { myPlayer } = situacion;
+  // 2. PROTOCOLO GUSANO (Split + Merge con Filtro de Identidad)
+  _ejecutarGusanoCorredor(myPlayer) {
+    const situacion = this._obtenerSituacion(myPlayer);
     const conexiones = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
-    const metas = conexiones.filter(c => !this._isAlreadyConnected(myPlayer, c.to))
-                             .flatMap(c => c.pendingCaptureSegments);
+    const metas = conexiones.flatMap(c => c.pendingCaptureSegments);
 
     for (const meta of metas) {
       const unidad = this._findClosestUnitToTarget(myPlayer, meta);
-      if (unidad && unidad.regiments.length >= 2 && !unidad.hasMoved) {
-        
-        const regParaMover = unidad.regiments.slice(0, Math.floor(unidad.regiments.length / 2));
-        const regQuedan = unidad.regiments.slice(regParaMover.length);
+      
+      // Validación estricta para evitar rechazo del Host
+      if (unidad && unidad.regiments.length >= 2 && !unidad.hasMoved && !unidad.ia_mision_procesada) {
+        const mitad = Math.floor(unidad.regiments.length / 2);
+        const regParaMover = unidad.regiments.slice(0, mitad);
+        const regQuedan = unidad.regiments.slice(mitad);
 
-        console.log(`[IA_GUSANO] u(${unidad.id}) Split legal a (${meta.r},${meta.c})`);
+        console.log(`[IA_GUSANO] u(${unidad.id}) Split hacia (${meta.r},${meta.c})`);
         
         if (this._requestSplitUnit(unidad, meta.r, meta.c, regParaMover, regQuedan)) {
-            // Buscamos la unidad recién creada para fusionar
+            // MERGE: Buscamos en destino una unidad que NO sea la original
             setTimeout(() => {
-                const unidadNueva = getUnitOnHex(meta.r, meta.c);
+                const unidadesEnDestino = units.filter(u => u.r === meta.r && u.c === meta.c && u.player === myPlayer);
+                const unidadNueva = unidadesEnDestino.find(u => u.id !== unidad.id);
+                
                 if (unidadNueva && typeof RequestMergeUnits === 'function') {
-                    console.log(`[IA_GUSANO] u(${unidad.id}) iniciando Merge legal con u(${unidadNueva.id})`);
+                    console.log(`[IA_GUSANO] Merge legal: u(${unidad.id}) -> u(${unidadNueva.id})`);
                     RequestMergeUnits(unidad, unidadNueva, true);
+                } else {
+                    console.warn(`[IA_GUSANO] Merge abortado: No se detectó unidad nueva con ID distinto en (${meta.r},${meta.c})`);
                 }
             }, 100);
-            progreso = true;
+            unidad.ia_mision_procesada = true;
         }
       }
     }
-    return progreso;
   },
 
-  // 3. MOVIMIENTO O ATAQUE INTELIGENTE (Evita ataques a distancia)
+  // 3. CONSTRUCCIÓN E INGENIERÍA ÚNICA
+  construirInfraestructura(myPlayer) {
+    const res = gameState.playerResources[myPlayer];
+    const conexiones = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
+
+    for (const con of conexiones) {
+        for (const hex of con.missingRoadSegments) {
+            const unidadEnHex = getUnitOnHex(hex.r, hex.c);
+
+            // A. PROTOCOLO DE DESALOJO
+            if (unidadEnHex && unidadEnHex.player === myPlayer) {
+                console.log(`[IA_CONSTRUCCION] Bloqueo en (${hex.r},${hex.c}). u(${unidadEnHex.id}) re-asignada.`);
+                this._asignarMisionDesalojo(unidadEnHex);
+                continue;
+            }
+
+            // B. VALIDACIÓN DE RECURSOS (Piedra 100, Madera 100 según constants.js)
+            if (!unidadEnHex && res.piedra >= 100 && res.madera >= 100) {
+                
+                // C. VALIDACIÓN TECNOLÓGICA (ENGINEERING)
+                const tieneIngenieria = res.researchedTechnologies?.includes('ENGINEERING');
+                if (!tieneIngenieria) {
+                    if (this._canAffordTech(myPlayer, 'ENGINEERING')) {
+                        console.log(`[IA_CIENCIA] Investigando ENGINEERING para iniciar red de caminos.`);
+                        this._requestResearchTech(myPlayer, 'ENGINEERING');
+                    }
+                    return; // Detener construcción hasta que la tecnología esté lista
+                }
+
+                this._requestBuildStructure(myPlayer, hex.r, hex.c, 'Camino');
+            }
+        }
+    }
+  },
+
+  // 4. TRASLACIÓN INTELIGENTE (Move o Merge según ocupación propia)
   _requestMoveOrAttack(unit, r, c) {
     const dist = hexDistance(unit.r, unit.c, r, c);
-    
-    // CASO A: Adyacencia (Ataque/Conquista)
+    if (dist === 0) return false;
+
     if (dist === 1) {
         const target = getUnitOnHex(r, c);
+        // Si hay unidad propia -> MERGE (Evita choque y rechazo de moveUnit)
+        if (target && target.player === unit.player) {
+            if (typeof RequestMergeUnits === 'function') {
+                console.log(`[IA_TRASLACION] Merge táctico: u(${unit.id}) -> u(${target.id})`);
+                return RequestMergeUnits(unit, target, true);
+            }
+        }
+        // Si hay enemigo -> ATAQUE
         if (target && target.player !== unit.player) {
             return this._requestAttackUnit(unit, target);
         }
-        // Si no hay unidad pero es ciudad enemiga/bárbara
+        // Si es ciudad enemiga/bárbara -> ATAQUE
         const hex = board[r][c];
         if (hex && hex.owner !== unit.player && (hex.isCity || hex.structure)) {
-            console.log(`[IA_MILITAR] u(${unit.id}) asaltando posición en (${r},${c})`);
-            return this._requestAttackUnit(unit, {id: 'city', r, c}); 
+            return this._requestAttackUnit(unit, {id: 'city', r, c});
         }
+        // Si está vacía -> MOVIMIENTO
+        return this._requestMoveUnit(unit, r, c);
     }
 
-    // CASO B: Distancia ( Superman no puede atacar, debe caminar )
+    // Si está lejos -> A* y paso a paso
     if (dist > 1) {
         const path = this._findRoadBuildPath({ myPlayer: unit.player, start: unit, goal: {r, c} });
         if (path && path.length > 0) {
-            const nextStep = path[0];
-            console.log(`[IA_MOVIMIENTO] u(${unit.id}) caminando hacia objetivo en (${r},${c}). Siguiente paso: (${nextStep.r},${nextStep.c})`);
-            return this._requestMoveUnit(unit, nextStep.r, nextStep.c);
+            return this._requestMoveOrAttack(unit, path[0].r, path[0].c);
         }
     }
     return false;
+  },
+
+  // 5. BARRIDO RESIDUAL Y ESCÁNER DE COLINAS (Piedra)
+  _ejecutarBarridoResidual(myPlayer) {
+    const res = gameState.playerResources[myPlayer];
+    const unidadesLibres = IASentidos.getUnits(myPlayer).filter(u => !u.hasMoved && !u.ia_mision_procesada);
+    
+    if (unidadesLibres.length === 0) return;
+
+    // Log de escáner honesto
+    const colinas = board.flat().filter(h => h && h.terrain === 'hills');
+    console.log(`[IA_ESCÁNER] Casillas 'hills' (Piedra) detectadas: ${colinas.length}`);
+
+    unidadesLibres.forEach(unit => {
+        let meta = null;
+
+        // PRIORIDAD: Si falta piedra, ir a colinas
+        if (res.piedra < this.UMBRAL_PIEDRA_URGENTE) {
+            meta = this._pickObjective(colinas, unit, myPlayer);
+            if (meta) console.log(`[IA_BARRIDO] u(${unit.id}) enviada a Colinas en (${meta.r},${meta.c})`);
+        }
+
+        // Si no, buscar nodos bárbaros u objetivos estratégicos
+        if (!meta) {
+            const objetivos = board.flat().filter(h => (h.resourceNode || h.isCity) && h.owner !== myPlayer);
+            meta = this._pickObjective(objetivos, unit, myPlayer);
+        }
+
+        if (meta) {
+            this._requestMoveOrAttack(unit, meta.r, meta.c);
+            unit.ia_mision_procesada = true;
+        }
+    });
+  },
+
+  // --- HELPERS TÉCNICOS ---
+
+  _snapshotTurnActivity(myPlayer) {
+    const snap = {};
+    IASentidos.getUnits(myPlayer).forEach(u => {
+        snap[u.id] = { r: u.r, c: u.c, m: u.currentMovement, h: u.currentHealth, a: u.hasAttacked };
+    });
+    return snap;
+  },
+
+  _didMakeProgressThisTurn(myPlayer, antes) {
+    const ahora = IASentidos.getUnits(myPlayer);
+    if (ahora.length !== Object.keys(antes).length) return true;
+    for (const u of ahora) {
+        const a = antes[u.id];
+        if (!a) return true;
+        if (u.r !== a.r || u.c !== a.c || u.currentMovement !== a.m || u.hasAttacked !== a.a) return true;
+    }
+    return false;
+  },
+
+  _requestSplitUnit(u, r, c, newRegs, remainRegs) {
+    if (typeof processActionRequest === 'function') {
+      processActionRequest({
+        type: 'splitUnit',
+        payload: {
+          playerId: u.player,
+          originalUnitId: u.id,
+          targetR: r,
+          targetC: c,
+          newUnitRegiments: newRegs,
+          remainingOriginalRegiments: remainRegs
+        }
+      });
+      return true;
+    }
+    return false;
+  },
+
+  _pickObjective(lista, unidad, myPlayer) {
+    if (!lista || lista.length === 0) return null;
+    return lista.map(o => ({ o, s: 1000 / (hexDistance(unidad.r, unidad.c, o.r, o.c) + 1) }))
+                .sort((a, b) => b.s - a.s)[0].o;
+  },
+
+  _obtenerSituacion(myPlayer) {
+    return {
+        myPlayer,
+        economia: (typeof IAEconomica !== 'undefined') ? IAEconomica.evaluarEconomia(myPlayer) : { oro: 0, piedra: 0, madera: 0 },
+        hexesPropios: (typeof IASentidos !== 'undefined') ? IASentidos.getOwnedHexes(myPlayer) : []
+    };
+  },
+
+  _asignarMisionDesalojo(unidad) {
+    // Busca colinas si no hay piedra, o cualquier nodo libre
+    const colinas = board.flat().filter(h => h && h.terrain === 'hills');
+    const meta = this._pickObjective(colinas, unidad, unidad.player);
+    if (meta) {
+        console.log(`[IA_MISION] u(${unidad.id}) desalojo -> Misión: Minería en (${meta.r},${meta.c})`);
+        this._requestMoveOrAttack(unidad, meta.r, meta.c);
+        unidad.ia_mision_procesada = true;
+    }
   },
 
   // 4. BÚSQUEDA DE OBJETIVOS PONDERADA (Prioriza cercanía)
@@ -929,16 +1031,6 @@ Object.assign(window.IAArchipielago, {
         if (obj.resourceNode === 'Piedra') score *= 1.5; // Priorizar piedra si es Banquero
         return { obj, score };
     }).sort((a, b) => b.score - a.score)[0].obj;
-  },
-
-  // 5. HELPER: OBTENER SITUACIÓN (Sincronizado con IASentidos)
-  _obtenerSituacion(myPlayer) {
-    return {
-        myPlayer,
-        economia: (typeof IAEconomica !== 'undefined') ? IAEconomica.evaluarEconomia(myPlayer) : { oro: 0 },
-        ciudades: (typeof IASentidos !== 'undefined') ? IASentidos.getCities(myPlayer) : [],
-        hexesPropios: (typeof IASentidos !== 'undefined') ? IASentidos.getOwnedHexes(myPlayer) : []
-    };
   },
 
   // 6. HELPER: PROCESADOR DE POOL (Para no detenerse tras una ruta)
@@ -1003,30 +1095,6 @@ Object.assign(window.IAArchipielago, {
     return path.every(h => board[h.r][h.c].structure === 'Camino' || board[h.r][h.c].isCity);
   },
 
-  // 5. PROTOCOLO DE DESALOJO PARA CONSTRUCCIÓN
-  construirInfraestructura(myPlayer, hexesPropios, economia) {
-    const conexiones = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
-    const piedraActual = gameState.playerResources[myPlayer]?.piedra || 0;
-
-    for (const conexion of conexiones) {
-        if (this._isAlreadyConnected(myPlayer, conexion.to)) continue;
-
-        for (const hex of conexion.missingRoadSegments) {
-            const unidadEnHex = getUnitOnHex(hex.r, hex.c);
-
-            if (unidadEnHex && unidadEnHex.player === myPlayer) {
-                console.log(`[IA_CONSTRUCCION] Bloqueo en (${hex.r},${hex.c}). u(${unidadEnHex.id}) disparando Protocolo de Desalojo.`);
-                this._asignarMisionDesdePool(unidadEnHex); // Asigna misión de los 10 objetivos
-                continue;
-            }
-
-            if (!unidadEnHex && piedraActual >= 50 && this._canAffordStructure(myPlayer, 'Camino')) {
-                this._requestBuildStructure(myPlayer, hex.r, hex.c, 'Camino');
-            }
-        }
-    }
-  },
-
   // 6. ESTRATEGIA INCLUSIVA (Procesar todas las rutas)
   _procesarEstrategiaVictoria(situacion) {
     const rutas = this._evaluarRutasDeVictoria(situacion);
@@ -1039,48 +1107,6 @@ Object.assign(window.IAArchipielago, {
         // Ejecutamos la ruta para las unidades que sigan libres
         this._ejecutarAccionPorRuta(ruta, situacion);
     }
-  },
-
-  // 7. BARRIDO RESIDUAL (Ninguna unidad ociosa)
-  _ejecutarBarridoResidual(situacion) {
-    const unidadesLibres = IASentidos.getUnits(situacion.myPlayer)
-                           .filter(u => !u.hasMoved && !u.ia_mision_procesada);
-
-    if (unidadesLibres.length === 0) return;
-
-    console.log(`[IA_BARRIDO] Procesando ${unidadesLibres.length} unidades ociosas.`);
-
-    unidadesLibres.forEach(unit => {
-        // Prioridad 1: Nodos de recursos enemigos o bárbaros (owner !== myPlayer)
-        const nodosObjetivo = board.flat().filter(h => h && h.resourceNode && h.owner !== situacion.myPlayer);
-        const meta = this._pickObjective(nodosObjetivo, unit, situacion.myPlayer);
-
-        if (meta) {
-            console.log(`[IA_BARRIDO] u(${unit.id}) residual enviada a Nodo (${meta.r},${meta.c})`);
-            this._requestMoveOrAttack(unit, meta.r, meta.c);
-            unit.ia_mision_procesada = true;
-        }
-    });
-  },
-
-  // 8. CORRECCIÓN DE PAYLOAD splitUnit (Sincronizado con main.js)
-  _requestSplitUnit(u, r, c, newRegs, remainRegs) {
-    if (typeof processActionRequest === 'function') {
-        const action = {
-            type: 'splitUnit',
-            payload: {
-                playerId: u.player,
-                originalUnitId: u.id,      // ID correcto para main.js
-                targetR: r,                // R correcto para main.js
-                targetC: c,                // C correcto para main.js
-                newUnitRegiments: newRegs,
-                remainingOriginalRegiments: remainRegs
-            }
-        };
-        processActionRequest(action);
-        return true;
-    }
-    return false;
   },
 
   // 9. ASIGNADOR DE MISIÓN DESDE POOL (Para desalojo)
