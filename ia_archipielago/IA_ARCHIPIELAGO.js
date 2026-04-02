@@ -10,6 +10,9 @@ const IAArchipielago = {
   HUNT_SMALL_DIVISIONS_TARGET: 3,
   BIG_ENEMY_DIVISION_THRESHOLD: 12,
   HEAVY_DIVISION_TARGET: 20,
+  WORM_MIN_SPLIT_REGIMENTS: 2,
+  WORM_MAX_ACTIONS_PER_TURN: 8,
+  CUT_SUPPLY_MAX_TARGETS: 4,
   deployUnitsAI(myPlayer) {
     console.log(`[IA_ARCHIPIELAGO] Despliegue IA iniciado para Jugador ${myPlayer}.`);
     if (gameState.currentPhase !== 'deployment') {
@@ -33,80 +36,78 @@ const IAArchipielago = {
     console.log(`[IA_ARCHIPIELAGO] Despliegue IA finalizado. Las rutas se procesan en fase 'play'.`);
   },
 
-  ejecutarTurno(myPlayer) {
-    console.log(`\n========================================`);
-    console.log(`[IA_ARCHIPIELAGO] ========= TURNO ${gameState.turnNumber} - JUGADOR ${myPlayer} =========`);
-    console.log(`========================================\n`);
+  // === Helpers globales para metas ===
+// === Helpers globales para metas ===
+  registrarMetaFlujo(flujo, r, c, myPlayer) {
+    if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
+    if (!gameState.iaCompletedGoals[myPlayer]) gameState.iaCompletedGoals[myPlayer] = { ocupacion: [], construccion: [], caravana: [] };
+    const goals = gameState.iaCompletedGoals[myPlayer][flujo];
+    if (!goals.some(g => g.r === r && g.c === c)) {
+      goals.push({ r, c, turno: gameState.turnNumber });
+      console.log(`[IA_ARCHIPIELAGO] Meta registrada en '${flujo}': (${r},${c})`);
+    }
+  },
 
-    // Verificaciones de módulos disponibles
+  isGoalCompletedFlujo(flujo, r, c, myPlayer) {
+    if (!gameState.iaCompletedGoals?.[myPlayer]?.[flujo]) return false;
+    return gameState.iaCompletedGoals[myPlayer][flujo].some(g => g.r === r && g.c === c);
+  },
+
+  // Método principal unificado
+  ejecutarTurno(myPlayer) {
+
+    console.log(`[IA_ARCHIPIELAGO] ========= TURNO ${gameState.turnNumber} - JUGADOR ${myPlayer} =========`);
+    // Variables para metas y filtrado
+    let totalMetas = 0;
+    let totalFiltradas = 0;
+
     if (typeof IASentidos === 'undefined') {
-      console.error(`[IA_ARCHIPIELAGO] ERROR CRÍTICO: IASentidos no está disponible. Abortando.`);
-      if (typeof handleEndTurn === 'function') {
-        setTimeout(() => handleEndTurn(), 500);
-      }
+      console.error(`[IA_ARCHIPIELAGO] ERROR CRÍTICO: IASentidos no disponible.`);
+      if (typeof handleEndTurn === 'function') setTimeout(() => handleEndTurn(), 500);
       return;
     }
+
+    if (!this._turnBuildRetryBlock) this._turnBuildRetryBlock = {};
+    this._turnBuildRetryBlock[myPlayer] = { turn: gameState.turnNumber, keys: new Set() };
 
     const infoTurno = IASentidos.getTurnInfo();
-    if (infoTurno.currentPhase !== 'play') {
-      console.log(`[IA_ARCHIPIELAGO] Fase incorrecta: ${infoTurno.currentPhase}, abortando`);
+    if (infoTurno.currentPhase !== 'play') return;
 
-      // Fallback: si por algún motivo se llamó en despliegue, intentar desplegar con IA clásica
-      if (infoTurno.currentPhase === 'deployment' && typeof AiDeploymentManager !== 'undefined' && AiDeploymentManager.deployUnitsAI) {
-        console.log(`[IA_ARCHIPIELAGO] Fallback de despliegue: llamando a AiDeploymentManager.deployUnitsAI(${myPlayer})`);
-        AiDeploymentManager.deployUnitsAI(myPlayer);
-        return;
-      }
-
-      if (typeof handleEndTurn === 'function') {
-        setTimeout(() => handleEndTurn(), 500);
-      }
-      return;
-    }
-
-    // Fallback crítico: si la IA no tiene unidades en el primer turno de Archipiélago, crear una unidad mínima
-    const isArchipelago = !!gameState.setupTempSettings?.navalMap;
-    if (isArchipelago && (gameState.turnNumber || 1) <= 1) {
-      const unidadesIA = IASentidos.getUnits(myPlayer);
-      if (!unidadesIA || unidadesIA.length === 0) {
-        console.warn(`[IA_ARCHIPIELAGO] ⚠️ IA sin unidades en turno inicial. Creando unidad de emergencia...`);
-        this.crearUnidadInicialDeEmergencia(myPlayer);
-      }
-    }
-
-    // Verificaciones de otros módulos
-    if (typeof IATactica === 'undefined') {
-      console.warn(`[IA_ARCHIPIELAGO] ADVERTENCIA: IATactica no está disponible`);
-    }
-    if (typeof IAEconomica === 'undefined') {
-      console.warn(`[IA_ARCHIPIELAGO] ADVERTENCIA: IAEconomica no está disponible`);
-    }
-
-    console.log(`[IA_ARCHIPIELAGO] Recopilando objetivos propios...`);
-    const ciudades = IASentidos.getCities(myPlayer);
+    // --- 1. RECOPILACIÓN DE DATOS ---
     const hexesPropios = IASentidos.getOwnedHexes(myPlayer);
-    const recursos = hexesPropios.filter(h => h.resourceNode);
+    const ciudades = IASentidos.getCities(myPlayer).filter(c => !this.isGoalCompletedFlujo('ocupacion', c.r, c.c, myPlayer));
+    const recursos = hexesPropios.filter(h => h.resourceNode && !this.isGoalCompletedFlujo('ocupacion', h.r, h.c, myPlayer));
     const infraestructura = hexesPropios.filter(h => h.structure);
-    const objetivos = ciudades.concat(recursos).concat(infraestructura);
-    console.log(`[IA_ARCHIPIELAGO] Objetivos totales: ${objetivos.length} (${ciudades.length} ciudades, ${recursos.length} recursos, ${infraestructura.length} infraestructura)`);
 
-    console.log(`\n[IA_ARCHIPIELAGO] Analizando situación táctica...`);
-    const amenazas = (typeof IATactica !== 'undefined') ? IATactica.detectarAmenazasSobreObjetivos(myPlayer, objetivos, 3) : [];
-    const frente = (typeof IATactica !== 'undefined') ? IATactica.detectarFrente(myPlayer, 2) : [];
-    
-    console.log(`\n[IA_ARCHIPIELAGO] Analizando situación económica...`);
+    // --- 2. FLUJO 1: OCUPACIÓN ---
+    console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Iniciando...`);
+    let ocupacionesRealizadas = 0;
+    const objetivosOcupacion = [...ciudades, ...recursos];
+    for (const obj of objetivosOcupacion) {
+      if (this._requestMoveOrAttack) {
+        const result = this._requestMoveOrAttack({ r: obj.r, c: obj.c, player: myPlayer }, obj.r, obj.c);
+        if (result) {
+          this.registrarMetaFlujo('ocupacion', obj.r, obj.c, myPlayer);
+          ocupacionesRealizadas++;
+        }
+      }
+    }
+    console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Finalizado. Conquistas: ${ocupacionesRealizadas}`);
+
+    // --- 3. FLUJO 2: CONSTRUCCIÓN EXHAUSTIVA ---
+    if (typeof this.construirInfraestructura === 'function') {
+      console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Ejecutando construcción preventiva...`);
+      this.construirInfraestructura(myPlayer, hexesPropios, { oro: 99999 }); 
+    }
+
+    // --- 4. ANÁLISIS ECONÓMICO Y TÁCTICO ---
     const economia = (typeof IAEconomica !== 'undefined') ? IAEconomica.evaluarEconomia(myPlayer) : { oro: 0 };
+    const objetivosSiguientes = ciudades.concat(recursos);
+    const amenazas = (typeof IATactica !== 'undefined') ? IATactica.detectarAmenazasSobreObjetivos(myPlayer, objetivosSiguientes, 3) : [];
+    const frente = (typeof IATactica !== 'undefined') ? IATactica.detectarFrente(myPlayer, 2) : [];
     const recursosEnMapa = (typeof IAEconomica !== 'undefined') ? IAEconomica.contarRecursosEnMapa(myPlayer) : { total: 0 };
-    const recursosVulnerables = (typeof IAEconomica !== 'undefined') ? IAEconomica.detectarRecursosVulnerables(myPlayer === 1 ? 2 : 1) : [];
-
-    console.log(`\n[IA_ARCHIPIELAGO] ========= RESUMEN DE SITUACIÓN =========`);
-    console.log(`Amenazas detectadas: ${amenazas.length}`);
-    console.log(`Puntos de frente: ${frente.length}`);
-    console.log(`Recursos disponibles: oro ${economia.oro}, comida ${economia.comida}, madera ${economia.madera}, piedra ${economia.piedra}, hierro ${economia.hierro}`);
-    console.log(`Investigacion/Recruit: ${economia.researchPoints || 0}/${economia.puntosReclutamiento || 0}`);
-    console.log(`Recursos en mapa: ${recursosEnMapa.total}`);
-    console.log(`Objetivos enemigos vulnerables: ${recursosVulnerables.length}`);
-    console.log(`========================================\n`);
+    const enemyPlayer = this._getEnemyPlayerId(myPlayer);
+    const recursosVulnerables = (typeof IAEconomica !== 'undefined' && enemyPlayer != null) ? IAEconomica.detectarRecursosVulnerables(enemyPlayer) : [];
 
     const situacion = {
       amenazas,
@@ -117,114 +118,125 @@ const IAArchipielago = {
       myPlayer,
       ciudades,
       hexesPropios,
-      recursos: recursos,
-      infraestructura: infraestructura
+      recursos,
+      infraestructura,
+      snapshotActividad: this._snapshotTurnActivity(myPlayer)
     };
 
     situacion.enemyProfile = this._evaluateEnemyExpansionStrategy(myPlayer);
+
+    // --- 5. EJECUCIÓN DE PLANES ESTRATÉGICOS ---
+    this._ejecutarCapaEstructuralRed(situacion);
 
     const rutas = this._evaluarRutasDeVictoria(situacion);
     situacion.rutas = rutas;
     this._logRutasDeVictoria(rutas);
     this._procesarRutasDeVictoria(situacion);
 
-    // <<==== IMPLEMENTACIÓN DE ACCIONES DE IA ====>>
-    console.log(`[IA_ARCHIPIELAGO] ========= EJECUTANDO PLAN DE ACCIÓN =========`);
     this.ejecutarPlanDeAccion(situacion);
-    console.log(`[IA_ARCHIPIELAGO] Plan de acción completado.`);
-    console.log(`========================================\n`);
 
-    if (typeof handleEndTurn === 'function') {
-      console.log(`[IA_ARCHIPIELAGO] Llamando a handleEndTurn()`);
-      setTimeout(() => handleEndTurn(), 1500);
-    } else {
-      console.error(`[IA_ARCHIPIELAGO] ERROR: handleEndTurn no está disponible`);
+    // Plan de emergencia si no hubo progreso
+    if (!this._didMakeProgressThisTurn(myPlayer, situacion.snapshotActividad)) {
+      console.warn('[IA_ARCHIPIELAGO] Turno inerte detectado. Activando emergencia...');
+      this._ejecutarPlanEmergencia(situacion);
     }
 
+    // --- 6. FINALIZACIÓN ---
+    console.log(`[IA_ARCHIPIELAGO] Turno completado para Jugador ${myPlayer}.`);
+    if (typeof handleEndTurn === 'function') {
+      setTimeout(() => handleEndTurn(), 1500);
+    }
     return situacion;
   },
+  _runDeterministicBootstrapController(situacion) {
+    const { myPlayer } = situacion;
+    if (gameState.currentPhase !== 'play') return;
+    if (typeof AiDeploymentManager === 'undefined') return;
+    if (typeof AiGameplayManager === 'undefined') return;
 
-  /**
-   * PLAN DE ACCIÓN PRINCIPAL
-   * Prioridad de acciones:
-   * 1. Fusión de unidades para defensa
-   * 2. División estratégica de unidades
-  * 3. Conquista de ciudades bárbaras (expediciones)
-  * 4. Movimiento ofensivo/defensivo
-  * 5. Construcción de infraestructura
-  * 6. Creación de caravanas
-   */
-  ejecutarPlanDeAccion(situacion) {
-    const { myPlayer, amenazas, frente, economia, ciudades, hexesPropios, enemyProfile } = situacion;
-    // Si hay un plan de presión por fortaleza, intentar producir fuerzas primero
-    if (gameState.aiFortressPressure && gameState.aiFortressPressure[myPlayer]) {
-      const finished = this._pressureProduceForFortress(myPlayer);
-      if (finished) {
-        delete gameState.aiFortressPressure[myPlayer];
+    const analysis = typeof AiDeploymentManager.analyzeEnvironment === 'function'
+      ? AiDeploymentManager.analyzeEnvironment(myPlayer)
+      : null;
+    const stages = typeof AiDeploymentManager._buildDeterministicBootstrapStages === 'function'
+      ? AiDeploymentManager._buildDeterministicBootstrapStages(analysis, myPlayer)
+      : [];
+    if (!stages.length) return;
+
+    if (!gameState.aiDeterministicBootstrap) gameState.aiDeterministicBootstrap = {};
+    if (!gameState.aiDeterministicBootstrap[myPlayer]) {
+      gameState.aiDeterministicBootstrap[myPlayer] = { stageIndex: 0, completed: [], createdStages: [] };
+    }
+
+    const state = gameState.aiDeterministicBootstrap[myPlayer];
+    state.createdStages = Array.isArray(state.createdStages) ? state.createdStages : [];
+    state.completed = Array.isArray(state.completed) ? state.completed : [];
+
+    const stageIndex = Math.max(0, Math.min(state.stageIndex || 0, stages.length - 1));
+    const stage = stages[stageIndex];
+    if (!stage) return;
+
+    const stageUnits = IASentidos.getUnits(myPlayer).filter(u =>
+      u && u.currentHealth > 0 && u.iaBootstrapObjective && Number(u.iaBootstrapObjective.stageIndex) === stageIndex
+    );
+
+    // Si no existe división de la etapa actual, crearla en una ciudad/fortaleza propia libre.
+    if (stageUnits.length === 0 && !state.createdStages.includes(stageIndex)) {
+      const newUnit = AiGameplayManager.produceUnit(
+        myPlayer,
+        ['Infantería Ligera', 'Infantería Ligera'],
+        'builder',
+        `Pionero Bootstrap S${stageIndex + 1}`
+      );
+      if (newUnit) {
+        newUnit.iaBootstrapObjective = {
+          r: stage.objectiveHex.r,
+          c: stage.objectiveHex.c,
+          stageIndex,
+          stageLabel: stage.label,
+          fromNode: stage.fromNode,
+          toNode: stage.toNode
+        };
+        state.createdStages.push(stageIndex);
+        console.log(`[IA BOOTSTRAP] J${myPlayer} creada division etapa ${stageIndex + 1}: ${stage.label} objetivo=(${stage.objectiveHex.r},${stage.objectiveHex.c})`);
       }
     }
-    let misUnidades = IASentidos.getUnits(myPlayer);
-    const isNavalMap = !!gameState.setupTempSettings?.navalMap;
-    
-    console.log(`[IA_ARCHIPIELAGO] PLAN: Ejecutando con ${misUnidades.length} unidades disponibles`);
 
-    const hasCrisis = amenazas.length > 0 || frente.length > 0;
-    if (!hasCrisis) {
-      this._ejecutarRutaLarga(situacion);
-    } else {
-      console.log('[IA_ARCHIPIELAGO] Ruta Larga pausada por crisis tactica.');
-    }
+    const refreshedStageUnits = IASentidos.getUnits(myPlayer).filter(u =>
+      u && u.currentHealth > 0 && u.iaBootstrapObjective && Number(u.iaBootstrapObjective.stageIndex) === stageIndex
+    );
+    const actor = refreshedStageUnits
+      .slice()
+      .sort((a, b) => hexDistance(a.r, a.c, stage.objectiveHex.r, stage.objectiveHex.c) - hexDistance(b.r, b.c, stage.objectiveHex.r, stage.objectiveHex.c))[0];
 
-    if (enemyProfile?.mode === 'spread_small') {
-      const created = this._ensureHunterDivisions(myPlayer, enemyProfile.targetRegiments);
-      if (created > 0) {
-        console.log(`[IA_ARCHIPIELAGO] Hunter: divisiones creadas=${created}`);
+    if (actor) {
+      AiGameplayManager.missionAssignments.set(actor.id, {
+        type: 'IA_NODE',
+        objective: { r: stage.objectiveHex.r, c: stage.objectiveHex.c },
+        nodoTipo: 'corredor_comercial',
+        axisName: `bootstrap_stage_${stageIndex}`,
+        bootstrapStageLabel: stage.label
+      });
+
+      if (!actor.hasMoved && (actor.currentMovement || 0) > 0) {
+        this._requestMoveOrAttack(actor, stage.objectiveHex.r, stage.objectiveHex.c);
+        console.log(`[IA BOOTSTRAP] J${myPlayer} etapa ${stageIndex + 1} movimiento hacia (${stage.objectiveHex.r},${stage.objectiveHex.c})`);
       }
     }
 
-    if (enemyProfile?.mode === 'stack_large') {
-      this._ensureHeavyDivisions(myPlayer, enemyProfile.maxRegiments);
-    }
+    const objectiveHex = board[stage.objectiveHex.r]?.[stage.objectiveHex.c];
+    const occupiedByUs = !!(objectiveHex && objectiveHex.owner === myPlayer);
+    const unitOnObjective = getUnitOnHex(stage.objectiveHex.r, stage.objectiveHex.c);
+    const reached = occupiedByUs || !!(unitOnObjective && unitOnObjective.player === myPlayer);
 
-    // FASE 1: FUSIÓN DEFENSIVA (El latido del corazón)
-    if (amenazas.length > 0 || frente.length > 0) {
-      console.log(`[IA_ARCHIPIELAGO] FASE 1: Detectado peligro. Buscando fusiones defensivas...`);
-      this.ejecutarFusionesDefensivas(myPlayer, misUnidades, amenazas, frente, enemyProfile);
-    }
-
-    // FASE 2: DIVISIÓN ESTRATÉGICA (Para expandir presencia)
-    console.log(`[IA_ARCHIPIELAGO] FASE 2: Evaluando divisiones estratégicas...`);
-    this.ejecutarDivisionesEstrategicas(myPlayer, misUnidades, hexesPropios, enemyProfile);
-    misUnidades = IASentidos.getUnits(myPlayer);
-
-    // FASE 2.5: PRESENCIA NAVAL EN ARCHIPIÉLAGO
-    if (isNavalMap) {
-      this._ensureNavalPresence(myPlayer, economia);
-      this._pressEnemyHomeIsland(myPlayer);
-    }
-
-    // FASE 3: CONQUISTA DE CIUDADES BÁRBARAS (prioridad)
-    console.log(`[IA_ARCHIPIELAGO] FASE 3: Buscando ciudades bárbaras para conquistar...`);
-    this.conquistarCiudadesBarbaras(myPlayer, misUnidades);
-
-    // FASE 3.5: MOVIMIENTO TÁCTICO
-    console.log(`[IA_ARCHIPIELAGO] FASE 3.5: Ejecutando movimientos tácticos...`);
-    this.ejecutarMovimientosTacticos(myPlayer, misUnidades, situacion);
-
-    // FASE 4: FUSIÓN OFENSIVA (Antes de atacar)
-    console.log(`[IA_ARCHIPIELAGO] FASE 4: Preparando fusiones ofensivas para ataque...`);
-    this.ejecutarFusionesOfensivas(myPlayer, misUnidades, situacion);
-
-    // FASE 5: CONSTRUCCIÓN DE INFRAESTRUCTURA
-    if (economia.oro >= 500) {
-      console.log(`[IA_ARCHIPIELAGO] FASE 5: Construyendo infraestructura (Oro: ${economia.oro})...`);
-      this.construirInfraestructura(myPlayer, hexesPropios, economia);
-    }
-
-    // FASE 6: CARAVANAS COMERCIALES
-    if (economia.oro >= 1000 && ciudades.length > 0) {
-      console.log(`[IA_ARCHIPIELAGO] FASE 6: Creando caravanas comerciales...`);
-      this.crearCaravanas(myPlayer, ciudades);
+    if (reached) {
+      const alreadyCompleted = state.completed.some(c => c && c.stageIndex === stageIndex && c.reached === true);
+      if (!alreadyCompleted) {
+        state.completed.push({ stageIndex, stageLabel: stage.label, objectiveHex: stage.objectiveHex, turn: gameState.turnNumber, reached: true });
+      }
+      if (stageIndex < stages.length - 1) {
+        state.stageIndex = stageIndex + 1;
+      }
+      console.log(`[IA BOOTSTRAP] J${myPlayer} etapa ${stageIndex + 1} completada (${stage.label}).`);
     }
   },
 
@@ -320,6 +332,10 @@ const IAArchipielago = {
     // Buscar unidades cercanas que puedan fusionarse
     for (let i = 0; i < misUnidades.length; i++) {
       const unit1 = misUnidades[i];
+      if (amenazas.length === 0 && this._isCorridorPioneer(unit1)) continue;
+      // No fundir unidades con misiones activas de expansión o corredor.
+      const mission1 = (typeof AiGameplayManager !== 'undefined') ? AiGameplayManager.missionAssignments?.get(unit1.id) : null;
+      if (mission1 && ['OCCUPY_THEN_BUILD', 'IA_NODE', 'AXIS_ADVANCE'].includes(mission1.type)) continue;
       const regimentosActuales = unit1.regiments?.length || 0;
 
       const targetSize = Math.min(
@@ -331,6 +347,9 @@ const IAArchipielago = {
       // Buscar otra unidad cercana para fusionar
       for (let j = i + 1; j < misUnidades.length; j++) {
         const unit2 = misUnidades[j];
+        if (amenazas.length === 0 && this._isCorridorPioneer(unit2)) continue;
+        const mission2 = (typeof AiGameplayManager !== 'undefined') ? AiGameplayManager.missionAssignments?.get(unit2.id) : null;
+        if (mission2 && ['OCCUPY_THEN_BUILD', 'IA_NODE', 'AXIS_ADVANCE'].includes(mission2.type)) continue;
         const distancia = hexDistance(unit1.r, unit1.c, unit2.r, unit2.c);
 
         // Si están muy cerca y la suma no excede el máximo
@@ -363,16 +382,11 @@ const IAArchipielago = {
   ejecutarDivisionesEstrategicas(myPlayer, misUnidades, hexesPropios, enemyProfile) {
     console.log(`[IA_ARCHIPIELAGO] DIVISIÓN ESTRATÉGICA: ${misUnidades.length} unidades`);
 
-    if (this._isHumanOpponent(myPlayer) && (enemyProfile?.maxRegiments || 0) > 0) {
-      console.log('[IA_ARCHIPIELAGO] DIVISIÓN ESTRATÉGICA: omitida por presencia humana.');
-      return;
-    }
-
     for (const unit of misUnidades) {
       const regimientosActuales = unit.regiments?.length || 0;
 
-      // Solo dividir unidades GRANDES (más de 8 regimientos)
-      if (regimientosActuales <= 8) continue;
+      // Dividir unidades con más de 4 regimientos para expandir presencia en el mapa.
+      if (regimientosActuales <= 4) continue;
 
       // Buscar un hexágono adyacente desocupado
       const hexesCercanos = getHexNeighbors(unit.r, unit.c);
@@ -406,11 +420,12 @@ const IAArchipielago = {
    */
   ejecutarMovimientosTacticos(myPlayer, misUnidades, situacion) {
     const { amenazas, frente, recursos: recursosEnHexes } = situacion;
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
-    const unidadesEnemigas = IASentidos.getUnits(enemyPlayer);
+    const unidadesEnemigas = IASentidos.getEnemyUnits(myPlayer);
     const enemyProfile = situacion.enemyProfile;
     const ruins = this._getUnexploredRuins();
     const canExploreRuins = ruins.length > 0 && this._ensureTech(myPlayer, 'RECONNAISSANCE');
+    const supplyCutTargets = this._collectSupplyCutTargets(myPlayer, this.CUT_SUPPLY_MAX_TARGETS);
+    const sabotageTargets = this._collectSabotageTargets(myPlayer);
 
     console.log(`[IA_ARCHIPIELAGO] MOVIMIENTOS TÁCTICOS: ${misUnidades.length} unidades`);
 
@@ -456,22 +471,53 @@ const IAArchipielago = {
           console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Objetivo defensivo en (${objetivo.r},${objetivo.c})`);
         }
       }
-      // PRIORIDAD 3: Atacar recurso vulnerable
+      // PRIORIDAD 3: Cortar suministro enemigo
+      else if (supplyCutTargets.length > 0) {
+        if (!objetivo) objetivo = this._pickObjective(supplyCutTargets, unit, myPlayer);
+        if (objetivo) {
+          console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Cortando suministro en (${objetivo.r},${objetivo.c})`);
+        }
+      }
+      // PRIORIDAD 4: Sabotaje de progreso enemigo (caravanas/exploradores/rutas)
+      else if (sabotageTargets.length > 0) {
+        if (!objetivo) objetivo = this._pickObjective(sabotageTargets, unit, myPlayer);
+        if (objetivo) {
+          console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Sabotaje en (${objetivo.r},${objetivo.c})`);
+        }
+      }
+      // PRIORIDAD 5: Atacar recurso vulnerable
       else if (situacion.recursosVulnerables.length > 0) {
         if (!objetivo) objetivo = this._pickObjective(situacion.recursosVulnerables, unit, myPlayer);
         if (objetivo) {
           console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Objetivo ofensivo (recurso vulnerable) en (${objetivo.r},${objetivo.c})`);
         }
       }
-      // PRIORIDAD 4: Expandir hacia recursos propios descubiertos
+      // PRIORIDAD 6: Expandir hacia recursos propios descubiertos
       else if (recursosEnHexes.length > 0) {
         if (!objetivo) objetivo = this._pickObjective(recursosEnHexes, unit, myPlayer);
         if (objetivo) {
           console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Objetivo exploratorio en (${objetivo.r},${objetivo.c})`);
         }
       }
-      // PRIORIDAD 5: Presión directa al enemigo
-      else if (unidadesEnemigas.length > 0) {
+      // PRIORIDAD 7: Expansión de frontera — ocupar casillas vacías adyacentes al territorio propio.
+      // Igual que el humano: siempre hay espacio que tomar en el mapa.
+      else if (!objetivo) {
+        const frontierHexes = board.flat().filter(h =>
+          h && (h.owner === null || h.owner === undefined) &&
+          !h.unit && !h.isCity &&
+          (h.terrain !== 'water') &&
+          getHexNeighbors(h.r, h.c).some(n => board[n.r]?.[n.c]?.owner === myPlayer)
+        );
+        if (frontierHexes.length > 0) {
+          objetivo = this._pickObjective(frontierHexes, unit, myPlayer);
+          if (objetivo) {
+            console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Expansión de frontera en (${objetivo.r},${objetivo.c})`);
+          }
+        }
+      }
+
+      // PRIORIDAD 8: Presión directa al enemigo cuando no hay frontera libre.
+      if (!objetivo && unidadesEnemigas.length > 0) {
         objetivo = this._pickObjective(unidadesEnemigas, unit, myPlayer);
         if (objetivo) {
           console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Presionando enemigo en (${objetivo.r},${objetivo.c})`);
@@ -567,8 +613,7 @@ const IAArchipielago = {
    * - Si poder < 0.8x → RETIRADA O FUSIONAR TODO
    */
   ejecutarFusionesOfensivas(myPlayer, misUnidades, situacion) {
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
-    const unidadesEnemigas = IASentidos.getUnits(enemyPlayer);
+    const unidadesEnemigas = IASentidos.getEnemyUnits(myPlayer);
     
     console.log(`[IA_ARCHIPIELAGO] FASE 3.5: FUSIÓN OFENSIVA INTELIGENTE`);
     if (unidadesEnemigas.length === 0) return;
@@ -906,7 +951,6 @@ const IAArchipielago = {
    */
   conquistarCiudadesBarbaras(myPlayer, misUnidades) {
     const ciudadesBarbaras = this._getBarbarianCities();
-    
     if (ciudadesBarbaras.length === 0) {
       console.log(`[IA_ARCHIPIELAGO] No hay ciudades bárbaras disponibles`);
       return;
@@ -945,6 +989,13 @@ const IAArchipielago = {
       return;
     }
 
+    // Si la ciudad ya es nuestra, registrar meta cumplida
+    const cityObj = board[targetCity.r]?.[targetCity.c];
+    if (cityObj && cityObj.owner === myPlayer) {
+      this.registrarMetaFlujo('ocupacion', targetCity.r, targetCity.c, myPlayer);
+      return;
+    }
+
     console.log(`[IA_ARCHIPIELAGO] CONQUISTA: expedición lista (${totalPower}/${requiredPower}) hacia (${targetCity.r},${targetCity.c}).`);
     for (const unit of expeditionUnits) {
       unit.iaExpeditionTarget = `${targetCity.r},${targetCity.c}`;
@@ -958,23 +1009,33 @@ const IAArchipielago = {
    */
   construirInfraestructura(myPlayer, hexesPropios, economia) {
     const capital = gameState.cities.find(c => c.owner === myPlayer && c.isCapital);
-    if (!capital) return;
+    if (!capital) {
+      console.log('[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] No hay capital, no se puede construir.');
+      return;
+    }
 
-    console.log(`[IA_ARCHIPIELAGO] CONSTRUCCIÓN: Oro disponible: ${economia.oro}`);
+    console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Oro disponible: ${economia.oro}`);
+    const esTurnoTemprano = (gameState.turnNumber || 0) < 4;
+    const reservaPiedraMinima = 500;
+    let hizoAlgo = false;
 
     const invaderFortSpot = this._findInvaderIslandFortressSpot(myPlayer, hexesPropios);
     if (invaderFortSpot) {
       if (!this._ensureTech(myPlayer, 'FORTIFICATIONS')) {
-        console.log('[IA_ARCHIPIELAGO] CONSTRUCCIÓN: falta FORTIFICATIONS para fortaleza invasora.');
+        console.log('[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Falta FORTIFICATIONS para fortaleza invasora.');
         return;
       }
       if (!this._canAffordStructure(myPlayer, 'Fortaleza')) {
-        console.log('[IA_ARCHIPIELAGO] CONSTRUCCIÓN: recursos insuficientes para fortaleza invasora.');
+        console.log('[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Recursos insuficientes para fortaleza invasora.');
         return;
       }
-      console.log(`[IA_ARCHIPIELAGO] Construyendo fortaleza (Camino 16) en (${invaderFortSpot.r},${invaderFortSpot.c})`);
+      console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Construyendo fortaleza (Camino 16) en (${invaderFortSpot.r},${invaderFortSpot.c})`);
       const built = this._requestBuildStructure(myPlayer, invaderFortSpot.r, invaderFortSpot.c, 'Fortaleza');
-      this._startFortressPressure(myPlayer, invaderFortSpot);
+      if (built) {
+        this._startFortressPressure(myPlayer, invaderFortSpot);
+        this.registrarMetaFlujo('construccion', invaderFortSpot.r, invaderFortSpot.c, myPlayer);
+        hizoAlgo = true;
+      }
       return;
     }
 
@@ -984,54 +1045,100 @@ const IAArchipielago = {
     const ciudades = this._getTradeCityCandidates(myPlayer);
     const existingRouteKeys = this._getExistingTradeRouteKeys(myPlayer);
     const candidate = this._findBestTradeCityPair(ciudades, myPlayer, existingRouteKeys);
-    const nextHex = candidate && !candidate.infraPath ? candidate.missingOwnedSegments[0] : null;
-
-    if (nextHex) {
+    // Construir todos los segmentos de camino pendientes mientras haya recursos (no solo 1 por turno).
+    const missingSegments = candidate?.missingOwnedSegments || [];
+    if (missingSegments.length === 0) {
+      console.log('[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] No hay segmentos de camino pendientes.');
+    }
+    for (const nextHex of missingSegments) {
+      if (!this._canAffordStructure(myPlayer, 'Camino')) break;
       const nextHexData = board[nextHex.r]?.[nextHex.c];
       const terrainOk = !roadBuildable.length || roadBuildable.includes(nextHexData?.terrain);
       if (terrainOk) {
-        if (!this._canAffordStructure(myPlayer, 'Camino')) {
-          return;
+        console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Construyendo camino en (${nextHex.r},${nextHex.c})`);
+        const built = this._requestBuildStructure(myPlayer, nextHex.r, nextHex.c, 'Camino');
+        if (built) {
+          this.registrarMetaFlujo('construccion', nextHex.r, nextHex.c, myPlayer);
+          hizoAlgo = true;
         }
-        console.log(`[IA_ARCHIPIELAGO] Construyendo camino en (${nextHex.r},${nextHex.c})`);
-        this._requestBuildStructure(myPlayer, nextHex.r, nextHex.c, 'Camino');
       }
     }
 
-    // PRIORIDAD 2: Construir fortalezas en puntos estratégicos
-    if (!this._ensureTech(myPlayer, 'FORTIFICATIONS')) {
-      console.log('[IA_ARCHIPIELAGO] CONSTRUCCIÓN: falta FORTIFICATIONS para fortaleza estratégica.');
+    // PRIORIDAD 2: Fortalezas estratégicas en el corredor comercial.
+    const piedraTrasCaminos = gameState.playerResources?.[myPlayer]?.piedra || 0;
+    if (esTurnoTemprano) {
+      console.log('[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Veda de fortalezas activa (turno < 4).');
       return;
     }
-    const fortBuildable = STRUCTURE_TYPES['Fortaleza']?.buildableOn || [];
-    const landPath = candidate?.landPath || [];
-    const puntosEstrategicos = hexesPropios.filter(h => {
-      if (h.structure || h.unit) return false;
-      if (fortBuildable.length > 0 && !fortBuildable.includes(h.terrain)) return false;
-      return true;
-    });
+    if (piedraTrasCaminos < reservaPiedraMinima) {
+      console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Reserva de piedra insuficiente para fortaleza (${piedraTrasCaminos}/${reservaPiedraMinima}).`);
+      return;
+    }
 
-    const scoreFortressSpot = (hex) => {
-      let score = 0;
-      if (hex.terrain === 'mountain' || hex.terrain === 'mountains') score += 6;
-      if (hex.terrain === 'hills') score += 4;
-      if (landPath.some(step => step.r === hex.r && step.c === hex.c)) score += 4;
-      const nearRoad = getHexNeighbors(hex.r, hex.c).some(n => board[n.r]?.[n.c]?.structure === 'Camino');
-      if (nearRoad) score += 3;
-      return score;
-    };
+    if (!this._ensureTech(myPlayer, 'FORTIFICATIONS')) {
+      console.log('[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Falta FORTIFICATIONS para fortaleza estratégica.');
+      return;
+    }
 
-    const bestFort = puntosEstrategicos
-      .map(h => ({ h, score: scoreFortressSpot(h) }))
-      .sort((a, b) => b.score - a.score)[0];
+    const MAX_EXPANSION_FORTS = 1;
+    const MIN_FORT_SPACING = 5;
+    const existingExpandForts = board.flat().filter(h =>
+      h && h.owner === myPlayer && (h.structure === 'Fortaleza' || h.structure === 'Fortaleza con Muralla')
+    );
 
-    if (bestFort && bestFort.score > 0) {
-      const punto = bestFort.h;
-      if (!this._canAffordStructure(myPlayer, 'Fortaleza')) {
-        return;
+    if (existingExpandForts.length < MAX_EXPANSION_FORTS) {
+      const allOccupied = [...existingExpandForts];
+
+      // Segmentos del corredor → candidatos preferidos (serán ciudades conectadas).
+      const corridorSegments = new Set();
+      try {
+        if (typeof AiGameplayManager !== 'undefined' && AiGameplayManager._getCommercialNetworkPlan) {
+          const netPlan = AiGameplayManager._getCommercialNetworkPlan(myPlayer);
+          for (const conn of netPlan.connections || []) {
+            const path = conn.path || [];
+            for (let i = 1; i < path.length - 1; i++) {
+              corridorSegments.add(`${path[i].r},${path[i].c}`);
+            }
+          }
+        }
+      } catch (_) {}
+
+      const fortBuildable = STRUCTURE_TYPES['Fortaleza']?.buildableOn || [];
+      const fortCandidates = hexesPropios.filter(h => {
+        if (h.structure || h.unit) return false;
+        if (fortBuildable.length > 0 && !fortBuildable.includes(h.terrain)) return false;
+        if (h.terrain === 'water') return false;
+        return allOccupied.every(pos => hexDistance(h.r, h.c, pos.r, pos.c) >= MIN_FORT_SPACING);
+      });
+
+      const scoreFortSpot = (hex) => {
+        let score = 0;
+        if (hex.terrain === 'mountain' || hex.terrain === 'mountains') score += 8;
+        if (hex.terrain === 'hills') score += 5;
+        if (hex.terrain === 'plains' || hex.terrain === 'grassland' || hex.terrain === 'pampa') score -= 50;
+        if (corridorSegments.has(`${hex.r},${hex.c}`)) score += 10; // Futuro nodo comercial
+        const nearRoad = getHexNeighbors(hex.r, hex.c).some(n => board[n.r]?.[n.c]?.structure === 'Camino');
+        if (nearRoad) score += 4;
+        return score;
+      };
+
+      const bestFort = fortCandidates
+        .map(h => ({ h, score: scoreFortSpot(h) }))
+        .filter(x => x.score > 0)
+        .sort((a, b) => b.score - a.score)[0];
+
+      if (bestFort && this._canAffordStructure(myPlayer, 'Fortaleza')) {
+        console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Construyendo fortaleza estratégica en (${bestFort.h.r},${bestFort.h.c}) score=${bestFort.score}`);
+        const built = this._requestBuildStructure(myPlayer, bestFort.h.r, bestFort.h.c, 'Fortaleza');
+        if (built) {
+          this.registrarMetaFlujo('construccion', bestFort.h.r, bestFort.h.c, myPlayer);
+          hizoAlgo = true;
+        }
       }
-      console.log(`[IA_ARCHIPIELAGO] Construyendo fortaleza estratégica en (${punto.r},${punto.c})`);
-      this._requestBuildStructure(myPlayer, punto.r, punto.c, 'Fortaleza');
+    }
+
+    if (!hizoAlgo) {
+      console.log('[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] No se realizó ninguna acción de construcción este turno.');
     }
   },
 
@@ -1041,13 +1148,20 @@ const IAArchipielago = {
    */
   crearCaravanas(myPlayer, ciudades) {
     if (ciudades.length < 2) {
-      console.log(`[IA_ARCHIPIELAGO] No hay suficientes ciudades para caravanas`);
+      console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] No hay suficientes ciudades para crear rutas/caravanas (actual: ${ciudades.length})`);
       return;
     }
 
-    console.log(`[IA_ARCHIPIELAGO] CARAVANAS: ${ciudades.length} ciudades disponibles`);
+    console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Intentando crear rutas/caravanas entre ${ciudades.length} ciudades`);
 
+    const antes = JSON.stringify(gameState.tradeRoutes || []);
     this._ejecutarRutaLarga({ myPlayer, ciudades });
+    const despues = JSON.stringify(gameState.tradeRoutes || []);
+    if (antes === despues) {
+      console.log('[IA_ARCHIPIELAGO][FLUJO CARAVANA] No se creó ninguna ruta/caravana nueva este turno.');
+    } else {
+      console.log('[IA_ARCHIPIELAGO][FLUJO CARAVANA] Se creó al menos una ruta/caravana nueva.');
+    }
   }
   ,
 
@@ -1070,6 +1184,12 @@ const IAArchipielago = {
     if (typeof isNetworkGame === 'function' && isNetworkGame() && hasNetworkMatch && typeof NetworkManager !== 'undefined' && !NetworkManager.esAnfitrion) {
       if (NetworkManager.enviarDatos) {
         NetworkManager.enviarDatos({ type: 'actionRequest', action });
+        // Log de flujo ocupación
+        console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Unidad ${unit.id} movida a (${r},${c})`);
+        if (typeof registrarMetaFlujo === 'function') {
+          registrarMetaFlujo('ocupacion', r, c);
+          console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Meta registrada en (${r},${c})`);
+        }
         return true;
       }
       return false;
@@ -1077,11 +1197,21 @@ const IAArchipielago = {
 
     if (typeof processActionRequest === 'function') {
       processActionRequest(action);
+      console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Unidad ${unit.id} movida a (${r},${c})`);
+      if (typeof registrarMetaFlujo === 'function') {
+        registrarMetaFlujo('ocupacion', r, c);
+        console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Meta registrada en (${r},${c})`);
+      }
       return true;
     }
 
     if (typeof RequestMoveUnit === 'function') {
       RequestMoveUnit(unit, r, c);
+      console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Unidad ${unit.id} movida a (${r},${c})`);
+      if (typeof registrarMetaFlujo === 'function') {
+        registrarMetaFlujo('ocupacion', r, c);
+        console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Meta registrada en (${r},${c})`);
+      }
       return true;
     }
 
@@ -1179,7 +1309,124 @@ const IAArchipielago = {
     return true;
   },
 
+  _resolveVacateObjectiveForRoad(playerId, blockedR, blockedC) {
+    if ((gameState.turnNumber || 0) <= 1 && typeof AiDeploymentManager !== 'undefined') {
+      const analysis = typeof AiDeploymentManager.analyzeEnvironment === 'function'
+        ? AiDeploymentManager.analyzeEnvironment(playerId)
+        : null;
+      const stages = typeof AiDeploymentManager._buildDeterministicBootstrapStages === 'function'
+        ? AiDeploymentManager._buildDeterministicBootstrapStages(analysis, playerId)
+        : [];
+
+      const prioritized = [stages[1]?.objectiveHex, stages[2]?.objectiveHex].filter(Boolean);
+      const selected = prioritized.find(o => o.r !== blockedR || o.c !== blockedC);
+      if (selected) return { r: selected.r, c: selected.c, reason: 'nodo2_nodo3_t1' };
+    }
+
+    const bank = this._getBankCity();
+    if (bank) return { r: bank.r, c: bank.c, reason: 'fallback_banca' };
+
+    const ownCity = (gameState.cities || []).find(c => c && c.owner === playerId);
+    if (ownCity) return { r: ownCity.r, c: ownCity.c, reason: 'fallback_ciudad' };
+
+    return null;
+  },
+
+  _scheduleVacateForBlockedBuild(playerId, blockerUnit, r, c) {
+    if (!blockerUnit || blockerUnit.player !== playerId) return false;
+    if (typeof AiGameplayManager === 'undefined' || !AiGameplayManager.missionAssignments?.set) return false;
+
+    const objective = this._resolveVacateObjectiveForRoad(playerId, r, c);
+    if (!objective) return false;
+
+    AiGameplayManager.missionAssignments.set(blockerUnit.id, {
+      type: 'IA_NODE',
+      objective: { r: objective.r, c: objective.c },
+      nodoTipo: 'corredor_comercial',
+      axisName: 'vacate_blocked_build',
+      nodoRazon: 'VACATE_BLOCKED_BUILD'
+    });
+
+    if (!blockerUnit.hasMoved && (blockerUnit.currentMovement || blockerUnit.movement || 0) > 0) {
+      const step = this._getMoveStepTowards(blockerUnit, objective.r, objective.c);
+      if (step && !getUnitOnHex(step.r, step.c)) {
+        this._requestMoveUnit(blockerUnit, step.r, step.c);
+      }
+    }
+
+    console.log(`[IA_ARCHIPIELAGO] [VACATE] J${playerId}: ${blockerUnit.name} libera (${r},${c}) -> (${objective.r},${objective.c}) motivo=${objective.reason}`);
+    return true;
+  },
+
   _requestBuildStructure(playerId, r, c, structureType) {
+    if (!this._turnBuildRetryBlock) this._turnBuildRetryBlock = {};
+    if (!this._turnBuildRetryBlock[playerId] || this._turnBuildRetryBlock[playerId].turn !== gameState.turnNumber) {
+      this._turnBuildRetryBlock[playerId] = { turn: gameState.turnNumber, keys: new Set() };
+    }
+
+    const retryKey = `${structureType}:${r},${c}`;
+    const playerRetryState = this._turnBuildRetryBlock[playerId];
+    if (playerRetryState.keys.has(retryKey)) {
+      return false;
+    }
+
+    const hex = board[r]?.[c];
+    if (!hex || hex.owner !== playerId) {
+      playerRetryState.keys.add(retryKey);
+      return false;
+    }
+
+    const data = STRUCTURE_TYPES?.[structureType];
+    if (!data) {
+      playerRetryState.keys.add(retryKey);
+      return false;
+    }
+
+    // Guardrail global IA: nunca más de 1 fortaleza y mantener separación mínima de 5.
+    if (structureType === 'Fortaleza') {
+      const MIN_FORT_SPACING = 5;
+      const existingForts = board.flat().filter(h =>
+        h &&
+        h.owner === playerId &&
+        (h.structure === 'Fortaleza' || h.structure === 'Fortaleza con Muralla')
+      );
+
+      if (existingForts.length >= 1) {
+        playerRetryState.keys.add(retryKey);
+        return false;
+      }
+
+      const tooClose = existingForts.some(f => hexDistance(r, c, f.r, f.c) < MIN_FORT_SPACING);
+      if (tooClose) {
+        playerRetryState.keys.add(retryKey);
+        return false;
+      }
+    }
+
+    const playerRes = gameState.playerResources?.[playerId] || {};
+    const playerTechs = playerRes.researchedTechnologies || [];
+    if (data.requiredTech && !playerTechs.includes(data.requiredTech)) {
+      if (this._ensureTech) this._ensureTech(playerId, data.requiredTech);
+      playerRetryState.keys.add(retryKey);
+      return false;
+    }
+
+    const blocker = getUnitOnHex(r, c);
+    if (blocker) {
+      if (blocker.player === playerId) {
+        this._scheduleVacateForBlockedBuild(playerId, blocker, r, c);
+      }
+      playerRetryState.keys.add(retryKey);
+      return false;
+    }
+
+    const cost = data.cost || {};
+    const canPay = Object.keys(cost).every(res => res === 'Colono' || (playerRes[res] || 0) >= (cost[res] || 0));
+    if (!canPay) {
+      playerRetryState.keys.add(retryKey);
+      return false;
+    }
+
     const action = {
       type: 'buildStructure',
       actionId: `build_${playerId}_${r}_${c}_${Date.now()}`,
@@ -1189,10 +1436,20 @@ const IAArchipielago = {
     if (typeof isNetworkGame === 'function' && isNetworkGame()) {
       if (typeof NetworkManager !== 'undefined' && NetworkManager.esAnfitrion && typeof processActionRequest === 'function') {
         processActionRequest(action);
+        console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Intento construir ${structureType} en (${r},${c})`);
+        if (typeof registrarMetaFlujo === 'function') {
+          registrarMetaFlujo('construccion', r, c);
+          console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Meta registrada en (${r},${c})`);
+        }
         return true;
       }
       if (typeof NetworkManager !== 'undefined' && NetworkManager.enviarDatos) {
         NetworkManager.enviarDatos({ type: 'actionRequest', action });
+        console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Intento construir ${structureType} en (${r},${c})`);
+        if (typeof registrarMetaFlujo === 'function') {
+          registrarMetaFlujo('construccion', r, c);
+          console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Meta registrada en (${r},${c})`);
+        }
         return true;
       }
       return false;
@@ -1200,9 +1457,19 @@ const IAArchipielago = {
 
     if (typeof handleConfirmBuildStructure === 'function') {
       handleConfirmBuildStructure(action.payload);
-      return true;
+      const built = board[r]?.[c]?.structure === structureType;
+      if (built) {
+        console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Construido ${structureType} en (${r},${c})`);
+        if (typeof registrarMetaFlujo === 'function') {
+          registrarMetaFlujo('construccion', r, c);
+          console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Meta registrada en (${r},${c})`);
+        }
+      }
+      if (!built) playerRetryState.keys.add(retryKey);
+      return built;
     }
 
+    playerRetryState.keys.add(retryKey);
     return false;
   },
 
@@ -1245,10 +1512,20 @@ const IAArchipielago = {
     if (typeof isNetworkGame === 'function' && isNetworkGame()) {
       if (typeof NetworkManager !== 'undefined' && NetworkManager.esAnfitrion && typeof processActionRequest === 'function') {
         processActionRequest(action);
+        console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Intento crear ruta comercial de (${origin.r},${origin.c}) a (${destination.r},${destination.c})`);
+        if (typeof registrarMetaFlujo === 'function') {
+          registrarMetaFlujo('caravana', origin.r, origin.c);
+          console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Meta registrada en (${origin.r},${origin.c})`);
+        }
         return true;
       }
       if (typeof NetworkManager !== 'undefined' && NetworkManager.enviarDatos) {
         NetworkManager.enviarDatos({ type: 'actionRequest', action });
+        console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Intento crear ruta comercial de (${origin.r},${origin.c}) a (${destination.r},${destination.c})`);
+        if (typeof registrarMetaFlujo === 'function') {
+          registrarMetaFlujo('caravana', origin.r, origin.c);
+          console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Meta registrada en (${origin.r},${origin.c})`);
+        }
         return true;
       }
       return false;
@@ -1256,6 +1533,11 @@ const IAArchipielago = {
 
     if (typeof _executeEstablishTradeRoute === 'function') {
       _executeEstablishTradeRoute(action.payload);
+      console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Intento crear ruta comercial de (${origin.r},${origin.c}) a (${destination.r},${destination.c})`);
+      if (typeof registrarMetaFlujo === 'function') {
+        registrarMetaFlujo('caravana', origin.r, origin.c);
+        console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Meta registrada en (${origin.r},${origin.c})`);
+      }
       return true;
     }
 
@@ -1263,8 +1545,30 @@ const IAArchipielago = {
   },
 
   _getTradeCityCandidates(myPlayer) {
-    const cities = gameState.cities || [];
-    return cities.filter(c => c && Number.isInteger(c.r) && Number.isInteger(c.c));
+    const cities = (gameState.cities || []).filter(c => c && Number.isInteger(c.r) && Number.isInteger(c.c));
+    const bankCity = this._getBankCity();
+    if (!bankCity) return cities;
+    const alreadyIncluded = cities.some(c => c.r === bankCity.r && c.c === bankCity.c);
+    return alreadyIncluded ? cities : cities.concat([bankCity]);
+  },
+
+  _isBarbarianTradeCity(city) {
+    if (!city) return false;
+    if (city.isBarbarianCity) return true;
+    if (typeof BARBARIAN_PLAYER_ID !== 'undefined' && city.owner === BARBARIAN_PLAYER_ID) return true;
+    return Number(city.owner) === 9;
+  },
+
+  _isAllowedTradeDestinationForCaravan(city, myPlayer) {
+    if (!city) return false;
+    if (city.owner === null || city.owner === undefined) return false;
+    if (city.owner === myPlayer) return true;
+    if (city.owner === 0 || city.isBank) return true;
+    if (this._isBarbarianTradeCity(city)) return true;
+    if (typeof isTradeBlockedBetweenPlayers === 'function') {
+      return !isTradeBlockedBetweenPlayers(myPlayer, city.owner);
+    }
+    return true;
   },
 
   _getBankCity() {
@@ -1272,10 +1576,45 @@ const IAArchipielago = {
     return (gameState.cities || []).find(c => c && c.owner === bankId) || null;
   },
 
+  _getEnemyPlayerIds(myPlayer) {
+    if (typeof IASentidos !== 'undefined' && typeof IASentidos.getEnemyPlayerIds === 'function') {
+      const ids = IASentidos.getEnemyPlayerIds(myPlayer);
+      if (ids.length) return ids;
+    }
+
+    const ids = new Set();
+    (units || []).forEach(u => {
+      if (!u || u.player === myPlayer) return;
+      if (!Number.isFinite(Number(u.player)) || Number(u.player) <= 0) return;
+      ids.add(Number(u.player));
+    });
+    (gameState.cities || []).forEach(c => {
+      if (!c || c.owner == null || c.owner === myPlayer) return;
+      if (!Number.isFinite(Number(c.owner)) || Number(c.owner) <= 0) return;
+      ids.add(Number(c.owner));
+    });
+
+    return Array.from(ids).sort((a, b) => a - b);
+  },
+
   _getEnemyPlayerId(myPlayer) {
-    if (gameState.numPlayers === 2) return myPlayer === 1 ? 2 : 1;
-    const enemy = (gameState.players || []).find(p => p.id !== myPlayer);
-    return enemy?.id || (myPlayer === 1 ? 2 : 1);
+    const enemies = this._getEnemyPlayerIds(myPlayer);
+    if (!enemies.length) return null;
+
+    const withDistance = enemies.map(id => {
+      const enemyUnits = IASentidos.getUnits(id);
+      if (!enemyUnits.length) return { id, dist: 99, power: 0 };
+
+      const dist = enemyUnits.reduce((best, enemyUnit) => {
+        const d = this._minUnitDistance(myPlayer, enemyUnit);
+        return Math.min(best, d);
+      }, 99);
+      const power = enemyUnits.reduce((sum, u) => sum + (u.regiments?.length || 0), 0);
+      return { id, dist, power };
+    });
+
+    withDistance.sort((a, b) => (a.dist - b.dist) || (b.power - a.power));
+    return withDistance[0].id;
   },
 
   _getPlayerType(playerId) {
@@ -1709,9 +2048,8 @@ const IAArchipielago = {
 
   _pickNextTradeRouteCandidate(myPlayer, existingRouteKeys) {
     const cities = this._getTradeCityCandidates(myPlayer);
-    const bankCity = this._getBankCity();
     const ownCities = cities.filter(c => c.owner === myPlayer);
-    const tradeCities = bankCity ? ownCities.concat([bankCity]) : ownCities;
+    const tradeCities = cities.filter(c => this._isAllowedTradeDestinationForCaravan(c, myPlayer));
 
     if (tradeCities.length < 2) return null;
 
@@ -1721,22 +2059,21 @@ const IAArchipielago = {
         const cityA = tradeCities[i];
         const cityB = tradeCities[j];
         if (!cityA || !cityB) continue;
-        if (bankCity && cityA === bankCity && cityB === bankCity) continue;
+        if ((cityA.isBank || cityA.owner === 0) && (cityB.isBank || cityB.owner === 0)) continue;
 
         const routeKey = this._getTradePairKey(cityA, cityB);
         if (routeKey && existingRouteKeys?.has(routeKey)) continue;
 
-        const infraPath = findInfrastructurePath(cityA, cityB);
+        const infraPath = findInfrastructurePath(cityA, cityB, { allowForeignInfrastructure: true, requireRoadCorridor: true });
         if (!infraPath) continue;
 
-        const hasBank = bankCity && (cityA === bankCity || cityB === bankCity);
+        const hasBank = !!(cityA.isBank || cityB.isBank || cityA.owner === 0 || cityB.owner === 0);
         candidates.push({ cityA, cityB, infraPath, hasBank });
       }
     }
 
     if (!candidates.length) return null;
     candidates.sort((a, b) => {
-      if (a.hasBank !== b.hasBank) return a.hasBank ? -1 : 1;
       return a.infraPath.length - b.infraPath.length;
     });
 
@@ -1764,6 +2101,244 @@ const IAArchipielago = {
       const currDist = hexDistance(unit.r, unit.c, curr.r, curr.c);
       return currDist < bestDist ? curr : best;
     });
+  },
+
+  _isCorridorPioneer(unit) {
+    if (!unit) return false;
+    if ((unit.name || '').includes('Pionero de Corredor')) return true;
+    const assignments = typeof AiGameplayManager !== 'undefined' ? AiGameplayManager.missionAssignments : null;
+    const mission = assignments?.get ? assignments.get(unit.id) : null;
+    return !!(mission && (mission.type === 'OCCUPY_THEN_BUILD' || mission.nodoRazon === 'ORGANIC_CARAVAN_CORRIDOR'));
+  },
+
+  _splitUnitTowardsObjective(unit, objective) {
+    if (!unit || !objective) return false;
+    const regimientosActuales = unit.regiments?.length || 0;
+    if (regimientosActuales < this.WORM_MIN_SPLIT_REGIMENTS) return false;
+
+    const splitCandidates = getHexNeighbors(unit.r, unit.c)
+      .filter(n => {
+        const hex = board[n.r]?.[n.c];
+        if (!hex || hex.terrain === 'water' || hex.unit) return false;
+        return this._isTerrainPassableForUnit(unit, hex.terrain);
+      })
+      .sort((a, b) => hexDistance(a.r, a.c, objective.r, objective.c) - hexDistance(b.r, b.c, objective.r, objective.c));
+
+    const splitHex = splitCandidates[0];
+    if (!splitHex) return false;
+
+    const mitad = Math.ceil(regimientosActuales / 2);
+    gameState.preparingAction = {
+      type: 'split_unit',
+      unitId: unit.id,
+      newUnitRegiments: unit.regiments.slice(0, mitad),
+      remainingOriginalRegiments: unit.regiments.slice(mitad)
+    };
+
+    return this._requestSplitUnit(unit, splitHex.r, splitHex.c);
+  },
+
+  _getTopCorridorObjectives(myPlayer, maxObjectives = 3) {
+    const roadPlan = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
+    if (!roadPlan.connections?.length) return [];
+
+    const candidates = roadPlan.connections
+      .map(conn => {
+        const pending = conn.pendingCaptureSegments?.[0] || null;
+        const missing = conn.missingOwnedSegments?.[0] || null;
+        const objective = pending || missing || null;
+        if (!objective) return null;
+        return {
+          objective,
+          score: (pending ? 0 : 10) + (conn.landPath?.length || 0),
+          from: conn.from,
+          to: conn.to
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.score - b.score)
+      .slice(0, maxObjectives);
+
+    return candidates;
+  },
+
+  _ejecutarGusanoCorredor(situacion, opts = {}) {
+    const { myPlayer } = situacion;
+    const maxActions = Math.max(1, Number(opts.maxActions || this.WORM_MAX_ACTIONS_PER_TURN));
+    const corridorObjectives = this._getTopCorridorObjectives(myPlayer, maxActions);
+    if (!corridorObjectives.length) return 0;
+    const bankCity = this._getBankCity();
+    const bankObjectives = corridorObjectives.filter(node =>
+      bankCity && node?.to?.r === bankCity.r && node?.to?.c === bankCity.c
+    ).length;
+
+    let actions = 0;
+    for (const node of corridorObjectives) {
+      if (actions >= maxActions) break;
+      const objective = node.objective;
+      const myUnits = IASentidos.getUnits(myPlayer)
+        .filter(u => this._isLandUnit(u))
+        .filter(u => (u.currentMovement || 0) > 0)
+        .filter(u => !u.iaExpeditionTarget)
+        .sort((a, b) => hexDistance(a.r, a.c, objective.r, objective.c) - hexDistance(b.r, b.c, objective.r, objective.c));
+
+      if (!myUnits.length) break;
+
+      let acted = false;
+      const splitCandidate = myUnits.find(u => (u.regiments?.length || 0) >= this.WORM_MIN_SPLIT_REGIMENTS);
+      if (splitCandidate && this._splitUnitTowardsObjective(splitCandidate, objective)) {
+        console.log(`[IA_ARCHIPIELAGO] [Gusano] Split corredor hacia (${objective.r},${objective.c}) para ${node.from?.name} -> ${node.to?.name}`);
+        actions += 1;
+        acted = true;
+      }
+
+      if (actions >= maxActions) break;
+
+      if (!acted) {
+        const mover = myUnits.find(u => this._findPathForUnit(u, objective.r, objective.c));
+        if (mover && this._requestMoveOrAttack(mover, objective.r, objective.c)) {
+          console.log(`[IA_ARCHIPIELAGO] [Gusano] Avance corredor hacia (${objective.r},${objective.c}) para ${node.from?.name} -> ${node.to?.name}`);
+          actions += 1;
+        }
+      }
+    }
+
+    console.log(`[IA DIAG][GUSANO] J${myPlayer} objetivos=${corridorObjectives.length} bankObj=${bankObjectives} acciones=${actions}/${maxActions}`);
+
+    return actions;
+  },
+
+  _collectSupplyCutTargets(myPlayer, limit = null) {
+    const enemyPlayer = this._getEnemyPlayerId(myPlayer);
+    if (enemyPlayer == null || typeof getSupplyPath !== 'function') return [];
+
+    const enemyUnits = IASentidos.getUnits(enemyPlayer) || [];
+    const scoreByHex = new Map();
+
+    for (const unit of enemyUnits) {
+      const path = getSupplyPath(unit.r, unit.c, enemyPlayer);
+      if (!Array.isArray(path) || path.length < 3) continue;
+
+      const middlePath = path.slice(1, -1);
+      const take = Math.min(2, middlePath.length);
+      for (let i = 0; i < take; i++) {
+        const step = middlePath[i];
+        const key = `${step.r},${step.c}`;
+        const hex = board[step.r]?.[step.c];
+        if (!hex) continue;
+        const base = hex.structure === 'Camino' ? 4 : 2;
+        scoreByHex.set(key, (scoreByHex.get(key) || 0) + base);
+      }
+    }
+
+    const roadNodes = board.flat().filter(h => h && h.owner === enemyPlayer && h.structure === 'Camino');
+    for (const road of roadNodes) {
+      const key = `${road.r},${road.c}`;
+      scoreByHex.set(key, (scoreByHex.get(key) || 0) + 1);
+    }
+
+    const effectiveLimit = Math.max(1, Number(limit || this.CUT_SUPPLY_MAX_TARGETS));
+    return Array.from(scoreByHex.entries())
+      .map(([key, score]) => {
+        const [r, c] = key.split(',').map(Number);
+        return { r, c, score };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, effectiveLimit);
+  },
+
+  _collectSabotageTargets(myPlayer) {
+    const enemyPlayer = this._getEnemyPlayerId(myPlayer);
+    if (enemyPlayer == null) return [];
+
+    const enemyUnits = IASentidos.getUnits(enemyPlayer) || [];
+    const caravans = enemyUnits.filter(u => !!u.tradeRoute).map(u => ({ r: u.r, c: u.c, score: 9 }));
+    const explorers = enemyUnits
+      .filter(u => u.regiments?.some(r => r.type === 'Explorador'))
+      .map(u => ({ r: u.r, c: u.c, score: 6 }));
+    const supplyCuts = this._collectSupplyCutTargets(myPlayer, 3).map(t => ({ ...t, score: (t.score || 0) + 5 }));
+
+    return caravans.concat(explorers).concat(supplyCuts)
+      .sort((a, b) => (b.score || 0) - (a.score || 0));
+  },
+
+  _snapshotTurnActivity(myPlayer) {
+    const snapshot = new Map();
+    const myUnits = IASentidos.getUnits(myPlayer);
+    for (const unit of myUnits) {
+      snapshot.set(unit.id, {
+        r: unit.r,
+        c: unit.c,
+        hasMoved: !!unit.hasMoved,
+        hasAttacked: !!unit.hasAttacked,
+        currentMovement: unit.currentMovement || 0
+      });
+    }
+    return snapshot;
+  },
+
+  _didMakeProgressThisTurn(myPlayer, snapshot) {
+    const myUnits = IASentidos.getUnits(myPlayer);
+    for (const unit of myUnits) {
+      const prev = snapshot.get(unit.id);
+      if (!prev) {
+        return true;
+      }
+      if (unit.r !== prev.r || unit.c !== prev.c) return true;
+      if (!!unit.hasAttacked && !prev.hasAttacked) return true;
+      if (!!unit.hasMoved && !prev.hasMoved) return true;
+      if ((unit.currentMovement || 0) < (prev.currentMovement || 0)) return true;
+    }
+    return false;
+  },
+
+  _ejecutarPlanEmergencia(situacion) {
+    const { myPlayer, ciudades } = situacion;
+    const myUnits = IASentidos.getUnits(myPlayer).filter(u => (u.currentMovement || 0) > 0 && !u.iaExpeditionTarget);
+    if (!myUnits.length) {
+      console.warn('[IA_ARCHIPIELAGO] Plan emergencia: sin unidades con movimiento.');
+      return;
+    }
+
+    const enemyUnits = IASentidos.getEnemyUnits(myPlayer);
+    const cityThreats = [];
+    for (const city of (ciudades || [])) {
+      const threats = enemyUnits.filter(e => hexDistance(e.r, e.c, city.r, city.c) <= 4);
+      cityThreats.push(...threats);
+    }
+
+    const uniqueByPos = (list) => {
+      const map = new Map();
+      for (const item of list) {
+        if (!item) continue;
+        map.set(`${item.r},${item.c}`, item);
+      }
+      return Array.from(map.values());
+    };
+
+    const defenseTargets = uniqueByPos(cityThreats);
+    const neutralCities = this._getBarbarianCities();
+    const enemyCities = (gameState.cities || []).filter(c => c.owner != null && c.owner !== myPlayer && !c.isBarbarianCity);
+    const fallbackTargets = defenseTargets.length
+      ? defenseTargets
+      : (enemyUnits.length ? enemyUnits : (neutralCities.length ? neutralCities : enemyCities));
+
+    if (!fallbackTargets.length) {
+      console.warn('[IA_ARCHIPIELAGO] Plan emergencia: sin objetivos disponibles.');
+      return;
+    }
+
+    let acciones = 0;
+    for (const unit of myUnits) {
+      if ((unit.currentMovement || 0) <= 0) continue;
+      const objetivo = this._pickObjective(fallbackTargets, unit, myPlayer);
+      if (!objetivo) continue;
+      if (this._requestMoveOrAttack(unit, objetivo.r, objetivo.c)) {
+        acciones++;
+      }
+    }
+
+    console.log(`[IA_ARCHIPIELAGO] Plan emergencia ejecutado. Acciones=${acciones}`);
   },
 
   _getPlayerTechs(myPlayer) {
@@ -1972,8 +2547,8 @@ const IAArchipielago = {
     const cities = gameState.cities || [];
     const neutral = cities.filter(c => c.owner === null || c.isBarbarianCity);
     if (neutral.length) return neutral[0];
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
-    const enemyCities = cities.filter(c => c.owner === enemyPlayer);
+    const enemyPlayers = this._getEnemyPlayerIds(myPlayer);
+    const enemyCities = cities.filter(c => enemyPlayers.includes(c.owner));
     return enemyCities[0] || null;
   },
 
@@ -2131,8 +2706,8 @@ const IAArchipielago = {
       return created ? { action: 'naval', executed: true, note: 'unidad_naval_creada' } : { action: 'naval', executed: false, reason: 'sin_spawn_naval' };
     }
 
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
-    const enemyUnits = units.filter(u => u.player === enemyPlayer && u.regiments?.some(r => REGIMENT_TYPES[r.type]?.is_naval));
+    const enemyPlayers = this._getEnemyPlayerIds(myPlayer);
+    const enemyUnits = units.filter(u => enemyPlayers.includes(u.player) && u.regiments?.some(r => REGIMENT_TYPES[r.type]?.is_naval));
     let target = enemyUnits[0] || this._findNearestCityTarget(myPlayer);
     if (target && board[target.r]?.[target.c]?.terrain !== 'water') {
       const waterNeighbor = getHexNeighbors(target.r, target.c).find(n => board[n.r]?.[n.c]?.terrain === 'water' && !board[n.r][n.c].unit);
@@ -2147,7 +2722,7 @@ const IAArchipielago = {
 
   _ejecutarRutaCapital(situacion) {
     const { myPlayer } = situacion;
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
+    const enemyPlayer = this._getEnemyPlayerId(myPlayer);
     const enemyCapital = gameState.cities.find(c => c.isCapital && c.owner === enemyPlayer);
     if (!enemyCapital) {
       return { action: 'evaluar_capital', executed: false, reason: 'sin_capital_enemiga' };
@@ -2171,8 +2746,7 @@ const IAArchipielago = {
 
   _ejecutarPresionMilitar(situacion, reason) {
     const { myPlayer } = situacion;
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
-    const enemyUnits = IASentidos.getUnits(enemyPlayer).slice().sort((a, b) => (a.regiments?.length || 0) - (b.regiments?.length || 0));
+    const enemyUnits = IASentidos.getEnemyUnits(myPlayer).slice().sort((a, b) => (a.regiments?.length || 0) - (b.regiments?.length || 0));
     if (!enemyUnits.length) {
       return { action: 'presion_militar', executed: false, reason: 'sin_enemigos' };
     }
@@ -2191,6 +2765,139 @@ const IAArchipielago = {
 
     this._requestMoveOrAttack(attacker, target.r, target.c);
     return { action: 'presion_militar', executed: true, note: reason };
+  },
+
+  _ejecutarRutaSabotaje(situacion) {
+    const { myPlayer } = situacion;
+    const targets = this._collectSabotageTargets(myPlayer);
+    if (!targets.length) {
+      return { action: 'sabotaje', executed: false, reason: 'sin_objetivos' };
+    }
+
+    const raiders = IASentidos.getUnits(myPlayer)
+      .filter(u => this._isLandUnit(u))
+      .filter(u => (u.currentMovement || 0) > 0)
+      .sort((a, b) => (a.regiments?.length || 0) - (b.regiments?.length || 0));
+
+    const unit = raiders[0] || this._findClosestUnitToTarget(myPlayer, targets[0]);
+    if (!unit) {
+      return { action: 'sabotaje', executed: false, reason: 'sin_unidades' };
+    }
+
+    const objective = this._pickObjective(targets, unit, myPlayer);
+    if (!objective) {
+      return { action: 'sabotaje', executed: false, reason: 'objetivo_invalido' };
+    }
+
+    return this._requestMoveOrAttack(unit, objective.r, objective.c)
+      ? { action: 'sabotaje', executed: true, note: `${objective.r},${objective.c}` }
+      : { action: 'sabotaje', executed: false, reason: 'sin_movimiento' };
+  },
+
+  _ejecutarRutaCortarSuministro(situacion) {
+    const { myPlayer } = situacion;
+    const targets = this._collectSupplyCutTargets(myPlayer, this.CUT_SUPPLY_MAX_TARGETS);
+    if (!targets.length) {
+      return { action: 'cortar_suministro', executed: false, reason: 'sin_objetivos' };
+    }
+
+    const attacker = this._findClosestUnitToTarget(myPlayer, targets[0]);
+    if (!attacker) {
+      return { action: 'cortar_suministro', executed: false, reason: 'sin_unidades' };
+    }
+
+    const objective = this._pickObjective(targets, attacker, myPlayer);
+    if (!objective) {
+      return { action: 'cortar_suministro', executed: false, reason: 'objetivo_invalido' };
+    }
+
+    return this._requestMoveOrAttack(attacker, objective.r, objective.c)
+      ? { action: 'cortar_suministro', executed: true, note: `${objective.r},${objective.c}` }
+      : { action: 'cortar_suministro', executed: false, reason: 'sin_movimiento' };
+  },
+
+  _ejecutarRutaDominarCasillas(situacion) {
+    const { myPlayer } = situacion;
+    const enemyPlayers = this._getEnemyPlayerIds(myPlayer);
+    const frontier = [];
+
+    for (const row of board) {
+      for (const hex of row) {
+        if (!hex || hex.owner === myPlayer || hex.terrain === 'water') continue;
+        if (!enemyPlayers.includes(hex.owner) && hex.owner !== null) continue;
+        const nearOwn = getHexNeighbors(hex.r, hex.c).some(n => board[n.r]?.[n.c]?.owner === myPlayer);
+        if (nearOwn) frontier.push({ r: hex.r, c: hex.c });
+      }
+    }
+
+    if (!frontier.length) {
+      return { action: 'dominar_casillas', executed: false, reason: 'sin_frontera' };
+    }
+
+    const unit = this._findClosestUnitToTarget(myPlayer, frontier[0]);
+    if (!unit) {
+      return { action: 'dominar_casillas', executed: false, reason: 'sin_unidades' };
+    }
+
+    const objective = this._pickObjective(frontier, unit, myPlayer);
+    if (!objective) {
+      return { action: 'dominar_casillas', executed: false, reason: 'objetivo_invalido' };
+    }
+
+    return this._requestMoveOrAttack(unit, objective.r, objective.c)
+      ? { action: 'dominar_casillas', executed: true, note: `${objective.r},${objective.c}` }
+      : { action: 'dominar_casillas', executed: false, reason: 'sin_movimiento' };
+  },
+
+  _ejecutarRutaFrenteHumano(situacion) {
+    const { myPlayer, ciudades } = situacion;
+    const enemyUnits = IASentidos.getEnemyUnits(myPlayer);
+    const threats = enemyUnits.filter(e => (ciudades || []).some(c => hexDistance(e.r, e.c, c.r, c.c) <= 4));
+
+    if (threats.length) {
+      const target = threats.sort((a, b) => (a.regiments?.length || 0) - (b.regiments?.length || 0))[0];
+      const defender = this._findClosestUnitToTarget(myPlayer, target);
+      if (defender && this._requestMoveOrAttack(defender, target.r, target.c)) {
+        return { action: 'frente_humano', executed: true, note: 'intercepcion' };
+      }
+    }
+
+    const enemyCity = this._findNearestCityTarget(myPlayer);
+    if (!enemyCity) {
+      return { action: 'frente_humano', executed: false, reason: 'sin_objetivos' };
+    }
+
+    const attacker = this._findClosestUnitToTarget(myPlayer, enemyCity);
+    if (!attacker) {
+      return { action: 'frente_humano', executed: false, reason: 'sin_unidades' };
+    }
+
+    return this._requestMoveOrAttack(attacker, enemyCity.r, enemyCity.c)
+      ? { action: 'frente_humano', executed: true, note: 'presion_ciudad' }
+      : { action: 'frente_humano', executed: false, reason: 'sin_movimiento' };
+  },
+
+  _ejecutarRutaCazaEnvolvente(situacion) {
+    const { myPlayer } = situacion;
+    const enemyUnits = IASentidos.getEnemyUnits(myPlayer)
+      .filter(u => (u.regiments?.length || 0) <= Math.max(6, this.BIG_ENEMY_DIVISION_THRESHOLD))
+      .sort((a, b) => (a.regiments?.length || 0) - (b.regiments?.length || 0));
+
+    if (!enemyUnits.length) {
+      return { action: 'caza_envolvente', executed: false, reason: 'sin_enemigos' };
+    }
+
+    const target = enemyUnits[0];
+    const attackers = IASentidos.getUnits(myPlayer)
+      .filter(u => this._isLandUnit(u))
+      .filter(u => hexDistance(u.r, u.c, target.r, target.c) <= 6);
+
+    if (!attackers.length) {
+      return { action: 'caza_envolvente', executed: false, reason: 'sin_unidades' };
+    }
+
+    this._ejecutarEnvolvimiento(myPlayer, attackers, target);
+    return { action: 'caza_envolvente', executed: true, note: `${target.r},${target.c}` };
   },
 
   _crearUnidadNaval(myPlayer, unitType) {
@@ -2230,15 +2937,177 @@ const IAArchipielago = {
     return newUnit;
   },
 
+  _getCorridorOccupationAssignments(myPlayer) {
+    if (typeof IASentidos === 'undefined' || typeof IASentidos.getNearestCorridorMissionForUnit !== 'function') {
+      return [];
+    }
+
+    return IASentidos.getUnits(myPlayer)
+      .filter(unit => this._isLandUnit(unit))
+      .filter(unit => !unit.hasMoved && (unit.currentMovement || 0) > 0)
+      .filter(unit => !unit.iaExpeditionTarget)
+      .map(unit => {
+        const mission = IASentidos.getNearestCorridorMissionForUnit(myPlayer, unit);
+        if (!mission || !mission.objectiveHex) return null;
+        return {
+          unit,
+          mission,
+          score: (mission.distanceBetweenNodes * 10) + mission.pendingCaptureSegments.length + hexDistance(unit.r, unit.c, mission.objectiveHex.r, mission.objectiveHex.c)
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.score - b.score);
+  },
+
+  _getCorridorOccupationPressure(myPlayer) {
+    const assignments = this._getCorridorOccupationAssignments(myPlayer);
+    if (!assignments.length) {
+      return { canExecute: false, weight: 0, assignments: [] };
+    }
+
+    const uniqueObjectives = new Set(assignments.map(entry => `${entry.mission.objectiveHex.r},${entry.mission.objectiveHex.c}`));
+    const earlyBonus = gameState.turnNumber <= 10 ? 190 : 0;
+
+    return {
+      canExecute: true,
+      weight: 155 + earlyBonus + Math.min(90, uniqueObjectives.size * 18),
+      assignments
+    };
+  },
+
+  _executeCorridorOccupationMission(myPlayer) {
+    const assignments = this._getCorridorOccupationAssignments(myPlayer);
+    if (!assignments.length) return 0;
+
+    const claimedObjectives = new Set();
+    let actions = 0;
+
+    for (const entry of assignments) {
+      const { unit, mission } = entry;
+      const objective = mission.pendingCaptureSegments.find(hex => !claimedObjectives.has(`${hex.r},${hex.c}`)) || mission.objectiveHex;
+      if (!objective) continue;
+
+      const objectiveKey = `${objective.r},${objective.c}`;
+      if (claimedObjectives.has(objectiveKey)) continue;
+
+      const acted = this._requestMoveOrAttack(unit, objective.r, objective.c);
+      if (!acted) continue;
+
+      claimedObjectives.add(objectiveKey);
+      actions += 1;
+
+      console.log(`[IA_CORREDOR] ${unit.name} asignada a ocupar (${objective.r},${objective.c}) desde nodo (${mission.anchorNode.r},${mission.anchorNode.c}) hacia nodo (${mission.targetNode.r},${mission.targetNode.c})`);
+    }
+
+    return actions;
+  },
+
+  _canAffordRoadResources(myPlayer) {
+    const res = gameState.playerResources?.[myPlayer] || {};
+    const roadCost = STRUCTURE_TYPES?.Camino?.cost || {};
+    const piedraReq = roadCost.piedra || 0;
+    const maderaReq = roadCost.madera || 0;
+    return (res.piedra || 0) >= piedraReq && (res.madera || 0) >= maderaReq;
+  },
+
+  _getPriorityRoadInfrastructureMissions(myPlayer) {
+    const roadPlan = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
+    const conexiones = roadPlan?.connections || [];
+    if (!conexiones.length) return [];
+
+    return conexiones
+      .filter(conn => (conn.pendingCaptureSegments?.length || 0) === 0)
+      .map(conn => {
+        const missingRoads = (conn.missingOwnedSegments || []).filter(step => {
+          const hex = board[step.r]?.[step.c];
+          if (!hex) return false;
+          if (hex.isCity) return false;
+          if (hex.structure && hex.structure !== 'Camino') return false;
+          return true;
+        });
+
+        if (!missingRoads.length) return null;
+
+        return {
+          from: conn.from,
+          to: conn.to,
+          missingRoads,
+          score: (conn.landPath?.length || 0) + missingRoads.length
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.score - b.score);
+  },
+
+  _getPriorityRoadInfrastructurePressure(myPlayer) {
+    const missions = this._getPriorityRoadInfrastructureMissions(myPlayer);
+    const canAffordNow = this._canAffordRoadResources(myPlayer) && this._canAffordStructure(myPlayer, 'Camino');
+
+    if (!missions.length || !canAffordNow) {
+      return { canExecute: false, weight: 0, missions: [] };
+    }
+
+    const totalMissing = missions.reduce((sum, m) => sum + m.missingRoads.length, 0);
+    return {
+      canExecute: true,
+      weight: 430 + Math.min(120, totalMissing * 8),
+      missions
+    };
+  },
+
+  _executePriorityRoadInfrastructureMission(myPlayer) {
+    const missions = this._getPriorityRoadInfrastructureMissions(myPlayer);
+    if (!missions.length) return 0;
+
+    const maxRoadsPerTurn = 12;
+    let builds = 0;
+
+    for (const mission of missions) {
+      for (const step of mission.missingRoads) {
+        if (builds >= maxRoadsPerTurn) return builds;
+
+        if (!this._canAffordRoadResources(myPlayer) || !this._canAffordStructure(myPlayer, 'Camino')) {
+          return builds;
+        }
+
+        const built = this._requestBuildStructure(myPlayer, step.r, step.c, 'Camino');
+        if (!built) continue;
+
+        builds += 1;
+        console.log(`[IA_INFRA_PRIO] Camino directo en (${step.r},${step.c}) para conectar nodo (${mission.from.r},${mission.from.c}) -> (${mission.to.r},${mission.to.c})`);
+      }
+    }
+
+    return builds;
+  },
+
   _evaluarRutasDeVictoria(situacion) {
     const { myPlayer, ciudades } = situacion;
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
+    const enemyPlayer = this._getEnemyPlayerId(myPlayer);
     const myMetrics = this._collectVictoryMetrics(myPlayer);
-    const enemyMetrics = this._collectVictoryMetrics(enemyPlayer);
+    const enemyMetrics = enemyPlayer != null ? this._collectVictoryMetrics(enemyPlayer) : {};
     const holders = gameState.victoryPoints?.holders || {};
     const myKey = `player${myPlayer}`;
-    const enemyKey = `player${enemyPlayer}`;
+    const enemyKey = enemyPlayer != null ? `player${enemyPlayer}` : null;
     const rutas = [];
+    const infraPressure = this._getPriorityRoadInfrastructurePressure(myPlayer);
+    const corridorPressure = this._getCorridorOccupationPressure(myPlayer);
+
+    rutas.push({
+      id: 'ruta_infraestructura_prioritaria',
+      label: 'Infraestructura Prioritaria',
+      weight: infraPressure.weight,
+      canExecute: infraPressure.canExecute,
+      meta: { pendingMissions: infraPressure.missions?.length || 0 }
+    });
+
+    rutas.push({
+      id: 'ruta_corredor_nodos',
+      label: 'Corredor',
+      weight: corridorPressure.weight,
+      canExecute: corridorPressure.canExecute,
+      meta: { assignments: corridorPressure.assignments?.length || 0 }
+    });
 
     const pushTitleRoute = (id, label, metricKey, holderKey, baseWeight = 120) => {
       const myVal = myMetrics[metricKey] || 0;
@@ -2248,7 +3117,7 @@ const IAArchipielago = {
       let weight = baseWeight + Math.max(0, delta) * 8;
 
       if (holder === myKey) weight *= 0.4;
-      if (holder === enemyKey) weight *= 1.3;
+      if (enemyKey && holder === enemyKey) weight *= 1.3;
 
       rutas.push({
         id,
@@ -2259,7 +3128,7 @@ const IAArchipielago = {
       });
     };
 
-    const enemyCapital = gameState.cities.find(c => c.isCapital && c.owner === enemyPlayer);
+    const enemyCapital = enemyPlayer != null ? gameState.cities.find(c => c.isCapital && c.owner === enemyPlayer) : null;
     if (enemyCapital) {
       const powerRatio = this._estimateLocalPowerRatio(myPlayer, enemyCapital, 5);
       const nearestDist = this._minUnitDistance(myPlayer, enemyCapital);
@@ -2324,23 +3193,71 @@ const IAArchipielago = {
     pushTitleRoute('ruta_conquistador_barbaro', 'Conquistador Barbaro', 'barbaraCities', 'mostBarbaraCities');
     pushTitleRoute('ruta_almirante_supremo', 'Almirante Supremo', 'navalVictories', 'mostNavalVictories');
 
+    const enemyCities = (gameState.cities || []).filter(c => c.owner != null && c.owner === enemyPlayer);
+    const enemyThreatOnOurCities = (IASentidos.getEnemyUnits(myPlayer) || []).filter(e => ciudades.some(c => hexDistance(e.r, e.c, c.r, c.c) <= 4)).length;
+    const supplyCuts = this._collectSupplyCutTargets(myPlayer, this.CUT_SUPPLY_MAX_TARGETS).length;
+    const sabotageTargets = this._collectSabotageTargets(myPlayer).length;
+    const territoryDelta = (enemyMetrics.territoryHexes || 0) - (myMetrics.territoryHexes || 0);
+
+    rutas.push({
+      id: 'ruta_sabotaje',
+      label: 'Sabotaje al Humano',
+      weight: 165 + (sabotageTargets * 25),
+      canExecute: sabotageTargets > 0,
+      meta: { sabotageTargets }
+    });
+
+    rutas.push({
+      id: 'ruta_cortar_suministro',
+      label: 'Cortar Suministro',
+      weight: 170 + (supplyCuts * 30),
+      canExecute: supplyCuts > 0,
+      meta: { supplyCuts }
+    });
+
+    rutas.push({
+      id: 'ruta_dominar_casillas',
+      label: 'Dominar Casillas',
+      weight: 150 + Math.max(0, territoryDelta) * 2,
+      canExecute: true,
+      meta: { territoryDelta }
+    });
+
+    rutas.push({
+      id: 'ruta_frente_humano',
+      label: 'Gestionar Frente Humano',
+      weight: 175 + (enemyThreatOnOurCities * 18),
+      canExecute: enemyThreatOnOurCities > 0 || enemyCities.length > 0,
+      meta: { enemyThreatOnOurCities, enemyCities: enemyCities.length }
+    });
+
+    rutas.push({
+      id: 'ruta_caza_envolvente',
+      label: 'Envolver y Cazar',
+      weight: 160 + (enemyMetrics.unitCount || 0) * 6,
+      canExecute: (enemyMetrics.unitCount || 0) > 0,
+      meta: { enemyUnits: enemyMetrics.unitCount || 0 }
+    });
+
     rutas.sort((a, b) => b.weight - a.weight);
     return rutas;
   },
 
   _evaluarRutaLarga(situacion, myMetrics, enemyMetrics, holders) {
-    const { myPlayer, ciudades } = situacion;
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
+    const { myPlayer } = situacion;
+    const enemyPlayer = this._getEnemyPlayerId(myPlayer);
     const myKey = `player${myPlayer}`;
-    const enemyKey = `player${enemyPlayer}`;
+    const enemyKey = enemyPlayer != null ? `player${enemyPlayer}` : null;
+    const ownCities = (gameState.cities || []).filter(c => c && c.owner === myPlayer);
+    const tradeCities = this._getTradeCityCandidates(myPlayer).filter(c => this._isAllowedTradeDestinationForCaravan(c, myPlayer));
 
-    if (!ciudades || ciudades.length < 2) {
+    if (ownCities.length < 1 || tradeCities.length < 2) {
       return {
         id: 'ruta_larga',
         label: 'Ruta Larga',
         weight: 0,
         canExecute: false,
-        meta: { reason: 'sin_ciudades' }
+        meta: { reason: 'sin_nodos_comerciales' }
       };
     }
 
@@ -2360,7 +3277,7 @@ const IAArchipielago = {
     let weight = 190 + (hasInfra ? 80 : 0) + Math.min(80, missingCount * 6);
 
     if (holders.mostRoutes === myKey) weight *= 0.5;
-    if (holders.mostRoutes === enemyKey) weight *= 1.4;
+    if (enemyKey && holders.mostRoutes === enemyKey) weight *= 1.4;
 
     return {
       id: 'ruta_larga',
@@ -2390,6 +3307,7 @@ const IAArchipielago = {
       routesCount: playerUnits.filter(u => u.tradeRoute).length,
       wealthSum: (res.oro || 0) + (res.hierro || 0) + (res.piedra || 0) + (res.madera || 0) + (res.comida || 0),
       cities: board.flat().filter(h => h && h.owner === playerNumber && (h.isCity || h.structure === 'Aldea')).length,
+      territoryHexes: board.flat().filter(h => h && h.owner === playerNumber).length,
       armySize: playerUnits.reduce((sum, u) => sum + (u.maxHealth || 0), 0),
       kills: gameState.playerStats?.unitsDestroyed?.[pKey] || 0,
       techs: (res.researchedTechnologies || []).length,
@@ -2459,6 +3377,14 @@ const IAArchipielago = {
   _ejecutarAccionPorRuta(ruta, situacion) {
     const { myPlayer } = situacion;
     switch (ruta.id) {
+      case 'ruta_infraestructura_prioritaria': {
+        const builds = this._executePriorityRoadInfrastructureMission(myPlayer);
+        return { action: 'infraestructura_prioritaria', executed: builds > 0, note: `caminos=${builds}` };
+      }
+      case 'ruta_corredor_nodos': {
+        const moves = this._executeCorridorOccupationMission(myPlayer);
+        return { action: 'corredor_nodos', executed: moves > 0, note: `acciones=${moves}` };
+      }
       case 'ruta_larga':
         this._ejecutarRutaLarga(situacion);
         return { action: 'ruta_larga', executed: true, note: 'ver logs de Ruta Larga para resultado' };
@@ -2491,6 +3417,16 @@ const IAArchipielago = {
         return this._ejecutarRutaConquistadorBarbaro(situacion);
       case 'ruta_almirante_supremo':
         return this._ejecutarRutaAlmiranteSupremo(situacion);
+      case 'ruta_sabotaje':
+        return this._ejecutarRutaSabotaje(situacion);
+      case 'ruta_cortar_suministro':
+        return this._ejecutarRutaCortarSuministro(situacion);
+      case 'ruta_dominar_casillas':
+        return this._ejecutarRutaDominarCasillas(situacion);
+      case 'ruta_frente_humano':
+        return this._ejecutarRutaFrenteHumano(situacion);
+      case 'ruta_caza_envolvente':
+        return this._ejecutarRutaCazaEnvolvente(situacion);
       default:
         return { action: 'sin_accion_directa', executed: false, reason: 'sin_handler_ruta' };
     }
@@ -2540,7 +3476,8 @@ const IAArchipielago = {
   },
 
   _estimateLocalPowerRatio(myPlayer, target, radius = 5) {
-    const enemyPlayer = myPlayer === 1 ? 2 : 1;
+    const enemyPlayer = this._getEnemyPlayerId(myPlayer);
+    if (enemyPlayer == null) return 1;
     const myUnits = IASentidos.getUnits(myPlayer).filter(u => hexDistance(u.r, u.c, target.r, target.c) <= radius);
     const enemyUnits = IASentidos.getUnits(enemyPlayer).filter(u => hexDistance(u.r, u.c, target.r, target.c) <= radius);
     const myRegs = myUnits.reduce((sum, u) => sum + (u.regiments?.length || 0), 0);
@@ -2568,7 +3505,16 @@ const IAArchipielago = {
       return true;
     });
 
-    return { landPath, missingOwnedSegments };
+    const pendingCaptureSegments = landPath.filter((step, idx) => {
+      const isEndpoint = idx === 0 || idx === landPath.length - 1;
+      if (isEndpoint) return false;
+      const hex = board[step.r]?.[step.c];
+      if (!hex || hex.isCity || hex.terrain === 'water' || hex.terrain === 'forest') return false;
+      if (roadBuildable.length > 0 && !roadBuildable.includes(hex.terrain)) return false;
+      return hex.owner !== myPlayer;
+    });
+
+    return { landPath, missingOwnedSegments, pendingCaptureSegments };
   },
 
   _findRoadBuildPath({ myPlayer, start, goal, allowedOwners, roadBuildable }) {
@@ -2622,48 +3568,49 @@ const IAArchipielago = {
 
   _getRoadNetworkPlan(myPlayer, ciudades) {
     const ownCities = (ciudades || []).filter(c => c && c.owner === myPlayer);
-    const bankCity = this._getBankCity();
-    const allowedOwners = new Set([myPlayer]);
-    const nodes = bankCity ? ownCities.concat([bankCity]) : ownCities;
-
-    if (nodes.length < 2) {
-      return { nodes, connections: [] };
-    }
-
-    const connected = [nodes[0]];
-    const remaining = nodes.slice(1);
     const connections = [];
+    const bankCity = this._getBankCity();
 
-    while (remaining.length > 0) {
-      let best = null;
-      let bestIndex = -1;
+    for (const origin of ownCities) {
+      const candidate = (ciudades || [])
+        .filter(c => this._isAllowedTradeDestinationForCaravan(c, myPlayer))
+        .filter(dest => !(dest.r === origin.r && dest.c === origin.c))
+        .map(dest => {
+          const conn = this._findRoadConnection(origin, dest, myPlayer, null);
+          if (!conn) return null;
+          return {
+            from: origin,
+            to: dest,
+            landPath: conn.landPath,
+            missingOwnedSegments: conn.missingOwnedSegments,
+            pendingCaptureSegments: conn.pendingCaptureSegments,
+            distance: hexDistance(origin.r, origin.c, dest.r, dest.c)
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => {
+          const aBank = !!(bankCity && a.to.r === bankCity.r && a.to.c === bankCity.c);
+          const bBank = !!(bankCity && b.to.r === bankCity.r && b.to.c === bankCity.c);
+          if (aBank !== bBank) return aBank ? -1 : 1;
+          const aState = a.pendingCaptureSegments?.length ? 0 : (a.missingOwnedSegments?.length ? 1 : 2);
+          const bState = b.pendingCaptureSegments?.length ? 0 : (b.missingOwnedSegments?.length ? 1 : 2);
+          if (aState !== bState) return aState - bState;
+          return a.distance - b.distance;
+        })[0];
 
-      for (let i = 0; i < remaining.length; i++) {
-        const target = remaining[i];
-        for (const source of connected) {
-          const conn = this._findRoadConnection(source, target, myPlayer, allowedOwners);
-          if (!conn) continue;
-          if (!best || conn.landPath.length < best.landPath.length) {
-            best = { from: source, to: target, landPath: conn.landPath, missingOwnedSegments: conn.missingOwnedSegments };
-            bestIndex = i;
-          }
-        }
+      if (candidate) {
+        connections.push(candidate);
       }
-
-      if (!best) break;
-
-      connections.push(best);
-      connected.push(best.to);
-      remaining.splice(bestIndex, 1);
     }
 
-    return { nodes, connections };
+    return { nodes: ownCities, connections };
   },
 
   _findBestTradeCityPair(ciudades, myPlayer, existingRouteKeys = new Set()) {
     let best = null;
     const dummyUnit = { player: myPlayer, regiments: [{ type: 'Infantería Ligera' }] };
     const roadBuildable = STRUCTURE_TYPES['Camino']?.buildableOn || [];
+    const bankCity = this._getBankCity();
 
     for (let i = 0; i < ciudades.length; i++) {
       for (let j = i + 1; j < ciudades.length; j++) {
@@ -2696,9 +3643,14 @@ const IAArchipielago = {
         });
 
         const missingCount = missingOwnedSegments.length;
-        const score = (missingCount * 10) + landPath.length;
+        const touchesBank = !!(
+          bankCity &&
+          ((cityA.r === bankCity.r && cityA.c === bankCity.c) || (cityB.r === bankCity.r && cityB.c === bankCity.c))
+        );
+        const bankBonus = touchesBank ? -10000 : 0;
+        const score = bankBonus + (missingCount * 10) + landPath.length;
         if (!best || score < best.score) {
-          best = { cityA, cityB, landPath, infraPath, missingOwnedSegments, score };
+          best = { cityA, cityB, landPath, infraPath, missingOwnedSegments, score, touchesBank };
         }
       }
     }
@@ -2707,9 +3659,12 @@ const IAArchipielago = {
   },
 
   _ejecutarRutaLarga(situacion) {
-    const { myPlayer, ciudades } = situacion;
-    if (!ciudades || ciudades.length < 2) {
-      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No hay suficientes ciudades.');
+    const { myPlayer } = situacion;
+    const ownCities = (gameState.cities || []).filter(c => c && c.owner === myPlayer);
+    const tradeCities = this._getTradeCityCandidates(myPlayer).filter(c => this._isAllowedTradeDestinationForCaravan(c, myPlayer));
+
+    if (ownCities.length < 1 || tradeCities.length < 2) {
+      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No hay nodos comerciales suficientes.');
       return;
     }
 
@@ -2717,6 +3672,47 @@ const IAArchipielago = {
     if (!roadPlan.connections.length) {
       console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No se encontro ruta de caminos construible.');
       return;
+    }
+
+    const pendingCapture = roadPlan.connections
+      .filter(conn => conn.pendingCaptureSegments && conn.pendingCaptureSegments.length > 0)
+      .sort((a, b) => (a.pendingCaptureSegments.length - b.pendingCaptureSegments.length) || (a.landPath.length - b.landPath.length));
+
+    if (pendingCapture.length > 0) {
+      const target = pendingCapture[0];
+      const objective = target.pendingCaptureSegments[0];
+      const freeUnits = IASentidos.getUnits(myPlayer)
+        .filter(u => u.currentHealth > 0 && !u.hasMoved && this._isLandUnit(u));
+
+      let actingUnit = freeUnits
+        .slice()
+        .sort((a, b) => hexDistance(a.r, a.c, objective.r, objective.c) - hexDistance(b.r, b.c, objective.r, objective.c))
+        .find(unit => this._findPathForUnit(unit, objective.r, objective.c));
+
+      if (!actingUnit && typeof AiGameplayManager !== 'undefined' && AiGameplayManager.produceUnit) {
+        const infCost = REGIMENT_TYPES['Infantería Ligera']?.cost || {};
+        const res = gameState.playerResources[myPlayer] || {};
+        const canAffordPair = Object.keys(infCost).every(key => (res[key] || 0) >= ((infCost[key] || 0) * 2));
+
+        if (canAffordPair) {
+          actingUnit = AiGameplayManager.produceUnit(
+            myPlayer,
+            ['Infantería Ligera', 'Infantería Ligera'],
+            'corridor_pioneer',
+            `Pionero de Corredor ${target.from.name}`,
+            target.from
+          );
+          if (actingUnit) {
+            console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] PASO 0: creado ${actingUnit.name} para ocupar corredor.`);
+          }
+        }
+      }
+
+      if (actingUnit) {
+        console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] PASO 1: ocupando (${objective.r},${objective.c}) para ${target.from.name} -> ${target.to.name}`);
+        this._requestMoveOrAttack(actingUnit, objective.r, objective.c);
+        return;
+      }
     }
 
     const pending = roadPlan.connections
@@ -2748,7 +3744,7 @@ const IAArchipielago = {
         return;
       }
 
-      console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] Construyendo camino en (${nextHex.r},${nextHex.c})`);
+      console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] PASO 2: construyendo camino en (${nextHex.r},${nextHex.c})`);
       this._requestBuildStructure(myPlayer, nextHex.r, nextHex.c, 'Camino');
       return;
     }
@@ -2766,7 +3762,7 @@ const IAArchipielago = {
     let supplyUnit = units.find(u => u.player === myPlayer && !u.tradeRoute && u.regiments?.some(reg => (REGIMENT_TYPES[reg.type].abilities || []).includes('provide_supply')));
 
     if (!supplyUnit && typeof AiGameplayManager !== 'undefined' && AiGameplayManager.produceUnit) {
-      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] Creando Columna de Suministro...');
+      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] PASO 3: creando Columna de Suministro...');
       supplyUnit = AiGameplayManager.produceUnit(myPlayer, ['Columna de Suministro'], 'trader', 'Columna de Suministro');
     }
 
@@ -2795,10 +3791,10 @@ const IAArchipielago = {
       this._requestMoveUnit(supplyUnit, origin.r, origin.c);
     }
 
-    console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] Estableciendo ruta: ${origin.name} -> ${destination.name}`);
+    console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] PASO 4: estableciendo ruta: ${origin.name} -> ${destination.name}`);
     this._requestEstablishTradeRoute(supplyUnit, origin, destination, infraPath);
   }
 };
 
 window.IAArchipielago = IAArchipielago;
-
+console.log('[IA_ARCHIPIELAGO] Asignado a window.IAArchipielago:', typeof window.IAArchipielago, window.IAArchipielago);
