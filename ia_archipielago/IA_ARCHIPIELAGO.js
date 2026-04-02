@@ -240,6 +240,38 @@ const IAArchipielago = {
     }
   },
 
+  _ejecutarCapaEstructuralRed(situacion) {
+    const { myPlayer } = situacion || {};
+    if (!myPlayer) return;
+
+    // Mantiene el bootstrap determinista de apertura para evitar turnos IA inertes.
+    if (typeof this._runDeterministicBootstrapController === 'function') {
+      try {
+        this._runDeterministicBootstrapController(situacion);
+      } catch (e) {
+        console.warn('[IA_ARCHIPIELAGO] Error en bootstrap estructural:', e);
+      }
+    }
+
+    // Compatibilidad con capas orgánicas antiguas si están disponibles.
+    if (typeof AiGameplayManager !== 'undefined') {
+      if (typeof AiGameplayManager._ensureTradeInfrastructureOrganic === 'function') {
+        try {
+          AiGameplayManager._ensureTradeInfrastructureOrganic(myPlayer);
+        } catch (e) {
+          console.warn('[IA_ARCHIPIELAGO] Error en infraestructura comercial orgánica:', e);
+        }
+      }
+      if (typeof AiGameplayManager._ensureCityExpansionOrganic === 'function') {
+        try {
+          AiGameplayManager._ensureCityExpansionOrganic(myPlayer);
+        } catch (e) {
+          console.warn('[IA_ARCHIPIELAGO] Error en expansión urbana orgánica:', e);
+        }
+      }
+    }
+  },
+
   /**
    * Crea una unidad mínima en Archipiélago si la IA no tiene ninguna.
    * Evita partidas “muertas” en el primer turno.
