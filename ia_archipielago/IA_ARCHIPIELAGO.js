@@ -1218,8 +1218,8 @@ const IAArchipielago = {
         NetworkManager.enviarDatos({ type: 'actionRequest', action });
         // Log de flujo ocupación
         console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Unidad ${unit.id} movida a (${r},${c})`);
-        if (typeof registrarMetaFlujo === 'function') {
-          registrarMetaFlujo('ocupacion', r, c);
+        if (typeof this.registrarMetaFlujo === 'function') {
+          this.registrarMetaFlujo('ocupacion', r, c, unit.player);
           console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Meta registrada en (${r},${c})`);
         }
         return true;
@@ -1230,8 +1230,8 @@ const IAArchipielago = {
     if (typeof processActionRequest === 'function') {
       processActionRequest(action);
       console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Unidad ${unit.id} movida a (${r},${c})`);
-      if (typeof registrarMetaFlujo === 'function') {
-        registrarMetaFlujo('ocupacion', r, c);
+      if (typeof this.registrarMetaFlujo === 'function') {
+        this.registrarMetaFlujo('ocupacion', r, c, unit.player);
         console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Meta registrada en (${r},${c})`);
       }
       return true;
@@ -1240,8 +1240,8 @@ const IAArchipielago = {
     if (typeof RequestMoveUnit === 'function') {
       RequestMoveUnit(unit, r, c);
       console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Unidad ${unit.id} movida a (${r},${c})`);
-      if (typeof registrarMetaFlujo === 'function') {
-        registrarMetaFlujo('ocupacion', r, c);
+      if (typeof this.registrarMetaFlujo === 'function') {
+        this.registrarMetaFlujo('ocupacion', r, c, unit.player);
         console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Meta registrada en (${r},${c})`);
       }
       return true;
@@ -1469,8 +1469,8 @@ const IAArchipielago = {
       if (typeof NetworkManager !== 'undefined' && NetworkManager.esAnfitrion && typeof processActionRequest === 'function') {
         processActionRequest(action);
         console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Intento construir ${structureType} en (${r},${c})`);
-        if (typeof registrarMetaFlujo === 'function') {
-          registrarMetaFlujo('construccion', r, c);
+        if (typeof this.registrarMetaFlujo === 'function') {
+          this.registrarMetaFlujo('construccion', r, c, playerId);
           console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Meta registrada en (${r},${c})`);
         }
         return true;
@@ -1478,8 +1478,8 @@ const IAArchipielago = {
       if (typeof NetworkManager !== 'undefined' && NetworkManager.enviarDatos) {
         NetworkManager.enviarDatos({ type: 'actionRequest', action });
         console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Intento construir ${structureType} en (${r},${c})`);
-        if (typeof registrarMetaFlujo === 'function') {
-          registrarMetaFlujo('construccion', r, c);
+        if (typeof this.registrarMetaFlujo === 'function') {
+          this.registrarMetaFlujo('construccion', r, c, playerId);
           console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Meta registrada en (${r},${c})`);
         }
         return true;
@@ -1492,8 +1492,8 @@ const IAArchipielago = {
       const built = board[r]?.[c]?.structure === structureType;
       if (built) {
         console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Construido ${structureType} en (${r},${c})`);
-        if (typeof registrarMetaFlujo === 'function') {
-          registrarMetaFlujo('construccion', r, c);
+        if (typeof this.registrarMetaFlujo === 'function') {
+          this.registrarMetaFlujo('construccion', r, c, playerId);
           console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Meta registrada en (${r},${c})`);
         }
       }
@@ -1545,8 +1545,8 @@ const IAArchipielago = {
       if (typeof NetworkManager !== 'undefined' && NetworkManager.esAnfitrion && typeof processActionRequest === 'function') {
         processActionRequest(action);
         console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Intento crear ruta comercial de (${origin.r},${origin.c}) a (${destination.r},${destination.c})`);
-        if (typeof registrarMetaFlujo === 'function') {
-          registrarMetaFlujo('caravana', origin.r, origin.c);
+        if (typeof this.registrarMetaFlujo === 'function') {
+          this.registrarMetaFlujo('caravana', origin.r, origin.c, unit.player);
           console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Meta registrada en (${origin.r},${origin.c})`);
         }
         return true;
@@ -1554,8 +1554,8 @@ const IAArchipielago = {
       if (typeof NetworkManager !== 'undefined' && NetworkManager.enviarDatos) {
         NetworkManager.enviarDatos({ type: 'actionRequest', action });
         console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Intento crear ruta comercial de (${origin.r},${origin.c}) a (${destination.r},${destination.c})`);
-        if (typeof registrarMetaFlujo === 'function') {
-          registrarMetaFlujo('caravana', origin.r, origin.c);
+        if (typeof this.registrarMetaFlujo === 'function') {
+          this.registrarMetaFlujo('caravana', origin.r, origin.c, unit.player);
           console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Meta registrada en (${origin.r},${origin.c})`);
         }
         return true;
@@ -1566,8 +1566,8 @@ const IAArchipielago = {
     if (typeof _executeEstablishTradeRoute === 'function') {
       _executeEstablishTradeRoute(action.payload);
       console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Intento crear ruta comercial de (${origin.r},${origin.c}) a (${destination.r},${destination.c})`);
-      if (typeof registrarMetaFlujo === 'function') {
-        registrarMetaFlujo('caravana', origin.r, origin.c);
+      if (typeof this.registrarMetaFlujo === 'function') {
+        this.registrarMetaFlujo('caravana', origin.r, origin.c, unit.player);
         console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Meta registrada en (${origin.r},${origin.c})`);
       }
       return true;
