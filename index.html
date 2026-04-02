@@ -1987,15 +1987,60 @@
     <script src="scenarios/test_C1_MergeToAttack_scenario.js"></script>
     
     <!-- === LÓGICA PRINCIPAL DEL JUEGO (orden existente) === -->
-    <script src="version.js"></script>
+    <script src="version.js?v=1.111"></script>
     <script>
         (function() {
             const CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
             const VERSION_URL = 'version.js';
             const VERSION_REGEX = /current:\s*["']([^"']+)["']/;
+            const RELOAD_GUARD_KEY = 'iberion:version-reload-guard';
+            const RELOAD_GUARD_TTL_MS = 2 * 60 * 1000;
             let lastKnownVersion = (window.VERSION_CONFIG && VERSION_CONFIG.get)
                 ? VERSION_CONFIG.get()
                 : null;
+
+            function updateVersionDisplay(version) {
+                if (!version) return;
+                if (window.VERSION_CONFIG && typeof VERSION_CONFIG.set === 'function') {
+                    VERSION_CONFIG.set(version);
+                }
+                const versionDisplay = document.getElementById('version-display');
+                if (versionDisplay) {
+                    versionDisplay.textContent = 'v' + version;
+                }
+            }
+
+            function shouldReloadForVersion(remoteVersion) {
+                try {
+                    const raw = sessionStorage.getItem(RELOAD_GUARD_KEY);
+                    const guard = raw ? JSON.parse(raw) : null;
+                    const now = Date.now();
+
+                    if (guard && guard.version === remoteVersion && (now - (guard.at || 0)) < RELOAD_GUARD_TTL_MS) {
+                        return false;
+                    }
+
+                    sessionStorage.setItem(RELOAD_GUARD_KEY, JSON.stringify({ version: remoteVersion, at: now }));
+                    return true;
+                } catch (e) {
+                    return true;
+                }
+            }
+
+            async function purgeLegacyCaches() {
+                try {
+                    if ('serviceWorker' in navigator) {
+                        const registrations = await navigator.serviceWorker.getRegistrations();
+                        await Promise.all(registrations.map(r => r.unregister()));
+                    }
+                    if ('caches' in window) {
+                        const keys = await caches.keys();
+                        await Promise.all(keys.map(k => caches.delete(k)));
+                    }
+                } catch (e) {
+                    console.warn('No se pudo limpiar caché/SW antes de recargar:', e);
+                }
+            }
 
             async function checkForUpdate() {
                 try {
@@ -2006,11 +2051,24 @@
 
                     const remoteVersion = match[1];
                     if (lastKnownVersion && remoteVersion !== lastKnownVersion) {
-                        window.location.reload();
+                        if (shouldReloadForVersion(remoteVersion)) {
+                            await purgeLegacyCaches();
+                            const url = new URL(window.location.href);
+                            url.searchParams.set('_v', remoteVersion);
+                            url.searchParams.set('_cb', String(Date.now()));
+                            window.location.replace(url.toString());
+                            return;
+                        }
+
+                        // Si ya intentamos recargar por esta versión recientemente, evitamos loop.
+                        console.warn(`[VERSION] Diferencia persistente detectada (${lastKnownVersion} -> ${remoteVersion}) sin recarga adicional.`);
+                        updateVersionDisplay(remoteVersion);
+                        lastKnownVersion = remoteVersion;
                         return;
                     }
 
                     lastKnownVersion = remoteVersion;
+                    updateVersionDisplay(remoteVersion);
                 } catch (err) {
                     console.warn('Version check failed:', err);
                 }

@@ -49,8 +49,13 @@ console.log('✅ version.js actualizado');
 const indexPath = path.join(__dirname, 'index.html');
 let indexContent = fs.readFileSync(indexPath, 'utf8');
 indexContent = indexContent.replace(
-    /<div class="version-watermark">v[\d.]+<\/div>/,
-    `<div class="version-watermark">v${newVersion}</div>`
+    /<div class="version-watermark" id="version-display">v[^<]*<\/div>/,
+    `<div class="version-watermark" id="version-display">v${newVersion}</div>`
+);
+
+indexContent = indexContent.replace(
+    /<script src="version\.js\?v=[^"]*"><\/script>/,
+    `<script src="version.js?v=${newVersion}"></script>`
 );
 fs.writeFileSync(indexPath, indexContent, 'utf8');
 console.log('✅ index.html actualizado');

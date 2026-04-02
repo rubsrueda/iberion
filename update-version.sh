@@ -71,6 +71,7 @@ echo "✅ version.js actualizado"
 
 # Actualizar index.html
 sed -i "s/<div class=\"version-watermark\" id=\"version-display\">v[^<]*<\/div>/<div class=\"version-watermark\" id=\"version-display\">v${NEW_VERSION}<\/div>/" index.html
+sed -i "s/<script src=\"version.js?v=[^\"]*\"><\/script>/<script src=\"version.js?v=${NEW_VERSION}\"><\/script>/" index.html
 echo "✅ index.html actualizado"
 
 # Actualizar CHANGELOG.md
