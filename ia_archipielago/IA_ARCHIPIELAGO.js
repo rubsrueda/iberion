@@ -1404,6 +1404,32 @@ const IAArchipielago = {
     return true;
   },
 
+  _tryImmediateVacateForBuild(blockerUnit, blockedHex, objective = null) {
+    if (!blockerUnit || !blockedHex) return false;
+    const mobility = (blockerUnit.currentMovement || blockerUnit.movement || 0);
+    if (blockerUnit.hasMoved || mobility <= 0) return false;
+
+    let step = null;
+    if (objective) {
+      step = this._getMoveStepTowards(blockerUnit, objective.r, objective.c);
+      if (step && getUnitOnHex(step.r, step.c)) step = null;
+    }
+
+    if (!step) {
+      step = getHexNeighbors(blockedHex.r, blockedHex.c).find(n => {
+        const h = board[n.r]?.[n.c];
+        if (!h || h.owner !== blockerUnit.player || h.terrain === 'water') return false;
+        if (getUnitOnHex(n.r, n.c)) return false;
+        return true;
+      }) || null;
+    }
+
+    if (!step) return false;
+    this._requestMoveUnit(blockerUnit, step.r, step.c);
+    const stillBlocking = getUnitOnHex(blockedHex.r, blockedHex.c);
+    return !(stillBlocking && stillBlocking.id === blockerUnit.id);
+  },
+
   _procesarDesbloqueoConstruccionesPendientes(myPlayer) {
     const ownUnits = IASentidos.getUnits(myPlayer) || [];
     if (!ownUnits.length) return;
@@ -1501,11 +1527,29 @@ const IAArchipielago = {
 
     const blocker = getUnitOnHex(r, c);
     if (blocker) {
-      if (blocker.player === playerId) {
-        this._scheduleVacateForBlockedBuild(playerId, blocker, r, c);
+      if (blocker.player !== playerId) {
+        playerRetryState.keys.add(retryKey);
+        return false;
       }
-      playerRetryState.keys.add(retryKey);
-      return false;
+
+      const hasMovement = !blocker.hasMoved && ((blocker.currentMovement || blocker.movement || 0) > 0);
+      this._scheduleVacateForBlockedBuild(playerId, blocker, r, c);
+
+      if (!hasMovement) {
+        console.log(`[IA_ARCHIPIELAGO] [BUILD DESCARTADA] J${playerId} ${structureType} (${r},${c}) motivo=aliado_sin_movimiento`);
+        playerRetryState.keys.add(retryKey);
+        return false;
+      }
+
+      const objective = this._resolveVacateObjectiveForRoad(playerId, r, c);
+      const vacatedNow = this._tryImmediateVacateForBuild(blocker, { r, c }, objective);
+      if (!vacatedNow) {
+        console.log(`[IA_ARCHIPIELAGO] [BUILD POSPUESTA] J${playerId} ${structureType} (${r},${c}) motivo=aliado_no_pudo_despejar`);
+        playerRetryState.keys.add(retryKey);
+        return false;
+      }
+
+      console.log(`[IA_ARCHIPIELAGO] [BUILD REINTENTO] J${playerId} ${structureType} (${r},${c}) motivo=casilla_despejada`);
     }
 
     const cost = data.cost || {};

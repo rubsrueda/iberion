@@ -1444,6 +1444,42 @@ const AiGameplayManager = {
         return false;
     },
 
+    _tryImmediateVacateForBuild: function(blockingUnit, blockedHex, objective = null) {
+        if (!blockingUnit || !blockedHex) return false;
+        const mobility = (blockingUnit.currentMovement || blockingUnit.movement || 0);
+        if (blockingUnit.hasMoved || mobility <= 0) return false;
+
+        let preferredStep = null;
+        if (objective && typeof this.findPathToTarget === 'function') {
+            const path = this.findPathToTarget(blockingUnit, objective.r, objective.c);
+            if (path && path.length > 1) {
+                const candidate = path[1];
+                if (candidate && !getUnitOnHex(candidate.r, candidate.c)) {
+                    const hex = board[candidate.r]?.[candidate.c];
+                    if (hex && hex.owner === blockingUnit.player && !TERRAIN_TYPES[hex.terrain]?.isImpassableForLand) {
+                        preferredStep = candidate;
+                    }
+                }
+            }
+        }
+
+        const fallback = getHexNeighbors(blockedHex.r, blockedHex.c)
+            .map(n => board[n.r]?.[n.c])
+            .filter(h => h && !h.unit && h.owner === blockingUnit.player && !TERRAIN_TYPES[h.terrain]?.isImpassableForLand)
+            .sort((a, b) => {
+                const aDist = objective ? hexDistance(a.r, a.c, objective.r, objective.c) : 0;
+                const bDist = objective ? hexDistance(b.r, b.c, objective.r, objective.c) : 0;
+                return aDist - bDist;
+            })[0] || null;
+
+        const target = preferredStep || fallback;
+        if (!target || typeof _executeMoveUnit !== 'function') return false;
+
+        _executeMoveUnit(blockingUnit, target.r, target.c);
+        const stillBlocking = getUnitOnHex(blockedHex.r, blockedHex.c);
+        return !(stillBlocking && stillBlocking.id === blockingUnit.id);
+    },
+
     _resolveEconomicVacateObjective: function(playerNumber, blockedHex) {
         if ((gameState.turnNumber || 0) <= 1 && typeof AiDeploymentManager !== 'undefined') {
             const analysis = typeof AiDeploymentManager.analyzeEnvironment === 'function'
@@ -2016,14 +2052,21 @@ const AiGameplayManager = {
 
             const hex = board[missingRoad.r]?.[missingRoad.c];
             if (!hex || hex.owner !== playerNumber || hex.isCity || roadReady.has(hex.structure)) continue;
-            if (getUnitOnHex(missingRoad.r, missingRoad.c)) continue;
 
             const cost = STRUCTURE_TYPES['Camino']?.cost || {};
             const canAfford = Object.keys(cost).every(r => r === 'Colono' || (playerRes[r] || 0) >= (cost[r] || 0));
             if (!canAfford) continue;
 
-            console.log(`[IA ORG PASO2] J${playerNumber}: Camino en (${missingRoad.r},${missingRoad.c}) para ${origin.name || 'origen'}→${dest.name || 'destino'}`);
-            handleConfirmBuildStructure({ playerId: playerNumber, r: missingRoad.r, c: missingRoad.c, structureType: 'Camino' });
+            const built = this.attemptConstructionAtHex(
+                playerNumber,
+                missingRoad.r,
+                missingRoad.c,
+                'Camino',
+                'ORGANIC_CARAVAN_CORRIDOR'
+            );
+            if (built) {
+                console.log(`[IA ORG PASO2] J${playerNumber}: Camino en (${missingRoad.r},${missingRoad.c}) para ${origin.name || 'origen'}→${dest.name || 'destino'}`);
+            }
         }
     },
 
@@ -2141,13 +2184,29 @@ const AiGameplayManager = {
         const blockerUnit = getUnitOnHex(r, c);
         if (blockerUnit) {
             if (blockerUnit.player === playerNumber) {
-                this._assignVacateMissionForBlockedBuild(playerNumber, blockerUnit, { r, c }, nodoRazon);
-                console.log(`[IA BUILD DECISION - POSPUESTA] J${playerNumber} ${structureType} (${r},${c}) motivo=casilla_ocupada_por_aliado`);
+                const hasMovement = !blockerUnit.hasMoved && ((blockerUnit.currentMovement || blockerUnit.movement || 0) > 0);
+                const assigned = this._assignVacateMissionForBlockedBuild(playerNumber, blockerUnit, { r, c }, nodoRazon);
+
+                if (!hasMovement) {
+                    console.log(`[IA BUILD DECISION - DESCARTADA] J${playerNumber} ${structureType} (${r},${c}) motivo=aliado_sin_movimiento`);
+                    playerRetryBlock.keys.add(retryKey);
+                    return false;
+                }
+
+                const objective = this._resolveEconomicVacateObjective(playerNumber, { r, c });
+                const vacatedNow = this._tryImmediateVacateForBuild(blockerUnit, { r, c }, objective);
+                if (!vacatedNow) {
+                    console.log(`[IA BUILD DECISION - POSPUESTA] J${playerNumber} ${structureType} (${r},${c}) motivo=aliado_no_pudo_despejar${assigned ? '_con_mision' : ''}`);
+                    playerRetryBlock.keys.add(retryKey);
+                    return false;
+                }
+
+                console.log(`[IA BUILD DECISION - REINTENTO] J${playerNumber} ${structureType} (${r},${c}) motivo=casilla_despejada`);
             } else {
                 console.log(`[IA BUILD DECISION - POSPUESTA] J${playerNumber} ${structureType} (${r},${c}) motivo=casilla_ocupada_por_enemigo`);
+                playerRetryBlock.keys.add(retryKey);
+                return false;
             }
-            playerRetryBlock.keys.add(retryKey);
-            return false;
         }
         
         const playerRes = gameState.playerResources[playerNumber];
