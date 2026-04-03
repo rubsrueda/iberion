@@ -138,11 +138,6 @@ const IAArchipielago = {
     this._logRutasDeVictoria(rutas);
     this._procesarRutasDeVictoria(situacion);
 
-    // Compatibilidad defensiva: evitar crash si quedó una referencia legacy.
-    if (typeof this.ejecutarPlanDeAccion === 'function') {
-      this.ejecutarPlanDeAccion(situacion);
-    }
-
     // Plan de emergencia si no hubo progreso
     if (!this._didMakeProgressThisTurn(myPlayer, situacion.snapshotActividad)) {
       console.warn('[IA_ARCHIPIELAGO] Turno inerte detectado. Activando emergencia...');
