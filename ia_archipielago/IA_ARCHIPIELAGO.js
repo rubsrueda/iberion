@@ -13,6 +13,8 @@ const IAArchipielago = {
   WORM_MIN_SPLIT_REGIMENTS: 2,
   WORM_MAX_ACTIONS_PER_TURN: 8,
   CUT_SUPPLY_MAX_TARGETS: 4,
+  EARLY_STONE_HILLS_TURN_LIMIT: 10,
+  EARLY_STONE_HILLS_MIN_STONE: 100,
   deployUnitsAI(myPlayer) {
     console.log(`[IA_ARCHIPIELAGO] Despliegue IA iniciado para Jugador ${myPlayer}.`);
     if (gameState.currentPhase !== 'deployment') {
@@ -72,6 +74,9 @@ const IAArchipielago = {
 
     const infoTurno = IASentidos.getTurnInfo();
     if (infoTurno.currentPhase !== 'play') return;
+
+    // Antes de planificar construcciones, intentar liberar casillas que quedaron bloqueadas el turno anterior.
+    this._procesarDesbloqueoConstruccionesPendientes(myPlayer);
 
     // --- 1. RECOPILACIÓN DE DATOS ---
     const hexesPropios = IASentidos.getOwnedHexes(myPlayer);
@@ -367,7 +372,7 @@ const IAArchipielago = {
       if (amenazas.length === 0 && this._isCorridorPioneer(unit1)) continue;
       // No fundir unidades con misiones activas de expansión o corredor.
       const mission1 = (typeof AiGameplayManager !== 'undefined') ? AiGameplayManager.missionAssignments?.get(unit1.id) : null;
-      if (mission1 && ['OCCUPY_THEN_BUILD', 'IA_NODE', 'AXIS_ADVANCE'].includes(mission1.type)) continue;
+      if (mission1 && ['OCCUPY_THEN_BUILD', 'IA_NODE', 'AXIS_ADVANCE', 'STONE_HILLS_EMERGENCY'].includes(mission1.type)) continue;
       const regimentosActuales = unit1.regiments?.length || 0;
 
       const targetSize = Math.min(
@@ -381,7 +386,7 @@ const IAArchipielago = {
         const unit2 = misUnidades[j];
         if (amenazas.length === 0 && this._isCorridorPioneer(unit2)) continue;
         const mission2 = (typeof AiGameplayManager !== 'undefined') ? AiGameplayManager.missionAssignments?.get(unit2.id) : null;
-        if (mission2 && ['OCCUPY_THEN_BUILD', 'IA_NODE', 'AXIS_ADVANCE'].includes(mission2.type)) continue;
+        if (mission2 && ['OCCUPY_THEN_BUILD', 'IA_NODE', 'AXIS_ADVANCE', 'STONE_HILLS_EMERGENCY'].includes(mission2.type)) continue;
         const distancia = hexDistance(unit1.r, unit1.c, unit2.r, unit2.c);
 
         // Si están muy cerca y la suma no excede el máximo
@@ -1371,6 +1376,15 @@ const IAArchipielago = {
     const objective = this._resolveVacateObjectiveForRoad(playerId, r, c);
     if (!objective) return false;
 
+    blockerUnit.iaVacateBuild = {
+      blockedR: r,
+      blockedC: c,
+      objectiveR: objective.r,
+      objectiveC: objective.c,
+      reason: objective.reason,
+      createdTurn: gameState.turnNumber
+    };
+
     AiGameplayManager.missionAssignments.set(blockerUnit.id, {
       type: 'IA_NODE',
       objective: { r: objective.r, c: objective.c },
@@ -1388,6 +1402,48 @@ const IAArchipielago = {
 
     console.log(`[IA_ARCHIPIELAGO] [VACATE] J${playerId}: ${blockerUnit.name} libera (${r},${c}) -> (${objective.r},${objective.c}) motivo=${objective.reason}`);
     return true;
+  },
+
+  _procesarDesbloqueoConstruccionesPendientes(myPlayer) {
+    const ownUnits = IASentidos.getUnits(myPlayer) || [];
+    if (!ownUnits.length) return;
+
+    let moved = 0;
+    for (const unit of ownUnits) {
+      const vacate = unit?.iaVacateBuild;
+      if (!vacate) continue;
+
+      // Si ya no bloquea la casilla original, limpiar marca para evitar ciclos.
+      if (unit.r !== vacate.blockedR || unit.c !== vacate.blockedC) {
+        delete unit.iaVacateBuild;
+        continue;
+      }
+
+      if (unit.hasMoved || (unit.currentMovement || 0) <= 0) continue;
+
+      let step = this._getMoveStepTowards(unit, vacate.objectiveR, vacate.objectiveC);
+      if (!step || getUnitOnHex(step.r, step.c)) {
+        step = getHexNeighbors(unit.r, unit.c).find(n => {
+          const h = board[n.r]?.[n.c];
+          if (!h || h.terrain === 'water') return false;
+          if (h.owner !== myPlayer) return false;
+          if (getUnitOnHex(n.r, n.c)) return false;
+          return true;
+        }) || null;
+      }
+
+      if (!step) continue;
+
+      const didMove = this._requestMoveUnit(unit, step.r, step.c);
+      if (didMove) {
+        moved += 1;
+        delete unit.iaVacateBuild;
+      }
+    }
+
+    if (moved > 0) {
+      console.log(`[IA_ARCHIPIELAGO] [VACATE] J${myPlayer}: desbloqueos ejecutados=${moved}`);
+    }
   },
 
   _requestBuildStructure(playerId, r, c, structureType) {
@@ -3113,6 +3169,102 @@ const IAArchipielago = {
     return builds;
   },
 
+  _getEarlyStoneHillsAssignments(myPlayer, maxAssignments = 1) {
+    const resources = gameState.playerResources?.[myPlayer] || {};
+    const stone = resources.piedra || 0;
+    if (gameState.turnNumber > this.EARLY_STONE_HILLS_TURN_LIMIT) return [];
+    if (stone >= this.EARLY_STONE_HILLS_MIN_STONE) return [];
+
+    const targets = board.flat().filter(hex => {
+      if (!hex) return false;
+      if (hex.terrain !== 'hills') return false;
+      if (hex.owner === myPlayer) return false;
+      return true;
+    });
+    if (!targets.length) return [];
+
+    const availableUnits = IASentidos.getUnits(myPlayer)
+      .filter(unit => unit && unit.currentHealth > 0)
+      .filter(unit => this._isLandUnit(unit))
+      .filter(unit => !unit.hasMoved && (unit.currentMovement || 0) > 0)
+      .filter(unit => !unit.iaExpeditionTarget);
+
+    if (!availableUnits.length) return [];
+
+    const assignments = [];
+    const usedUnits = new Set();
+    const claimedTargets = new Set();
+
+    for (let i = 0; i < maxAssignments; i++) {
+      let best = null;
+
+      for (const unit of availableUnits) {
+        if (usedUnits.has(unit.id)) continue;
+
+        for (const target of targets) {
+          const targetKey = `${target.r},${target.c}`;
+          if (claimedTargets.has(targetKey)) continue;
+          if (!this._findPathForUnit(unit, target.r, target.c)) continue;
+
+          const distance = hexDistance(unit.r, unit.c, target.r, target.c);
+          if (!best || distance < best.distance) {
+            best = { unit, objective: target, distance };
+          }
+        }
+      }
+
+      if (!best) break;
+      assignments.push(best);
+      usedUnits.add(best.unit.id);
+      claimedTargets.add(`${best.objective.r},${best.objective.c}`);
+    }
+
+    return assignments;
+  },
+
+  _getEarlyStoneHillsPressure(myPlayer) {
+    const assignments = this._getEarlyStoneHillsAssignments(myPlayer, 1);
+    if (!assignments.length) {
+      return { canExecute: false, weight: 0, assignments: [] };
+    }
+
+    const stone = gameState.playerResources?.[myPlayer]?.piedra || 0;
+    const stoneDeficit = Math.max(0, this.EARLY_STONE_HILLS_MIN_STONE - stone);
+    const earlyBonus = Math.max(0, this.EARLY_STONE_HILLS_TURN_LIMIT - gameState.turnNumber) * 25;
+
+    return {
+      canExecute: true,
+      weight: 1000 + (stoneDeficit * 3) + earlyBonus,
+      assignments,
+      stone,
+      stoneDeficit
+    };
+  },
+
+  _executeEarlyStoneHillsMission(myPlayer) {
+    const assignments = this._getEarlyStoneHillsAssignments(myPlayer, 1);
+    if (!assignments.length) return 0;
+
+    let actions = 0;
+    for (const { unit, objective } of assignments) {
+      if (typeof AiGameplayManager !== 'undefined' && AiGameplayManager.missionAssignments?.set) {
+        AiGameplayManager.missionAssignments.set(unit.id, {
+          type: 'STONE_HILLS_EMERGENCY',
+          objective: { r: objective.r, c: objective.c },
+          reason: 'LOW_STONE_EARLY_GAME'
+        });
+      }
+
+      const acted = this._requestMoveOrAttack(unit, objective.r, objective.c);
+      if (!acted) continue;
+
+      actions += 1;
+      console.log(`[IA_PIEDRA_HILLS] ${unit.name} asignada a ocupar hills en (${objective.r},${objective.c}) por piedra baja.`);
+    }
+
+    return actions;
+  },
+
   _evaluarRutasDeVictoria(situacion) {
     const { myPlayer, ciudades } = situacion;
     const enemyPlayer = this._getEnemyPlayerId(myPlayer);
@@ -3124,6 +3276,20 @@ const IAArchipielago = {
     const rutas = [];
     const infraPressure = this._getPriorityRoadInfrastructurePressure(myPlayer);
     const corridorPressure = this._getCorridorOccupationPressure(myPlayer);
+    const earlyStonePressure = this._getEarlyStoneHillsPressure(myPlayer);
+
+    rutas.push({
+      id: 'ruta_piedra_hills_urgente',
+      label: 'Piedra Temprana Hills',
+      weight: earlyStonePressure.weight,
+      canExecute: earlyStonePressure.canExecute,
+      meta: {
+        assignments: earlyStonePressure.assignments?.length || 0,
+        stone: earlyStonePressure.stone ?? (gameState.playerResources?.[myPlayer]?.piedra || 0),
+        stoneDeficit: earlyStonePressure.stoneDeficit ?? 0,
+        turnNumber: gameState.turnNumber
+      }
+    });
 
     rutas.push({
       id: 'ruta_infraestructura_prioritaria',
@@ -3409,6 +3575,10 @@ const IAArchipielago = {
   _ejecutarAccionPorRuta(ruta, situacion) {
     const { myPlayer } = situacion;
     switch (ruta.id) {
+      case 'ruta_piedra_hills_urgente': {
+        const moves = this._executeEarlyStoneHillsMission(myPlayer);
+        return { action: 'piedra_hills_urgente', executed: moves > 0, note: `acciones=${moves}` };
+      }
       case 'ruta_infraestructura_prioritaria': {
         const builds = this._executePriorityRoadInfrastructureMission(myPlayer);
         return { action: 'infraestructura_prioritaria', executed: builds > 0, note: `caminos=${builds}` };
@@ -3467,6 +3637,19 @@ const IAArchipielago = {
   _diagnosticarRutaNoEjecutable(ruta, situacion) {
     const meta = ruta.meta || {};
     switch (ruta.id) {
+      case 'ruta_piedra_hills_urgente': {
+        if ((gameState.turnNumber || 0) > this.EARLY_STONE_HILLS_TURN_LIMIT) {
+          return `turno_fuera_de_ventana:${gameState.turnNumber}`;
+        }
+        const stone = gameState.playerResources?.[situacion.myPlayer]?.piedra || 0;
+        if (stone >= this.EARLY_STONE_HILLS_MIN_STONE) {
+          return `piedra_suficiente:${stone}`;
+        }
+        if ((meta.assignments || 0) <= 0) {
+          return 'sin_divisiones_o_hills_objetivo';
+        }
+        return 'condiciones_no_cumplidas';
+      }
       case 'ruta_larga':
         if (meta.reason) return meta.reason;
         return 'condiciones_no_cumplidas';
@@ -3764,9 +3947,9 @@ const IAArchipielago = {
       const roadCost = STRUCTURE_TYPES['Camino']?.cost || {};
       const playerRes = gameState.playerResources[myPlayer] || {};
       const canAfford = (playerRes.piedra || 0) >= (roadCost.piedra || 0) && (playerRes.madera || 0) >= (roadCost.madera || 0);
-      const nextHex = target.missingOwnedSegments[0];
+      const candidateSegments = target.missingOwnedSegments || [];
 
-      if (!nextHex) {
+      if (!candidateSegments.length) {
         console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No hay segmentos propios disponibles para construir camino.');
         return;
       }
@@ -3776,8 +3959,26 @@ const IAArchipielago = {
         return;
       }
 
-      console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] PASO 2: construyendo camino en (${nextHex.r},${nextHex.c})`);
-      this._requestBuildStructure(myPlayer, nextHex.r, nextHex.c, 'Camino');
+      let builtRoad = false;
+      let blockedByAlly = 0;
+      for (const segment of candidateSegments) {
+        const blocker = getUnitOnHex(segment.r, segment.c);
+        if (blocker) {
+          if (blocker.player === myPlayer) {
+            this._scheduleVacateForBlockedBuild(myPlayer, blocker, segment.r, segment.c);
+            blockedByAlly += 1;
+          }
+          continue;
+        }
+
+        console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] PASO 2: construyendo camino en (${segment.r},${segment.c})`);
+        builtRoad = this._requestBuildStructure(myPlayer, segment.r, segment.c, 'Camino');
+        if (builtRoad) break;
+      }
+
+      if (!builtRoad && blockedByAlly > 0) {
+        console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] Segmentos bloqueados por aliados: ${blockedByAlly}. Reintentará tras vaciar casillas.`);
+      }
       return;
     }
 
