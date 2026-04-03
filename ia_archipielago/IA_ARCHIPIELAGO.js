@@ -90,7 +90,15 @@ const IAArchipielago = {
     const objetivosOcupacion = [...ciudades, ...recursos];
     for (const obj of objetivosOcupacion) {
       if (this._requestMoveOrAttack) {
-        const result = this._requestMoveOrAttack({ r: obj.r, c: obj.c, player: myPlayer }, obj.r, obj.c);
+        const candidateUnit = (IASentidos.getUnits(myPlayer) || [])
+          .filter(u => u && u.currentHealth > 0)
+          .filter(u => !u.hasMoved && (u.currentMovement || u.movement || 0) > 0)
+          .filter(u => this._isLandUnit(u))
+          .sort((a, b) => hexDistance(a.r, a.c, obj.r, obj.c) - hexDistance(b.r, b.c, obj.r, obj.c))
+          .find(u => !!this._findPathForUnit(u, obj.r, obj.c));
+
+        if (!candidateUnit) continue;
+        const result = this._requestMoveOrAttack(candidateUnit, obj.r, obj.c);
         if (result) {
           this.registrarMetaFlujo('ocupacion', obj.r, obj.c, myPlayer);
           ocupacionesRealizadas++;
@@ -1256,11 +1264,27 @@ const IAArchipielago = {
 
   _requestMoveOrAttack(unit, r, c) {
     if (!unit) return false;
+    if (!Number.isInteger(unit.r) || !Number.isInteger(unit.c) || !Array.isArray(unit.regiments) || unit.regiments.length === 0) {
+      const resolved = getUnitOnHex(unit.r, unit.c);
+      if (resolved && resolved.player === unit.player && Array.isArray(resolved.regiments) && resolved.regiments.length > 0) {
+        unit = resolved;
+      } else {
+        return false;
+      }
+    }
     const targetUnit = getUnitOnHex(r, c);
     if (targetUnit && targetUnit.player !== unit.player) {
-      const canAttack = typeof isValidAttack === 'function'
-        ? isValidAttack(unit, targetUnit)
-        : hexDistance(unit.r, unit.c, targetUnit.r, targetUnit.c) <= (unit.attackRange || 1);
+      let canAttack = false;
+      if (typeof isValidAttack === 'function') {
+        try {
+          canAttack = isValidAttack(unit, targetUnit);
+        } catch (e) {
+          console.warn('[IA_ARCHIPIELAGO] isValidAttack lanzó error. Se usa fallback de distancia.', e);
+          canAttack = hexDistance(unit.r, unit.c, targetUnit.r, targetUnit.c) <= (unit.attackRange || 1);
+        }
+      } else {
+        canAttack = hexDistance(unit.r, unit.c, targetUnit.r, targetUnit.c) <= (unit.attackRange || 1);
+      }
 
       if (!canAttack) {
         const step = this._getMoveStepTowards(unit, r, c);
