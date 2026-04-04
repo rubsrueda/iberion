@@ -24,6 +24,8 @@ const IAArchipielago = {
   MAX_RUTA_LARGA_CALLS_PER_TURN: 3,
   MAX_ROAD_BUILDS_PER_CYCLE: 3,
   ENABLE_ORGANIC_TRADE_LAYER: true,
+  MISSION_TYPE_COMMERCIAL_CORRIDOR: 'COMERCIAL_CORREDOR',
+  MISSION_TYPE_CONQUEST_CITY: 'CONQUISTA_CIUDAD',
   deployUnitsAI(myPlayer) {
     console.log(`[IA_ARCHIPIELAGO] Despliegue IA iniciado para Jugador ${myPlayer}.`);
     if (gameState.currentPhase !== 'deployment') {
@@ -78,6 +80,40 @@ const IAArchipielago = {
     } catch (e) {
       console.log(`[IA_IMPORTANTE] ${event}`);
     }
+  },
+
+  _inferCanonicalMissionType(unit) {
+    const assignments = (typeof AiGameplayManager !== 'undefined') ? AiGameplayManager.missionAssignments : null;
+    const mission = assignments?.get ? assignments.get(unit?.id) : null;
+    const raw = String(mission?.type || '').toUpperCase();
+    if (raw.includes('OCCUPY') || raw.includes('CORRIDOR') || raw.includes('NODE') || raw.includes('CARAVAN')) {
+      return this.MISSION_TYPE_COMMERCIAL_CORRIDOR;
+    }
+    if (raw.includes('CONQUER') || raw.includes('CITY') || raw.includes('EMPERADOR')) {
+      return this.MISSION_TYPE_CONQUEST_CITY;
+    }
+    if (this._isCorridorPioneer(unit)) return this.MISSION_TYPE_COMMERCIAL_CORRIDOR;
+    return null;
+  },
+
+  _selectExecutionMission({ unit = null, target = null, candidateMissionType = null }) {
+    const inferred = this._inferCanonicalMissionType(unit);
+    const fromCandidate = candidateMissionType || inferred;
+    const targetHex = target ? board[target.r]?.[target.c] : null;
+    const isCityObjective = !!(target?.type === 'city' || targetHex?.isCity);
+    const selectedMissionType = isCityObjective
+      ? this.MISSION_TYPE_CONQUEST_CITY
+      : (fromCandidate || this.MISSION_TYPE_COMMERCIAL_CORRIDOR);
+    const switched = !!fromCandidate && selectedMissionType !== fromCandidate;
+    const reason = switched
+      ? 'oportunidad_tactica_superior'
+      : 'mantener_mision_candidata';
+    return {
+      candidateMissionType: fromCandidate || 'UNSPECIFIED',
+      selectedMissionType,
+      switched,
+      reason
+    };
   },
 
   _metricGetTurnState(playerId) {
@@ -1524,11 +1560,12 @@ const IAArchipielago = {
     return !!(target && Number.isInteger(target.r) && Number.isInteger(target.c) && board[target.r]?.[target.c]);
   },
 
-  _requestMoveUnit(unit, r, c) {
+  _requestMoveUnit(unit, r, c, ctx = {}) {
     if (!unit) return false;
     const mission = (typeof AiGameplayManager !== 'undefined' && AiGameplayManager.missionAssignments?.get)
       ? AiGameplayManager.missionAssignments.get(unit.id)
       : null;
+    const missionType = ctx.missionType || this._inferCanonicalMissionType(unit) || mission?.type || null;
     if (this._isRepeatedInvalidMoveThisTurn(unit.player, unit.id, r, c)) {
       this._metricLog('IA_ACTION_MOVE', {
         turn: gameState.turnNumber,
@@ -1536,7 +1573,7 @@ const IAArchipielago = {
         unitId: unit.id,
         from: `${unit.r},${unit.c}`,
         to: `${r},${c}`,
-        missionType: mission?.type || null,
+        missionType,
         success: false,
         failReason: 'repeated_invalid_move_suppressed'
       });
@@ -1550,7 +1587,7 @@ const IAArchipielago = {
         unitId: unit.id,
         from: `${unit.r},${unit.c}`,
         to: `${r},${c}`,
-        missionType: mission?.type || null,
+        missionType,
         success: false,
         failReason: 'invalid_move'
       });
@@ -1573,7 +1610,7 @@ const IAArchipielago = {
           unitId: unit.id,
           from: `${unit.r},${unit.c}`,
           to: `${r},${c}`,
-          missionType: mission?.type || null,
+          missionType,
           success: true,
           mode: 'network_client'
         });
@@ -1585,7 +1622,7 @@ const IAArchipielago = {
         unitId: unit.id,
         from: `${unit.r},${unit.c}`,
         to: `${r},${c}`,
-        missionType: mission?.type || null,
+        missionType,
         success: false,
         failReason: 'network_send_unavailable'
       });
@@ -1601,7 +1638,7 @@ const IAArchipielago = {
         unitId: unit.id,
         from: `${unit.r},${unit.c}`,
         to: `${r},${c}`,
-        missionType: mission?.type || null,
+        missionType,
         success: true,
         mode: 'processActionRequest'
       });
@@ -1617,7 +1654,7 @@ const IAArchipielago = {
         unitId: unit.id,
         from: `${unit.r},${unit.c}`,
         to: `${r},${c}`,
-        missionType: mission?.type || null,
+        missionType,
         success: true,
         mode: 'RequestMoveUnit'
       });
@@ -1631,14 +1668,14 @@ const IAArchipielago = {
       unitId: unit.id,
       from: `${unit.r},${unit.c}`,
       to: `${r},${c}`,
-      missionType: mission?.type || null,
+      missionType,
       success: false,
       failReason: 'move_api_unavailable'
     });
     return false;
   },
 
-  _requestMoveOrAttack(unit, r, c) {
+  _requestMoveOrAttack(unit, r, c, ctx = {}) {
     if (!unit) return false;
     if (!Number.isInteger(unit.r) || !Number.isInteger(unit.c) || !Array.isArray(unit.regiments) || unit.regiments.length === 0) {
       const resolved = getUnitOnHex(unit.r, unit.c);
@@ -1664,7 +1701,7 @@ const IAArchipielago = {
 
       if (!canAttack) {
         const step = this._getMoveStepTowards(unit, r, c);
-        if (step) return this._requestMoveUnit(unit, step.r, step.c);
+        if (step) return this._requestMoveUnit(unit, step.r, step.c, ctx);
         return false;
       }
 
@@ -1697,7 +1734,7 @@ const IAArchipielago = {
       return false;
     }
     const step = this._getMoveStepTowards(unit, r, c);
-    if (step) return this._requestMoveUnit(unit, step.r, step.c);
+    if (step) return this._requestMoveUnit(unit, step.r, step.c, ctx);
     return false;
   },
 
@@ -2937,11 +2974,12 @@ const IAArchipielago = {
 
       if (!acted) {
         const mover = myUnits.find(u => this._findPathForUnit(u, objective.r, objective.c));
-        if (mover && this._requestMoveOrAttack(mover, objective.r, objective.c)) {
+        if (mover && this._requestMoveOrAttack(mover, objective.r, objective.c, { missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR })) {
           console.log(`[IA_ARCHIPIELAGO] [Gusano] Avance corredor hacia (${objective.r},${objective.c}) para ${node.from?.name} -> ${node.to?.name}`);
           this._importantLog('WORM_ACTION', {
             playerId: myPlayer,
             action: 'move_or_attack',
+            missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR,
             objective: `${objective.r},${objective.c}`,
             pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
             unitId: mover.id,
@@ -3083,15 +3121,42 @@ const IAArchipielago = {
 
       if (!candidate) continue;
 
-      const ok = this._requestMoveOrAttack(candidate, target.r, target.c);
+      const arbitration = this._selectExecutionMission({
+        unit: candidate,
+        target,
+        candidateMissionType: this._inferCanonicalMissionType(candidate) || this.MISSION_TYPE_COMMERCIAL_CORRIDOR
+      });
+      this._importantLog('MISSION_ARBITRATION', {
+        playerId: myPlayer,
+        unitId: candidate.id,
+        objective: `${target.r},${target.c}`,
+        targetType: target.type,
+        missionCandidate: arbitration.candidateMissionType,
+        missionSelected: arbitration.selectedMissionType,
+        switched: arbitration.switched,
+        reason: arbitration.reason
+      });
+
+      const ok = this._requestMoveOrAttack(candidate, target.r, target.c, { missionType: arbitration.selectedMissionType });
       if (!ok) continue;
 
       captures += 1;
       console.log(`[IA_ARCHIPIELAGO] [EMERGENCIA CAPTURA] J${myPlayer}: ${candidate.name} toma ${target.type} en (${target.r},${target.c}) ${target.name ? `- ${target.name}` : ''}`);
+      this._importantLog('MISSION_ACTION_EXECUTED', {
+        playerId: myPlayer,
+        unitId: candidate.id,
+        missionType: arbitration.selectedMissionType,
+        action: 'capture_opportunistic',
+        targetType: target.type,
+        objective: `${target.r},${target.c}`,
+        targetName: target.name || null,
+        result: 'success'
+      });
       this._metricLog('IA_OPPORTUNISTIC_CAPTURE', {
         turn: gameState.turnNumber,
         playerId: myPlayer,
         unitId: candidate.id,
+        missionType: arbitration.selectedMissionType,
         targetType: target.type,
         hex: `${target.r},${target.c}`,
         targetName: target.name || null,
