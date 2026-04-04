@@ -312,6 +312,14 @@ const IAArchipielago = {
       console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Iniciando...`);
       let ocupacionesRealizadas = 0;
       const corredoresTop = this._getTopCorridorObjectives(myPlayer, Math.max(1, Math.floor(maxOccupationObjectives / 2)));
+      const uniqueCorridorObjectives = [];
+      const uniqueCorridorSet = new Set();
+      for (const node of corredoresTop) {
+        const key = `${node.objective.r},${node.objective.c}`;
+        if (uniqueCorridorSet.has(key)) continue;
+        uniqueCorridorSet.add(key);
+        uniqueCorridorObjectives.push(node.objective);
+      }
       if (corredoresTop.length > 0) {
         const resumen = corredoresTop
           .map(node => `${node.from?.name || 'NODO_A'}(${node.from?.r},${node.from?.c})->${node.to?.name || 'NODO_B'}(${node.to?.r},${node.to?.c}) via (${node.objective.r},${node.objective.c})`)
@@ -319,12 +327,15 @@ const IAArchipielago = {
         console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Corredores objetivo: ${resumen}`);
         this._importantLog('CORRIDOR_OBJECTIVES', {
           playerId: myPlayer,
-          count: corredoresTop.length,
+          count: uniqueCorridorObjectives.length,
+          pairCount: corredoresTop.length,
+          uniqueObjectiveCount: uniqueCorridorObjectives.length,
           objectives: corredoresTop.map(node => ({
             from: `${node.from?.r},${node.from?.c}`,
             to: `${node.to?.r},${node.to?.c}`,
             objective: `${node.objective.r},${node.objective.c}`,
-            pendingType: node.pendingType || 'capture'
+            pendingType: node.pendingType || 'capture',
+            layer: Number.isInteger(node.layer) ? node.layer : 0
           }))
         });
       } else {
@@ -343,7 +354,7 @@ const IAArchipielago = {
         ? board.flat().filter(h => h && h.resourceNode && h.owner !== myPlayer)
         : [];
       const ciudadesNoPropias = (gameState.cities || []).filter(c => c && c.owner !== myPlayer);
-      const objetivosCorredor = corredoresTop.map(n => n.objective).filter(Boolean);
+      const objetivosCorredor = uniqueCorridorObjectives;
       // Regla estricta: este flujo solo ocupa casillas de corredor entre nodos.
       const objetivosOcupacion = [...objetivosCorredor]
         .filter(o => Number.isInteger(o?.r) && Number.isInteger(o?.c))
@@ -2978,7 +2989,7 @@ const IAArchipielago = {
     const roadPlan = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
     if (!roadPlan.connections?.length) return [];
 
-    const candidates = roadPlan.connections
+    const normalized = roadPlan.connections
       .map(conn => {
         const pendingCaptureSegments = (conn.pendingCaptureSegments || [])
           .filter(step => {
@@ -2989,21 +3000,49 @@ const IAArchipielago = {
             if (occ && occ.player === myPlayer) return false;
             return true;
           });
-        const objective = pendingCaptureSegments[0] || null;
-        if (!objective) return null;
+        if (!pendingCaptureSegments.length) return null;
         return {
-          objective,
-          score: (pendingCaptureSegments.length * 3) + (conn.landPath?.length || 0),
-          pendingType: 'capture',
-          pendingCaptureCount: pendingCaptureSegments.length,
-          pairKey: conn.pairKey || this._getTradePairKey(conn.from, conn.to),
           from: conn.from,
-          to: conn.to
+          to: conn.to,
+          pairKey: conn.pairKey || this._getTradePairKey(conn.from, conn.to),
+          pendingCaptureSegments,
+          scoreBase: (pendingCaptureSegments.length * 3) + (conn.landPath?.length || 0)
         };
       })
       .filter(Boolean)
-      .sort((a, b) => a.score - b.score)
-      .slice(0, maxObjectives);
+      .sort((a, b) => a.scoreBase - b.scoreBase);
+
+    if (!normalized.length) return [];
+
+    // Expansión por capas: primero la 1ra casilla pendiente de cada par, luego la 2da, etc.
+    // Esto evita quedarnos en solo 1-2 casillas y permite llenar hasta maxObjectives con objetivos recurrentes.
+    const candidates = [];
+    const seenHex = new Set();
+    let layer = 0;
+    while (candidates.length < maxObjectives) {
+      let addedInLayer = 0;
+      for (const conn of normalized) {
+        if (candidates.length >= maxObjectives) break;
+        const objective = conn.pendingCaptureSegments[layer];
+        if (!objective) continue;
+        const key = `${objective.r},${objective.c}`;
+        if (seenHex.has(key)) continue;
+        seenHex.add(key);
+        candidates.push({
+          objective,
+          score: conn.scoreBase + layer,
+          pendingType: 'capture',
+          pendingCaptureCount: conn.pendingCaptureSegments.length,
+          pairKey: conn.pairKey,
+          from: conn.from,
+          to: conn.to,
+          layer
+        });
+        addedInLayer += 1;
+      }
+      if (addedInLayer === 0) break;
+      layer += 1;
+    }
 
     return candidates;
   },
