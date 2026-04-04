@@ -285,6 +285,7 @@ const IAArchipielago = {
       situacion.rutas = rutas;
       this._logRutasDeVictoria(rutas);
       this._procesarRutasDeVictoria(situacion);
+      this._ensureMinimumCommercialAction(situacion);
 
       // Plan de emergencia si no hubo progreso
       if (!this._didMakeProgressThisTurn(myPlayer, situacion.snapshotActividad)) {
@@ -415,16 +416,18 @@ const IAArchipielago = {
     const safeModeEnabled = this.ORGANIC_LAYER_SAFE_MODE !== false;
     const intervalTurns = Math.max(1, Number(this.ORGANIC_LAYER_INTERVAL_TURNS) || 1);
     const maxCities = Math.max(1, Number(this.ORGANIC_LAYER_MAX_OWN_CITIES) || 7);
+    const activeRoutes = (units || []).filter(u => u.player === myPlayer && !!u.tradeRoute).length;
+    const forceOrganicBootstrap = activeRoutes === 0;
 
     if (!gameState.aiOrganicLayerLastRun) gameState.aiOrganicLayerLastRun = {};
     const lastRun = Number(gameState.aiOrganicLayerLastRun[myPlayer] || 0);
     const turnsSinceLastRun = Math.max(0, (gameState.turnNumber || 0) - lastRun);
     const allowByInterval = !safeModeEnabled || turnsSinceLastRun >= intervalTurns;
     const allowByScale = !safeModeEnabled || ownCitiesCount <= maxCities;
-    const shouldRunOrganicLayer = allowByInterval && allowByScale;
+    const shouldRunOrganicLayer = forceOrganicBootstrap || (allowByInterval && allowByScale);
 
     if (!shouldRunOrganicLayer) {
-      console.log(`[IA_ARCHIPIELAGO] Capa orgánica omitida (safeMode=${safeModeEnabled}, ciudades=${ownCitiesCount}, desdeUltEjec=${turnsSinceLastRun}).`);
+      console.log(`[IA_ARCHIPIELAGO] Capa orgánica omitida (safeMode=${safeModeEnabled}, ciudades=${ownCitiesCount}, rutas=${activeRoutes}, desdeUltEjec=${turnsSinceLastRun}).`);
       return;
     }
 
@@ -448,6 +451,52 @@ const IAArchipielago = {
 
       gameState.aiOrganicLayerLastRun[myPlayer] = gameState.turnNumber;
     }
+  },
+
+  _ensureMinimumCommercialAction(situacion) {
+    const myPlayer = situacion?.myPlayer;
+    if (!myPlayer) return false;
+
+    const st = this._metricGetTurnState(myPlayer);
+    if (st.actionUsefulCommercial) return true;
+
+    this._metricLog('IA_COMMERCIAL_MIN_ACTION_GUARD', {
+      turn: gameState.turnNumber,
+      playerId: myPlayer,
+      status: 'triggered',
+      reason: 'no_useful_commercial_action_yet'
+    });
+
+    let progressed = false;
+    try {
+      progressed = !!this._ejecutarRutaLarga(situacion);
+    } catch (e) {
+      console.warn('[IA_ARCHIPIELAGO] Guard de acción comercial mínima falló en Ruta Larga:', e);
+    }
+
+    if (!progressed && this.ENABLE_ORGANIC_TRADE_LAYER !== false && typeof AiGameplayManager !== 'undefined' && typeof AiGameplayManager._ensureTradeInfrastructureOrganic === 'function') {
+      try {
+        const beforeRoutes = (units || []).filter(u => u.player === myPlayer && !!u.tradeRoute).length;
+        AiGameplayManager._ensureTradeInfrastructureOrganic(myPlayer);
+        const afterRoutes = (units || []).filter(u => u.player === myPlayer && !!u.tradeRoute).length;
+        progressed = afterRoutes > beforeRoutes;
+      } catch (e) {
+        console.warn('[IA_ARCHIPIELAGO] Guard de acción comercial mínima falló en capa orgánica:', e);
+      }
+    }
+
+    if (!progressed && !st.actionUsefulCommercial) {
+      this._metricSetCommercialBlocker(myPlayer, st.dominantBlocker || 'min_action_guard_no_progress', 'retry_next_turn_guard');
+    }
+
+    this._metricLog('IA_COMMERCIAL_MIN_ACTION_GUARD', {
+      turn: gameState.turnNumber,
+      playerId: myPlayer,
+      status: progressed || st.actionUsefulCommercial ? 'satisfied' : 'unsatisfied',
+      actionUsefulCommercial: this._metricGetTurnState(myPlayer).actionUsefulCommercial
+    });
+
+    return progressed || this._metricGetTurnState(myPlayer).actionUsefulCommercial;
   },
 
   /**
