@@ -22,6 +22,7 @@ const IAArchipielago = {
   MAX_OCCUPATION_OBJECTIVES_PER_TURN: 12,
   MAX_ROUTE_ACTIONS_PER_TURN: 6,
   MAX_RUTA_LARGA_CALLS_PER_TURN: 3,
+  MAX_ROAD_BUILDS_PER_CYCLE: 3,
   ENABLE_ORGANIC_TRADE_LAYER: true,
   deployUnitsAI(myPlayer) {
     console.log(`[IA_ARCHIPIELAGO] Despliegue IA iniciado para Jugador ${myPlayer}.`);
@@ -119,6 +120,11 @@ const IAArchipielago = {
 
   _metricSetCommercialBlocker(playerId, blocker, nextPlannedAction = null, extra = {}) {
     const st = this._metricGetTurnState(playerId);
+    // Si todavía faltan segmentos de camino, el bloqueo dominante no debe degradarse a "sin candidata de ruta".
+    if (blocker === 'no_new_trade_route_candidate' && (st.pendingOwnNoRoad || 0) > 0) {
+      blocker = 'road_pending_segments';
+      if (!nextPlannedAction) nextPlannedAction = 'continue_road_building';
+    }
     st.dominantBlocker = blocker;
     if (nextPlannedAction) st.nextPlannedAction = nextPlannedAction;
     this._metricLog('IA_COMMERCIAL_BLOCKER', {
@@ -151,6 +157,28 @@ const IAArchipielago = {
       dominantBlocker: st.dominantBlocker,
       nextPlannedAction: st.nextPlannedAction
     });
+  },
+
+  _isRepeatedInvalidMoveThisTurn(playerId, unitId, r, c) {
+    if (!this._invalidMoveAttempts) this._invalidMoveAttempts = {};
+    const turn = Number(gameState.turnNumber || 0);
+    const st = this._invalidMoveAttempts[playerId];
+    if (!st || st.turn !== turn) {
+      this._invalidMoveAttempts[playerId] = { turn, keys: new Set() };
+      return false;
+    }
+    const key = `${unitId}:${r},${c}`;
+    return st.keys.has(key);
+  },
+
+  _registerInvalidMoveThisTurn(playerId, unitId, r, c) {
+    if (!this._invalidMoveAttempts) this._invalidMoveAttempts = {};
+    const turn = Number(gameState.turnNumber || 0);
+    if (!this._invalidMoveAttempts[playerId] || this._invalidMoveAttempts[playerId].turn !== turn) {
+      this._invalidMoveAttempts[playerId] = { turn, keys: new Set() };
+    }
+    const key = `${unitId}:${r},${c}`;
+    this._invalidMoveAttempts[playerId].keys.add(key);
   },
 
   // Método principal unificado
@@ -1433,7 +1461,21 @@ const IAArchipielago = {
     const mission = (typeof AiGameplayManager !== 'undefined' && AiGameplayManager.missionAssignments?.get)
       ? AiGameplayManager.missionAssignments.get(unit.id)
       : null;
+    if (this._isRepeatedInvalidMoveThisTurn(unit.player, unit.id, r, c)) {
+      this._metricLog('IA_ACTION_MOVE', {
+        turn: gameState.turnNumber,
+        playerId: unit.player,
+        unitId: unit.id,
+        from: `${unit.r},${unit.c}`,
+        to: `${r},${c}`,
+        missionType: mission?.type || null,
+        success: false,
+        failReason: 'repeated_invalid_move_suppressed'
+      });
+      return false;
+    }
     if (typeof isValidMove === 'function' && !isValidMove(unit, r, c)) {
+      this._registerInvalidMoveThisTurn(unit.player, unit.id, r, c);
       this._metricLog('IA_ACTION_MOVE', {
         turn: gameState.turnNumber,
         playerId: unit.player,
@@ -4469,6 +4511,12 @@ const IAArchipielago = {
       turn: gameState.turnNumber,
       playerId: myPlayer
     });
+    // Reiniciar pendientes por llamada para no arrastrar estado viejo entre subflujos.
+    this._metricSetCommercialPending(myPlayer, {
+      pendingNoOwn: 0,
+      pendingOwnNoRoad: 0,
+      pendingBlocked: 0
+    });
     if (!this._rutaLargaCallState) this._rutaLargaCallState = {};
     const prevState = this._rutaLargaCallState[myPlayer];
     const maxCalls = Math.max(1, Number(this.MAX_RUTA_LARGA_CALLS_PER_TURN) || 1);
@@ -4612,7 +4660,10 @@ const IAArchipielago = {
 
       let builtRoad = false;
       let blockedByAlly = 0;
+      let builtRoadCount = 0;
+      const maxRoadBuildsThisCycle = Math.max(1, Number(this.MAX_ROAD_BUILDS_PER_CYCLE) || 1);
       for (const segment of candidateSegments) {
+        if (builtRoadCount >= maxRoadBuildsThisCycle) break;
         const blocker = getUnitOnHex(segment.r, segment.c);
         if (blocker) {
           if (blocker.player === myPlayer) {
@@ -4628,10 +4679,11 @@ const IAArchipielago = {
         }
 
         console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] PASO 2 (CONSTRUIR CAMINOS): construyendo en (${segment.r},${segment.c})`);
-        builtRoad = this._requestBuildStructure(myPlayer, segment.r, segment.c, 'Camino');
-        if (builtRoad) {
+        const builtNow = this._requestBuildStructure(myPlayer, segment.r, segment.c, 'Camino');
+        if (builtNow) {
+          builtRoad = true;
+          builtRoadCount += 1;
           this._metricMarkCommercialUseful(myPlayer, 'build_road', { hex: `${segment.r},${segment.c}` });
-          break;
         }
       }
 
@@ -4640,20 +4692,22 @@ const IAArchipielago = {
         this._metricSetCommercialPending(myPlayer, { pendingBlocked: blockedByAlly });
         this._procesarDesbloqueoConstruccionesPendientes(myPlayer);
         for (const segment of candidateSegments) {
+          if (builtRoadCount >= maxRoadBuildsThisCycle) break;
           if (getUnitOnHex(segment.r, segment.c)) continue;
           console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] PASO 2B (CONSTRUIR CAMINOS): reintentando en (${segment.r},${segment.c}) tras vacate`);
-          builtRoad = this._requestBuildStructure(myPlayer, segment.r, segment.c, 'Camino');
+          const builtNow = this._requestBuildStructure(myPlayer, segment.r, segment.c, 'Camino');
           this._metricLog('IA_CHAIN_RELEASE_THEN_BUILD', {
             turn: gameState.turnNumber,
             playerId: myPlayer,
             hex: `${segment.r},${segment.c}`,
             releasedThisTurn: true,
             buildAttemptedSameTurn: true,
-            buildSuccess: !!builtRoad
+            buildSuccess: !!builtNow
           });
-          if (builtRoad) {
+          if (builtNow) {
+            builtRoad = true;
+            builtRoadCount += 1;
             this._metricMarkCommercialUseful(myPlayer, 'release_then_build', { hex: `${segment.r},${segment.c}` });
-            break;
           }
         }
       }
@@ -4662,6 +4716,9 @@ const IAArchipielago = {
         this._metricSetCommercialBlocker(myPlayer, 'road_build_not_completed', 'retry_segments_next_cycle', { blockedByAlly });
         return false;
       }
+
+      // Prioridad: si hubo construcción de camino en este ciclo, continuar infraestructura antes de evaluar caravana.
+      return true;
     }
 
     const existingRouteKeys = this._getExistingTradeRouteKeys();
