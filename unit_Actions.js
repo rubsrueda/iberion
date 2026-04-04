@@ -3365,7 +3365,10 @@ async function _processMergeQueue() {
             gameState.lastActionTimestamp = Date.now();
 
             const actionId = `merge_${mergingUnit.id}_${targetUnit.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            console.log(`%c[RequestMergeUnits] ID único generado: ${actionId}`, 'background: #FFD700; color: #000; font-weight: bold;');
+            const silentIaMergeLogs = typeof window !== 'undefined' && !!window.IAArchipielago?.LOG_ONLY_EARLY_TURN_EVENTS;
+            if (!silentIaMergeLogs) {
+                console.log(`%c[RequestMergeUnits] ID único generado: ${actionId}`, 'background: #FFD700; color: #000; font-weight: bold;');
+            }
             const action = {
                 type: 'mergeUnits',
                 actionId: actionId,
@@ -3407,7 +3410,10 @@ async function RequestMergeUnits(mergingUnit, targetUnit, skipConfirm = false) {
     });
 
     if (_isMergingUnits) {
-        console.log(`[RequestMergeUnits] Fusión encolada: ${mergingUnit.id} -> ${targetUnit.id}`);
+        const silentIaMergeLogs = typeof window !== 'undefined' && !!window.IAArchipielago?.LOG_ONLY_EARLY_TURN_EVENTS;
+        if (!silentIaMergeLogs) {
+            console.log(`[RequestMergeUnits] Fusión encolada: ${mergingUnit.id} -> ${targetUnit.id}`);
+        }
         return true;
     }
 

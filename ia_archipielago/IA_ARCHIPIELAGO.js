@@ -25,6 +25,21 @@ const IAArchipielago = {
   MAX_RUTA_LARGA_CALLS_PER_TURN: 3,
   MAX_ROAD_BUILDS_PER_CYCLE: 3,
   ENABLE_ORGANIC_TRADE_LAYER: true,
+  LOG_ONLY_EARLY_TURN_EVENTS: true,
+  EARLY_TURN_WORM_NODE_STATUS_LIMIT: 1,
+  EARLY_TURN_IMPORTANT_EVENTS: Object.freeze([
+    'OCCUPATION_LIMIT_CONFIG',
+    'TURN_START',
+    'MISSION_OBJECTIVE_SKIPPED',
+    'CORRIDOR_OBJECTIVES',
+    'CORRIDOR_OBJECTIVES_DIAG',
+    'OCCUPATION_PLAN',
+    'WORM_PLAN',
+    'WORM_NODE_STATUS'
+  ]),
+  EARLY_TURN_METRIC_EVENTS: Object.freeze([
+    'IA_METRIC_TURN_START'
+  ]),
   MISSION_TYPE_COMMERCIAL_CORRIDOR: 'COMERCIAL_CORREDOR',
   MISSION_TYPE_CONQUEST_CITY: 'CONQUISTA_CIUDAD',
   deployUnitsAI(myPlayer) {
@@ -68,6 +83,7 @@ const IAArchipielago = {
   },
 
   _metricLog(event, payload = {}) {
+    if (this._shouldSuppressByEarlyTurnFilter(event, payload, 'metric')) return;
     try {
       console.log(`[IA_METRIC] ${JSON.stringify({ event, ...payload })}`);
     } catch (e) {
@@ -76,6 +92,7 @@ const IAArchipielago = {
   },
 
   _importantLog(event, payload = {}) {
+    if (this._shouldSuppressByEarlyTurnFilter(event, payload, 'important')) return;
     if (this._shouldSuppressImportantEvent(event, payload)) return;
     const normalizedPayload = this._normalizeImportantPayload(event, payload);
     try {
@@ -134,6 +151,37 @@ const IAArchipielago = {
     const seen = this._importantEventSeen[turn];
     if (seen.has(keyBase)) return true;
     seen.add(keyBase);
+    return false;
+  },
+
+  _getEarlyTurnLogState(turn) {
+    if (!this._earlyTurnLogState) this._earlyTurnLogState = {};
+    if (!this._earlyTurnLogState[turn]) {
+      this._earlyTurnLogState = {
+        [turn]: {
+          wormNodeStatusCount: 0
+        }
+      };
+    }
+    return this._earlyTurnLogState[turn];
+  },
+
+  _shouldSuppressByEarlyTurnFilter(event, payload = {}, channel = 'important') {
+    if (!this.LOG_ONLY_EARLY_TURN_EVENTS) return false;
+
+    const allowedImportant = this.EARLY_TURN_IMPORTANT_EVENTS || [];
+    const allowedMetric = this.EARLY_TURN_METRIC_EVENTS || [];
+    const allowed = channel === 'metric' ? allowedMetric : allowedImportant;
+    if (!allowed.includes(event)) return true;
+
+    if (channel === 'important' && event === 'WORM_NODE_STATUS') {
+      const turn = Number(gameState.turnNumber || 0);
+      const state = this._getEarlyTurnLogState(turn);
+      state.wormNodeStatusCount += 1;
+      const limit = Math.max(1, Number(this.EARLY_TURN_WORM_NODE_STATUS_LIMIT) || 1);
+      return state.wormNodeStatusCount > limit;
+    }
+
     return false;
   },
 
@@ -1721,7 +1769,9 @@ const IAArchipielago = {
     if (typeof isNetworkGame === 'function' && isNetworkGame() && hasNetworkMatch && typeof NetworkManager !== 'undefined' && !NetworkManager.esAnfitrion) {
       if (NetworkManager.enviarDatos) {
         NetworkManager.enviarDatos({ type: 'actionRequest', action });
-        console.log(`[IA_ARCHIPIELAGO][MOVE] Unidad ${unit.id} movida a (${r},${c})`);
+        if (!this.LOG_ONLY_EARLY_TURN_EVENTS) {
+          console.log(`[IA_ARCHIPIELAGO][MOVE] Unidad ${unit.id} movida a (${r},${c})`);
+        }
         this._metricLog('IA_ACTION_MOVE', {
           turn: gameState.turnNumber,
           playerId: unit.player,
@@ -1749,7 +1799,9 @@ const IAArchipielago = {
 
     if (typeof processActionRequest === 'function') {
       processActionRequest(action);
-      console.log(`[IA_ARCHIPIELAGO][MOVE] Unidad ${unit.id} movida a (${r},${c})`);
+      if (!this.LOG_ONLY_EARLY_TURN_EVENTS) {
+        console.log(`[IA_ARCHIPIELAGO][MOVE] Unidad ${unit.id} movida a (${r},${c})`);
+      }
       this._metricLog('IA_ACTION_MOVE', {
         turn: gameState.turnNumber,
         playerId: unit.player,
@@ -1765,7 +1817,9 @@ const IAArchipielago = {
 
     if (typeof RequestMoveUnit === 'function') {
       RequestMoveUnit(unit, r, c);
-      console.log(`[IA_ARCHIPIELAGO][MOVE] Unidad ${unit.id} movida a (${r},${c})`);
+      if (!this.LOG_ONLY_EARLY_TURN_EVENTS) {
+        console.log(`[IA_ARCHIPIELAGO][MOVE] Unidad ${unit.id} movida a (${r},${c})`);
+      }
       this._metricLog('IA_ACTION_MOVE', {
         turn: gameState.turnNumber,
         playerId: unit.player,
@@ -4893,6 +4947,65 @@ const IAArchipielago = {
     return { landPath, missingOwnedSegments, pendingCaptureSegments };
   },
 
+  _prioritizeBuildableRoadSegments(connection) {
+    const landPath = Array.isArray(connection?.landPath) ? connection.landPath : [];
+    const missingOwnedSegments = Array.isArray(connection?.missingOwnedSegments) ? connection.missingOwnedSegments : [];
+    if (!landPath.length || !missingOwnedSegments.length) return missingOwnedSegments;
+
+    const indexByKey = new Map();
+    for (let i = 0; i < landPath.length; i++) {
+      indexByKey.set(`${landPath[i].r},${landPath[i].c}`, i);
+    }
+
+    const connected = new Set();
+    for (const step of landPath) {
+      const hex = board[step.r]?.[step.c];
+      if (!hex) continue;
+      if (hex.isCity || hex.structure === 'Camino') {
+        connected.add(`${step.r},${step.c}`);
+      }
+    }
+
+    const remaining = new Map();
+    for (const seg of missingOwnedSegments) {
+      remaining.set(`${seg.r},${seg.c}`, seg);
+    }
+
+    const ordered = [];
+    const to = connection?.to || null;
+    while (remaining.size > 0) {
+      const ready = [];
+      for (const [key, seg] of remaining) {
+        const hasConnectedNeighbor = getHexNeighbors(seg.r, seg.c).some(n => connected.has(`${n.r},${n.c}`));
+        if (!hasConnectedNeighbor) continue;
+        const pathIndex = indexByKey.get(key) ?? 999;
+        const distanceToTarget = to ? hexDistance(seg.r, seg.c, to.r, to.c) : 99;
+        ready.push({ key, seg, pathIndex, distanceToTarget });
+      }
+
+      if (!ready.length) break;
+
+      ready.sort((a, b) => {
+        if (a.distanceToTarget !== b.distanceToTarget) return a.distanceToTarget - b.distanceToTarget;
+        return b.pathIndex - a.pathIndex;
+      });
+
+      const chosen = ready[0];
+      ordered.push(chosen.seg);
+      remaining.delete(chosen.key);
+      connected.add(chosen.key);
+    }
+
+    if (!ordered.length) return missingOwnedSegments;
+
+    // Fallback defensivo: no perder segmentos si algún tramo quedó sin conectar en este cálculo.
+    for (const seg of missingOwnedSegments) {
+      if (!ordered.some(x => x.r === seg.r && x.c === seg.c)) ordered.push(seg);
+    }
+
+    return ordered;
+  },
+
   _findRoadBuildPath({ myPlayer, start, goal, allowedOwners, roadBuildable }) {
     if (!start || !goal) return null;
     const startKey = `${start.r},${start.c}`;
@@ -5232,7 +5345,7 @@ const IAArchipielago = {
       const roadCost = STRUCTURE_TYPES['Camino']?.cost || {};
       const playerRes = gameState.playerResources[myPlayer] || {};
       const canAfford = (playerRes.piedra || 0) >= (roadCost.piedra || 0) && (playerRes.madera || 0) >= (roadCost.madera || 0);
-      const candidateSegments = target.missingOwnedSegments || [];
+      const candidateSegments = this._prioritizeBuildableRoadSegments(target);
 
       if (!candidateSegments.length) {
         console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No hay segmentos propios disponibles para construir camino.');
