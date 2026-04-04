@@ -11,14 +11,14 @@ const IAArchipielago = {
   BIG_ENEMY_DIVISION_THRESHOLD: 12,
   HEAVY_DIVISION_TARGET: 20,
   WORM_MIN_SPLIT_REGIMENTS: 2,
-  WORM_MAX_ACTIONS_PER_TURN: 8,
+  WORM_MAX_ACTIONS_PER_TURN: 12,
   CUT_SUPPLY_MAX_TARGETS: 4,
   EARLY_STONE_HILLS_TURN_LIMIT: 10,
   EARLY_STONE_HILLS_MIN_STONE: 100,
   ORGANIC_LAYER_SAFE_MODE: true,
   ORGANIC_LAYER_INTERVAL_TURNS: 1,
   ORGANIC_LAYER_MAX_OWN_CITIES: 99,
-  TURN_CPU_BUDGET_MS: 220,
+  TURN_CPU_BUDGET_MS: 90000,
   MAX_OCCUPATION_OBJECTIVES_PER_TURN: 12,
   MAX_ROUTE_ACTIONS_PER_TURN: 6,
   MAX_RUTA_LARGA_CALLS_PER_TURN: 3,
@@ -324,7 +324,7 @@ const IAArchipielago = {
             from: `${node.from?.r},${node.from?.c}`,
             to: `${node.to?.r},${node.to?.c}`,
             objective: `${node.objective.r},${node.objective.c}`,
-            pendingType: node.score < 10 ? 'capture' : 'build'
+            pendingType: node.pendingType || 'capture'
           }))
         });
       } else {
@@ -344,7 +344,8 @@ const IAArchipielago = {
         : [];
       const ciudadesNoPropias = (gameState.cities || []).filter(c => c && c.owner !== myPlayer);
       const objetivosCorredor = corredoresTop.map(n => n.objective).filter(Boolean);
-      const objetivosOcupacion = [...objetivosCorredor, ...ciudadesNoPropias, ...mapaRecursosNoPropios]
+      // Regla estricta: este flujo solo ocupa casillas de corredor entre nodos.
+      const objetivosOcupacion = [...objetivosCorredor]
         .filter(o => Number.isInteger(o?.r) && Number.isInteger(o?.c))
         .filter(o => !this.isGoalCompletedFlujo('ocupacion', o.r, o.c, myPlayer))
         .filter((o, idx, arr) => arr.findIndex(x => x.r === o.r && x.c === o.c) === idx);
@@ -352,13 +353,14 @@ const IAArchipielago = {
         playerId: myPlayer,
         objectivesTotal: objetivosOcupacion.length,
         corridorObjectives: objetivosCorredor.length,
-        foreignCities: ciudadesNoPropias.length,
-        foreignResources: mapaRecursosNoPropios.length
+        foreignCities: 0,
+        foreignResources: 0,
+        missionMode: 'corridor_capture_only'
       });
 
       // Prioridad operativa: ejecutar gusano antes de la ocupación global para no gastar sus unidades en tareas generales.
       const accionesGusano = this._ejecutarGusanoCorredor({ myPlayer }, {
-        maxActions: Math.max(2, Math.min(6, this.WORM_MAX_ACTIONS_PER_TURN))
+        maxActions: Math.max(1, Math.min(maxOccupationObjectives, Number(this.WORM_MAX_ACTIONS_PER_TURN) || maxOccupationObjectives))
       });
       console.log(`[IA_ARCHIPIELAGO][GUSANO] Acciones ejecutadas: ${accionesGusano}`);
 
@@ -2978,13 +2980,23 @@ const IAArchipielago = {
 
     const candidates = roadPlan.connections
       .map(conn => {
-        const pending = conn.pendingCaptureSegments?.[0] || null;
-        const missing = conn.missingOwnedSegments?.[0] || null;
-        const objective = pending || missing || null;
+        const pendingCaptureSegments = (conn.pendingCaptureSegments || [])
+          .filter(step => {
+            const hex = board[step.r]?.[step.c];
+            if (!hex) return false;
+            if (hex.owner === myPlayer) return false;
+            const occ = getUnitOnHex(step.r, step.c);
+            if (occ && occ.player === myPlayer) return false;
+            return true;
+          });
+        const objective = pendingCaptureSegments[0] || null;
         if (!objective) return null;
         return {
           objective,
-          score: (pending ? 0 : 10) + (conn.landPath?.length || 0),
+          score: (pendingCaptureSegments.length * 3) + (conn.landPath?.length || 0),
+          pendingType: 'capture',
+          pendingCaptureCount: pendingCaptureSegments.length,
+          pairKey: conn.pairKey || this._getTradePairKey(conn.from, conn.to),
           from: conn.from,
           to: conn.to
         };
@@ -3062,10 +3074,10 @@ const IAArchipielago = {
     let actions = 0;
     for (const node of corridorObjectives) {
       if (actions >= maxActions) break;
-      const objective = node.objective;
+      let objective = node.objective;
       const nodeActionsBefore = actions;
       let nodeTerminalReason = 'not_set';
-      const nodeObjectiveHex = board[objective.r]?.[objective.c];
+      let nodeObjectiveHex = board[objective.r]?.[objective.c];
       const nodeUnits = IASentidos.getUnits(myPlayer)
         .filter(u => this._isLandUnit(u))
         .filter(u => (u.currentMovement || 0) > 0)
@@ -3082,7 +3094,32 @@ const IAArchipielago = {
       });
       const maxNodeSteps = Math.max(1, maxActions - actions);
       for (let stepIndex = 0; stepIndex < maxNodeSteps && actions < maxActions; stepIndex++) {
-        const objectiveHex = board[objective.r]?.[objective.c];
+        const liveConn = this._findRoadConnection(node.from, node.to, myPlayer, 'ANY');
+        const livePending = (liveConn?.pendingCaptureSegments || [])
+          .filter(step => {
+            const hex = board[step.r]?.[step.c];
+            if (!hex) return false;
+            if (hex.owner === myPlayer) return false;
+            const occ = getUnitOnHex(step.r, step.c);
+            if (occ && occ.player === myPlayer) return false;
+            return true;
+          });
+
+        if (!livePending.length) {
+          nodeTerminalReason = 'no_pending_capture_for_pair';
+          this._importantLog('WORM_STEP_SKIPPED', {
+            playerId: myPlayer,
+            pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+            objective: `${objective.r},${objective.c}`,
+            stepIndex,
+            reason: 'no_pending_capture_for_pair'
+          });
+          break;
+        }
+
+        objective = livePending[0];
+        nodeObjectiveHex = board[objective.r]?.[objective.c];
+        const objectiveHex = nodeObjectiveHex;
         if (objectiveHex?.owner === myPlayer || (getUnitOnHex(objective.r, objective.c)?.player === myPlayer)) {
           nodeTerminalReason = 'objective_already_owned_or_occupied';
           this._importantLog('WORM_STEP_SKIPPED', {
