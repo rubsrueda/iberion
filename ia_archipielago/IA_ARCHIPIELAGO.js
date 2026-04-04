@@ -4,6 +4,7 @@
 
 const IAArchipielago = {
   ARCHI_LOG_VERBOSE: false,
+  IMPORTANT_LOG_VERBOSE: false,
   ARCHI_LOG_ROUTE_LIMIT: 3,
   BARBARIAN_CONQUEST_RATIO: 2.0,
   INVADER_FORTRESS_MIN_DISTANCE: 6,
@@ -75,11 +76,65 @@ const IAArchipielago = {
   },
 
   _importantLog(event, payload = {}) {
+    if (this._shouldSuppressImportantEvent(event, payload)) return;
+    const normalizedPayload = this._normalizeImportantPayload(event, payload);
     try {
-      console.log(`[IA_IMPORTANTE] ${JSON.stringify({ event, turn: gameState.turnNumber, ...payload })}`);
+      console.log(`[IA_IMPORTANTE] ${JSON.stringify({ event, turn: gameState.turnNumber, ...normalizedPayload })}`);
     } catch (e) {
       console.log(`[IA_IMPORTANTE] ${event}`);
     }
+  },
+
+  _normalizeImportantPayload(event, payload = {}) {
+    if (this.IMPORTANT_LOG_VERBOSE) return payload;
+
+    if (event === 'CORRIDOR_OBJECTIVES' && Array.isArray(payload.objectives)) {
+      const groups = new Map();
+      for (const obj of payload.objectives) {
+        const key = obj?.objective || 'unknown';
+        if (!groups.has(key)) {
+          groups.set(key, {
+            objective: key,
+            pendingType: obj?.pendingType || 'capture',
+            minLayer: Number.isInteger(obj?.layer) ? obj.layer : 0,
+            maxLayer: Number.isInteger(obj?.layer) ? obj.layer : 0,
+            pairCount: 0,
+            pairSample: []
+          });
+        }
+        const g = groups.get(key);
+        g.pairCount += 1;
+        if (Number.isInteger(obj?.layer)) {
+          g.minLayer = Math.min(g.minLayer, obj.layer);
+          g.maxLayer = Math.max(g.maxLayer, obj.layer);
+        }
+        const pair = `${obj?.from || '?'}->${obj?.to || '?'}`;
+        if (g.pairSample.length < 3 && !g.pairSample.includes(pair)) g.pairSample.push(pair);
+      }
+      return {
+        ...payload,
+        objectives: undefined,
+        uniqueObjectiveCount: groups.size,
+        objectivesCompact: Array.from(groups.values())
+      };
+    }
+
+    return payload;
+  },
+
+  _shouldSuppressImportantEvent(event, payload = {}) {
+    const repeatable = new Set(['WORM_STEP_SKIPPED', 'WORM_DECISION']);
+    if (!repeatable.has(event)) return false;
+
+    if (!this._importantEventSeen) this._importantEventSeen = {};
+    const turn = Number(gameState.turnNumber || 0);
+    const keyBase = `${event}|${payload.playerId || '?'}|${payload.pair || '?'}|${payload.objective || '?'}|${payload.reason || '?'}|${payload.split || '?'}`;
+
+    if (!this._importantEventSeen[turn]) this._importantEventSeen = { [turn]: new Set() };
+    const seen = this._importantEventSeen[turn];
+    if (seen.has(keyBase)) return true;
+    seen.add(keyBase);
+    return false;
   },
 
   _inferCanonicalMissionType(unit) {
