@@ -2698,13 +2698,18 @@ async function processActionRequest(action) {
                 // Blindaje de datos para retransmisión
                 const movedUnit = getUnitById(payload.unitId);
                 if (movedUnit) {
+                    const lastMoveData = movedUnit.lastMove || {};
                     movedUnit.lastMove = {
                         fromR: fromR,
                         fromC: fromC,
-                        initialCurrentMovement: movedUnit.lastMove.initialCurrentMovement,
+                        initialCurrentMovement: Number.isFinite(lastMoveData.initialCurrentMovement)
+                            ? lastMoveData.initialCurrentMovement
+                            : (movedUnit.currentMovement || 0),
                         initialHasMoved: false,
                         initialHasAttacked: movedUnit.hasAttacked,
-                        movedToHexOriginalOwner: movedUnit.lastMove.movedToHexOriginalOwner
+                        movedToHexOriginalOwner: Object.prototype.hasOwnProperty.call(lastMoveData, 'movedToHexOriginalOwner')
+                            ? lastMoveData.movedToHexOriginalOwner
+                            : (board[payload.toR]?.[payload.toC]?.owner ?? null)
                     };
                 }
                 actionExecuted = true;

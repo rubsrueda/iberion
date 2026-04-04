@@ -5,6 +5,9 @@
 console.log("ai_gameplayLogic.js v17.1 CONSOLIDADO CARGADO");
 
 const AiGameplayManager = {
+    MAX_IDLE_SUPPLY_COLUMNS: 0,
+    MIN_VILLAGES_TARGET: 2,
+    FORTRESS_TO_VILLAGE_START_TURN: 5,
     unitRoles: new Map(),
     turn_targets: new Set(),
     strategicAxes: [], // Guardará los 4 puntos de objetivo para los ejes
@@ -562,8 +565,9 @@ const AiGameplayManager = {
         }
 
         // Programa BOA de fortificaciones: se mantiene desde turno 6.
-        // Guardrail: máximo 1 fortaleza activa por IA.
-        if (gameState.turnNumber < 6 || AiGameplayManager.fortressCount(playerNumber) >= 1) {
+        // Guardrail dinámico: fortalezas IA <= fortalezas del humano + 2.
+        const fortressLimit = AiGameplayManager._getFortressLimitByHuman(playerNumber);
+        if (gameState.turnNumber < 6 || AiGameplayManager.fortressCount(playerNumber) >= fortressLimit) {
             return;
         }
 
@@ -1363,6 +1367,70 @@ const AiGameplayManager = {
         return this._tryEstablishTradeRouteBetweenCities(playerNumber, origin, destination);
     },
 
+    _getSupplyUnits: function(playerNumber, idleOnly = false) {
+        return units.filter(u => {
+            if (!u || u.player !== playerNumber || u.currentHealth <= 0) return false;
+            const isSupply = !!u.regiments?.some(reg => {
+                const def = REGIMENT_TYPES?.[reg.type];
+                if (!def) return false;
+                if (reg.type === 'Columna de Suministro') return true;
+                return (def.abilities || []).includes('provide_supply');
+            });
+            if (!isSupply) return false;
+            if (idleOnly) return !u.tradeRoute;
+            return true;
+        });
+    },
+
+    _cleanupOrphanSupplyColumns: function(playerNumber) {
+        const idleColumns = this._getSupplyUnits(playerNumber, true);
+        const idleLimit = Math.max(0, Number(this.MAX_IDLE_SUPPLY_COLUMNS) || 0);
+        if (idleColumns.length <= idleLimit) return;
+
+        const ownCities = (gameState.cities || []).filter(c => c && c.owner === playerNumber);
+        if (!ownCities.length) return;
+
+        const existingPairs = this._getExistingTradeRoutePairs(playerNumber);
+        const pendingPairs = this._getOrganicTradePairs(playerNumber).filter(p => p?.key && !existingPairs.has(p.key));
+        const pendingOrigins = pendingPairs.map(p => p.origin).filter(Boolean);
+
+        const extras = idleColumns
+            .slice()
+            .sort((a, b) => {
+                const aOnCity = !!ownCities.find(c => c.r === a.r && c.c === a.c);
+                const bOnCity = !!ownCities.find(c => c.r === b.r && c.c === b.c);
+                if (aOnCity !== bOnCity) return aOnCity ? 1 : -1;
+                return (a.currentMovement || 0) - (b.currentMovement || 0);
+            })
+            .slice(0, Math.max(0, idleColumns.length - idleLimit));
+
+        for (const unit of extras) {
+            const candidateTargets = pendingOrigins.length > 0 ? pendingOrigins : ownCities;
+            const targetCity = candidateTargets
+                .slice()
+                .sort((a, b) => hexDistance(unit.r, unit.c, a.r, a.c) - hexDistance(unit.r, unit.c, b.r, b.c))[0];
+            if (!targetCity) continue;
+
+            this.missionAssignments.set(unit.id, {
+                type: 'IA_NODE',
+                objective: { r: targetCity.r, c: targetCity.c },
+                nodoTipo: 'logistica',
+                axisName: 'supply_recycle',
+                nodoRazon: 'RECYCLE_IDLE_SUPPLY_COLUMN'
+            });
+
+            if (!unit.hasMoved && (unit.currentMovement || 0) > 0 && typeof this.findPathToTarget === 'function' && typeof _executeMoveUnit === 'function') {
+                const path = this.findPathToTarget(unit, targetCity.r, targetCity.c);
+                if (path && path.length > 1) {
+                    const step = path[1];
+                    if (step && !getUnitOnHex(step.r, step.c)) {
+                        _executeMoveUnit(unit, step.r, step.c);
+                    }
+                }
+            }
+        }
+    },
+
     _tryEstablishTradeRouteBetweenCities: function(playerNumber, originInput, destinationInput, forcedInfraPath = null) {
         if (typeof findInfrastructurePath !== 'function') {
             console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=findInfrastructurePath_no_disponible`);
@@ -1373,6 +1441,20 @@ const AiGameplayManager = {
         const destination = destinationInput;
         if (!origin || !destination) {
             console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=ciudad_origen_destino_invalida_o_sin_ruta_disponible`);
+            return false;
+        }
+
+        const pairKey = this._getTradePairKey(origin, destination);
+        if (pairKey && this._getExistingTradeRoutePairs(playerNumber).has(pairKey)) {
+            console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=pair_ya_activo origen=(${origin.r},${origin.c}) destino=(${destination.r},${destination.c})`);
+            return false;
+        }
+
+        const requiredPairs = this._getOrganicTradePairs(playerNumber);
+        const existingPairsCount = this._getExistingTradeRoutePairs(playerNumber).size;
+        const missingPairsCount = Math.max(0, requiredPairs.length - existingPairsCount);
+        if (missingPairsCount <= 0) {
+            console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=objetivo_rutas_cubierto required=${requiredPairs.length} active=${existingPairsCount}`);
             return false;
         }
 
@@ -1398,24 +1480,38 @@ const AiGameplayManager = {
             return false;
         }
 
-        let supplyUnit = units.find(u =>
-            u.player === playerNumber &&
-            !u.tradeRoute &&
-            u.r === origin.r && u.c === origin.c &&
-            u.regiments?.some(reg => (REGIMENT_TYPES[reg.type]?.abilities || []).includes('provide_supply'))
-        );
+        const supplyUnits = this._getSupplyUnits(playerNumber, false);
+        const idleSupplyUnits = supplyUnits.filter(u => !u.tradeRoute);
 
-        if (!supplyUnit) {
-            supplyUnit = this.produceUnit(playerNumber, ['Columna de Suministro'], 'trader', 'Columna de Suministro', origin);
+        let supplyUnit = idleSupplyUnits.find(u => u.r === origin.r && u.c === origin.c) || null;
+
+        if (!supplyUnit && idleSupplyUnits.length > 0) {
+            supplyUnit = idleSupplyUnits
+                .slice()
+                .sort((a, b) => hexDistance(a.r, a.c, origin.r, origin.c) - hexDistance(b.r, b.c, origin.r, origin.c))[0] || null;
         }
 
         if (!supplyUnit) {
-            supplyUnit = units.find(u =>
-                u.player === playerNumber &&
-                !u.tradeRoute &&
-                u.currentHealth > 0 &&
-                u.regiments?.some(reg => (REGIMENT_TYPES[reg.type]?.abilities || []).includes('provide_supply'))
-            ) || null;
+            const totalSupply = supplyUnits.length;
+            const idleCount = idleSupplyUnits.length;
+            const totalCap = Math.max(1, requiredPairs.length);
+            const idleCapRaw = Number(this.MAX_IDLE_SUPPLY_COLUMNS);
+            const idleCap = Math.max(0, Number.isFinite(idleCapRaw) ? idleCapRaw : 0);
+            const hasAnyIdle = idleCount > 0;
+            const canProduce = !hasAnyIdle && totalSupply < totalCap && idleCount <= idleCap;
+
+            if (canProduce) {
+                supplyUnit = this.produceUnit(playerNumber, ['Columna de Suministro'], 'trader', 'Columna de Suministro', origin);
+            } else {
+                const reason = hasAnyIdle ? 'idle_column_exists' : 'cupo_columnas_alcanzado';
+                console.log(`[IA CARAVANA TRACE] turno=${gameState.turnNumber} jugador=${playerNumber} motivo=${reason} total=${totalSupply} idle=${idleCount} totalCap=${totalCap} idleCap=${idleCap}`);
+            }
+        }
+
+        if (!supplyUnit) {
+            supplyUnit = this._getSupplyUnits(playerNumber, true)
+                .slice()
+                .sort((a, b) => hexDistance(a.r, a.c, origin.r, origin.c) - hexDistance(b.r, b.c, origin.r, origin.c))[0] || null;
         }
 
         if (!supplyUnit) {
@@ -1759,19 +1855,40 @@ const AiGameplayManager = {
         return path.filter(tech => !playerTechs.includes(tech));
     },
 
+    _getHumanPlayerIds: function() {
+        const types = gameState.playerTypes || {};
+        const ids = [];
+        Object.keys(types).forEach(key => {
+            const rawType = String(types[key] || '').toLowerCase();
+            if (rawType === 'human' || !rawType.includes('ai')) {
+                const match = String(key).match(/player(\d+)/i);
+                const parsed = match ? Number(match[1]) : Number(key);
+                if (Number.isInteger(parsed)) ids.push(parsed);
+            }
+        });
+        return Array.from(new Set(ids));
+    },
+
+    _getFortressLimitByHuman: function(playerNumber) {
+        const humanIds = this._getHumanPlayerIds().filter(id => id !== playerNumber);
+        const humanRef = humanIds[0] || 1;
+        const humanFortressCount = this.fortressCount(humanRef);
+        return Math.max(1, humanFortressCount + 2);
+    },
+
     _findBestFortressLocation: function(playerNumber) {
         const enemyPlayer = playerNumber === 1 ? 2 : 1;
         const enemyCapital = gameState.cities.find(c => c.isCapital && c.owner === enemyPlayer);
         const aiCapital = gameState.cities.find(c => c.isCapital && c.owner === playerNumber);
+        const enemyUnits = units.filter(u => u.player === enemyPlayer && u.currentHealth > 0);
         const existingForts = board.flat().filter(h =>
             h &&
             h.owner === playerNumber &&
             (h.structure === 'Fortaleza' || h.structure === 'Fortaleza con Muralla')
         );
 
-        // Construir fortalezas en el corredor es buena estrategia (Fortaleza→Muralla→Aldea = nueva ciudad conectada).
-        // Guardrails BOA: máximo 1 fortaleza de expansión y mínimo 5 hexes entre fortalezas.
-        const MAX_EXPANSION_FORTS = 1;
+        // Guardrail dinámico: fortalezas IA <= fortalezas humanas + 2.
+        const MAX_EXPANSION_FORTS = this._getFortressLimitByHuman(playerNumber);
         const MIN_FORT_SPACING = 5;
         if (existingForts.length >= MAX_EXPANSION_FORTS) return null;
 
@@ -1818,6 +1935,10 @@ const AiGameplayManager = {
             if (aiCapital) score += hexDistance(aiCapital.r, aiCapital.c, hex.r, hex.c) * 1.5;
             // Cerca del enemigo = presión ofensiva.
             if (enemyCapital) score += (80 - hexDistance(hex.r, hex.c, enemyCapital.r, enemyCapital.c));
+            if (enemyUnits.length > 0) {
+                const minEnemyDist = enemyUnits.reduce((best, u) => Math.min(best, hexDistance(hex.r, hex.c, u.r, u.c)), 99);
+                score += Math.max(0, 28 - minEnemyDist) * 4;
+            }
             if (score > maxScore) {
                 maxScore = score;
                 bestCandidate = hex;
@@ -1894,6 +2015,7 @@ const AiGameplayManager = {
 
         // Creación de caravanas: usa todos los pares posibles (máximos ingresos).
         AiGameplayManager._runOrganicCaravanCreationFlow(playerNumber, pairs);
+        AiGameplayManager._cleanupOrphanSupplyColumns(playerNumber);
         return { active: !!mandatoryFlow?.active, phase: mandatoryFlow?.phase || 'organic', pairs: pairs.length };
     },
 
@@ -1909,45 +2031,37 @@ const AiGameplayManager = {
 
         const pairs = [];
         const seen = new Set();
+        const bankNode = tradeNodes.find(n => n && (n.isBank || n.owner === 0)) || null;
 
-        const addPair = (origin, candidate) => {
-            const key = `${origin.r},${origin.c}|${candidate.dest.r},${candidate.dest.c}`;
-            if (seen.has(key)) return;
+        // Nodo conectado: ciudad propia con corredor de infraestructura válido hacia la banca.
+        const connectedOwnNodes = ownCities.filter(city => {
+            if (!bankNode) return false;
+            if (typeof findInfrastructurePath !== 'function') return false;
+            const pathToBank = findInfrastructurePath(city, bankNode, { allowForeignInfrastructure: true, requireRoadCorridor: true });
+            return !!(pathToBank && pathToBank.length > 0);
+        });
+
+        const addPair = (origin, dest) => {
+            if (!origin || !dest) return;
+            const key = this._getTradePairKey(origin, dest);
+            if (!key || seen.has(key)) return;
+            const rawPath = this._buildCommercialCorridorPath(playerNumber, origin, dest);
+            if (!rawPath || rawPath.length < 2) return;
             seen.add(key);
-            pairs.push({ key, origin, dest: candidate.dest, rawPath: candidate.rawPath });
+            pairs.push({ key, origin, dest, rawPath });
         };
 
-        for (const origin of ownCities) {
-            const resolved = tradeNodes
-                .filter(dest => !(dest.r === origin.r && dest.c === origin.c))
-                .filter(dest => AiGameplayManager._isOrganicTradeDestinationAllowed(playerNumber, dest))
-                .map(dest => {
-                    const rawPath = AiGameplayManager._buildCommercialCorridorPath(playerNumber, origin, dest);
-                    if (!rawPath || rawPath.length < 2) return null;
-                    return {
-                        dest,
-                        rawPath,
-                        dist: hexDistance(origin.r, origin.c, dest.r, dest.c),
-                        isBank: !!(dest.isBank || dest.owner === 0)
-                    };
-                })
-                .filter(Boolean);
-
-            if (resolved.length === 0) continue;
-
-            // PAR 1 (obligatorio): la banca siempre es el primer destino si es alcanzable.
-            const bankCandidate = resolved.find(c => c.isBank);
-            if (bankCandidate) {
-                addPair(origin, bankCandidate);
+        // Regla 1: entre cada par de nodos conectados, una caravana (combinaciones nC2).
+        for (let i = 0; i < connectedOwnNodes.length; i++) {
+            for (let j = i + 1; j < connectedOwnNodes.length; j++) {
+                addPair(connectedOwnNodes[i], connectedOwnNodes[j]);
             }
+        }
 
-            // Pares secundarios: todas las ciudades no-banca alcanzables, ordenadas por cercanía.
-            const nonBankSorted = resolved
-                .filter(c => !c.isBank)
-                .sort((a, b) => a.dist - b.dist);
-
-            for (const cand of nonBankSorted) {
-                addPair(origin, cand);
+        // Regla 2: de cada nodo conectado, una caravana a La Banca (+n).
+        if (bankNode) {
+            for (const node of connectedOwnNodes) {
+                addPair(node, bankNode);
             }
         }
 
@@ -2096,11 +2210,17 @@ const AiGameplayManager = {
     },
 
     _ensureCityExpansionOrganic: function(playerNumber) {
+        const turn = Number(gameState.turnNumber || 0);
+        if (turn < Math.max(1, Number(this.FORTRESS_TO_VILLAGE_START_TURN) || 5)) return;
+
         const playerRes = gameState.playerResources[playerNumber];
         if (!playerRes) return;
 
         const hasFort = board.flat().some(h => h && h.owner === playerNumber && h.structure === 'Fortaleza');
         if (!hasFort) return;
+
+        let ownVillages = board.flat().filter(h => h && h.owner === playerNumber && h.structure === 'Aldea').length;
+        const villageTarget = Math.max(1, Number(this.MIN_VILLAGES_TARGET) || 2);
 
         const hasResources =
             (playerRes.oro || 0) >= 1500 &&
@@ -2117,20 +2237,48 @@ const AiGameplayManager = {
             const fortsToUpgrade = board.flat().filter(h =>
                 h && h.owner === playerNumber && h.structure === 'Fortaleza' && !h.isCity && !getUnitOnHex(h.r, h.c)
             );
-            for (const fort of fortsToUpgrade) {
+            const fort = fortsToUpgrade[0] || null;
+            if (fort) {
                 const stillAfford = Object.keys(costMuralla).every(r => r === 'Colono' || (playerRes[r] || 0) >= (costMuralla[r] || 0));
-                if (!stillAfford) break;
-                console.log(`[IA ORG CIUDAD] J${playerNumber}: mejorando Fortaleza con Muralla en (${fort.r},${fort.c})`);
-                handleConfirmBuildStructure({ playerId: playerNumber, r: fort.r, c: fort.c, structureType: 'Fortaleza con Muralla' });
+                if (stillAfford) {
+                    console.log(`[IA ORG CIUDAD] J${playerNumber}: mejorando Fortaleza con Muralla en (${fort.r},${fort.c})`);
+                    handleConfirmBuildStructure({ playerId: playerNumber, r: fort.r, c: fort.c, structureType: 'Fortaleza con Muralla' });
+                }
             }
         }
 
-        // PASO B: En CADA Fortaleza con Muralla, intentar producir Colono y fundar Aldea.
+        // PASO B: Asegurar al menos 1 explorador activo desde fortaleza/muralla para ruinas.
+        const explorers = units.filter(u =>
+            u &&
+            u.player === playerNumber &&
+            u.currentHealth > 0 &&
+            u.regiments?.some(reg => reg.type === 'Explorador')
+        );
+
+        if (explorers.length === 0) {
+            const productionSpots = board.flat().filter(h =>
+                h &&
+                h.owner === playerNumber &&
+                (h.structure === 'Fortaleza' || h.structure === 'Fortaleza con Muralla') &&
+                !getUnitOnHex(h.r, h.c)
+            );
+            const spot = productionSpots[0] || null;
+            if (spot) {
+                const createdExplorer = AiGameplayManager.produceUnit(playerNumber, ['Explorador'], 'scout', 'Explorador', spot);
+                if (createdExplorer) {
+                    console.log(`[IA ORG CIUDAD] J${playerNumber}: explorador creado en (${spot.r},${spot.c}) para ruinas.`);
+                }
+            }
+        }
+
+        // PASO C: En Fortaleza con Muralla, intentar producir Colono y fundar Aldea hasta objetivo mínimo.
         const costAldea = STRUCTURE_TYPES['Aldea']?.cost || {};
         const murallas = board.flat().filter(h =>
             h && h.owner === playerNumber && h.structure === 'Fortaleza con Muralla' && !h.isCity
         );
         for (const mur of murallas) {
+            if (ownVillages >= villageTarget) break;
+
             let settlerUnit = getUnitOnHex(mur.r, mur.c);
             const hasSettler = !!(settlerUnit && settlerUnit.player === playerNumber && settlerUnit.regiments?.some(reg => reg.type === 'Colono'));
 
@@ -2150,6 +2298,7 @@ const AiGameplayManager = {
 
             console.log(`[IA ORG CIUDAD] J${playerNumber}: creando Aldea en (${mur.r},${mur.c})`);
             handleConfirmBuildStructure({ playerId: playerNumber, r: mur.r, c: mur.c, structureType: 'Aldea' });
+            ownVillages += 1;
         }
     },
     

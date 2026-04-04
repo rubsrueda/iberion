@@ -26,6 +26,7 @@ const IAArchipielago = {
   POINT_SUPREMACY_RUSH_END_TURN: 7,
   POINT_SUPREMACY_MIN_READY_ROUTES: 1,
   POINT_SUPREMACY_ROUTE_ACTION_BONUS: 2,
+  ACTION_DISPATCH_COOLDOWN_MS: 250,
   MAX_RUTA_LARGA_CALLS_PER_TURN: 3,
   MAX_ROAD_BUILDS_PER_CYCLE: 3,
   ENABLE_ORGANIC_TRADE_LAYER: true,
@@ -442,6 +443,7 @@ const IAArchipielago = {
 
       // Captura oportunista temprana: ciudades/fortalezas vacías adyacentes no deben perderse.
       this._executeOpportunisticCapture(myPlayer);
+      this._forceExplorerRuinsAction(myPlayer);
 
       // --- 1. RECOPILACIÓN DE DATOS ---
       const hexesPropios = IASentidos.getOwnedHexes(myPlayer);
@@ -632,6 +634,7 @@ const IAArchipielago = {
 
       // --- 5. EJECUCIÓN DE PLANES ESTRATÉGICOS ---
       this._ejecutarCapaEstructuralRed(situacion);
+      this._executeEasyVictoryPointOpportunities(situacion);
 
       const rutas = this._evaluarRutasDeVictoria(situacion);
       situacion.rutas = rutas;
@@ -1664,6 +1667,10 @@ const IAArchipielago = {
     for (const nextHex of missingSegments) {
       if (!this._canAffordStructure(myPlayer, 'Camino')) break;
       const nextHexData = board[nextHex.r]?.[nextHex.c];
+      const blocksRoad = !!(nextHexData?.isCity || (nextHexData?.structure && nextHexData.structure !== 'Camino'));
+      if (blocksRoad) {
+        continue;
+      }
       const terrainOk = !roadBuildable.length || roadBuildable.includes(nextHexData?.terrain);
       if (terrainOk) {
         console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Construyendo camino en (${nextHex.r},${nextHex.c})`);
@@ -1691,7 +1698,7 @@ const IAArchipielago = {
       return;
     }
 
-    const MAX_EXPANSION_FORTS = 1;
+    const MAX_EXPANSION_FORTS = this._getFortressLimitByHuman(myPlayer);
     const MIN_FORT_SPACING = 5;
     const existingExpandForts = board.flat().filter(h =>
       h && h.owner === myPlayer && (h.structure === 'Fortaleza' || h.structure === 'Fortaleza con Muralla')
@@ -1780,8 +1787,59 @@ const IAArchipielago = {
     return !!(target && Number.isInteger(target.r) && Number.isInteger(target.c) && board[target.r]?.[target.c]);
   },
 
+  _getActionDispatchState(playerId) {
+    if (!this._actionDispatchState) this._actionDispatchState = {};
+    const turn = Number(gameState.turnNumber || 0);
+    const current = this._actionDispatchState[playerId];
+    if (!current || current.turn !== turn) {
+      this._actionDispatchState[playerId] = {
+        turn,
+        lastByUnit: new Map(),
+        lastByPair: new Map()
+      };
+    }
+    return this._actionDispatchState[playerId];
+  },
+
+  _isUnitActionCoolingDown(playerId, unitId, actionKind = 'generic') {
+    if (!unitId) return false;
+    const state = this._getActionDispatchState(playerId);
+    const key = `${actionKind}:${unitId}`;
+    const lastTs = Number(state.lastByUnit.get(key) || 0);
+    const cooldown = Math.max(0, Number(this.ACTION_DISPATCH_COOLDOWN_MS) || 0);
+    return cooldown > 0 && (Date.now() - lastTs) < cooldown;
+  },
+
+  _markUnitActionDispatch(playerId, unitId, actionKind = 'generic') {
+    if (!unitId) return;
+    const state = this._getActionDispatchState(playerId);
+    const key = `${actionKind}:${unitId}`;
+    state.lastByUnit.set(key, Date.now());
+  },
+
+  _isMergePairCoolingDown(playerId, unitAId, unitBId) {
+    if (!unitAId || !unitBId) return false;
+    const ordered = [unitAId, unitBId].sort();
+    const pairKey = `${ordered[0]}|${ordered[1]}`;
+    const state = this._getActionDispatchState(playerId);
+    const lastTs = Number(state.lastByPair.get(pairKey) || 0);
+    const cooldown = Math.max(0, Number(this.ACTION_DISPATCH_COOLDOWN_MS) || 0);
+    return cooldown > 0 && (Date.now() - lastTs) < cooldown;
+  },
+
+  _markMergePairDispatch(playerId, unitAId, unitBId) {
+    if (!unitAId || !unitBId) return;
+    const ordered = [unitAId, unitBId].sort();
+    const pairKey = `${ordered[0]}|${ordered[1]}`;
+    const state = this._getActionDispatchState(playerId);
+    state.lastByPair.set(pairKey, Date.now());
+  },
+
   _requestMoveUnit(unit, r, c, ctx = {}) {
     if (!unit) return false;
+    if (this._isUnitActionCoolingDown(unit.player, unit.id, 'move')) {
+      return false;
+    }
     const mission = (typeof AiGameplayManager !== 'undefined' && AiGameplayManager.missionAssignments?.get)
       ? AiGameplayManager.missionAssignments.get(unit.id)
       : null;
@@ -1851,25 +1909,8 @@ const IAArchipielago = {
       return false;
     }
 
-    if (typeof processActionRequest === 'function') {
-      processActionRequest(action);
-      if (!this.LOG_ONLY_EARLY_TURN_EVENTS) {
-        console.log(`[IA_ARCHIPIELAGO][MOVE] Unidad ${unit.id} movida a (${r},${c})`);
-      }
-      this._metricLog('IA_ACTION_MOVE', {
-        turn: gameState.turnNumber,
-        playerId: unit.player,
-        unitId: unit.id,
-        from: `${unit.r},${unit.c}`,
-        to: `${r},${c}`,
-        missionType,
-        success: true,
-        mode: 'processActionRequest'
-      });
-      return true;
-    }
-
     if (typeof RequestMoveUnit === 'function') {
+      this._markUnitActionDispatch(unit.player, unit.id, 'move');
       RequestMoveUnit(unit, r, c);
       if (!this.LOG_ONLY_EARLY_TURN_EVENTS) {
         console.log(`[IA_ARCHIPIELAGO][MOVE] Unidad ${unit.id} movida a (${r},${c})`);
@@ -1883,6 +1924,25 @@ const IAArchipielago = {
         missionType,
         success: true,
         mode: 'RequestMoveUnit'
+      });
+      return true;
+    }
+
+    if (typeof processActionRequest === 'function') {
+      this._markUnitActionDispatch(unit.player, unit.id, 'move');
+      processActionRequest(action);
+      if (!this.LOG_ONLY_EARLY_TURN_EVENTS) {
+        console.log(`[IA_ARCHIPIELAGO][MOVE] Unidad ${unit.id} movida a (${r},${c})`);
+      }
+      this._metricLog('IA_ACTION_MOVE', {
+        turn: gameState.turnNumber,
+        playerId: unit.player,
+        unitId: unit.id,
+        from: `${unit.r},${unit.c}`,
+        to: `${r},${c}`,
+        missionType,
+        success: true,
+        mode: 'processActionRequest'
       });
       return true;
     }
@@ -1913,6 +1973,9 @@ const IAArchipielago = {
     }
     const targetUnit = getUnitOnHex(r, c);
     if (targetUnit && targetUnit.player !== unit.player) {
+      if (this._isUnitActionCoolingDown(unit.player, unit.id, 'attack')) {
+        return false;
+      }
       let canAttack = false;
       if (typeof isValidAttack === 'function') {
         try {
@@ -1946,13 +2009,15 @@ const IAArchipielago = {
         return false;
       }
 
-      if (typeof processActionRequest === 'function') {
-        processActionRequest(action);
+      if (typeof RequestAttackUnit === 'function') {
+        this._markUnitActionDispatch(unit.player, unit.id, 'attack');
+        RequestAttackUnit(unit, targetUnit);
         return true;
       }
 
-      if (typeof RequestAttackUnit === 'function') {
-        RequestAttackUnit(unit, targetUnit);
+      if (typeof processActionRequest === 'function') {
+        this._markUnitActionDispatch(unit.player, unit.id, 'attack');
+        processActionRequest(action);
         return true;
       }
 
@@ -1990,19 +2055,29 @@ const IAArchipielago = {
   },
 
   _requestMergeUnits(mergingUnit, targetUnit) {
+    if (!mergingUnit || !targetUnit) return false;
+    if (this._isUnitActionCoolingDown(mergingUnit.player, mergingUnit.id, 'merge')) return false;
+    if (this._isUnitActionCoolingDown(targetUnit.player, targetUnit.id, 'merge')) return false;
+    if (this._isMergePairCoolingDown(mergingUnit.player, mergingUnit.id, targetUnit.id)) return false;
     if (typeof RequestMergeUnits !== 'function') {
       console.warn('[IA_ARCHIPIELAGO] RequestMergeUnits no disponible.');
       return false;
     }
+    this._markUnitActionDispatch(mergingUnit.player, mergingUnit.id, 'merge');
+    this._markUnitActionDispatch(targetUnit.player, targetUnit.id, 'merge');
+    this._markMergePairDispatch(mergingUnit.player, mergingUnit.id, targetUnit.id);
     RequestMergeUnits(mergingUnit, targetUnit, true);
     return true;
   },
 
   _requestSplitUnit(unit, r, c) {
+    if (!unit) return false;
+    if (this._isUnitActionCoolingDown(unit.player, unit.id, 'split')) return false;
     if (typeof RequestSplitUnit !== 'function') {
       console.warn('[IA_ARCHIPIELAGO] RequestSplitUnit no disponible.');
       return false;
     }
+    this._markUnitActionDispatch(unit.player, unit.id, 'split');
     RequestSplitUnit(unit, r, c);
     return true;
   },
@@ -2204,7 +2279,24 @@ const IAArchipielago = {
       return false;
     }
 
-    // Guardrail global IA: nunca más de 1 fortaleza y mantener separación mínima de 5.
+    // Regla dura: nunca construir camino sobre fortalezas/ciudades u otra estructura no-camino.
+    if (structureType === 'Camino') {
+      const occupiedByBlockingStructure = !!(hex.isCity || (hex.structure && hex.structure !== 'Camino'));
+      if (occupiedByBlockingStructure) {
+        this._metricLog('IA_BUILD_ATTEMPT', {
+          turn: gameState.turnNumber,
+          playerId,
+          hex: `${r},${c}`,
+          structureType,
+          success: false,
+          failReason: 'blocked_by_existing_structure'
+        });
+        playerRetryState.keys.add(retryKey);
+        return false;
+      }
+    }
+
+    // Guardrail IA: fortalezas <= fortalezas humanas + 2 y separación mínima de 5.
     if (structureType === 'Fortaleza') {
       const MIN_FORT_SPACING = 5;
       const existingForts = board.flat().filter(h =>
@@ -2213,7 +2305,9 @@ const IAArchipielago = {
         (h.structure === 'Fortaleza' || h.structure === 'Fortaleza con Muralla')
       );
 
-      if (existingForts.length >= 1) {
+      const fortLimit = this._getFortressLimitByHuman(playerId);
+
+      if (existingForts.length >= fortLimit) {
         playerRetryState.keys.add(retryKey);
         return false;
       }
@@ -2720,6 +2814,19 @@ const IAArchipielago = {
   _isHumanOpponent(myPlayer) {
     const enemyPlayer = this._getEnemyPlayerId(myPlayer);
     return this._isHumanType(this._getPlayerType(enemyPlayer));
+  },
+
+  _getFortressLimitByHuman(myPlayer) {
+    const enemyIds = this._getEnemyPlayerIds(myPlayer) || [];
+    const humanEnemyId = enemyIds.find(id => this._isHumanType(this._getPlayerType(id))) || enemyIds[0] || null;
+    const humanFortresses = humanEnemyId == null
+      ? 0
+      : board.flat().filter(h =>
+          h &&
+          h.owner === humanEnemyId &&
+          (h.structure === 'Fortaleza' || h.structure === 'Fortaleza con Muralla')
+        ).length;
+    return Math.max(1, humanFortresses + 2);
   },
 
   _ensureHeavyDivisions(myPlayer, targetRegiments) {
@@ -3980,13 +4087,16 @@ const IAArchipielago = {
   _ejecutarRutaMasHeroes(situacion) {
     const { myPlayer } = situacion;
     const hasLeadership = this._ensureTech(myPlayer, 'LEADERSHIP');
-    const hasDrill = this._ensureTech(myPlayer, 'DRILL_TACTICS');
-
-    if (!hasLeadership || !hasDrill) {
+    if (!hasLeadership) {
       return { action: 'heroes', executed: false, reason: 'faltan_tecnologias' };
     }
 
-    const unitWithHQ = units.find(u => u.player === myPlayer && u.regiments?.some(r => r.type === 'Cuartel General'));
+    const unitWithHQ = units.find(u =>
+      u.player === myPlayer &&
+      u.currentHealth > 0 &&
+      !u.commander &&
+      u.regiments?.some(r => r.type === 'Cuartel General')
+    );
     let hqUnit = unitWithHQ;
 
     if (!hqUnit && typeof AiGameplayManager !== 'undefined' && AiGameplayManager.produceUnit) {
@@ -4019,11 +4129,19 @@ const IAArchipielago = {
 
   _ejecutarRutaGranArqueologo(situacion) {
     const { myPlayer } = situacion;
-    if (!this._ensureTech(myPlayer, 'RECONNAISSANCE')) {
-      return { action: 'explorar_ruinas', executed: false, reason: 'sin_tecnologia' };
+    const hasRecon = this._ensureTech(myPlayer, 'RECONNAISSANCE');
+    if (!hasRecon) {
+      // Forzar tempranamente la investigación si hay ruinas pendientes.
+      this._investResearch(myPlayer, ['RECONNAISSANCE', 'LEADERSHIP', 'ENGINEERING'], 1);
     }
 
-    let explorerUnit = units.find(u => u.player === myPlayer && u.regiments?.some(r => r.type === 'Explorador'));
+    let explorerUnit = units.find(u =>
+      u.player === myPlayer &&
+      u.currentHealth > 0 &&
+      (u.currentMovement || 0) > 0 &&
+      !u.hasMoved &&
+      u.regiments?.some(r => r.type === 'Explorador')
+    );
     if (!explorerUnit && typeof AiGameplayManager !== 'undefined' && AiGameplayManager.produceUnit) {
       explorerUnit = AiGameplayManager.produceUnit(myPlayer, ['Explorador'], 'scout', 'Explorador');
     }
@@ -4042,7 +4160,7 @@ const IAArchipielago = {
       return { action: 'explorar_ruinas', executed: false, reason: 'sin_ruinas' };
     }
 
-    if (explorerUnit.r === target.r && explorerUnit.c === target.c) {
+    if (explorerUnit.r === target.r && explorerUnit.c === target.c && hasRecon) {
       if (this._requestExploreRuins(explorerUnit)) {
         return { action: 'explorar_ruinas', executed: true, note: 'ruina_explorada' };
       }
@@ -4067,6 +4185,52 @@ const IAArchipielago = {
       return { action: 'conquista_barbara', executed: true };
     }
     return { action: 'conquista_barbara', executed: false, reason: 'sin_unidades' };
+  },
+
+  _forceExplorerRuinsAction(myPlayer) {
+    const ruins = this._getUnexploredRuins();
+    if (!ruins.length) return 0;
+
+    const hasRecon = this._ensureTech(myPlayer, 'RECONNAISSANCE');
+    if (!hasRecon && typeof this._investResearch === 'function') {
+      this._investResearch(myPlayer, ['RECONNAISSANCE', 'LEADERSHIP', 'ENGINEERING'], 1);
+    }
+
+    const explorers = (IASentidos.getUnits(myPlayer) || [])
+      .filter(u => u && u.currentHealth > 0)
+      .filter(u => !u.hasMoved && (u.currentMovement || 0) > 0)
+      .filter(u => u.regiments?.some(reg => reg.type === 'Explorador'));
+
+    if (!explorers.length) return 0;
+
+    let actions = 0;
+    for (const explorer of explorers) {
+      const target = this._pickObjective(ruins, explorer, myPlayer);
+      if (!target) continue;
+
+      if (explorer.r === target.r && explorer.c === target.c && hasRecon) {
+        if (this._requestExploreRuins(explorer)) {
+          actions += 1;
+        }
+        continue;
+      }
+
+      if (this._requestMoveOrAttack(explorer, target.r, target.c)) {
+        actions += 1;
+      }
+    }
+
+    if (actions > 0) {
+      this._metricLog('IA_FORCED_EXPLORER_RUINS', {
+        turn: gameState.turnNumber,
+        playerId: myPlayer,
+        actions,
+        ruins: ruins.length,
+        recon: !!hasRecon
+      });
+    }
+
+    return actions;
   },
 
   _ejecutarRutaAlmiranteSupremo(situacion) {
@@ -4094,6 +4258,31 @@ const IAArchipielago = {
     }
 
     return { action: 'naval', executed: false, reason: 'sin_objetivos' };
+  },
+
+  _executeEasyVictoryPointOpportunities(situacion) {
+    const myPlayer = situacion?.myPlayer;
+    if (!myPlayer) return;
+
+    const myKey = `player${myPlayer}`;
+    const currentPoints = Number(gameState.victoryPoints?.[myKey] || 0);
+    const remainingPoints = Math.max(0, Number(VICTORY_POINTS_TO_WIN || 10) - currentPoints);
+    if (remainingPoints <= 0) return;
+
+    const turn = Number(gameState.turnNumber || 0);
+    if (turn > 8) return;
+
+    const ruinsResult = this._ejecutarRutaGranArqueologo(situacion);
+    const heroResult = this._ejecutarRutaMasHeroes(situacion);
+
+    this._metricLog('IA_EASY_VP_OPPORTUNITIES', {
+      turn,
+      playerId: myPlayer,
+      currentPoints,
+      remainingPoints,
+      ruinsAction: ruinsResult?.executed ? 'executed' : (ruinsResult?.reason || 'skipped'),
+      heroesAction: heroResult?.executed ? 'executed' : (heroResult?.reason || 'skipped')
+    });
   },
 
   _ejecutarRutaCapital(situacion) {
@@ -4574,6 +4763,7 @@ const IAArchipielago = {
       ruta_ejercito_grande: 320,
       ruta_mas_victorias: 320,
       ruta_mas_avances: 280,
+      ruta_mas_heroes: 320,
       ruta_gran_arqueologo: 260,
       ruta_conquistador_barbaro: 260,
       ruta_frente_humano: 180,
