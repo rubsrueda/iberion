@@ -100,6 +100,18 @@ const IAArchipielago = {
     const inferred = this._inferCanonicalMissionType(unit);
     const fromCandidate = candidateMissionType || inferred;
     const targetHex = target ? board[target.r]?.[target.c] : null;
+    const isBankObjective = !!(target && this._isBankCityByCoords(target.r, target.c));
+    if (isBankObjective) {
+      const fallbackMission = fromCandidate === this.MISSION_TYPE_CONQUEST_CITY
+        ? this.MISSION_TYPE_COMMERCIAL_CORRIDOR
+        : (fromCandidate || this.MISSION_TYPE_COMMERCIAL_CORRIDOR);
+      return {
+        candidateMissionType: fromCandidate || 'UNSPECIFIED',
+        selectedMissionType: fallbackMission,
+        switched: !!fromCandidate && fallbackMission !== fromCandidate,
+        reason: 'banca_inconquistable'
+      };
+    }
     const isCityObjective = !!(target?.type === 'city' || targetHex?.isCity);
     const selectedMissionType = isCityObjective
       ? this.MISSION_TYPE_CONQUEST_CITY
@@ -319,6 +331,13 @@ const IAArchipielago = {
         foreignCities: ciudadesNoPropias.length,
         foreignResources: mapaRecursosNoPropios.length
       });
+
+      // Prioridad operativa: ejecutar gusano antes de la ocupación global para no gastar sus unidades en tareas generales.
+      const accionesGusano = this._ejecutarGusanoCorredor({ myPlayer }, {
+        maxActions: Math.max(2, Math.min(6, this.WORM_MAX_ACTIONS_PER_TURN))
+      });
+      console.log(`[IA_ARCHIPIELAGO][GUSANO] Acciones ejecutadas: ${accionesGusano}`);
+
       let ocupacionProcesadas = 0;
       for (const obj of objetivosOcupacion) {
         if (ocupacionProcesadas >= maxOccupationObjectives) {
@@ -336,6 +355,7 @@ const IAArchipielago = {
             .filter(u => u && u.currentHealth > 0)
             .filter(u => !u.hasMoved && (u.currentMovement || u.movement || 0) > 0)
             .filter(u => this._isLandUnit(u))
+            .filter(u => !this._isCorridorPioneer(u))
             .sort((a, b) => hexDistance(a.r, a.c, obj.r, obj.c) - hexDistance(b.r, b.c, obj.r, obj.c))
             .find(u => !!this._findPathForUnit(u, obj.r, obj.c));
 
@@ -373,10 +393,6 @@ const IAArchipielago = {
       }
       console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Finalizado. Conquistas: ${ocupacionesRealizadas}`);
 
-      // Activar "gusano" (split/merge + avance de corredor) después de ocupación base.
-      const accionesGusano = this._ejecutarGusanoCorredor(situacion, { maxActions: Math.max(2, Math.min(6, this.WORM_MAX_ACTIONS_PER_TURN)) });
-      console.log(`[IA_ARCHIPIELAGO][GUSANO] Acciones ejecutadas: ${accionesGusano}`);
-
       // --- 3. FLUJO 2: CONSTRUCCIÓN EXHAUSTIVA ---
       if (typeof this.construirInfraestructura === 'function') {
         console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Ejecutando construcción preventiva...`);
@@ -401,7 +417,7 @@ const IAArchipielago = {
         myPlayer,
         ciudades,
         hexesPropios,
-        recursos,
+        recursos: recursosPropiosPendientes,
         infraestructura,
         snapshotActividad: this._snapshotTurnActivity(myPlayer),
         turnStartTs,
@@ -2311,6 +2327,18 @@ const IAArchipielago = {
     return (gameState.cities || []).find(c => c && c.owner === bankId) || null;
   },
 
+  _isBankCityByCoords(r, c) {
+    if (!Number.isInteger(r) || !Number.isInteger(c)) return false;
+    const bank = this._getBankCity();
+    if (bank && bank.r === r && bank.c === c) return true;
+    const city = (gameState.cities || []).find(ct => ct && ct.r === r && ct.c === c);
+    if (!city) return false;
+    const bankId = typeof BankManager !== 'undefined' ? BankManager.PLAYER_ID : 0;
+    if (city.isBank) return true;
+    if (city.owner === bankId) return true;
+    return String(city.name || '').toLowerCase().includes('banca');
+  },
+
   _getEnemyPlayerIds(myPlayer) {
     if (typeof IASentidos !== 'undefined' && typeof IASentidos.getEnemyPlayerIds === 'function') {
       const ids = IASentidos.getEnemyPlayerIds(myPlayer);
@@ -2873,6 +2901,43 @@ const IAArchipielago = {
     return this._requestSplitUnit(unit, splitHex.r, splitHex.c);
   },
 
+  _splitMergeWormStep(myPlayer, unit, objective, node) {
+    if (!unit || !objective) return { ok: false, reason: 'invalid_input' };
+    const beforeUnits = IASentidos.getUnits(myPlayer) || [];
+    const beforeIds = new Set(beforeUnits.map(u => u.id));
+    const splitOk = this._splitUnitTowardsObjective(unit, objective);
+    if (!splitOk) return { ok: false, reason: 'split_failed' };
+
+    const afterUnits = IASentidos.getUnits(myPlayer) || [];
+    const created = afterUnits
+      .filter(u => !beforeIds.has(u.id))
+      .sort((a, b) => hexDistance(a.r, a.c, objective.r, objective.c) - hexDistance(b.r, b.c, objective.r, objective.c))[0] || null;
+
+    let relay = created || (afterUnits.find(u => u.id === unit.id) || unit);
+    let merged = false;
+    if (created) {
+      const original = afterUnits.find(u => u.id === unit.id);
+      if (original && original.id !== created.id) {
+        merged = this._requestMergeUnits(original, created);
+      }
+      relay = afterUnits.find(u => u.id === created.id) || created;
+    }
+
+    this._importantLog('WORM_ACTION', {
+      playerId: myPlayer,
+      action: 'split_merge_relay',
+      missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR,
+      pair: `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
+      objective: `${objective.r},${objective.c}`,
+      sourceUnitId: unit.id,
+      createdUnitId: created?.id || null,
+      mergedOriginal: !!merged,
+      relayUnitId: relay?.id || unit.id
+    });
+
+    return { ok: true, relayUnitId: relay?.id || unit.id };
+  },
+
   _getTopCorridorObjectives(myPlayer, maxObjectives = 3) {
     const roadPlan = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
     if (!roadPlan.connections?.length) return [];
@@ -2920,73 +2985,90 @@ const IAArchipielago = {
     for (const node of corridorObjectives) {
       if (actions >= maxActions) break;
       const objective = node.objective;
-      const myUnits = IASentidos.getUnits(myPlayer)
-        .filter(u => this._isLandUnit(u))
-        .filter(u => (u.currentMovement || 0) > 0)
-        .filter(u => !u.iaExpeditionTarget)
-        .sort((a, b) => hexDistance(a.r, a.c, objective.r, objective.c) - hexDistance(b.r, b.c, objective.r, objective.c));
+      const maxNodeSteps = Math.max(1, maxActions - actions);
+      for (let stepIndex = 0; stepIndex < maxNodeSteps && actions < maxActions; stepIndex++) {
+        const objectiveHex = board[objective.r]?.[objective.c];
+        if (objectiveHex?.owner === myPlayer || (getUnitOnHex(objective.r, objective.c)?.player === myPlayer)) {
+          break;
+        }
 
-      if (!myUnits.length) {
-        console.log(`[IA_ARCHIPIELAGO][GUSANO] Sin unidades aptas para objetivo (${objective.r},${objective.c}) ${node.from?.name || 'NODO_A'} -> ${node.to?.name || 'NODO_B'}.`);
-        continue;
-      }
+        const myUnits = IASentidos.getUnits(myPlayer)
+          .filter(u => this._isLandUnit(u))
+          .filter(u => (u.currentMovement || 0) > 0)
+          .filter(u => !u.iaExpeditionTarget)
+          .sort((a, b) => hexDistance(a.r, a.c, objective.r, objective.c) - hexDistance(b.r, b.c, objective.r, objective.c));
 
-      let acted = false;
-      const splitCandidate = myUnits.find(u => (u.regiments?.length || 0) >= this.WORM_MIN_SPLIT_REGIMENTS);
-      if (splitCandidate && this._splitUnitTowardsObjective(splitCandidate, objective)) {
-        console.log(`[IA_ARCHIPIELAGO] [Gusano] Split corredor hacia (${objective.r},${objective.c}) para ${node.from?.name} -> ${node.to?.name}`);
-        this._importantLog('WORM_ACTION', {
-          playerId: myPlayer,
-          action: 'split',
-          objective: `${objective.r},${objective.c}`,
-          pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
-          unitId: splitCandidate.id,
-          regiments: splitCandidate.regiments?.length || 0
-        });
-        actions += 1;
-        acted = true;
-      } else if (splitCandidate) {
-        console.log(`[IA_ARCHIPIELAGO][GUSANO] Split no ejecutado para ${splitCandidate.id} hacia (${objective.r},${objective.c}) por restricciones de celda/acción.`);
-        this._importantLog('WORM_DECISION', {
-          playerId: myPlayer,
-          objective: `${objective.r},${objective.c}`,
-          pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
-          split: 'rejected',
-          reason: 'cell_or_action_restriction',
-          unitId: splitCandidate.id,
-          regiments: splitCandidate.regiments?.length || 0
-        });
-      } else {
-        const maxRegs = myUnits.reduce((m, u) => Math.max(m, u.regiments?.length || 0), 0);
-        console.log(`[IA_ARCHIPIELAGO][GUSANO] Sin split: regimientos insuficientes (max=${maxRegs}, min=${this.WORM_MIN_SPLIT_REGIMENTS}) para objetivo (${objective.r},${objective.c}).`);
-        this._importantLog('WORM_DECISION', {
-          playerId: myPlayer,
-          objective: `${objective.r},${objective.c}`,
-          pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
-          split: 'not_possible',
-          reason: 'insufficient_regiments',
-          maxRegimentsSeen: maxRegs,
-          minRequired: this.WORM_MIN_SPLIT_REGIMENTS
-        });
-      }
+        if (!myUnits.length) {
+          console.log(`[IA_ARCHIPIELAGO][GUSANO] Sin unidades aptas para objetivo (${objective.r},${objective.c}) ${node.from?.name || 'NODO_A'} -> ${node.to?.name || 'NODO_B'}.`);
+          break;
+        }
 
-      if (actions >= maxActions) break;
+        let acted = false;
+        const splitCandidate = myUnits.find(u => (u.regiments?.length || 0) >= this.WORM_MIN_SPLIT_REGIMENTS);
+        if (splitCandidate) {
+          const relay = this._splitMergeWormStep(myPlayer, splitCandidate, objective, node);
+          if (relay.ok) {
+            actions += 1;
+            acted = true;
 
-      if (!acted) {
-        const mover = myUnits.find(u => this._findPathForUnit(u, objective.r, objective.c));
-        if (mover && this._requestMoveOrAttack(mover, objective.r, objective.c, { missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR })) {
-          console.log(`[IA_ARCHIPIELAGO] [Gusano] Avance corredor hacia (${objective.r},${objective.c}) para ${node.from?.name} -> ${node.to?.name}`);
-          this._importantLog('WORM_ACTION', {
+            const relayUnit = (IASentidos.getUnits(myPlayer) || []).find(u => u.id === relay.relayUnitId);
+            if (relayUnit && (relayUnit.currentMovement || 0) > 0 && actions < maxActions) {
+              const moved = this._requestMoveOrAttack(relayUnit, objective.r, objective.c, { missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR });
+              if (moved) {
+                this._importantLog('WORM_ACTION', {
+                  playerId: myPlayer,
+                  action: 'relay_move',
+                  missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR,
+                  objective: `${objective.r},${objective.c}`,
+                  pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+                  unitId: relayUnit.id,
+                  regiments: relayUnit.regiments?.length || 0
+                });
+                actions += 1;
+              }
+            }
+          } else {
+            this._importantLog('WORM_DECISION', {
+              playerId: myPlayer,
+              objective: `${objective.r},${objective.c}`,
+              pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+              split: 'rejected',
+              reason: relay.reason || 'split_failed',
+              unitId: splitCandidate.id,
+              regiments: splitCandidate.regiments?.length || 0
+            });
+          }
+        } else {
+          const maxRegs = myUnits.reduce((m, u) => Math.max(m, u.regiments?.length || 0), 0);
+          this._importantLog('WORM_DECISION', {
             playerId: myPlayer,
-            action: 'move_or_attack',
-            missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR,
             objective: `${objective.r},${objective.c}`,
             pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
-            unitId: mover.id,
-            regiments: mover.regiments?.length || 0
+            split: 'not_possible',
+            reason: 'insufficient_regiments',
+            maxRegimentsSeen: maxRegs,
+            minRequired: this.WORM_MIN_SPLIT_REGIMENTS
           });
-          actions += 1;
         }
+
+        if (!acted) {
+          const mover = myUnits.find(u => this._findPathForUnit(u, objective.r, objective.c));
+          if (mover && this._requestMoveOrAttack(mover, objective.r, objective.c, { missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR })) {
+            this._importantLog('WORM_ACTION', {
+              playerId: myPlayer,
+              action: 'move_or_attack',
+              missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR,
+              objective: `${objective.r},${objective.c}`,
+              pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+              unitId: mover.id,
+              regiments: mover.regiments?.length || 0
+            });
+            actions += 1;
+            acted = true;
+          }
+        }
+
+        if (!acted) break;
       }
     }
 
@@ -3087,10 +3169,22 @@ const IAArchipielago = {
 
     if (!myUnits.length) return 0;
 
-    const cityTargets = (gameState.cities || [])
-      .filter(c => c && c.owner !== myPlayer)
-      .filter(c => !getUnitOnHex(c.r, c.c))
-      .map(c => ({ r: c.r, c: c.c, type: 'city', name: c.name || 'Ciudad' }));
+    const cityTargets = [];
+    for (const c of (gameState.cities || [])) {
+      if (!c || c.owner === myPlayer) continue;
+      if (this._isBankCityByCoords(c.r, c.c)) {
+        this._importantLog('MISSION_OBJECTIVE_SKIPPED', {
+          playerId: myPlayer,
+          objective: `${c.r},${c.c}`,
+          targetType: 'city',
+          targetName: c.name || 'La Banca',
+          reason: 'banca_inconquistable'
+        });
+        continue;
+      }
+      if (getUnitOnHex(c.r, c.c)) continue;
+      cityTargets.push({ r: c.r, c: c.c, type: 'city', name: c.name || 'Ciudad' });
+    }
 
     const fortLike = new Set(['Fortaleza', 'Fortaleza con Muralla', 'Aldea', 'Ciudad', 'Metrópoli']);
     const structureTargets = board.flat()
