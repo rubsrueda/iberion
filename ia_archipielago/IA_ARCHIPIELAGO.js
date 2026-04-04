@@ -16,13 +16,13 @@ const IAArchipielago = {
   EARLY_STONE_HILLS_TURN_LIMIT: 10,
   EARLY_STONE_HILLS_MIN_STONE: 100,
   ORGANIC_LAYER_SAFE_MODE: true,
-  ORGANIC_LAYER_INTERVAL_TURNS: 5,
-  ORGANIC_LAYER_MAX_OWN_CITIES: 4,
-  TURN_CPU_BUDGET_MS: 70,
-  MAX_OCCUPATION_OBJECTIVES_PER_TURN: 4,
-  MAX_ROUTE_ACTIONS_PER_TURN: 2,
-  MAX_RUTA_LARGA_CALLS_PER_TURN: 1,
-  ENABLE_ORGANIC_TRADE_LAYER: false,
+  ORGANIC_LAYER_INTERVAL_TURNS: 1,
+  ORGANIC_LAYER_MAX_OWN_CITIES: 99,
+  TURN_CPU_BUDGET_MS: 220,
+  MAX_OCCUPATION_OBJECTIVES_PER_TURN: 12,
+  MAX_ROUTE_ACTIONS_PER_TURN: 6,
+  MAX_RUTA_LARGA_CALLS_PER_TURN: 3,
+  ENABLE_ORGANIC_TRADE_LAYER: true,
   deployUnitsAI(myPlayer) {
     console.log(`[IA_ARCHIPIELAGO] Despliegue IA iniciado para Jugador ${myPlayer}.`);
     if (gameState.currentPhase !== 'deployment') {
@@ -201,6 +201,9 @@ const IAArchipielago = {
 
       // Antes de planificar construcciones, intentar liberar casillas que quedaron bloqueadas el turno anterior.
       this._procesarDesbloqueoConstruccionesPendientes(myPlayer);
+
+      // Captura oportunista temprana: ciudades/fortalezas vacías adyacentes no deben perderse.
+      this._executeOpportunisticCapture(myPlayer);
 
       // --- 1. RECOPILACIÓN DE DATOS ---
       const hexesPropios = IASentidos.getOwnedHexes(myPlayer);
@@ -2839,6 +2842,67 @@ const IAArchipielago = {
       if ((unit.currentMovement || 0) < (prev.currentMovement || 0)) return true;
     }
     return false;
+  },
+
+  _executeOpportunisticCapture(myPlayer) {
+    const myUnits = IASentidos.getUnits(myPlayer)
+      .filter(u => u && u.currentHealth > 0)
+      .filter(u => !u.hasMoved && (u.currentMovement || u.movement || 0) > 0)
+      .filter(u => this._isLandUnit(u));
+
+    if (!myUnits.length) return 0;
+
+    const cityTargets = (gameState.cities || [])
+      .filter(c => c && c.owner !== myPlayer)
+      .filter(c => !getUnitOnHex(c.r, c.c))
+      .map(c => ({ r: c.r, c: c.c, type: 'city', name: c.name || 'Ciudad' }));
+
+    const fortLike = new Set(['Fortaleza', 'Fortaleza con Muralla', 'Aldea', 'Ciudad', 'Metrópoli']);
+    const structureTargets = board.flat()
+      .filter(h => h && h.owner !== myPlayer && fortLike.has(h.structure) && !h.isCity)
+      .filter(h => !getUnitOnHex(h.r, h.c))
+      .map(h => ({ r: h.r, c: h.c, type: 'structure', name: h.structure }));
+
+    const uniqueTargets = [];
+    const seen = new Set();
+    for (const t of cityTargets.concat(structureTargets)) {
+      const key = `${t.r},${t.c}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      uniqueTargets.push(t);
+    }
+
+    if (!uniqueTargets.length) return 0;
+
+    let captures = 0;
+    const maxCapturesPerTurn = 2;
+    for (const target of uniqueTargets) {
+      if (captures >= maxCapturesPerTurn) break;
+
+      const candidate = myUnits
+        .filter(u => !u.hasMoved && (u.currentMovement || u.movement || 0) > 0)
+        .sort((a, b) => hexDistance(a.r, a.c, target.r, target.c) - hexDistance(b.r, b.c, target.r, target.c))
+        .find(u => hexDistance(u.r, u.c, target.r, target.c) <= 1 && this._findPathForUnit(u, target.r, target.c));
+
+      if (!candidate) continue;
+
+      const ok = this._requestMoveOrAttack(candidate, target.r, target.c);
+      if (!ok) continue;
+
+      captures += 1;
+      console.log(`[IA_ARCHIPIELAGO] [EMERGENCIA CAPTURA] J${myPlayer}: ${candidate.name} toma ${target.type} en (${target.r},${target.c}) ${target.name ? `- ${target.name}` : ''}`);
+      this._metricLog('IA_OPPORTUNISTIC_CAPTURE', {
+        turn: gameState.turnNumber,
+        playerId: myPlayer,
+        unitId: candidate.id,
+        targetType: target.type,
+        hex: `${target.r},${target.c}`,
+        targetName: target.name || null,
+        success: true
+      });
+    }
+
+    return captures;
   },
 
   _ejecutarPlanEmergencia(situacion) {
