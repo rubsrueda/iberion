@@ -2189,7 +2189,6 @@ const AiGameplayManager = {
 
                 if (!hasMovement) {
                     console.log(`[IA BUILD DECISION - DESCARTADA] J${playerNumber} ${structureType} (${r},${c}) motivo=aliado_sin_movimiento`);
-                    playerRetryBlock.keys.add(retryKey);
                     return false;
                 }
 
@@ -2197,7 +2196,6 @@ const AiGameplayManager = {
                 const vacatedNow = this._tryImmediateVacateForBuild(blockerUnit, { r, c }, objective);
                 if (!vacatedNow) {
                     console.log(`[IA BUILD DECISION - POSPUESTA] J${playerNumber} ${structureType} (${r},${c}) motivo=aliado_no_pudo_despejar${assigned ? '_con_mision' : ''}`);
-                    playerRetryBlock.keys.add(retryKey);
                     return false;
                 }
 

@@ -15,6 +15,14 @@ const IAArchipielago = {
   CUT_SUPPLY_MAX_TARGETS: 4,
   EARLY_STONE_HILLS_TURN_LIMIT: 10,
   EARLY_STONE_HILLS_MIN_STONE: 100,
+  ORGANIC_LAYER_SAFE_MODE: true,
+  ORGANIC_LAYER_INTERVAL_TURNS: 5,
+  ORGANIC_LAYER_MAX_OWN_CITIES: 4,
+  TURN_CPU_BUDGET_MS: 70,
+  MAX_OCCUPATION_OBJECTIVES_PER_TURN: 4,
+  MAX_ROUTE_ACTIONS_PER_TURN: 2,
+  MAX_RUTA_LARGA_CALLS_PER_TURN: 1,
+  ENABLE_ORGANIC_TRADE_LAYER: false,
   deployUnitsAI(myPlayer) {
     console.log(`[IA_ARCHIPIELAGO] Despliegue IA iniciado para Jugador ${myPlayer}.`);
     if (gameState.currentPhase !== 'deployment') {
@@ -55,6 +63,96 @@ const IAArchipielago = {
     return gameState.iaCompletedGoals[myPlayer][flujo].some(g => g.r === r && g.c === c);
   },
 
+  _metricLog(event, payload = {}) {
+    try {
+      console.log(`[IA_METRIC] ${JSON.stringify({ event, ...payload })}`);
+    } catch (e) {
+      console.log(`[IA_METRIC] ${event}`);
+    }
+  },
+
+  _metricGetTurnState(playerId) {
+    if (!this._metricTurnState) this._metricTurnState = {};
+    const currentTurn = Number(gameState.turnNumber || 0);
+    const existing = this._metricTurnState[playerId];
+    if (!existing || existing.turn !== currentTurn) {
+      this._metricTurnState[playerId] = {
+        turn: currentTurn,
+        playerId,
+        actionUsefulCommercial: false,
+        usefulActionType: null,
+        pendingNoOwn: 0,
+        pendingOwnNoRoad: 0,
+        pendingBlocked: 0,
+        dominantBlocker: null,
+        nextPlannedAction: null,
+        objectiveCommercialMode: 'unknown'
+      };
+    }
+    return this._metricTurnState[playerId];
+  },
+
+  _metricStartTurn(playerId, phase = 'unknown') {
+    const st = this._metricGetTurnState(playerId);
+    const routesCount = (units || []).filter(u => u.player === playerId && !!u.tradeRoute).length;
+    st.objectiveCommercialMode = routesCount > 0 ? 'maintenance' : 'bootstrap';
+    this._metricLog('IA_METRIC_TURN_START', {
+      turn: st.turn,
+      playerId,
+      phase,
+      commercialPriorityMode: st.objectiveCommercialMode,
+      activeRoutes: routesCount
+    });
+  },
+
+  _metricMarkCommercialUseful(playerId, usefulActionType, extra = {}) {
+    const st = this._metricGetTurnState(playerId);
+    st.actionUsefulCommercial = true;
+    st.usefulActionType = usefulActionType;
+    this._metricLog('IA_COMMERCIAL_USEFUL_ACTION', {
+      turn: st.turn,
+      playerId,
+      usefulActionType,
+      ...extra
+    });
+  },
+
+  _metricSetCommercialBlocker(playerId, blocker, nextPlannedAction = null, extra = {}) {
+    const st = this._metricGetTurnState(playerId);
+    st.dominantBlocker = blocker;
+    if (nextPlannedAction) st.nextPlannedAction = nextPlannedAction;
+    this._metricLog('IA_COMMERCIAL_BLOCKER', {
+      turn: st.turn,
+      playerId,
+      blocker,
+      nextPlannedAction: st.nextPlannedAction,
+      ...extra
+    });
+  },
+
+  _metricSetCommercialPending(playerId, counts = {}) {
+    const st = this._metricGetTurnState(playerId);
+    st.pendingNoOwn = Number(counts.pendingNoOwn ?? st.pendingNoOwn ?? 0);
+    st.pendingOwnNoRoad = Number(counts.pendingOwnNoRoad ?? st.pendingOwnNoRoad ?? 0);
+    st.pendingBlocked = Number(counts.pendingBlocked ?? st.pendingBlocked ?? 0);
+  },
+
+  _metricEndTurn(playerId, reason = 'normal') {
+    const st = this._metricGetTurnState(playerId);
+    this._metricLog('IA_METRIC_TURN_END', {
+      turn: st.turn,
+      playerId,
+      reason,
+      actionUsefulCommercial: !!st.actionUsefulCommercial,
+      usefulActionType: st.usefulActionType,
+      pendingNoOwn: st.pendingNoOwn,
+      pendingOwnNoRoad: st.pendingOwnNoRoad,
+      pendingBlocked: st.pendingBlocked,
+      dominantBlocker: st.dominantBlocker,
+      nextPlannedAction: st.nextPlannedAction
+    });
+  },
+
   // Método principal unificado
   ejecutarTurno(myPlayer) {
     console.log(`[IA_ARCHIPIELAGO] ========= TURNO ${gameState.turnNumber} - JUGADOR ${myPlayer} =========`);
@@ -79,6 +177,9 @@ const IAArchipielago = {
       // Variables para metas y filtrado
       let totalMetas = 0;
       let totalFiltradas = 0;
+      const turnStartTs = Date.now();
+      const turnBudgetMs = Math.max(40, Number(this.TURN_CPU_BUDGET_MS) || 120);
+      const maxOccupationObjectives = Math.max(1, Number(this.MAX_OCCUPATION_OBJECTIVES_PER_TURN) || 8);
 
       if (typeof IASentidos === 'undefined') {
         console.error(`[IA_ARCHIPIELAGO] ERROR CRÍTICO: IASentidos no disponible.`);
@@ -90,8 +191,10 @@ const IAArchipielago = {
       this._turnBuildRetryBlock[myPlayer] = { turn: gameState.turnNumber, keys: new Set() };
 
       const infoTurno = IASentidos.getTurnInfo();
+      this._metricStartTurn(myPlayer, infoTurno.currentPhase || 'unknown');
       if (infoTurno.currentPhase !== 'play') {
         console.warn(`[IA_ARCHIPIELAGO] Turno IA invocado fuera de fase play (${infoTurno.currentPhase}). Forzando cierre seguro.`);
+        this._metricEndTurn(myPlayer, 'phase_mismatch');
         scheduleAiEndTurn(250, 'phase_mismatch');
         return;
       }
@@ -109,7 +212,18 @@ const IAArchipielago = {
       console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Iniciando...`);
       let ocupacionesRealizadas = 0;
       const objetivosOcupacion = [...ciudades, ...recursos];
+      let ocupacionProcesadas = 0;
       for (const obj of objetivosOcupacion) {
+        if (ocupacionProcesadas >= maxOccupationObjectives) {
+          console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Límite de objetivos alcanzado (${maxOccupationObjectives}).`);
+          break;
+        }
+        if ((Date.now() - turnStartTs) >= turnBudgetMs) {
+          console.warn(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Presupuesto de tiempo agotado (${turnBudgetMs}ms).`);
+          break;
+        }
+
+        ocupacionProcesadas++;
         if (this._requestMoveOrAttack) {
           const candidateUnit = (IASentidos.getUnits(myPlayer) || [])
             .filter(u => u && u.currentHealth > 0)
@@ -154,7 +268,9 @@ const IAArchipielago = {
         hexesPropios,
         recursos,
         infraestructura,
-        snapshotActividad: this._snapshotTurnActivity(myPlayer)
+        snapshotActividad: this._snapshotTurnActivity(myPlayer),
+        turnStartTs,
+        turnBudgetMs
       };
 
       situacion.enemyProfile = this._evaluateEnemyExpansionStrategy(myPlayer);
@@ -175,10 +291,12 @@ const IAArchipielago = {
 
       // --- 6. FINALIZACIÓN ---
       console.log(`[IA_ARCHIPIELAGO] Turno completado para Jugador ${myPlayer}.`);
+      this._metricEndTurn(myPlayer, 'normal');
       scheduleAiEndTurn(1500, 'normal');
       return situacion;
     } catch (err) {
       console.error('[IA_ARCHIPIELAGO] Error no controlado en ejecutarTurno:', err);
+      this._metricEndTurn(myPlayer, 'exception');
       scheduleAiEndTurn(250, 'exception');
       return null;
     }
@@ -289,13 +407,33 @@ const IAArchipielago = {
     }
 
     // Compatibilidad con capas orgánicas antiguas si están disponibles.
+    // Modo seguro: estas capas son costosas en mapas grandes y pueden bloquear el hilo UI.
+    const ownCitiesCount = (gameState.cities || []).filter(c => c && c.owner === myPlayer).length;
+    const safeModeEnabled = this.ORGANIC_LAYER_SAFE_MODE !== false;
+    const intervalTurns = Math.max(1, Number(this.ORGANIC_LAYER_INTERVAL_TURNS) || 1);
+    const maxCities = Math.max(1, Number(this.ORGANIC_LAYER_MAX_OWN_CITIES) || 7);
+
+    if (!gameState.aiOrganicLayerLastRun) gameState.aiOrganicLayerLastRun = {};
+    const lastRun = Number(gameState.aiOrganicLayerLastRun[myPlayer] || 0);
+    const turnsSinceLastRun = Math.max(0, (gameState.turnNumber || 0) - lastRun);
+    const allowByInterval = !safeModeEnabled || turnsSinceLastRun >= intervalTurns;
+    const allowByScale = !safeModeEnabled || ownCitiesCount <= maxCities;
+    const shouldRunOrganicLayer = allowByInterval && allowByScale;
+
+    if (!shouldRunOrganicLayer) {
+      console.log(`[IA_ARCHIPIELAGO] Capa orgánica omitida (safeMode=${safeModeEnabled}, ciudades=${ownCitiesCount}, desdeUltEjec=${turnsSinceLastRun}).`);
+      return;
+    }
+
     if (typeof AiGameplayManager !== 'undefined') {
-      if (typeof AiGameplayManager._ensureTradeInfrastructureOrganic === 'function') {
+      if (this.ENABLE_ORGANIC_TRADE_LAYER !== false && typeof AiGameplayManager._ensureTradeInfrastructureOrganic === 'function') {
         try {
           AiGameplayManager._ensureTradeInfrastructureOrganic(myPlayer);
         } catch (e) {
           console.warn('[IA_ARCHIPIELAGO] Error en infraestructura comercial orgánica:', e);
         }
+      } else if (this.ENABLE_ORGANIC_TRADE_LAYER === false) {
+        console.log('[IA_ARCHIPIELAGO] Capa orgánica de comercio desactivada para evitar conflictos con Ruta Larga.');
       }
       if (typeof AiGameplayManager._ensureCityExpansionOrganic === 'function') {
         try {
@@ -304,6 +442,8 @@ const IAArchipielago = {
           console.warn('[IA_ARCHIPIELAGO] Error en expansión urbana orgánica:', e);
         }
       }
+
+      gameState.aiOrganicLayerLastRun[myPlayer] = gameState.turnNumber;
     }
   },
 
@@ -1238,7 +1378,20 @@ const IAArchipielago = {
 
   _requestMoveUnit(unit, r, c) {
     if (!unit) return false;
+    const mission = (typeof AiGameplayManager !== 'undefined' && AiGameplayManager.missionAssignments?.get)
+      ? AiGameplayManager.missionAssignments.get(unit.id)
+      : null;
     if (typeof isValidMove === 'function' && !isValidMove(unit, r, c)) {
+      this._metricLog('IA_ACTION_MOVE', {
+        turn: gameState.turnNumber,
+        playerId: unit.player,
+        unitId: unit.id,
+        from: `${unit.r},${unit.c}`,
+        to: `${r},${c}`,
+        missionType: mission?.type || null,
+        success: false,
+        failReason: 'invalid_move'
+      });
       return false;
     }
     const action = {
@@ -1257,8 +1410,28 @@ const IAArchipielago = {
           this.registrarMetaFlujo('ocupacion', r, c, unit.player);
           console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Meta registrada en (${r},${c})`);
         }
+        this._metricLog('IA_ACTION_MOVE', {
+          turn: gameState.turnNumber,
+          playerId: unit.player,
+          unitId: unit.id,
+          from: `${unit.r},${unit.c}`,
+          to: `${r},${c}`,
+          missionType: mission?.type || null,
+          success: true,
+          mode: 'network_client'
+        });
         return true;
       }
+      this._metricLog('IA_ACTION_MOVE', {
+        turn: gameState.turnNumber,
+        playerId: unit.player,
+        unitId: unit.id,
+        from: `${unit.r},${unit.c}`,
+        to: `${r},${c}`,
+        missionType: mission?.type || null,
+        success: false,
+        failReason: 'network_send_unavailable'
+      });
       return false;
     }
 
@@ -1269,6 +1442,16 @@ const IAArchipielago = {
         this.registrarMetaFlujo('ocupacion', r, c, unit.player);
         console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Meta registrada en (${r},${c})`);
       }
+      this._metricLog('IA_ACTION_MOVE', {
+        turn: gameState.turnNumber,
+        playerId: unit.player,
+        unitId: unit.id,
+        from: `${unit.r},${unit.c}`,
+        to: `${r},${c}`,
+        missionType: mission?.type || null,
+        success: true,
+        mode: 'processActionRequest'
+      });
       return true;
     }
 
@@ -1279,10 +1462,30 @@ const IAArchipielago = {
         this.registrarMetaFlujo('ocupacion', r, c, unit.player);
         console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Meta registrada en (${r},${c})`);
       }
+      this._metricLog('IA_ACTION_MOVE', {
+        turn: gameState.turnNumber,
+        playerId: unit.player,
+        unitId: unit.id,
+        from: `${unit.r},${unit.c}`,
+        to: `${r},${c}`,
+        missionType: mission?.type || null,
+        success: true,
+        mode: 'RequestMoveUnit'
+      });
       return true;
     }
 
     console.warn('[IA_ARCHIPIELAGO] RequestMoveUnit no disponible.');
+    this._metricLog('IA_ACTION_MOVE', {
+      turn: gameState.turnNumber,
+      playerId: unit.player,
+      unitId: unit.id,
+      from: `${unit.r},${unit.c}`,
+      to: `${r},${c}`,
+      missionType: mission?.type || null,
+      success: false,
+      failReason: 'move_api_unavailable'
+    });
     return false;
   },
 
@@ -1439,6 +1642,19 @@ const IAArchipielago = {
       nodoRazon: 'VACATE_BLOCKED_BUILD'
     });
 
+    this._metricLog('IA_MISSION_ASSIGNED', {
+      turn: gameState.turnNumber,
+      playerId,
+      missionType: 'vacate_blocked_build',
+      unitId: blockerUnit.id,
+      objectiveParent: 'commercial_corridor',
+      priority: 'high',
+      ttl: 1,
+      reason: objective.reason,
+      blockedHex: `${r},${c}`,
+      objectiveHex: `${objective.r},${objective.c}`
+    });
+
     if (!blockerUnit.hasMoved && (blockerUnit.currentMovement || blockerUnit.movement || 0) > 0) {
       const step = this._getMoveStepTowards(blockerUnit, objective.r, objective.c);
       if (step && !getUnitOnHex(step.r, step.c)) {
@@ -1507,6 +1723,16 @@ const IAArchipielago = {
       if (!step) continue;
 
       const didMove = this._requestMoveUnit(unit, step.r, step.c);
+      this._metricLog('IA_MISSION_PROGRESS', {
+        turn: gameState.turnNumber,
+        playerId: myPlayer,
+        unitId: unit.id,
+        missionType: 'vacate_blocked_build',
+        status: didMove ? 'completed' : 'blocked',
+        blockedReason: didMove ? null : 'move_failed',
+        from: `${unit.r},${unit.c}`,
+        to: didMove ? `${step.r},${step.c}` : null
+      });
       if (didMove) {
         moved += 1;
         delete unit.iaVacateBuild;
@@ -1527,17 +1753,41 @@ const IAArchipielago = {
     const retryKey = `${structureType}:${r},${c}`;
     const playerRetryState = this._turnBuildRetryBlock[playerId];
     if (playerRetryState.keys.has(retryKey)) {
+      this._metricLog('IA_BUILD_ATTEMPT', {
+        turn: gameState.turnNumber,
+        playerId,
+        hex: `${r},${c}`,
+        structureType,
+        success: false,
+        failReason: 'retry_blocked'
+      });
       return false;
     }
 
     const hex = board[r]?.[c];
     if (!hex || hex.owner !== playerId) {
+      this._metricLog('IA_BUILD_ATTEMPT', {
+        turn: gameState.turnNumber,
+        playerId,
+        hex: `${r},${c}`,
+        structureType,
+        success: false,
+        failReason: 'not_owned_or_invalid_hex'
+      });
       playerRetryState.keys.add(retryKey);
       return false;
     }
 
     const data = STRUCTURE_TYPES?.[structureType];
     if (!data) {
+      this._metricLog('IA_BUILD_ATTEMPT', {
+        turn: gameState.turnNumber,
+        playerId,
+        hex: `${r},${c}`,
+        structureType,
+        success: false,
+        failReason: 'structure_unknown'
+      });
       playerRetryState.keys.add(retryKey);
       return false;
     }
@@ -1567,6 +1817,15 @@ const IAArchipielago = {
     const playerTechs = playerRes.researchedTechnologies || [];
     if (data.requiredTech && !playerTechs.includes(data.requiredTech)) {
       if (this._ensureTech) this._ensureTech(playerId, data.requiredTech);
+      this._metricLog('IA_BUILD_ATTEMPT', {
+        turn: gameState.turnNumber,
+        playerId,
+        hex: `${r},${c}`,
+        structureType,
+        success: false,
+        failReason: 'missing_tech',
+        requiredTech: data.requiredTech
+      });
       playerRetryState.keys.add(retryKey);
       return false;
     }
@@ -1574,6 +1833,12 @@ const IAArchipielago = {
     const blocker = getUnitOnHex(r, c);
     if (blocker) {
       if (blocker.player !== playerId) {
+        this._metricLog('IA_HEX_DECISION_BLOCKED', {
+          turn: gameState.turnNumber,
+          playerId,
+          hex: `${r},${c}`,
+          reason: 'occupied_by_enemy'
+        });
         playerRetryState.keys.add(retryKey);
         return false;
       }
@@ -1583,7 +1848,15 @@ const IAArchipielago = {
 
       if (!hasMovement) {
         console.log(`[IA_ARCHIPIELAGO] [BUILD DESCARTADA] J${playerId} ${structureType} (${r},${c}) motivo=aliado_sin_movimiento`);
-        playerRetryState.keys.add(retryKey);
+        this._metricLog('IA_HEX_DECISION_FREE_BY_MISSION', {
+          turn: gameState.turnNumber,
+          playerId,
+          hex: `${r},${c}`,
+          blockerUnit: blocker.id,
+          blockerHasMovement: false,
+          assignedMission: 'vacate_blocked_build',
+          deferToNextCycle: true
+        });
         return false;
       }
 
@@ -1591,7 +1864,16 @@ const IAArchipielago = {
       const vacatedNow = this._tryImmediateVacateForBuild(blocker, { r, c }, objective);
       if (!vacatedNow) {
         console.log(`[IA_ARCHIPIELAGO] [BUILD POSPUESTA] J${playerId} ${structureType} (${r},${c}) motivo=aliado_no_pudo_despejar`);
-        playerRetryState.keys.add(retryKey);
+        this._metricLog('IA_HEX_DECISION_FREE_BY_MISSION', {
+          turn: gameState.turnNumber,
+          playerId,
+          hex: `${r},${c}`,
+          blockerUnit: blocker.id,
+          blockerHasMovement: true,
+          assignedMission: 'vacate_blocked_build',
+          deferToNextCycle: true,
+          failReason: 'ally_could_not_vacate_now'
+        });
         return false;
       }
 
@@ -1601,6 +1883,14 @@ const IAArchipielago = {
     const cost = data.cost || {};
     const canPay = Object.keys(cost).every(res => res === 'Colono' || (playerRes[res] || 0) >= (cost[res] || 0));
     if (!canPay) {
+      this._metricLog('IA_BUILD_ATTEMPT', {
+        turn: gameState.turnNumber,
+        playerId,
+        hex: `${r},${c}`,
+        structureType,
+        success: false,
+        failReason: 'insufficient_resources'
+      });
       playerRetryState.keys.add(retryKey);
       return false;
     }
@@ -1619,6 +1909,14 @@ const IAArchipielago = {
           this.registrarMetaFlujo('construccion', r, c, playerId);
           console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Meta registrada en (${r},${c})`);
         }
+        this._metricLog('IA_BUILD_RESULT', {
+          turn: gameState.turnNumber,
+          playerId,
+          hex: `${r},${c}`,
+          structureType,
+          success: true,
+          mode: 'network_host'
+        });
         return true;
       }
       if (typeof NetworkManager !== 'undefined' && NetworkManager.enviarDatos) {
@@ -1628,8 +1926,24 @@ const IAArchipielago = {
           this.registrarMetaFlujo('construccion', r, c, playerId);
           console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Meta registrada en (${r},${c})`);
         }
+        this._metricLog('IA_BUILD_RESULT', {
+          turn: gameState.turnNumber,
+          playerId,
+          hex: `${r},${c}`,
+          structureType,
+          success: true,
+          mode: 'network_client'
+        });
         return true;
       }
+      this._metricLog('IA_BUILD_RESULT', {
+        turn: gameState.turnNumber,
+        playerId,
+        hex: `${r},${c}`,
+        structureType,
+        success: false,
+        failReason: 'network_send_unavailable'
+      });
       return false;
     }
 
@@ -1643,10 +1957,27 @@ const IAArchipielago = {
           console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Meta registrada en (${r},${c})`);
         }
       }
+      this._metricLog('IA_BUILD_RESULT', {
+        turn: gameState.turnNumber,
+        playerId,
+        hex: `${r},${c}`,
+        structureType,
+        success: !!built,
+        mode: 'local_execute',
+        failReason: built ? null : 'local_build_not_reflected'
+      });
       if (!built) playerRetryState.keys.add(retryKey);
       return built;
     }
 
+    this._metricLog('IA_BUILD_RESULT', {
+      turn: gameState.turnNumber,
+      playerId,
+      hex: `${r},${c}`,
+      structureType,
+      success: false,
+      failReason: 'build_api_unavailable'
+    });
     playerRetryState.keys.add(retryKey);
     return false;
   },
@@ -1695,6 +2026,14 @@ const IAArchipielago = {
           this.registrarMetaFlujo('caravana', origin.r, origin.c, unit.player);
           console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Meta registrada en (${origin.r},${origin.c})`);
         }
+        this._metricLog('IA_COMMERCIAL_CONVERT_RESULT', {
+          turn: gameState.turnNumber,
+          playerId: unit.player,
+          pair: `${origin.r},${origin.c}|${destination.r},${destination.c}`,
+          unitId: unit.id,
+          success: true,
+          mode: 'network_host'
+        });
         return true;
       }
       if (typeof NetworkManager !== 'undefined' && NetworkManager.enviarDatos) {
@@ -1704,8 +2043,24 @@ const IAArchipielago = {
           this.registrarMetaFlujo('caravana', origin.r, origin.c, unit.player);
           console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Meta registrada en (${origin.r},${origin.c})`);
         }
+        this._metricLog('IA_COMMERCIAL_CONVERT_RESULT', {
+          turn: gameState.turnNumber,
+          playerId: unit.player,
+          pair: `${origin.r},${origin.c}|${destination.r},${destination.c}`,
+          unitId: unit.id,
+          success: true,
+          mode: 'network_client'
+        });
         return true;
       }
+      this._metricLog('IA_COMMERCIAL_CONVERT_RESULT', {
+        turn: gameState.turnNumber,
+        playerId: unit.player,
+        pair: `${origin.r},${origin.c}|${destination.r},${destination.c}`,
+        unitId: unit.id,
+        success: false,
+        failReason: 'network_send_unavailable'
+      });
       return false;
     }
 
@@ -1716,9 +2071,25 @@ const IAArchipielago = {
         this.registrarMetaFlujo('caravana', origin.r, origin.c, unit.player);
         console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] Meta registrada en (${origin.r},${origin.c})`);
       }
+      this._metricLog('IA_COMMERCIAL_CONVERT_RESULT', {
+        turn: gameState.turnNumber,
+        playerId: unit.player,
+        pair: `${origin.r},${origin.c}|${destination.r},${destination.c}`,
+        unitId: unit.id,
+        success: true,
+        mode: 'local_execute'
+      });
       return true;
     }
 
+    this._metricLog('IA_COMMERCIAL_CONVERT_RESULT', {
+      turn: gameState.turnNumber,
+      playerId: unit.player,
+      pair: `${origin.r},${origin.c}|${destination.r},${destination.c}`,
+      unitId: unit.id,
+      success: false,
+      failReason: 'trade_api_unavailable'
+    });
     return false;
   },
 
@@ -3630,10 +4001,25 @@ const IAArchipielago = {
     if (!rutas.length) return;
 
     const logLimit = this.ARCHI_LOG_VERBOSE ? rutas.length : (this.ARCHI_LOG_ROUTE_LIMIT || 3);
+    const maxRouteActions = Math.max(1, Number(this.MAX_ROUTE_ACTIONS_PER_TURN) || 4);
+    const turnStartTs = Number(situacion.turnStartTs || Date.now());
+    const turnBudgetMs = Math.max(40, Number(situacion.turnBudgetMs || this.TURN_CPU_BUDGET_MS || 120));
+    let executedRoutes = 0;
+
     if (this.ARCHI_LOG_VERBOSE) {
       console.log(`[IA_ARCHIPIELAGO] ========= PROCESO RUTAS (DETALLE) =========`);
     }
-    rutas.forEach((ruta, idx) => {
+    for (let idx = 0; idx < rutas.length; idx++) {
+      const ruta = rutas[idx];
+      if (executedRoutes >= maxRouteActions) {
+        console.log(`[IA_ARCHIPIELAGO] Límite de acciones de ruta alcanzado (${maxRouteActions}).`);
+        break;
+      }
+      if ((Date.now() - turnStartTs) >= turnBudgetMs) {
+        console.warn(`[IA_ARCHIPIELAGO] Presupuesto de tiempo agotado durante rutas (${turnBudgetMs}ms).`);
+        break;
+      }
+
       const shouldLog = idx < logLimit;
       const metaText = ruta.meta ? JSON.stringify(ruta.meta) : '';
       if (shouldLog) {
@@ -3646,17 +4032,18 @@ const IAArchipielago = {
         if (shouldLog) {
           console.log(`[IA_ARCHIPIELAGO] [Ruta ${idx + 1}] ${ruta.id} -> omitida${reasonText}`);
         }
-        return;
+        continue;
       }
 
       const action = this._ejecutarAccionPorRuta(ruta, situacion);
+      if (action?.executed) executedRoutes++;
       const resultText = action?.executed ? 'ejecutada' : 'no ejecutada';
       const reasonText = action?.reason ? ` (razon: ${action.reason})` : '';
       const noteText = action?.note ? ` (nota: ${action.note})` : '';
       if (shouldLog) {
         console.log(`[IA_ARCHIPIELAGO] [Ruta ${idx + 1}] ${ruta.id} -> accion: ${action?.action || 'desconocida'} | ${resultText}${reasonText}${noteText}`);
       }
-    });
+    }
     if (this.ARCHI_LOG_VERBOSE) {
       console.log(`========================================\n`);
     }
@@ -3965,19 +4352,48 @@ const IAArchipielago = {
 
   _ejecutarRutaLarga(situacion) {
     const { myPlayer } = situacion;
+    this._metricLog('IA_COMMERCIAL_CONTROLLER_START', {
+      turn: gameState.turnNumber,
+      playerId: myPlayer
+    });
+    if (!this._rutaLargaCallState) this._rutaLargaCallState = {};
+    const prevState = this._rutaLargaCallState[myPlayer];
+    const maxCalls = Math.max(1, Number(this.MAX_RUTA_LARGA_CALLS_PER_TURN) || 1);
+    if (prevState && prevState.turn === gameState.turnNumber && prevState.calls >= maxCalls) {
+      console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] Omitida por límite de llamadas en turno (${maxCalls}).`);
+      this._metricSetCommercialBlocker(myPlayer, 'ruta_larga_call_limit', 'retry_next_cycle', { maxCalls });
+      return false;
+    }
+    this._rutaLargaCallState[myPlayer] = {
+      turn: gameState.turnNumber,
+      calls: (prevState && prevState.turn === gameState.turnNumber) ? (prevState.calls + 1) : 1
+    };
+
     const ownCities = (gameState.cities || []).filter(c => c && c.owner === myPlayer);
     const tradeCities = this._getTradeCityCandidates(myPlayer).filter(c => this._isAllowedTradeDestinationForCaravan(c, myPlayer));
 
     if (ownCities.length < 1 || tradeCities.length < 2) {
       console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No hay nodos comerciales suficientes.');
-      return;
+      this._metricSetCommercialBlocker(myPlayer, 'insufficient_trade_nodes', 'expand_trade_nodes', {
+        ownCities: ownCities.length,
+        tradeCities: tradeCities.length
+      });
+      return false;
     }
 
     const roadPlan = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
     if (!roadPlan.connections.length) {
       console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No se encontro ruta de caminos construible.');
-      return;
+      this._metricSetCommercialBlocker(myPlayer, 'no_buildable_road_connections', 'analyze_alternative_pairs');
+      return false;
     }
+
+    this._metricLog('IA_COMMERCIAL_PAIR_ANALYZED', {
+      turn: gameState.turnNumber,
+      playerId: myPlayer,
+      evaluatedPairs: roadPlan.connections.length,
+      routeNodes: roadPlan.nodes?.length || 0
+    });
 
     const pendingCapture = roadPlan.connections
       .filter(conn => conn.pendingCaptureSegments && conn.pendingCaptureSegments.length > 0)
@@ -3986,6 +4402,18 @@ const IAArchipielago = {
     if (pendingCapture.length > 0) {
       const target = pendingCapture[0];
       const objective = target.pendingCaptureSegments[0];
+      this._metricSetCommercialPending(myPlayer, {
+        pendingNoOwn: target.pendingCaptureSegments.length,
+        pendingOwnNoRoad: 0,
+        pendingBlocked: 0
+      });
+      this._metricLog('IA_HEX_DECISION_OCCUPY', {
+        turn: gameState.turnNumber,
+        playerId: myPlayer,
+        hex: `${objective.r},${objective.c}`,
+        owner: board[objective.r]?.[objective.c]?.owner ?? null,
+        reason: 'hex_not_owned_or_not_ready'
+      });
       const freeUnits = IASentidos.getUnits(myPlayer)
         .filter(u => u.currentHealth > 0 && !u.hasMoved && this._isLandUnit(u));
 
@@ -4008,16 +4436,28 @@ const IAArchipielago = {
             target.from
           );
           if (actingUnit) {
-            console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] PASO 0: creado ${actingUnit.name} para ocupar corredor.`);
+            console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] PASO 1 (OCUPAR CASILLAS): creado ${actingUnit.name} para ocupar corredor.`);
           }
         }
       }
 
       if (actingUnit) {
-        console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] PASO 1: ocupando (${objective.r},${objective.c}) para ${target.from.name} -> ${target.to.name}`);
+        console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] PASO 1 (OCUPAR CASILLAS): ocupando (${objective.r},${objective.c}) para ${target.from.name} -> ${target.to.name}`);
         this._requestMoveOrAttack(actingUnit, objective.r, objective.c);
-        return;
+        this._metricMarkCommercialUseful(myPlayer, 'occupy_hex', {
+          hex: `${objective.r},${objective.c}`,
+          unitId: actingUnit.id,
+          pair: `${target.from.r},${target.from.c}|${target.to.r},${target.to.c}`
+        });
+        return true;
       }
+
+      // Regla estricta: si aún hay segmentos por ocupar entre nodos, no avanzar a construcción.
+      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] PASO 1 (OCUPAR CASILLAS) bloqueado: sin unidad disponible. Se pospone PASO 2.');
+      this._metricSetCommercialBlocker(myPlayer, 'no_eligible_division_for_occupy', 'produce_or_reassign_division', {
+        hex: `${objective.r},${objective.c}`
+      });
+      return false;
     }
 
     const pending = roadPlan.connections
@@ -4026,11 +4466,17 @@ const IAArchipielago = {
 
     if (pending.length > 0) {
       const target = pending[0];
+      this._metricSetCommercialPending(myPlayer, {
+        pendingNoOwn: 0,
+        pendingOwnNoRoad: target.missingOwnedSegments.length,
+        pendingBlocked: 0
+      });
       console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] Red caminos: nodos=${roadPlan.nodes.length} | Faltantes=${target.missingOwnedSegments.length}`);
 
       if (!this._hasTech(myPlayer, 'ENGINEERING')) {
         const requested = this._ensureTech(myPlayer, 'ENGINEERING');
         console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] Falta ENGINEERING. Investigando=${!!requested}`);
+        this._metricSetCommercialBlocker(myPlayer, 'missing_tech_engineering', 'research_engineering', { requested: !!requested });
         return;
       }
 
@@ -4041,12 +4487,14 @@ const IAArchipielago = {
 
       if (!candidateSegments.length) {
         console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No hay segmentos propios disponibles para construir camino.');
+        this._metricSetCommercialBlocker(myPlayer, 'no_owned_segments_to_build', 'occupy_more_segments');
         return;
       }
 
       if (!canAfford) {
         console.log('[IA_ARCHIPIELAGO] [Ruta Larga] Recursos insuficientes para construir camino.');
-        return;
+        this._metricSetCommercialBlocker(myPlayer, 'insufficient_resources_for_road', 'accumulate_resources');
+        return false;
       }
 
       let builtRoad = false;
@@ -4056,66 +4504,119 @@ const IAArchipielago = {
         if (blocker) {
           if (blocker.player === myPlayer) {
             this._scheduleVacateForBlockedBuild(myPlayer, blocker, segment.r, segment.c);
-            blockedByAlly += 1;
+            const stillBlocking = getUnitOnHex(segment.r, segment.c);
+            if (stillBlocking && stillBlocking.player === myPlayer) {
+              blockedByAlly += 1;
+              continue;
+            }
+          } else {
+            continue;
           }
-          continue;
         }
 
-        console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] PASO 2: construyendo camino en (${segment.r},${segment.c})`);
+        console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] PASO 2 (CONSTRUIR CAMINOS): construyendo en (${segment.r},${segment.c})`);
         builtRoad = this._requestBuildStructure(myPlayer, segment.r, segment.c, 'Camino');
-        if (builtRoad) break;
+        if (builtRoad) {
+          this._metricMarkCommercialUseful(myPlayer, 'build_road', { hex: `${segment.r},${segment.c}` });
+          break;
+        }
       }
 
       if (!builtRoad && blockedByAlly > 0) {
         console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] Segmentos bloqueados por aliados: ${blockedByAlly}. Reintentará tras vaciar casillas.`);
+        this._metricSetCommercialPending(myPlayer, { pendingBlocked: blockedByAlly });
+        this._procesarDesbloqueoConstruccionesPendientes(myPlayer);
+        for (const segment of candidateSegments) {
+          if (getUnitOnHex(segment.r, segment.c)) continue;
+          console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] PASO 2B (CONSTRUIR CAMINOS): reintentando en (${segment.r},${segment.c}) tras vacate`);
+          builtRoad = this._requestBuildStructure(myPlayer, segment.r, segment.c, 'Camino');
+          this._metricLog('IA_CHAIN_RELEASE_THEN_BUILD', {
+            turn: gameState.turnNumber,
+            playerId: myPlayer,
+            hex: `${segment.r},${segment.c}`,
+            releasedThisTurn: true,
+            buildAttemptedSameTurn: true,
+            buildSuccess: !!builtRoad
+          });
+          if (builtRoad) {
+            this._metricMarkCommercialUseful(myPlayer, 'release_then_build', { hex: `${segment.r},${segment.c}` });
+            break;
+          }
+        }
       }
-      return;
+
+      if (!builtRoad) {
+        this._metricSetCommercialBlocker(myPlayer, 'road_build_not_completed', 'retry_segments_next_cycle', { blockedByAlly });
+        return false;
+      }
     }
 
     const existingRouteKeys = this._getExistingTradeRouteKeys();
     const candidate = this._pickNextTradeRouteCandidate(myPlayer, existingRouteKeys);
     if (!candidate) {
       console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No hay nuevas rutas comerciales disponibles.');
-      return;
+      this._metricSetCommercialBlocker(myPlayer, 'no_new_trade_route_candidate', 'maintain_or_expand_network');
+      return false;
     }
 
     const { cityA, cityB, infraPath } = candidate;
-    console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] Nueva caravana: ${cityA.name} -> ${cityB.name}`);
+    console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] Objetivo comercial listo: ${cityA.name} -> ${cityB.name}`);
 
-    let supplyUnit = units.find(u => u.player === myPlayer && !u.tradeRoute && u.regiments?.some(reg => (REGIMENT_TYPES[reg.type].abilities || []).includes('provide_supply')));
+    // PASO 3: Crear (o reutilizar) Columna de Suministro.
+    let supplyUnit = units.find(u =>
+      u.player === myPlayer &&
+      !u.tradeRoute &&
+      u.regiments?.some(reg => (REGIMENT_TYPES[reg.type].abilities || []).includes('provide_supply'))
+    );
 
-    if (!supplyUnit && typeof AiGameplayManager !== 'undefined' && AiGameplayManager.produceUnit) {
-      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] PASO 3: creando Columna de Suministro...');
-      supplyUnit = AiGameplayManager.produceUnit(myPlayer, ['Columna de Suministro'], 'trader', 'Columna de Suministro');
+    if (supplyUnit) {
+      console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] PASO 3 (CREAR COLUMNA): reutilizando ${supplyUnit.name}.`);
+      this._metricLog('IA_COMMERCIAL_COLUMN_STATUS', {
+        turn: gameState.turnNumber,
+        playerId: myPlayer,
+        columnState: 'reused',
+        unitId: supplyUnit.id
+      });
+    } else if (typeof AiGameplayManager !== 'undefined' && AiGameplayManager.produceUnit) {
+      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] PASO 3 (CREAR COLUMNA): creando Columna de Suministro...');
+      supplyUnit = AiGameplayManager.produceUnit(myPlayer, ['Columna de Suministro'], 'trader', 'Columna de Suministro', cityA)
+        || AiGameplayManager.produceUnit(myPlayer, ['Columna de Suministro'], 'trader', 'Columna de Suministro', cityB)
+        || AiGameplayManager.produceUnit(myPlayer, ['Columna de Suministro'], 'trader', 'Columna de Suministro');
+      this._metricLog('IA_COMMERCIAL_COLUMN_STATUS', {
+        turn: gameState.turnNumber,
+        playerId: myPlayer,
+        columnState: supplyUnit ? 'created' : 'failed_create',
+        unitId: supplyUnit?.id || null
+      });
     }
 
     if (!supplyUnit) {
-      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] No se pudo crear o encontrar Columna de Suministro.');
-      return;
+      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] PASO 3 (CREAR COLUMNA) falló: no se pudo crear/obtener columna.');
+      this._metricSetCommercialBlocker(myPlayer, 'no_supply_column', 'produce_supply_column');
+      return false;
     }
 
-    let origin = cityA;
-    let destination = cityB;
-    const originHex = board[origin.r]?.[origin.c];
-    const destHex = board[destination.r]?.[destination.c];
-    const originBlocked = originHex?.unit && originHex.unit.id !== supplyUnit.id;
-    const destBlocked = destHex?.unit && destHex.unit.id !== supplyUnit.id;
-
-    if (originBlocked && !destBlocked) {
-      origin = cityB;
-      destination = cityA;
-    } else if (originBlocked && destBlocked) {
-      console.log('[IA_ARCHIPIELAGO] [Ruta Larga] Ambas ciudades estan ocupadas.');
-      return;
+    // PASO 4: Convertir en caravana (establecer ruta comercial).
+    // Regla vinculante: este paso SOLO puede usar la columna validada en PASO 3.
+    let okRoute = !!this._requestEstablishTradeRoute(supplyUnit, cityA, cityB, infraPath);
+    if (!okRoute) {
+      okRoute = !!this._requestEstablishTradeRoute(supplyUnit, cityB, cityA, infraPath);
     }
 
-    if (supplyUnit.r !== origin.r || supplyUnit.c !== origin.c) {
-      console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] Moviendo columna a ciudad origen (${origin.r},${origin.c})`);
-      this._requestMoveUnit(supplyUnit, origin.r, origin.c);
+    if (okRoute) {
+      console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] PASO 4 (CONVERTIR EN CARAVANA): ruta establecida ${cityA.name} <-> ${cityB.name}.`);
+      this._metricMarkCommercialUseful(myPlayer, 'create_caravan', {
+        pair: `${cityA.r},${cityA.c}|${cityB.r},${cityB.c}`,
+        supplyUnitId: supplyUnit.id
+      });
+      return true;
     }
 
-    console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] PASO 4: estableciendo ruta: ${origin.name} -> ${destination.name}`);
-    this._requestEstablishTradeRoute(supplyUnit, origin, destination, infraPath);
+    console.log('[IA_ARCHIPIELAGO] [Ruta Larga] PASO 4 (CONVERTIR EN CARAVANA) falló.');
+    this._metricSetCommercialBlocker(myPlayer, 'caravan_conversion_failed', 'retry_conversion_next_cycle', {
+      pair: `${cityA.r},${cityA.c}|${cityB.r},${cityB.c}`
+    });
+    return false;
   }
 };
 
