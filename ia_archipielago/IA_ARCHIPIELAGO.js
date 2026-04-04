@@ -72,6 +72,14 @@ const IAArchipielago = {
     }
   },
 
+  _importantLog(event, payload = {}) {
+    try {
+      console.log(`[IA_IMPORTANTE] ${JSON.stringify({ event, turn: gameState.turnNumber, ...payload })}`);
+    } catch (e) {
+      console.log(`[IA_IMPORTANTE] ${event}`);
+    }
+  },
+
   _metricGetTurnState(playerId) {
     if (!this._metricTurnState) this._metricTurnState = {};
     const currentTurn = Number(gameState.turnNumber || 0);
@@ -97,6 +105,12 @@ const IAArchipielago = {
     const st = this._metricGetTurnState(playerId);
     const routesCount = (units || []).filter(u => u.player === playerId && !!u.tradeRoute).length;
     st.objectiveCommercialMode = routesCount > 0 ? 'maintenance' : 'bootstrap';
+    this._importantLog('TURN_START', {
+      playerId,
+      phase,
+      commercialMode: st.objectiveCommercialMode,
+      activeRoutes: routesCount
+    });
     this._metricLog('IA_METRIC_TURN_START', {
       turn: st.turn,
       playerId,
@@ -235,14 +249,40 @@ const IAArchipielago = {
 
       // --- 1. RECOPILACIÓN DE DATOS ---
       const hexesPropios = IASentidos.getOwnedHexes(myPlayer);
-      const ciudades = IASentidos.getCities(myPlayer).filter(c => !this.isGoalCompletedFlujo('ocupacion', c.r, c.c, myPlayer));
-      const recursos = hexesPropios.filter(h => h.resourceNode && !this.isGoalCompletedFlujo('ocupacion', h.r, h.c, myPlayer));
+      const ciudades = IASentidos.getCities(myPlayer);
+      const ciudadesPropiasPendientes = ciudades.filter(c => !this.isGoalCompletedFlujo('ocupacion', c.r, c.c, myPlayer));
+      const recursosPropiosPendientes = hexesPropios.filter(h => h.resourceNode && !this.isGoalCompletedFlujo('ocupacion', h.r, h.c, myPlayer));
       const infraestructura = hexesPropios.filter(h => h.structure);
 
       // --- 2. FLUJO 1: OCUPACIÓN ---
       console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Iniciando...`);
       let ocupacionesRealizadas = 0;
-      const objetivosOcupacion = [...ciudades, ...recursos];
+      const corredoresTop = this._getTopCorridorObjectives(myPlayer, Math.max(1, Math.floor(maxOccupationObjectives / 2)));
+      if (corredoresTop.length > 0) {
+        const resumen = corredoresTop
+          .map(node => `${node.from?.name || 'NODO_A'}(${node.from?.r},${node.from?.c})->${node.to?.name || 'NODO_B'}(${node.to?.r},${node.to?.c}) via (${node.objective.r},${node.objective.c})`)
+          .join(' | ');
+        console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Corredores objetivo: ${resumen}`);
+      } else {
+        console.log('[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Sin corredores pendientes detectados en red comercial.');
+      }
+
+      const mapaRecursosNoPropios = Array.isArray(board)
+        ? board.flat().filter(h => h && h.resourceNode && h.owner !== myPlayer)
+        : [];
+      const ciudadesNoPropias = (gameState.cities || []).filter(c => c && c.owner !== myPlayer);
+      const objetivosCorredor = corredoresTop.map(n => n.objective).filter(Boolean);
+      const objetivosOcupacion = [...objetivosCorredor, ...ciudadesNoPropias, ...mapaRecursosNoPropios]
+        .filter(o => Number.isInteger(o?.r) && Number.isInteger(o?.c))
+        .filter(o => !this.isGoalCompletedFlujo('ocupacion', o.r, o.c, myPlayer))
+        .filter((o, idx, arr) => arr.findIndex(x => x.r === o.r && x.c === o.c) === idx);
+      this._importantLog('OCCUPATION_PLAN', {
+        playerId: myPlayer,
+        objectivesTotal: objetivosOcupacion.length,
+        corridorObjectives: objetivosCorredor.length,
+        foreignCities: ciudadesNoPropias.length,
+        foreignResources: mapaRecursosNoPropios.length
+      });
       let ocupacionProcesadas = 0;
       for (const obj of objetivosOcupacion) {
         if (ocupacionProcesadas >= maxOccupationObjectives) {
@@ -264,14 +304,42 @@ const IAArchipielago = {
             .find(u => !!this._findPathForUnit(u, obj.r, obj.c));
 
           if (!candidateUnit) continue;
+          const beforeOwner = board[obj.r]?.[obj.c]?.owner;
           const result = this._requestMoveOrAttack(candidateUnit, obj.r, obj.c);
           if (result) {
-            this.registrarMetaFlujo('ocupacion', obj.r, obj.c, myPlayer);
-            ocupacionesRealizadas++;
+            const afterOwner = board[obj.r]?.[obj.c]?.owner;
+            const conquered = beforeOwner !== myPlayer && afterOwner === myPlayer;
+            if (conquered) {
+              this.registrarMetaFlujo('ocupacion', obj.r, obj.c, myPlayer);
+              ocupacionesRealizadas++;
+              console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Conquista confirmada en (${obj.r},${obj.c}). ownerAntes=${beforeOwner} ownerDespues=${afterOwner}`);
+              this._importantLog('OCCUPATION_RESULT', {
+                playerId: myPlayer,
+                unitId: candidateUnit.id,
+                objective: `${obj.r},${obj.c}`,
+                result: 'conquered',
+                ownerBefore: beforeOwner,
+                ownerAfter: afterOwner
+              });
+            } else {
+              console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Movimiento táctico a (${obj.r},${obj.c}) sin conquista. ownerAntes=${beforeOwner} ownerDespues=${afterOwner}`);
+              this._importantLog('OCCUPATION_RESULT', {
+                playerId: myPlayer,
+                unitId: candidateUnit.id,
+                objective: `${obj.r},${obj.c}`,
+                result: 'reposition_only',
+                ownerBefore: beforeOwner,
+                ownerAfter: afterOwner
+              });
+            }
           }
         }
       }
       console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Finalizado. Conquistas: ${ocupacionesRealizadas}`);
+
+      // Activar "gusano" (split/merge + avance de corredor) después de ocupación base.
+      const accionesGusano = this._ejecutarGusanoCorredor(situacion, { maxActions: Math.max(2, Math.min(6, this.WORM_MAX_ACTIONS_PER_TURN)) });
+      console.log(`[IA_ARCHIPIELAGO][GUSANO] Acciones ejecutadas: ${accionesGusano}`);
 
       // --- 3. FLUJO 2: CONSTRUCCIÓN EXHAUSTIVA ---
       if (typeof this.construirInfraestructura === 'function') {
@@ -281,7 +349,7 @@ const IAArchipielago = {
 
       // --- 4. ANÁLISIS ECONÓMICO Y TÁCTICO ---
       const economia = (typeof IAEconomica !== 'undefined') ? IAEconomica.evaluarEconomia(myPlayer) : { oro: 0 };
-      const objetivosSiguientes = ciudades.concat(recursos);
+      const objetivosSiguientes = ciudadesPropiasPendientes.concat(recursosPropiosPendientes);
       const amenazas = (typeof IATactica !== 'undefined') ? IATactica.detectarAmenazasSobreObjetivos(myPlayer, objetivosSiguientes, 3) : [];
       const frente = (typeof IATactica !== 'undefined') ? IATactica.detectarFrente(myPlayer, 2) : [];
       const recursosEnMapa = (typeof IAEconomica !== 'undefined') ? IAEconomica.contarRecursosEnMapa(myPlayer) : { total: 0 };
@@ -1498,12 +1566,7 @@ const IAArchipielago = {
     if (typeof isNetworkGame === 'function' && isNetworkGame() && hasNetworkMatch && typeof NetworkManager !== 'undefined' && !NetworkManager.esAnfitrion) {
       if (NetworkManager.enviarDatos) {
         NetworkManager.enviarDatos({ type: 'actionRequest', action });
-        // Log de flujo ocupación
-        console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Unidad ${unit.id} movida a (${r},${c})`);
-        if (typeof this.registrarMetaFlujo === 'function') {
-          this.registrarMetaFlujo('ocupacion', r, c, unit.player);
-          console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Meta registrada en (${r},${c})`);
-        }
+        console.log(`[IA_ARCHIPIELAGO][MOVE] Unidad ${unit.id} movida a (${r},${c})`);
         this._metricLog('IA_ACTION_MOVE', {
           turn: gameState.turnNumber,
           playerId: unit.player,
@@ -1531,11 +1594,7 @@ const IAArchipielago = {
 
     if (typeof processActionRequest === 'function') {
       processActionRequest(action);
-      console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Unidad ${unit.id} movida a (${r},${c})`);
-      if (typeof this.registrarMetaFlujo === 'function') {
-        this.registrarMetaFlujo('ocupacion', r, c, unit.player);
-        console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Meta registrada en (${r},${c})`);
-      }
+      console.log(`[IA_ARCHIPIELAGO][MOVE] Unidad ${unit.id} movida a (${r},${c})`);
       this._metricLog('IA_ACTION_MOVE', {
         turn: gameState.turnNumber,
         playerId: unit.player,
@@ -1551,11 +1610,7 @@ const IAArchipielago = {
 
     if (typeof RequestMoveUnit === 'function') {
       RequestMoveUnit(unit, r, c);
-      console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Unidad ${unit.id} movida a (${r},${c})`);
-      if (typeof this.registrarMetaFlujo === 'function') {
-        this.registrarMetaFlujo('ocupacion', r, c, unit.player);
-        console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Meta registrada en (${r},${c})`);
-      }
+      console.log(`[IA_ARCHIPIELAGO][MOVE] Unidad ${unit.id} movida a (${r},${c})`);
       this._metricLog('IA_ACTION_MOVE', {
         turn: gameState.turnNumber,
         playerId: unit.player,
@@ -2809,11 +2864,20 @@ const IAArchipielago = {
     const { myPlayer } = situacion;
     const maxActions = Math.max(1, Number(opts.maxActions || this.WORM_MAX_ACTIONS_PER_TURN));
     const corridorObjectives = this._getTopCorridorObjectives(myPlayer, maxActions);
-    if (!corridorObjectives.length) return 0;
+    if (!corridorObjectives.length) {
+      console.log(`[IA_ARCHIPIELAGO][GUSANO] Sin objetivos de corredor pendientes para J${myPlayer}.`);
+      return 0;
+    }
     const bankCity = this._getBankCity();
     const bankObjectives = corridorObjectives.filter(node =>
       bankCity && node?.to?.r === bankCity.r && node?.to?.c === bankCity.c
     ).length;
+    this._importantLog('WORM_PLAN', {
+      playerId: myPlayer,
+      objectives: corridorObjectives.length,
+      bankObjectives,
+      maxActions
+    });
 
     let actions = 0;
     for (const node of corridorObjectives) {
@@ -2825,14 +2889,48 @@ const IAArchipielago = {
         .filter(u => !u.iaExpeditionTarget)
         .sort((a, b) => hexDistance(a.r, a.c, objective.r, objective.c) - hexDistance(b.r, b.c, objective.r, objective.c));
 
-      if (!myUnits.length) break;
+      if (!myUnits.length) {
+        console.log(`[IA_ARCHIPIELAGO][GUSANO] Sin unidades aptas para objetivo (${objective.r},${objective.c}) ${node.from?.name || 'NODO_A'} -> ${node.to?.name || 'NODO_B'}.`);
+        continue;
+      }
 
       let acted = false;
       const splitCandidate = myUnits.find(u => (u.regiments?.length || 0) >= this.WORM_MIN_SPLIT_REGIMENTS);
       if (splitCandidate && this._splitUnitTowardsObjective(splitCandidate, objective)) {
         console.log(`[IA_ARCHIPIELAGO] [Gusano] Split corredor hacia (${objective.r},${objective.c}) para ${node.from?.name} -> ${node.to?.name}`);
+        this._importantLog('WORM_ACTION', {
+          playerId: myPlayer,
+          action: 'split',
+          objective: `${objective.r},${objective.c}`,
+          pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+          unitId: splitCandidate.id,
+          regiments: splitCandidate.regiments?.length || 0
+        });
         actions += 1;
         acted = true;
+      } else if (splitCandidate) {
+        console.log(`[IA_ARCHIPIELAGO][GUSANO] Split no ejecutado para ${splitCandidate.id} hacia (${objective.r},${objective.c}) por restricciones de celda/acción.`);
+        this._importantLog('WORM_DECISION', {
+          playerId: myPlayer,
+          objective: `${objective.r},${objective.c}`,
+          pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+          split: 'rejected',
+          reason: 'cell_or_action_restriction',
+          unitId: splitCandidate.id,
+          regiments: splitCandidate.regiments?.length || 0
+        });
+      } else {
+        const maxRegs = myUnits.reduce((m, u) => Math.max(m, u.regiments?.length || 0), 0);
+        console.log(`[IA_ARCHIPIELAGO][GUSANO] Sin split: regimientos insuficientes (max=${maxRegs}, min=${this.WORM_MIN_SPLIT_REGIMENTS}) para objetivo (${objective.r},${objective.c}).`);
+        this._importantLog('WORM_DECISION', {
+          playerId: myPlayer,
+          objective: `${objective.r},${objective.c}`,
+          pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+          split: 'not_possible',
+          reason: 'insufficient_regiments',
+          maxRegimentsSeen: maxRegs,
+          minRequired: this.WORM_MIN_SPLIT_REGIMENTS
+        });
       }
 
       if (actions >= maxActions) break;
@@ -2841,6 +2939,14 @@ const IAArchipielago = {
         const mover = myUnits.find(u => this._findPathForUnit(u, objective.r, objective.c));
         if (mover && this._requestMoveOrAttack(mover, objective.r, objective.c)) {
           console.log(`[IA_ARCHIPIELAGO] [Gusano] Avance corredor hacia (${objective.r},${objective.c}) para ${node.from?.name} -> ${node.to?.name}`);
+          this._importantLog('WORM_ACTION', {
+            playerId: myPlayer,
+            action: 'move_or_attack',
+            objective: `${objective.r},${objective.c}`,
+            pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+            unitId: mover.id,
+            regiments: mover.regiments?.length || 0
+          });
           actions += 1;
         }
       }
@@ -4563,6 +4669,13 @@ const IAArchipielago = {
     if (pendingCapture.length > 0) {
       const target = pendingCapture[0];
       const objective = target.pendingCaptureSegments[0];
+      this._importantLog('TRADE_CHAIN_STEP', {
+        playerId: myPlayer,
+        step: 'occupy_pending_segment',
+        pair: `${target.from?.name || 'NODO_A'}->${target.to?.name || 'NODO_B'}`,
+        objective: `${objective.r},${objective.c}`,
+        pendingCaptureSegments: target.pendingCaptureSegments.length
+      });
       this._metricSetCommercialPending(myPlayer, {
         pendingNoOwn: target.pendingCaptureSegments.length,
         pendingOwnNoRoad: 0,
@@ -4627,6 +4740,12 @@ const IAArchipielago = {
 
     if (pending.length > 0) {
       const target = pending[0];
+      this._importantLog('TRADE_CHAIN_STEP', {
+        playerId: myPlayer,
+        step: 'build_pending_road',
+        pair: `${target.from?.name || 'NODO_A'}->${target.to?.name || 'NODO_B'}`,
+        pendingRoadSegments: target.missingOwnedSegments?.length || 0
+      });
       this._metricSetCommercialPending(myPlayer, {
         pendingNoOwn: 0,
         pendingOwnNoRoad: target.missingOwnedSegments.length,
@@ -4714,8 +4833,21 @@ const IAArchipielago = {
 
       if (!builtRoad) {
         this._metricSetCommercialBlocker(myPlayer, 'road_build_not_completed', 'retry_segments_next_cycle', { blockedByAlly });
+        this._importantLog('TRADE_CHAIN_RESULT', {
+          playerId: myPlayer,
+          result: 'no_road_built',
+          blockedByAlly,
+          pendingRoadSegments: target.missingOwnedSegments?.length || 0
+        });
         return false;
       }
+
+      this._importantLog('TRADE_CHAIN_RESULT', {
+        playerId: myPlayer,
+        result: 'road_built',
+        builtRoadCount,
+        remainingPendingRoadSegments: Math.max(0, (target.missingOwnedSegments?.length || 0) - builtRoadCount)
+      });
 
       // Prioridad: si hubo construcción de camino en este ciclo, continuar infraestructura antes de evaluar caravana.
       return true;
