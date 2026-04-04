@@ -25,6 +25,8 @@ const IAArchipielago = {
   MAX_RUTA_LARGA_CALLS_PER_TURN: 3,
   MAX_ROAD_BUILDS_PER_CYCLE: 3,
   ENABLE_ORGANIC_TRADE_LAYER: true,
+  COMMERCIAL_SPLIT_MERGE_MANDATORY_TURN_LIMIT: 2,
+  COMMERCIAL_MIN_SPLIT_MERGE_BEFORE_ROAD_BUILD: 12,
   LOG_ONLY_EARLY_TURN_EVENTS: true,
   EARLY_TURN_WORM_NODE_STATUS_LIMIT: 1,
   EARLY_TURN_IMPORTANT_EVENTS: Object.freeze([
@@ -250,6 +252,39 @@ const IAArchipielago = {
       };
     }
     return this._metricTurnState[playerId];
+  },
+
+  _isCommercialSplitMergeMandatoryTurn() {
+    const turn = Number(gameState.turnNumber || 0);
+    const limit = Math.max(1, Number(this.COMMERCIAL_SPLIT_MERGE_MANDATORY_TURN_LIMIT) || 2);
+    return turn <= limit;
+  },
+
+  _getCommercialSplitMergeTurnState(playerId) {
+    if (!this._commercialSplitMergeState) this._commercialSplitMergeState = {};
+    const currentTurn = Number(gameState.turnNumber || 0);
+    const existing = this._commercialSplitMergeState[playerId];
+    if (!existing || existing.turn !== currentTurn) {
+      this._commercialSplitMergeState[playerId] = {
+        turn: currentTurn,
+        playerId,
+        successfulRelays: 0
+      };
+    }
+    return this._commercialSplitMergeState[playerId];
+  },
+
+  _registerCommercialSplitMergeSuccess(playerId) {
+    const st = this._getCommercialSplitMergeTurnState(playerId);
+    st.successfulRelays += 1;
+    return st.successfulRelays;
+  },
+
+  _hasCommercialSplitMergeQuotaForRoadBuild(playerId) {
+    if (!this._isCommercialSplitMergeMandatoryTurn()) return true;
+    const minRequired = Math.max(1, Number(this.COMMERCIAL_MIN_SPLIT_MERGE_BEFORE_ROAD_BUILD) || 12);
+    const st = this._getCommercialSplitMergeTurnState(playerId);
+    return st.successfulRelays >= minRequired;
   },
 
   _metricStartTurn(playerId, phase = 'unknown') {
@@ -502,7 +537,22 @@ const IAArchipielago = {
 
           if (!candidateUnit) continue;
           const beforeOwner = board[obj.r]?.[obj.c]?.owner;
-          const result = this._requestMoveOrAttack(candidateUnit, obj.r, obj.c);
+          let result = false;
+          const fallbackAllowed = !this._isCommercialSplitMergeMandatoryTurn();
+
+          const relayAttempt = this._attemptSplitMergeRelayToObjective(
+            myPlayer,
+            candidateUnit,
+            obj,
+            { from: { name: 'OCUPACION_GENERAL' }, to: { name: 'OBJETIVO_CORREDOR' } },
+            this.MISSION_TYPE_COMMERCIAL_CORRIDOR
+          );
+          if (relayAttempt.ok && relayAttempt.moved) {
+            result = true;
+          } else if (fallbackAllowed) {
+            result = this._requestMoveOrAttack(candidateUnit, obj.r, obj.c, { missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR });
+          }
+
           if (result) {
             ocupacionProcesadas++;
             const afterOwner = board[obj.r]?.[obj.c]?.owner;
@@ -3094,6 +3144,40 @@ const IAArchipielago = {
     return { ok: true, relayUnitId: relay?.id || unit.id };
   },
 
+  _attemptSplitMergeRelayToObjective(myPlayer, unit, objective, node = null, missionType = null) {
+    if (!unit || !objective) return { ok: false, moved: false, reason: 'invalid_input' };
+    if ((unit.regiments?.length || 0) < this.WORM_MIN_SPLIT_REGIMENTS) {
+      return { ok: false, moved: false, reason: 'insufficient_regiments' };
+    }
+
+    const relay = this._splitMergeWormStep(myPlayer, unit, objective, node || {
+      from: { name: 'OCUPACION' },
+      to: { name: 'OBJETIVO' }
+    });
+    if (!relay.ok) return { ok: false, moved: false, reason: relay.reason || 'split_failed' };
+
+    const relayUnit = (IASentidos.getUnits(myPlayer) || []).find(u => u.id === relay.relayUnitId);
+    if (!relayUnit || (relayUnit.currentMovement || 0) <= 0) {
+      return {
+        ok: true,
+        moved: false,
+        relayUnitId: relay.relayUnitId,
+        reason: 'relay_without_movement'
+      };
+    }
+
+    const moved = this._requestMoveOrAttack(relayUnit, objective.r, objective.c, { missionType });
+    if (moved && missionType === this.MISSION_TYPE_COMMERCIAL_CORRIDOR) {
+      this._registerCommercialSplitMergeSuccess(myPlayer);
+    }
+    return {
+      ok: true,
+      moved: !!moved,
+      relayUnitId: relayUnit.id,
+      reason: moved ? 'relay_move_success' : 'relay_move_failed'
+    };
+  },
+
   _getTopCorridorObjectives(myPlayer, maxObjectives = 3) {
     const roadPlan = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
     if (!roadPlan.connections?.length) return [];
@@ -3303,29 +3387,19 @@ const IAArchipielago = {
 
         let acted = false;
         const splitCandidate = myUnits.find(u => (u.regiments?.length || 0) >= this.WORM_MIN_SPLIT_REGIMENTS);
+        const fallbackAllowed = !this._isCommercialSplitMergeMandatoryTurn();
         if (splitCandidate) {
-          const relay = this._splitMergeWormStep(myPlayer, splitCandidate, objective, node);
+          const relay = this._attemptSplitMergeRelayToObjective(
+            myPlayer,
+            splitCandidate,
+            objective,
+            node,
+            this.MISSION_TYPE_COMMERCIAL_CORRIDOR
+          );
           if (relay.ok) {
-            actions += 1;
-            acted = true;
-
-            const relayUnit = (IASentidos.getUnits(myPlayer) || []).find(u => u.id === relay.relayUnitId);
-            if (relayUnit && (relayUnit.currentMovement || 0) > 0 && actions < maxActions) {
-              const moved = this._requestMoveOrAttack(relayUnit, objective.r, objective.c, { missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR });
-              if (moved) {
-                this._importantLog('WORM_ACTION', {
-                  playerId: myPlayer,
-                  action: 'relay_move',
-                  missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR,
-                  objective: `${objective.r},${objective.c}`,
-                  pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
-                  unitId: relayUnit.id,
-                  regiments: relayUnit.regiments?.length || 0
-                });
-                actions += 1;
-                nodeTerminalReason = 'relay_progress';
-              }
-            }
+            actions += relay.moved ? 2 : 1;
+            acted = !!relay.moved;
+            nodeTerminalReason = relay.moved ? 'relay_progress' : (relay.reason || 'relay_partial');
           } else {
             nodeTerminalReason = relay.reason || 'split_failed';
             this._importantLog('WORM_DECISION', {
@@ -3353,6 +3427,17 @@ const IAArchipielago = {
         }
 
         if (!acted) {
+          if (!fallbackAllowed) {
+            nodeTerminalReason = 'split_merge_required_no_fallback';
+            this._importantLog('WORM_STEP_SKIPPED', {
+              playerId: myPlayer,
+              pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+              objective: `${objective.r},${objective.c}`,
+              stepIndex,
+              reason: 'split_merge_required_no_fallback'
+            });
+            break;
+          }
           const mover = myUnits.find(u => this._findPathForUnit(u, objective.r, objective.c));
           if (mover && this._requestMoveOrAttack(mover, objective.r, objective.c, { missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR })) {
             this._importantLog('WORM_ACTION', {
@@ -5299,19 +5384,57 @@ const IAArchipielago = {
 
       if (actingUnit) {
         console.log(`[IA_ARCHIPIELAGO] [Ruta Larga] PASO 1 (OCUPAR CASILLAS): ocupando (${objective.r},${objective.c}) para ${target.from.name} -> ${target.to.name}`);
-        this._requestMoveOrAttack(actingUnit, objective.r, objective.c);
-        this._metricMarkCommercialUseful(myPlayer, 'occupy_hex', {
-          hex: `${objective.r},${objective.c}`,
-          unitId: actingUnit.id,
-          pair: `${target.from.r},${target.from.c}|${target.to.r},${target.to.c}`
-        });
-        return true;
+        const relayAttempt = this._attemptSplitMergeRelayToObjective(
+          myPlayer,
+          actingUnit,
+          objective,
+          { from: target.from, to: target.to },
+          this.MISSION_TYPE_COMMERCIAL_CORRIDOR
+        );
+        if (relayAttempt.ok && relayAttempt.moved) {
+          this._metricMarkCommercialUseful(myPlayer, 'occupy_hex_split_merge_relay', {
+            hex: `${objective.r},${objective.c}`,
+            unitId: relayAttempt.relayUnitId || actingUnit.id,
+            pair: `${target.from.r},${target.from.c}|${target.to.r},${target.to.c}`
+          });
+          return true;
+        }
+
+        if (this._isCommercialSplitMergeMandatoryTurn()) {
+          this._metricSetCommercialBlocker(myPlayer, 'split_merge_required_no_fallback', 'split_merge_only_occupy', {
+            turn: gameState.turnNumber,
+            objective: `${objective.r},${objective.c}`,
+            relayReason: relayAttempt.reason || 'relay_not_available'
+          });
+          return false;
+        }
+
+        const moved = this._requestMoveOrAttack(actingUnit, objective.r, objective.c, { missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR });
+        if (moved) {
+          this._metricMarkCommercialUseful(myPlayer, 'occupy_hex', {
+            hex: `${objective.r},${objective.c}`,
+            unitId: actingUnit.id,
+            pair: `${target.from.r},${target.from.c}|${target.to.r},${target.to.c}`
+          });
+          return true;
+        }
       }
 
       // Regla estricta: si aún hay segmentos por ocupar entre nodos, no avanzar a construcción.
       console.log('[IA_ARCHIPIELAGO] [Ruta Larga] PASO 1 (OCUPAR CASILLAS) bloqueado: sin unidad disponible. Se pospone PASO 2.');
       this._metricSetCommercialBlocker(myPlayer, 'no_eligible_division_for_occupy', 'produce_or_reassign_division', {
         hex: `${objective.r},${objective.c}`
+      });
+      return false;
+    }
+
+    if (!this._hasCommercialSplitMergeQuotaForRoadBuild(myPlayer)) {
+      const st = this._getCommercialSplitMergeTurnState(myPlayer);
+      const minRequired = Math.max(1, Number(this.COMMERCIAL_MIN_SPLIT_MERGE_BEFORE_ROAD_BUILD) || 12);
+      this._metricSetCommercialBlocker(myPlayer, 'road_blocked_by_split_merge_quota', 'continue_split_merge_occupy', {
+        turn: gameState.turnNumber,
+        splitMergeSuccess: st.successfulRelays,
+        splitMergeRequired: minRequired
       });
       return false;
     }

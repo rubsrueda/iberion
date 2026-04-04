@@ -10,7 +10,13 @@ class IntervalManager {
     constructor() {
         this.intervals = new Map();
         this.timeouts = new Map();
-        console.log('[IntervalManager] Inicializado');
+        this.verboseLogs = false;
+        this._log('[IntervalManager] Inicializado');
+    }
+
+    _log(...args) {
+        if (!this.verboseLogs) return;
+        console.log(...args);
     }
     
     /**
@@ -40,7 +46,7 @@ class IntervalManager {
             createdAt: Date.now()
         });
         
-        console.log(`[IntervalManager] Interval creado: ${id} (cada ${delay}ms)`);
+        this._log(`[IntervalManager] Interval creado: ${id} (cada ${delay}ms)`);
         return intervalId;
     }
     
@@ -56,7 +62,7 @@ class IntervalManager {
         if (interval) {
             clearInterval(interval.intervalId);
             this.intervals.delete(id);
-            console.log(`[IntervalManager] Interval eliminado: ${id}`);
+            this._log(`[IntervalManager] Interval eliminado: ${id}`);
             return true;
         }
         
@@ -96,7 +102,7 @@ class IntervalManager {
             createdAt: Date.now()
         });
         
-        console.log(`[IntervalManager] Timeout creado: ${id} (en ${delay}ms)`);
+        this._log(`[IntervalManager] Timeout creado: ${id} (en ${delay}ms)`);
         return timeoutId;
     }
     
@@ -112,7 +118,7 @@ class IntervalManager {
         if (timeout) {
             clearTimeout(timeout.timeoutId);
             this.timeouts.delete(id);
-            console.log(`[IntervalManager] Timeout eliminado: ${id}`);
+            this._log(`[IntervalManager] Timeout eliminado: ${id}`);
             return true;
         }
         
@@ -140,7 +146,7 @@ class IntervalManager {
         keysToDelete.forEach(id => this.intervals.delete(id));
         
         if (count > 0) {
-            console.log(`[IntervalManager] Eliminados ${count} intervals con prefijo: ${prefix}`);
+            this._log(`[IntervalManager] Eliminados ${count} intervals con prefijo: ${prefix}`);
         }
     }
     
@@ -164,7 +170,7 @@ class IntervalManager {
         keysToDelete.forEach(id => this.timeouts.delete(id));
         
         if (count > 0) {
-            console.log(`[IntervalManager] Eliminados ${count} timeouts con prefijo: ${prefix}`);
+            this._log(`[IntervalManager] Eliminados ${count} timeouts con prefijo: ${prefix}`);
         }
     }
     
@@ -173,7 +179,7 @@ class IntervalManager {
      * Usar al salir del juego o cambiar de pantalla principal
      */
     clearAll() {
-        console.log(`[IntervalManager] Limpiando ${this.intervals.size} intervals y ${this.timeouts.size} timeouts...`);
+        this._log(`[IntervalManager] Limpiando ${this.intervals.size} intervals y ${this.timeouts.size} timeouts...`);
         
         // Limpiar intervals
         for (const [id, interval] of this.intervals) {
@@ -195,7 +201,7 @@ class IntervalManager {
         
         this.intervals.clear();
         this.timeouts.clear();
-        console.log('[IntervalManager] Todos los intervals y timeouts eliminados');
+        this._log('[IntervalManager] Todos los intervals y timeouts eliminados');
     }
     
     /**
@@ -256,11 +262,11 @@ class IntervalManager {
      */
     logStats() {
         const stats = this.getStats();
-        console.log('[IntervalManager] Estadísticas:');
-        console.log('  Total intervals:', stats.totalIntervals);
-        console.log('  Total timeouts:', stats.totalTimeouts);
-        console.log('  Intervals activos:', stats.intervals);
-        console.log('  Timeouts activos:', stats.timeouts);
+        this._log('[IntervalManager] Estadísticas:');
+        this._log('  Total intervals:', stats.totalIntervals);
+        this._log('  Total timeouts:', stats.totalTimeouts);
+        this._log('  Intervals activos:', stats.intervals);
+        this._log('  Timeouts activos:', stats.timeouts);
     }
 }
 

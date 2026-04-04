@@ -16,6 +16,8 @@ const RESEARCH_REWARDS = {
     caravanTradeInterval: 1, // Cada 5 intercambios completados por caravanas
 };
 
+const RESEARCH_REWARDS_VERBOSE_LOGS = false;
+
 /**
  * Manager principal para otorgar puntos de investigación.
  */
@@ -68,9 +70,10 @@ const ResearchRewardsManager = {
         gameState.playerResources[playerId].researchPoints += amount;
         
         const reasonText = reason ? ` (${reason})` : "";
-        logMessage(`+${amount} 💡 Puntos de Investigación${reasonText}`, "event");
-        
-        console.log(`[ResearchRewards] J${playerId} recibe ${amount} puntos de investigación${reasonText}. Total: ${gameState.playerResources[playerId].researchPoints}`);
+        if (RESEARCH_REWARDS_VERBOSE_LOGS) {
+            logMessage(`+${amount} 💡 Puntos de Investigación${reasonText}`, "event");
+            console.log(`[ResearchRewards] J${playerId} recibe ${amount} puntos de investigación${reasonText}. Total: ${gameState.playerResources[playerId].researchPoints}`);
+        }
         
         // Actualizar UI
         if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
