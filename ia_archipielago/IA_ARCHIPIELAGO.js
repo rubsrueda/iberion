@@ -270,6 +270,12 @@ const IAArchipielago = {
       const turnStartTs = Date.now();
       const turnBudgetMs = Math.max(40, Number(this.TURN_CPU_BUDGET_MS) || 120);
       const maxOccupationObjectives = Math.max(1, Number(this.MAX_OCCUPATION_OBJECTIVES_PER_TURN) || 8);
+      this._importantLog('OCCUPATION_LIMIT_CONFIG', {
+        playerId: myPlayer,
+        configuredMaxOccupationObjectives: Number(this.MAX_OCCUPATION_OBJECTIVES_PER_TURN) || null,
+        effectiveMaxOccupationObjectives: maxOccupationObjectives,
+        turnBudgetMs
+      });
 
       if (typeof IASentidos === 'undefined') {
         console.error(`[IA_ARCHIPIELAGO] ERROR CRÍTICO: IASentidos no disponible.`);
@@ -357,6 +363,7 @@ const IAArchipielago = {
       console.log(`[IA_ARCHIPIELAGO][GUSANO] Acciones ejecutadas: ${accionesGusano}`);
 
       let ocupacionProcesadas = 0;
+      let ocupacionObjetivosEvaluados = 0;
       for (const obj of objetivosOcupacion) {
         if (ocupacionProcesadas >= maxOccupationObjectives) {
           console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Límite de objetivos alcanzado (${maxOccupationObjectives}).`);
@@ -367,7 +374,7 @@ const IAArchipielago = {
           break;
         }
 
-        ocupacionProcesadas++;
+        ocupacionObjetivosEvaluados++;
         if (this._requestMoveOrAttack) {
           const candidateUnit = (IASentidos.getUnits(myPlayer) || [])
             .filter(u => u && u.currentHealth > 0)
@@ -381,6 +388,7 @@ const IAArchipielago = {
           const beforeOwner = board[obj.r]?.[obj.c]?.owner;
           const result = this._requestMoveOrAttack(candidateUnit, obj.r, obj.c);
           if (result) {
+            ocupacionProcesadas++;
             const afterOwner = board[obj.r]?.[obj.c]?.owner;
             const conquered = beforeOwner !== myPlayer && afterOwner === myPlayer;
             if (conquered) {
@@ -409,6 +417,14 @@ const IAArchipielago = {
           }
         }
       }
+      this._importantLog('OCCUPATION_QUOTA_STATUS', {
+        playerId: myPlayer,
+        quotaMode: 'success_only',
+        objectivesEvaluated: ocupacionObjetivosEvaluados,
+        quotaConsumedByActions: ocupacionProcesadas,
+        quotaMax: maxOccupationObjectives,
+        conquistas: ocupacionesRealizadas
+      });
       console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Finalizado. Conquistas: ${ocupacionesRealizadas}`);
 
       // --- 3. FLUJO 2: CONSTRUCCIÓN EXHAUSTIVA ---
@@ -3047,10 +3063,37 @@ const IAArchipielago = {
     for (const node of corridorObjectives) {
       if (actions >= maxActions) break;
       const objective = node.objective;
+      const nodeActionsBefore = actions;
+      let nodeTerminalReason = 'not_set';
+      const nodeObjectiveHex = board[objective.r]?.[objective.c];
+      const nodeUnits = IASentidos.getUnits(myPlayer)
+        .filter(u => this._isLandUnit(u))
+        .filter(u => (u.currentMovement || 0) > 0)
+        .filter(u => !u.iaExpeditionTarget);
+      this._importantLog('WORM_NODE_STATUS', {
+        playerId: myPlayer,
+        pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+        objective: `${objective.r},${objective.c}`,
+        objectiveOwner: nodeObjectiveHex?.owner ?? null,
+        objectiveHasUnit: !!getUnitOnHex(objective.r, objective.c),
+        availableUnits: nodeUnits.length,
+        splitCandidates: nodeUnits.filter(u => (u.regiments?.length || 0) >= this.WORM_MIN_SPLIT_REGIMENTS).length,
+        pathCandidates: nodeUnits.filter(u => !!this._findPathForUnit(u, objective.r, objective.c)).length
+      });
       const maxNodeSteps = Math.max(1, maxActions - actions);
       for (let stepIndex = 0; stepIndex < maxNodeSteps && actions < maxActions; stepIndex++) {
         const objectiveHex = board[objective.r]?.[objective.c];
         if (objectiveHex?.owner === myPlayer || (getUnitOnHex(objective.r, objective.c)?.player === myPlayer)) {
+          nodeTerminalReason = 'objective_already_owned_or_occupied';
+          this._importantLog('WORM_STEP_SKIPPED', {
+            playerId: myPlayer,
+            pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+            objective: `${objective.r},${objective.c}`,
+            stepIndex,
+            reason: 'objective_already_owned_or_occupied',
+            owner: objectiveHex?.owner ?? null,
+            occupiedBy: getUnitOnHex(objective.r, objective.c)?.player ?? null
+          });
           break;
         }
 
@@ -3062,6 +3105,14 @@ const IAArchipielago = {
 
         if (!myUnits.length) {
           console.log(`[IA_ARCHIPIELAGO][GUSANO] Sin unidades aptas para objetivo (${objective.r},${objective.c}) ${node.from?.name || 'NODO_A'} -> ${node.to?.name || 'NODO_B'}.`);
+          nodeTerminalReason = 'no_available_units_with_movement';
+          this._importantLog('WORM_STEP_SKIPPED', {
+            playerId: myPlayer,
+            pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+            objective: `${objective.r},${objective.c}`,
+            stepIndex,
+            reason: 'no_available_units_with_movement'
+          });
           break;
         }
 
@@ -3087,9 +3138,11 @@ const IAArchipielago = {
                   regiments: relayUnit.regiments?.length || 0
                 });
                 actions += 1;
+                nodeTerminalReason = 'relay_progress';
               }
             }
           } else {
+            nodeTerminalReason = relay.reason || 'split_failed';
             this._importantLog('WORM_DECISION', {
               playerId: myPlayer,
               objective: `${objective.r},${objective.c}`,
@@ -3102,6 +3155,7 @@ const IAArchipielago = {
           }
         } else {
           const maxRegs = myUnits.reduce((m, u) => Math.max(m, u.regiments?.length || 0), 0);
+          nodeTerminalReason = 'insufficient_regiments';
           this._importantLog('WORM_DECISION', {
             playerId: myPlayer,
             objective: `${objective.r},${objective.c}`,
@@ -3127,11 +3181,28 @@ const IAArchipielago = {
             });
             actions += 1;
             acted = true;
+            nodeTerminalReason = 'move_or_attack_progress';
+          } else {
+            nodeTerminalReason = mover ? 'move_or_attack_failed' : 'no_path_to_objective';
+            this._importantLog('WORM_STEP_SKIPPED', {
+              playerId: myPlayer,
+              pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+              objective: `${objective.r},${objective.c}`,
+              stepIndex,
+              reason: mover ? 'move_or_attack_failed' : 'no_path_to_objective'
+            });
           }
         }
 
         if (!acted) break;
       }
+      this._importantLog('WORM_NODE_RESULT', {
+        playerId: myPlayer,
+        pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+        objective: `${objective.r},${objective.c}`,
+        actionsDelta: actions - nodeActionsBefore,
+        reason: nodeTerminalReason === 'not_set' ? 'no_progress_recorded' : nodeTerminalReason
+      });
     }
 
     console.log(`[IA DIAG][GUSANO] J${myPlayer} objetivos=${corridorObjectives.length} bankObj=${bankObjectives} acciones=${actions}/${maxActions}`);
@@ -4743,13 +4814,16 @@ const IAArchipielago = {
   _getRoadNetworkPlan(myPlayer, ciudades) {
     const ownCities = (ciudades || []).filter(c => c && c.owner === myPlayer);
     const connections = [];
+    const seenPairs = new Set();
     const bankCity = this._getBankCity();
 
     for (const origin of ownCities) {
-      const candidate = (ciudades || [])
+      const candidates = (ciudades || [])
         .filter(c => this._isAllowedTradeDestinationForCaravan(c, myPlayer))
         .filter(dest => !(dest.r === origin.r && dest.c === origin.c))
         .map(dest => {
+          const pairKey = this._getTradePairKey(origin, dest);
+          if (!pairKey || seenPairs.has(pairKey)) return null;
           let conn = this._findRoadConnection(origin, dest, myPlayer, null);
           let planningMode = 'strict_owned_only';
           if (!conn) {
@@ -4761,6 +4835,7 @@ const IAArchipielago = {
           return {
             from: origin,
             to: dest,
+            pairKey,
             landPath: conn.landPath,
             missingOwnedSegments: conn.missingOwnedSegments,
             pendingCaptureSegments: conn.pendingCaptureSegments,
@@ -4777,9 +4852,11 @@ const IAArchipielago = {
           const bState = b.pendingCaptureSegments?.length ? 0 : (b.missingOwnedSegments?.length ? 1 : 2);
           if (aState !== bState) return aState - bState;
           return a.distance - b.distance;
-        })[0];
+        });
 
-      if (candidate) {
+      for (const candidate of candidates) {
+        if (!candidate?.pairKey || seenPairs.has(candidate.pairKey)) continue;
+        seenPairs.add(candidate.pairKey);
         connections.push(candidate);
       }
     }
