@@ -22,6 +22,10 @@ const IAArchipielago = {
   TURN_CPU_BUDGET_MS: 90000,
   MAX_OCCUPATION_OBJECTIVES_PER_TURN: 12,
   MAX_ROUTE_ACTIONS_PER_TURN: 6,
+  POINT_SUPREMACY_RUSH_START_TURN: 4,
+  POINT_SUPREMACY_RUSH_END_TURN: 7,
+  POINT_SUPREMACY_MIN_READY_ROUTES: 1,
+  POINT_SUPREMACY_ROUTE_ACTION_BONUS: 2,
   MAX_RUTA_LARGA_CALLS_PER_TURN: 3,
   MAX_ROAD_BUILDS_PER_CYCLE: 3,
   ENABLE_ORGANIC_TRADE_LAYER: true,
@@ -4113,7 +4117,15 @@ const IAArchipielago = {
   _ejecutarRutaGloria(situacion) {
     const combat = this._ejecutarPresionMilitar(situacion, 'gloria');
     const ruins = this._ejecutarRutaGranArqueologo(situacion);
-    return { action: 'victoria_por_puntos', executed: combat.executed || ruins.executed };
+    const tech = this._ejecutarRutaMasAvances(situacion);
+    const cities = this._ejecutarRutaMasCiudades(situacion);
+    const executed = !!(combat.executed || ruins.executed || tech.executed || cities.executed);
+    const executedCount = [combat, ruins, tech, cities].filter(r => r?.executed).length;
+    return {
+      action: 'victoria_por_puntos',
+      executed,
+      note: `acciones_utiles=${executedCount}`
+    };
   },
 
   _ejecutarPresionMilitar(situacion, reason) {
@@ -4525,6 +4537,92 @@ const IAArchipielago = {
     };
   },
 
+  _buildPointSupremacyContext(situacion, myMetrics = {}, enemyMetrics = {}, rutaLargaMeta = {}) {
+    const turn = Number(gameState.turnNumber || 0);
+    const startTurn = Math.max(1, Number(this.POINT_SUPREMACY_RUSH_START_TURN) || 4);
+    const endTurn = Math.max(startTurn, Number(this.POINT_SUPREMACY_RUSH_END_TURN) || 7);
+    const inWindow = turn >= startTurn && turn <= endTurn;
+    const routeCount = Number(myMetrics.routesCount || 0);
+    const minRoutes = Math.max(0, Number(this.POINT_SUPREMACY_MIN_READY_ROUTES) || 1);
+    const hasTradeRoutes = routeCount >= minRoutes;
+    const infraReady = !!rutaLargaMeta?.hasInfra;
+    const currentPoints = Number(rutaLargaMeta?.currentPoints || 0);
+    const remainingPoints = Math.max(0, Number(rutaLargaMeta?.remainingPoints || VICTORY_POINTS_TO_WIN));
+    const enemyUnits = Number(enemyMetrics.unitCount || 0);
+    const militarySafe = enemyUnits <= Math.max(1, (myMetrics.unitCount || 0) * 1.15);
+
+    const active = inWindow && hasTradeRoutes && (infraReady || routeCount >= minRoutes) && remainingPoints > 0;
+    return {
+      active,
+      turn,
+      inWindow,
+      routeCount,
+      hasTradeRoutes,
+      infraReady,
+      currentPoints,
+      remainingPoints,
+      militarySafe
+    };
+  },
+
+  _applyPointSupremacyWeights(rutas, context) {
+    if (!context?.active || !Array.isArray(rutas)) return rutas;
+
+    const boostById = {
+      ruta_gloria: 950,
+      ruta_mas_ciudades: 360,
+      ruta_ejercito_grande: 320,
+      ruta_mas_victorias: 320,
+      ruta_mas_avances: 280,
+      ruta_gran_arqueologo: 260,
+      ruta_conquistador_barbaro: 260,
+      ruta_frente_humano: 180,
+      ruta_dominar_casillas: 170,
+      ruta_caza_envolvente: 160,
+      ruta_capital: context.militarySafe ? 110 : 40,
+      ruta_aniquilacion: context.militarySafe ? 100 : 25,
+      ruta_sabotaje: 90,
+      ruta_cortar_suministro: 85
+    };
+
+    const penalties = {
+      ruta_larga: 0.2,
+      ruta_infraestructura_prioritaria: 0.15,
+      ruta_corredor_nodos: 0.25,
+      ruta_mas_comercios: 0.15,
+      ruta_mas_riqueza: 0.2,
+      ruta_piedra_hills_urgente: 0.2
+    };
+
+    return rutas.map(ruta => {
+      if (!ruta) return ruta;
+      let weight = Number(ruta.weight || 0);
+
+      if (boostById[ruta.id]) {
+        weight += boostById[ruta.id];
+      }
+
+      if (penalties[ruta.id]) {
+        weight *= penalties[ruta.id];
+      }
+
+      if (ruta.id === 'ruta_gloria' && context.remainingPoints <= 3) {
+        weight += 240;
+      }
+
+      return {
+        ...ruta,
+        weight,
+        meta: {
+          ...(ruta.meta || {}),
+          pointSupremacyRush: true,
+          rushTurn: context.turn,
+          rushRemainingPoints: context.remainingPoints
+        }
+      };
+    });
+  },
+
   _executeEarlyStoneHillsMission(myPlayer) {
     const assignments = this._getEarlyStoneHillsAssignments(myPlayer, 1);
     if (!assignments.length) return 0;
@@ -4654,6 +4752,8 @@ const IAArchipielago = {
     const victoryPointsEnabled = gameState.victoryByPointsEnabled ?? VICTORY_BY_POINTS_ENABLED_DEFAULT;
     const currentPoints = gameState.victoryPoints?.[myKey] || 0;
     const remainingPoints = Math.max(0, VICTORY_POINTS_TO_WIN - currentPoints);
+    const rutaLarga = this._evaluarRutaLarga(situacion, myMetrics, enemyMetrics, holders);
+    const pointContextSeed = { hasInfra: !!rutaLarga?.meta?.hasInfra, currentPoints, remainingPoints };
     rutas.push({
       id: 'ruta_gloria',
       label: 'Puntos de Victoria',
@@ -4662,7 +4762,7 @@ const IAArchipielago = {
       meta: { currentPoints, remainingPoints }
     });
 
-    rutas.push(this._evaluarRutaLarga(situacion, myMetrics, enemyMetrics, holders));
+    rutas.push(rutaLarga);
 
     pushTitleRoute('ruta_mas_ciudades', 'Mas Ciudades', 'cities', 'mostCities');
     pushTitleRoute('ruta_ejercito_grande', 'Ejercito Grande', 'armySize', 'largestArmy');
@@ -4721,8 +4821,22 @@ const IAArchipielago = {
       meta: { enemyUnits: enemyMetrics.unitCount || 0 }
     });
 
-    rutas.sort((a, b) => b.weight - a.weight);
-    return rutas;
+    const pointSupremacyContext = this._buildPointSupremacyContext(situacion, myMetrics, enemyMetrics, pointContextSeed);
+    let normalizedRoutes = this._applyPointSupremacyWeights(rutas, pointSupremacyContext);
+
+    if (pointSupremacyContext.active) {
+      this._importantLog('POINT_SUPREMACY_RUSH', {
+        playerId: myPlayer,
+        turn: pointSupremacyContext.turn,
+        currentPoints: pointSupremacyContext.currentPoints,
+        remainingPoints: pointSupremacyContext.remainingPoints,
+        routeCount: pointSupremacyContext.routeCount,
+        infraReady: pointSupremacyContext.infraReady
+      });
+    }
+
+    normalizedRoutes.sort((a, b) => b.weight - a.weight);
+    return normalizedRoutes;
   },
 
   _evaluarRutaLarga(situacion, myMetrics, enemyMetrics, holders) {
@@ -4824,7 +4938,9 @@ const IAArchipielago = {
     if (!rutas.length) return;
 
     const logLimit = this.ARCHI_LOG_VERBOSE ? rutas.length : (this.ARCHI_LOG_ROUTE_LIMIT || 3);
-    const maxRouteActions = Math.max(1, Number(this.MAX_ROUTE_ACTIONS_PER_TURN) || 4);
+    const pointRushActive = rutas.some(r => r?.meta?.pointSupremacyRush === true);
+    const pointRushBonus = pointRushActive ? Math.max(0, Number(this.POINT_SUPREMACY_ROUTE_ACTION_BONUS) || 0) : 0;
+    const maxRouteActions = Math.max(1, (Number(this.MAX_ROUTE_ACTIONS_PER_TURN) || 4) + pointRushBonus);
     const turnStartTs = Number(situacion.turnStartTs || Date.now());
     const turnBudgetMs = Math.max(40, Number(situacion.turnBudgetMs || this.TURN_CPU_BUDGET_MS || 120));
     let executedRoutes = 0;
