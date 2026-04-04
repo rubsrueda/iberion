@@ -311,8 +311,26 @@ const IAArchipielago = {
           .map(node => `${node.from?.name || 'NODO_A'}(${node.from?.r},${node.from?.c})->${node.to?.name || 'NODO_B'}(${node.to?.r},${node.to?.c}) via (${node.objective.r},${node.objective.c})`)
           .join(' | ');
         console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Corredores objetivo: ${resumen}`);
+        this._importantLog('CORRIDOR_OBJECTIVES', {
+          playerId: myPlayer,
+          count: corredoresTop.length,
+          objectives: corredoresTop.map(node => ({
+            from: `${node.from?.r},${node.from?.c}`,
+            to: `${node.to?.r},${node.to?.c}`,
+            objective: `${node.objective.r},${node.objective.c}`,
+            pendingType: node.score < 10 ? 'capture' : 'build'
+          }))
+        });
       } else {
         console.log('[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Sin corredores pendientes detectados en red comercial.');
+        const diag = this._diagnoseCorridorObjectives(myPlayer, 8);
+        this._importantLog('CORRIDOR_OBJECTIVES_DIAG', {
+          playerId: myPlayer,
+          ownNodes: diag.ownNodes,
+          tradeNodes: diag.tradeNodes,
+          analyzedPairs: diag.analyzedPairs,
+          sample: diag.sample
+        });
       }
 
       const mapaRecursosNoPropios = Array.isArray(board)
@@ -2962,6 +2980,50 @@ const IAArchipielago = {
     return candidates;
   },
 
+  _diagnoseCorridorObjectives(myPlayer, maxPairs = 8) {
+    const cities = this._getTradeCityCandidates(myPlayer);
+    const ownCities = cities.filter(c => c && c.owner === myPlayer);
+    const tradeCities = cities.filter(c => this._isAllowedTradeDestinationForCaravan(c, myPlayer));
+    const sample = [];
+    const permissiveOwners = new Set([myPlayer, 0, 9, null, undefined]);
+
+    for (const origin of ownCities) {
+      for (const dest of tradeCities) {
+        if (!origin || !dest) continue;
+        if (origin.r === dest.r && origin.c === dest.c) continue;
+        if (sample.length >= maxPairs) break;
+
+        const strict = this._findRoadConnection(origin, dest, myPlayer, null);
+        const permissive = this._findRoadConnection(origin, dest, myPlayer, permissiveOwners);
+        let status = 'no_path';
+        if (strict) {
+          if ((strict.pendingCaptureSegments?.length || 0) > 0) status = 'pending_capture';
+          else if ((strict.missingOwnedSegments?.length || 0) > 0) status = 'pending_build';
+          else status = 'ready_no_pending';
+        } else if (permissive) {
+          status = 'blocked_by_owner_filter';
+        }
+
+        sample.push({
+          from: `${origin.r},${origin.c}`,
+          to: `${dest.r},${dest.c}`,
+          status,
+          pendingCapture: strict?.pendingCaptureSegments?.length || 0,
+          pendingBuild: strict?.missingOwnedSegments?.length || 0,
+          pathLen: strict?.landPath?.length || permissive?.landPath?.length || 0
+        });
+      }
+      if (sample.length >= maxPairs) break;
+    }
+
+    return {
+      ownNodes: ownCities.length,
+      tradeNodes: tradeCities.length,
+      analyzedPairs: sample.length,
+      sample
+    };
+  },
+
   _ejecutarGusanoCorredor(situacion, opts = {}) {
     const { myPlayer } = situacion;
     const maxActions = Math.max(1, Number(opts.maxActions || this.WORM_MAX_ACTIONS_PER_TURN));
@@ -4641,7 +4703,7 @@ const IAArchipielago = {
       if (!hex) return false;
       if (isEndpoint) return true;
       if (hex.isCity) return true;
-      if (allowedOwners && !allowedOwners.has(hex.owner)) return false;
+      if (allowedOwners && allowedOwners !== 'ANY' && !allowedOwners.has(hex.owner)) return false;
       if (!allowedOwners && hex.owner !== myPlayer) return false;
       if (hex.terrain === 'water' || hex.terrain === 'forest') return false;
       if (roadBuildable?.length > 0 && !roadBuildable.includes(hex.terrain)) return false;
@@ -4688,7 +4750,13 @@ const IAArchipielago = {
         .filter(c => this._isAllowedTradeDestinationForCaravan(c, myPlayer))
         .filter(dest => !(dest.r === origin.r && dest.c === origin.c))
         .map(dest => {
-          const conn = this._findRoadConnection(origin, dest, myPlayer, null);
+          let conn = this._findRoadConnection(origin, dest, myPlayer, null);
+          let planningMode = 'strict_owned_only';
+          if (!conn) {
+            // Fallback para misión corredor: detectar conectividad potencial aunque haya hexes no propios.
+            conn = this._findRoadConnection(origin, dest, myPlayer, 'ANY');
+            planningMode = conn ? 'permissive_corridor_detection' : planningMode;
+          }
           if (!conn) return null;
           return {
             from: origin,
@@ -4696,6 +4764,7 @@ const IAArchipielago = {
             landPath: conn.landPath,
             missingOwnedSegments: conn.missingOwnedSegments,
             pendingCaptureSegments: conn.pendingCaptureSegments,
+            planningMode,
             distance: hexDistance(origin.r, origin.c, dest.r, dest.c)
           };
         })
