@@ -4897,8 +4897,8 @@ const IAArchipielago = {
     if (!start || !goal) return null;
     const startKey = `${start.r},${start.c}`;
     const goalKey = `${goal.r},${goal.c}`;
-    const queue = [start];
-    const visited = new Set([startKey]);
+    const open = [{ r: start.r, c: start.c, key: startKey, cost: 0 }];
+    const dist = new Map([[startKey, 0]]);
     const prev = new Map();
 
     const canTraverse = (hex, isEndpoint) => {
@@ -4912,24 +4912,30 @@ const IAArchipielago = {
       return true;
     };
 
-    while (queue.length > 0) {
-      const current = queue.shift();
-      const key = `${current.r},${current.c}`;
+    while (open.length > 0) {
+      open.sort((a, b) => a.cost - b.cost);
+      const current = open.shift();
+      const key = current.key;
+      if ((dist.get(key) ?? Infinity) < current.cost) continue;
       if (key === goalKey) break;
 
       for (const neighbor of getHexNeighbors(current.r, current.c)) {
         const nKey = `${neighbor.r},${neighbor.c}`;
-        if (visited.has(nKey)) continue;
         const hex = board[neighbor.r]?.[neighbor.c];
         const isEndpoint = nKey === goalKey;
         if (!canTraverse(hex, isEndpoint)) continue;
-        visited.add(nKey);
+
+        const stepCost = this._roadPathStepCost(hex, myPlayer, isEndpoint);
+        const nextCost = current.cost + stepCost;
+        if (nextCost >= (dist.get(nKey) ?? Infinity)) continue;
+
+        dist.set(nKey, nextCost);
         prev.set(nKey, key);
-        queue.push({ r: neighbor.r, c: neighbor.c });
+        open.push({ r: neighbor.r, c: neighbor.c, key: nKey, cost: nextCost });
       }
     }
 
-    if (!visited.has(goalKey)) return null;
+    if (!dist.has(goalKey)) return null;
 
     const path = [];
     let cursor = goalKey;
@@ -4940,6 +4946,33 @@ const IAArchipielago = {
     }
     path.reverse();
     return path;
+  },
+
+  _roadPathStepCost(hex, myPlayer, isEndpoint = false) {
+    if (!hex) return 999;
+    if (isEndpoint || hex.isCity) return 0.1;
+
+    let cost = 1.0;
+
+    // Reutilizar caminos ya construidos es más barato que abrir trazado nuevo.
+    if (hex.structure === 'Camino') {
+      cost -= 0.85;
+    } else if (hex.structure) {
+      cost += 0.8;
+    }
+
+    if (hex.owner === myPlayer) {
+      cost -= 0.25;
+    } else if (hex.owner == null || hex.owner === 0 || Number(hex.owner) === 9) {
+      cost += 0.15;
+    } else {
+      cost += 0.45;
+    }
+
+    if (hex.terrain === 'hills') cost += 0.15;
+    if (hex.terrain === 'mountain' || hex.terrain === 'mountains') cost += 0.35;
+
+    return Math.max(0.05, cost);
   },
 
   _getRoadNetworkPlan(myPlayer, ciudades) {
