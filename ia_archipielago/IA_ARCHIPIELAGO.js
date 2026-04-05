@@ -22,6 +22,11 @@ const IAArchipielago = {
   TURN_CPU_BUDGET_MS: 90000,
   MAX_OCCUPATION_OBJECTIVES_PER_TURN: 12,
   MAX_ROUTE_ACTIONS_PER_TURN: 6,
+  HERO_FIX_START_TURN: 3,
+  HERO_CAPABILITY_PUSH_START_TURN: 5,
+  INFRA_FIX_START_TURN: 3,
+  IDEAL_VILLAGES_TARGET: 2,
+  EXPLORER_RUINS_STRICT_START_TURN: 3,
   POINT_SUPREMACY_RUSH_START_TURN: 4,
   POINT_SUPREMACY_RUSH_END_TURN: 7,
   POINT_SUPREMACY_MIN_READY_ROUTES: 1,
@@ -640,6 +645,7 @@ const IAArchipielago = {
       situacion.rutas = rutas;
       this._logRutasDeVictoria(rutas);
       this._procesarRutasDeVictoria(situacion);
+      this._forceHeroProgressWhenPossible(situacion);
       this._ensureMinimumCommercialAction(situacion);
 
       // Plan de emergencia si no hubo progreso
@@ -1630,6 +1636,7 @@ const IAArchipielago = {
 
     console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Oro disponible: ${economia.oro}`);
     const esTurnoTemprano = (gameState.turnNumber || 0) < 4;
+    const infraFixEnabled = Number(gameState.turnNumber || 0) >= Math.max(3, Number(this.INFRA_FIX_START_TURN) || 3);
     const reservaPiedraMinima = 500;
     let hizoAlgo = false;
 
@@ -1684,18 +1691,16 @@ const IAArchipielago = {
 
     // PRIORIDAD 2: Fortalezas estratégicas en el corredor comercial.
     const piedraTrasCaminos = gameState.playerResources?.[myPlayer]?.piedra || 0;
-    if (esTurnoTemprano) {
-      console.log('[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Veda de fortalezas activa (turno < 4).');
-      return;
-    }
-    if (piedraTrasCaminos < reservaPiedraMinima) {
-      console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Reserva de piedra insuficiente para fortaleza (${piedraTrasCaminos}/${reservaPiedraMinima}).`);
-      return;
-    }
+    const fortBlockedByTurn = esTurnoTemprano;
+    const fortBlockedByStone = piedraTrasCaminos < reservaPiedraMinima;
+    const fortBlockedByTech = !this._ensureTech(myPlayer, 'FORTIFICATIONS');
 
-    if (!this._ensureTech(myPlayer, 'FORTIFICATIONS')) {
+    if (fortBlockedByTurn) {
+      console.log('[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Veda de fortalezas activa (turno < 4).');
+    } else if (fortBlockedByStone) {
+      console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Reserva de piedra insuficiente para fortaleza (${piedraTrasCaminos}/${reservaPiedraMinima}).`);
+    } else if (fortBlockedByTech) {
       console.log('[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Falta FORTIFICATIONS para fortaleza estratégica.');
-      return;
     }
 
     const MAX_EXPANSION_FORTS = this._getFortressLimitByHuman(myPlayer);
@@ -1704,7 +1709,8 @@ const IAArchipielago = {
       h && h.owner === myPlayer && (h.structure === 'Fortaleza' || h.structure === 'Fortaleza con Muralla')
     );
 
-    if (existingExpandForts.length < MAX_EXPANSION_FORTS) {
+    const canBuildFortress = !fortBlockedByTurn && !fortBlockedByStone && !fortBlockedByTech;
+    if (canBuildFortress && existingExpandForts.length < MAX_EXPANSION_FORTS) {
       const allOccupied = [...existingExpandForts];
 
       // Segmentos del corredor → candidatos preferidos (serán ciudades conectadas).
@@ -1753,6 +1759,12 @@ const IAArchipielago = {
           hizoAlgo = true;
         }
       }
+    }
+
+    // PRIORIDAD 3 (fix desde turno 3): asegurar mínimo de aldeas para puntos fáciles.
+    if (infraFixEnabled) {
+      const villagesBuilt = this._buildIdealVillages(myPlayer, hexesPropios);
+      if (villagesBuilt > 0) hizoAlgo = true;
     }
 
     if (!hizoAlgo) {
@@ -2298,6 +2310,12 @@ const IAArchipielago = {
 
     // Guardrail IA: fortalezas <= fortalezas humanas + 2 y separación mínima de 5.
     if (structureType === 'Fortaleza') {
+      const infraFixEnabled = Number(gameState.turnNumber || 0) >= Math.max(3, Number(this.INFRA_FIX_START_TURN) || 3);
+      if (infraFixEnabled && hex.structure === 'Camino') {
+        playerRetryState.keys.add(retryKey);
+        return false;
+      }
+
       const MIN_FORT_SPACING = 5;
       const existingForts = board.flat().filter(h =>
         h &&
@@ -3921,7 +3939,38 @@ const IAArchipielago = {
   _selectCommanderId(myPlayer) {
     this._ensureActiveCommanders(myPlayer);
     const active = gameState.activeCommanders[myPlayer];
+    const turn = Number(gameState.turnNumber || 0);
+    const robustEnabled = turn >= Math.max(3, Number(this.HERO_FIX_START_TURN) || 3);
+    if (!robustEnabled) {
+      const commanderIds = Object.keys(COMMANDERS || {});
+      for (const commanderId of commanderIds) {
+        if (!active.includes(commanderId)) return commanderId;
+      }
+      return null;
+    }
+
+    const fallen = gameState.fallenCommanders?.[myPlayer] || [];
+    const assignedNow = new Set(
+      (units || [])
+        .filter(u => u && u.player === myPlayer && !!u.commander)
+        .map(u => String(u.commander))
+    );
     const commanderIds = Object.keys(COMMANDERS || {});
+
+    // Prioridad: comandante no activo, no caído y no usado actualmente.
+    for (const commanderId of commanderIds) {
+      if (fallen.includes(commanderId)) continue;
+      if (active.includes(commanderId)) continue;
+      if (assignedNow.has(String(commanderId))) continue;
+      return commanderId;
+    }
+
+    // Fallback defensivo ante desincronización de activeCommanders.
+    for (const commanderId of commanderIds) {
+      if (fallen.includes(commanderId)) continue;
+      if (!assignedNow.has(String(commanderId))) return commanderId;
+    }
+
     for (const commanderId of commanderIds) {
       if (!active.includes(commanderId)) return commanderId;
     }
@@ -4117,6 +4166,46 @@ const IAArchipielago = {
     return { action: 'heroes', executed: true, note: commanderId };
   },
 
+  _buildIdealVillages(myPlayer, hexesPropios = []) {
+    const turn = Number(gameState.turnNumber || 0);
+    const minTurn = Math.max(3, Number(this.INFRA_FIX_START_TURN) || 3);
+    if (turn < minTurn) return 0;
+
+    const targetVillages = Math.max(0, Number(this.IDEAL_VILLAGES_TARGET) || 2);
+    if (targetVillages <= 0) return 0;
+
+    const currentVillages = board.flat().filter(h => h && h.owner === myPlayer && h.structure === 'Aldea').length;
+    const needed = Math.max(0, targetVillages - currentVillages);
+    if (needed <= 0) return 0;
+
+    const fortLikeOrigins = (hexesPropios || []).filter(h =>
+      h && !h.unit && (h.structure === 'Fortaleza' || h.structure === 'Fortaleza con Muralla')
+    );
+    if (!fortLikeOrigins.length) return 0;
+
+    let built = 0;
+    for (const spot of fortLikeOrigins) {
+      if (built >= needed) break;
+      if (!this._canAffordStructure(myPlayer, 'Aldea')) break;
+      if (this._requestBuildStructure(myPlayer, spot.r, spot.c, 'Aldea')) {
+        this.registrarMetaFlujo('construccion', spot.r, spot.c, myPlayer);
+        built += 1;
+      }
+    }
+
+    if (built > 0) {
+      this._metricLog('IA_VILLAGE_EXPANSION', {
+        turn: gameState.turnNumber,
+        playerId: myPlayer,
+        builtVillages: built,
+        targetVillages,
+        villagesAfter: currentVillages + built
+      });
+    }
+
+    return built;
+  },
+
   _ejecutarRutaMasComercios(situacion) {
     const existingRouteKeys = this._getExistingTradeRouteKeys(situacion.myPlayer);
     const candidate = this._findBestTradeCityPair(this._getTradeCityCandidates(situacion.myPlayer), situacion.myPlayer, existingRouteKeys);
@@ -4191,9 +4280,16 @@ const IAArchipielago = {
     const ruins = this._getUnexploredRuins();
     if (!ruins.length) return 0;
 
-    const hasRecon = this._ensureTech(myPlayer, 'RECONNAISSANCE');
+    const currentTurn = Number(gameState.turnNumber || 0);
+    const strictRuinsFocus = currentTurn >= Math.max(3, Number(this.EXPLORER_RUINS_STRICT_START_TURN) || 3);
+
+    let hasRecon = this._ensureTech(myPlayer, 'RECONNAISSANCE');
     if (!hasRecon && typeof this._investResearch === 'function') {
       this._investResearch(myPlayer, ['RECONNAISSANCE', 'LEADERSHIP', 'ENGINEERING'], 1);
+      // Desde turno 3, revalidar tras invertir para permitir explorar en el mismo turno si ya quedó habilitado.
+      if (strictRuinsFocus) {
+        hasRecon = this._ensureTech(myPlayer, 'RECONNAISSANCE');
+      }
     }
 
     const explorers = (IASentidos.getUnits(myPlayer) || [])
@@ -4205,7 +4301,11 @@ const IAArchipielago = {
 
     let actions = 0;
     for (const explorer of explorers) {
-      const target = this._pickObjective(ruins, explorer, myPlayer);
+      const reachableRuins = strictRuinsFocus
+        ? ruins.filter(ruin => !!this._findPathForUnit(explorer, ruin.r, ruin.c))
+        : [];
+      const targetPool = (strictRuinsFocus && reachableRuins.length > 0) ? reachableRuins : ruins;
+      const target = this._pickObjective(targetPool, explorer, myPlayer);
       if (!target) continue;
 
       if (explorer.r === target.r && explorer.c === target.c && hasRecon) {
@@ -4213,6 +4313,14 @@ const IAArchipielago = {
           actions += 1;
         }
         continue;
+      }
+
+      if (strictRuinsFocus) {
+        const step = this._getMoveStepTowards(explorer, target.r, target.c);
+        if (step && this._requestMoveUnit(explorer, step.r, step.c)) {
+          actions += 1;
+          continue;
+        }
       }
 
       if (this._requestMoveOrAttack(explorer, target.r, target.c)) {
@@ -4226,7 +4334,8 @@ const IAArchipielago = {
         playerId: myPlayer,
         actions,
         ruins: ruins.length,
-        recon: !!hasRecon
+        recon: !!hasRecon,
+        strictRuinsFocus
       });
     }
 
@@ -4283,6 +4392,42 @@ const IAArchipielago = {
       ruinsAction: ruinsResult?.executed ? 'executed' : (ruinsResult?.reason || 'skipped'),
       heroesAction: heroResult?.executed ? 'executed' : (heroResult?.reason || 'skipped')
     });
+  },
+
+  _forceHeroProgressWhenPossible(situacion) {
+    const myPlayer = situacion?.myPlayer;
+    if (!myPlayer) return false;
+
+    const turn = Number(gameState.turnNumber || 0);
+    const startTurn = Math.max(5, Number(this.HERO_CAPABILITY_PUSH_START_TURN) || 5);
+    if (turn < startTurn) return false;
+
+    const commanderId = this._selectCommanderId(myPlayer);
+    if (!commanderId) return false;
+
+    const hasFreeHQ = (units || []).some(u =>
+      u &&
+      u.player === myPlayer &&
+      u.currentHealth > 0 &&
+      !u.commander &&
+      u.regiments?.some(r => r.type === 'Cuartel General')
+    );
+    const canProduceHQ = typeof AiGameplayManager !== 'undefined' && typeof AiGameplayManager.produceUnit === 'function';
+
+    if (!hasFreeHQ && !canProduceHQ) return false;
+
+    const heroResult = this._ejecutarRutaMasHeroes(situacion);
+    this._metricLog('IA_HERO_CAPABILITY_PUSH', {
+      turn,
+      playerId: myPlayer,
+      commanderCandidate: commanderId,
+      hasFreeHQ,
+      canProduceHQ,
+      executed: !!heroResult?.executed,
+      reason: heroResult?.reason || null
+    });
+
+    return !!heroResult?.executed;
   },
 
   _ejecutarRutaCapital(situacion) {
