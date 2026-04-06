@@ -3449,6 +3449,24 @@ const IAArchipielago = {
             mergeRejectReason = 'merge_request_rejected_worm';
           } else {
             mergeConfirmed = !!this._consumeWormMergeConfirmed(original.id, created.id);
+
+            // En local, mergeUnits es async y el callback de confirmacion puede llegar tarde.
+            // Si el estado de unidades ya refleja la fusion (target crece o source desaparece),
+            // tomamos el merge como confirmado para no cortar la cadena del gusano.
+            if (!mergeConfirmed) {
+              const liveUnits = IASentidos.getUnits(myPlayer) || [];
+              const liveTarget = liveUnits.find(u => u.id === created.id);
+              const liveSource = liveUnits.find(u => u.id === original.id);
+              const targetRegsAfter = liveTarget?.regiments?.length || 0;
+              const sourceStillAlive = !!liveSource;
+              const sourceRegsBefore = original.regiments?.length || 0;
+              const targetRegsBefore = created.regiments?.length || 0;
+
+              if (!sourceStillAlive || targetRegsAfter > targetRegsBefore || targetRegsAfter >= (sourceRegsBefore + targetRegsBefore)) {
+                mergeConfirmed = true;
+              }
+            }
+
             if (!mergeConfirmed) mergeRejectReason = 'merge_not_confirmed_yet';
           }
         }
