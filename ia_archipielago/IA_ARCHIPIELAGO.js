@@ -36,7 +36,7 @@ const IAArchipielago = {
   MAX_ROAD_BUILDS_PER_CYCLE: 3,
   ENABLE_ORGANIC_TRADE_LAYER: true,
   COMMERCIAL_SPLIT_MERGE_MANDATORY_TURN_LIMIT: 2,
-  COMMERCIAL_MIN_SPLIT_MERGE_BEFORE_ROAD_BUILD: 12,
+  COMMERCIAL_MIN_SPLIT_MERGE_BEFORE_ROAD_BUILD: 3,
   LOG_ONLY_EARLY_TURN_EVENTS: true,
   EARLY_TURN_WORM_NODE_STATUS_LIMIT: 1,
   EARLY_TURN_IMPORTANT_EVENTS: Object.freeze([
@@ -292,7 +292,7 @@ const IAArchipielago = {
 
   _hasCommercialSplitMergeQuotaForRoadBuild(playerId) {
     if (!this._isCommercialSplitMergeMandatoryTurn()) return true;
-    const minRequired = Math.max(1, Number(this.COMMERCIAL_MIN_SPLIT_MERGE_BEFORE_ROAD_BUILD) || 12);
+    const minRequired = Math.max(1, Number(this.COMMERCIAL_MIN_SPLIT_MERGE_BEFORE_ROAD_BUILD) || 3);
     const st = this._getCommercialSplitMergeTurnState(playerId);
     return st.successfulRelays >= minRequired;
   },
@@ -3296,7 +3296,7 @@ const IAArchipielago = {
     }
 
     const moved = this._requestMoveOrAttack(relayUnit, objective.r, objective.c, { missionType });
-    if (moved && missionType === this.MISSION_TYPE_COMMERCIAL_CORRIDOR) {
+    if (missionType === this.MISSION_TYPE_COMMERCIAL_CORRIDOR) {
       this._registerCommercialSplitMergeSuccess(myPlayer);
     }
     return {
@@ -3517,6 +3517,7 @@ const IAArchipielago = {
         let acted = false;
         const splitCandidate = myUnits.find(u => (u.regiments?.length || 0) >= this.WORM_MIN_SPLIT_REGIMENTS);
         const fallbackAllowed = !this._isCommercialSplitMergeMandatoryTurn();
+        let controlledFallbackAllowed = false;
         if (splitCandidate) {
           const relay = this._attemptSplitMergeRelayToObjective(
             myPlayer,
@@ -3528,6 +3529,7 @@ const IAArchipielago = {
           if (relay.ok) {
             actions += relay.moved ? 2 : 1;
             acted = !!relay.moved;
+            controlledFallbackAllowed = !relay.moved && relay.reason === 'relay_without_movement';
             nodeTerminalReason = relay.moved ? 'relay_progress' : (relay.reason || 'relay_partial');
           } else {
             nodeTerminalReason = relay.reason || 'split_failed';
@@ -3556,7 +3558,7 @@ const IAArchipielago = {
         }
 
         if (!acted) {
-          if (!fallbackAllowed) {
+          if (!fallbackAllowed && !controlledFallbackAllowed) {
             nodeTerminalReason = 'split_merge_required_no_fallback';
             this._importantLog('WORM_STEP_SKIPPED', {
               playerId: myPlayer,
@@ -3567,7 +3569,10 @@ const IAArchipielago = {
             });
             break;
           }
-          const mover = myUnits.find(u => this._findPathForUnit(u, objective.r, objective.c));
+          const mover = myUnits.find(u => {
+            if (splitCandidate && u.id === splitCandidate.id) return false;
+            return !!this._findPathForUnit(u, objective.r, objective.c);
+          }) || myUnits.find(u => this._findPathForUnit(u, objective.r, objective.c));
           if (mover && this._requestMoveOrAttack(mover, objective.r, objective.c, { missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR })) {
             this._importantLog('WORM_ACTION', {
               playerId: myPlayer,
@@ -5851,7 +5856,8 @@ const IAArchipielago = {
           return true;
         }
 
-        if (this._isCommercialSplitMergeMandatoryTurn()) {
+        const controlledFallbackAllowed = relayAttempt.ok && !relayAttempt.moved && relayAttempt.reason === 'relay_without_movement';
+        if (this._isCommercialSplitMergeMandatoryTurn() && !controlledFallbackAllowed) {
           this._metricSetCommercialBlocker(myPlayer, 'split_merge_required_no_fallback', 'split_merge_only_occupy', {
             turn: gameState.turnNumber,
             objective: `${objective.r},${objective.c}`,
