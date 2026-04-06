@@ -1,0 +1,26 @@
+name: Corridor Baseline Guard
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  baseline-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run corridor baseline guard
+        shell: bash
+        run: |
+          chmod +x scripts/ci/check_corridor_baseline_guard.sh
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            ./scripts/ci/check_corridor_baseline_guard.sh "origin/${{ github.base_ref }}" "${{ github.sha }}"
+          else
+            ./scripts/ci/check_corridor_baseline_guard.sh "HEAD~1" "${{ github.sha }}"
+          fi
