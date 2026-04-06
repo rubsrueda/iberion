@@ -8,6 +8,23 @@ Todas las modificaciones importantes al juego serán documentadas en este archiv
 
 ---
 
+## V1.154 - 2026-04-06
+### Baseline Estable: Ocupación de Casillas por Corredor (Split+Merge Gusano)
+- Se consolida como baseline estable el flujo de ocupación inicial/mantenimiento de corredor.
+- Modo `bootstrap` operativo con tope de 12 acciones para primeras capas de expansión.
+- Confirmación de merge en trazas humanas (`Merge=CONFIRMADO`) y recuperación de encadenado gusano.
+- Se añade traza de versión/milestone para facilitar restauración en futuras regresiones.
+
+**Criterios de aceptación del baseline (referencia):**
+- Log `IA_DIAG[GUSANO]` alcanzando `acciones=12/12` en turno de arranque bajo condiciones normales.
+- Trazas de gusano con `Merge=CONFIRMADO` en vez de estado pendiente permanente.
+- Menor trabajo redundante post-gusano cuando ya se agotó presupuesto de ocupación.
+
+**Objetivo de este hito:**
+- Proveer un punto de restauración confiable antes de iterar sobre capas de victoria (puntos/aniquilación).
+
+---
+
 ## V1.001 - 2026-01-30
 ### Sistema de Versionado + OAuth Funcional
 - Implementado sistema de versionado automático (V1.XXX)

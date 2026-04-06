@@ -3,6 +3,8 @@
 const VERSION_CONFIG = {
     // Versión actual del juego
     current: "1.154",
+    // Hito estable para restauración rápida en regresiones de IA
+    milestone: "corridor-capture-stable-v1.154",
     
     /**
      * Incrementa la versión automáticamente
@@ -24,6 +26,14 @@ const VERSION_CONFIG = {
      */
     get() {
         return this.current;
+    },
+
+    /**
+     * Obtiene el milestone actual de estabilidad
+     * @returns {string} Milestone estable
+     */
+    getMilestone() {
+        return this.milestone;
     },
     
     /**
