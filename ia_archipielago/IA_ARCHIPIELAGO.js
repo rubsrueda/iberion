@@ -38,6 +38,8 @@ const IAArchipielago = {
   COMMERCIAL_SPLIT_MERGE_MANDATORY_TURN_LIMIT: 2,
   COMMERCIAL_MIN_SPLIT_MERGE_BEFORE_ROAD_BUILD: 3,
   LOG_ONLY_EARLY_TURN_EVENTS: true,
+  WORM_HUMAN_TRACE: true,
+  WORM_HUMAN_TRACE_INCLUDE_IDS: false,
   WORM_DETAILED_TRACE: false,
   CORRIDOR_SUMMARY_SAMPLE_LIMIT: 3,
   EARLY_TURN_WORM_NODE_STATUS_LIMIT: 1,
@@ -3240,6 +3242,34 @@ const IAArchipielago = {
     return !!(mission && (mission.type === 'OCCUPY_THEN_BUILD' || mission.nodoRazon === 'ORGANIC_CARAVAN_CORRIDOR'));
   },
 
+  _formatWormUnitForHumanTrace(unitLike) {
+    if (!unitLike) return 'Division desconocida (?,?)';
+    const name = unitLike.name || 'Division';
+    const coords = (Number.isInteger(unitLike.r) && Number.isInteger(unitLike.c))
+      ? `(${unitLike.r},${unitLike.c})`
+      : '(?,?)';
+    const regs = Number.isInteger(unitLike.regimentsCount)
+      ? unitLike.regimentsCount
+      : (unitLike.regiments?.length || 0);
+    const includeIds = !!this.WORM_HUMAN_TRACE_INCLUDE_IDS;
+    const idText = includeIds && unitLike.id ? ` [${unitLike.id}]` : '';
+    return `${name}${idText} ${coords} ${regs} reg`;
+  },
+
+  _emitWormHumanStepTrace({ myPlayer, pair, objective, sourceBefore, created, mergeRequested, mergeRejectReason = null, relayUnit, moved, progressed, reason }) {
+    if (!this.WORM_HUMAN_TRACE) return;
+    const sourceText = this._formatWormUnitForHumanTrace(sourceBefore);
+    const createdText = created ? this._formatWormUnitForHumanTrace(created) : 'sin nueva division';
+    const relayText = this._formatWormUnitForHumanTrace(relayUnit);
+    const mergeText = created
+      ? (mergeRequested
+        ? 'Merge=OK'
+        : `Merge=FALLO${mergeRejectReason ? `(${mergeRejectReason})` : ''}`)
+      : 'Merge=N/A';
+    const resultText = `Resultado=${reason || 'desconocido'} moved=${!!moved} progressed=${!!progressed}`;
+    console.log(`[IA_ARCHIPIELAGO][GUSANO TRAZA] J${myPlayer} ${pair} objetivo=(${objective?.r},${objective?.c}) | Inicio=${sourceText} | Split=${createdText} | ${mergeText} | Relay=${relayText} | ${resultText}`);
+  },
+
   _splitUnitTowardsObjective(unit, objective) {
     if (!unit || !objective) return false;
     const regimientosActuales = unit.regiments?.length || 0;
@@ -3269,6 +3299,13 @@ const IAArchipielago = {
 
   _splitMergeWormStep(myPlayer, unit, objective, node) {
     if (!unit || !objective) return { ok: false, reason: 'invalid_input' };
+    const sourceBefore = {
+      id: unit.id,
+      name: unit.name,
+      r: unit.r,
+      c: unit.c,
+      regimentsCount: unit.regiments?.length || 0
+    };
     this._importantLog('WORM_STEP_START', {
       playerId: myPlayer,
       pair: `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
@@ -3301,10 +3338,24 @@ const IAArchipielago = {
 
     let relay = created || (afterUnits.find(u => u.id === unit.id) || unit);
     let merged = false;
+    let mergeRequested = false;
+    let mergeRejectReason = null;
     if (created) {
       const original = afterUnits.find(u => u.id === unit.id);
       if (original && original.id !== created.id) {
-        merged = this._requestMergeUnits(original, created);
+        if (this._isUnitActionCoolingDown(original.player, original.id, 'merge')) {
+          mergeRejectReason = 'cooldown_source_unit';
+        } else if (this._isUnitActionCoolingDown(created.player, created.id, 'merge')) {
+          mergeRejectReason = 'cooldown_target_unit';
+        } else if (this._isMergePairCoolingDown(original.player, original.id, created.id)) {
+          mergeRejectReason = 'cooldown_pair';
+        } else if (typeof RequestMergeUnits !== 'function') {
+          mergeRejectReason = 'merge_api_unavailable';
+        } else {
+          merged = this._requestMergeUnits(original, created);
+          mergeRequested = !!merged;
+          if (!merged) mergeRejectReason = 'merge_request_rejected';
+        }
         this._importantLog('WORM_MERGE', {
           playerId: myPlayer,
           pair: `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
@@ -3313,7 +3364,8 @@ const IAArchipielago = {
           fromAt: `${original.r},${original.c}`,
           toUnitId: created.id,
           toAt: `${created.r},${created.c}`,
-          mergeRequested: !!merged
+          mergeRequested: !!merged,
+          mergeRejectReason: mergeRejectReason || null
         });
       }
       relay = afterUnits.find(u => u.id === created.id) || created;
@@ -3331,7 +3383,17 @@ const IAArchipielago = {
       relayUnitId: relay?.id || unit.id
     });
 
-    return { ok: true, relayUnitId: relay?.id || unit.id };
+    return {
+      ok: true,
+      relayUnitId: relay?.id || unit.id,
+      trace: {
+        pair: `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
+        sourceBefore,
+        created: created || null,
+        mergeRequested,
+        mergeRejectReason
+      }
+    };
   },
 
   _attemptSplitMergeRelayToObjective(myPlayer, unit, objective, node = null, missionType = null) {
@@ -3356,6 +3418,19 @@ const IAArchipielago = {
         relayAt: relayUnit ? `${relayUnit.r},${relayUnit.c}` : null,
         relayMovement: relayUnit?.currentMovement ?? 0,
         moved: false,
+        reason: 'relay_without_movement'
+      });
+      this._emitWormHumanStepTrace({
+        myPlayer,
+        pair: relay.trace?.pair || `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
+        objective,
+        sourceBefore: relay.trace?.sourceBefore,
+        created: relay.trace?.created,
+        mergeRequested: relay.trace?.mergeRequested,
+        mergeRejectReason: relay.trace?.mergeRejectReason,
+        relayUnit,
+        moved: false,
+        progressed: false,
         reason: 'relay_without_movement'
       });
       return {
@@ -3384,6 +3459,19 @@ const IAArchipielago = {
       if (missionType === this.MISSION_TYPE_COMMERCIAL_CORRIDOR) {
         this._registerCommercialSplitMergeSuccess(myPlayer);
       }
+      this._emitWormHumanStepTrace({
+        myPlayer,
+        pair: relay.trace?.pair || `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
+        objective,
+        sourceBefore: relay.trace?.sourceBefore,
+        created: relay.trace?.created,
+        mergeRequested: relay.trace?.mergeRequested,
+        mergeRejectReason: relay.trace?.mergeRejectReason,
+        relayUnit,
+        moved: false,
+        progressed: true,
+        reason: 'relay_objective_reached'
+      });
       return {
         ok: true,
         moved: false,
@@ -3408,6 +3496,19 @@ const IAArchipielago = {
     if (missionType === this.MISSION_TYPE_COMMERCIAL_CORRIDOR) {
       this._registerCommercialSplitMergeSuccess(myPlayer);
     }
+    this._emitWormHumanStepTrace({
+      myPlayer,
+      pair: relay.trace?.pair || `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
+      objective,
+      sourceBefore: relay.trace?.sourceBefore,
+      created: relay.trace?.created,
+      mergeRequested: relay.trace?.mergeRequested,
+      mergeRejectReason: relay.trace?.mergeRejectReason,
+      relayUnit,
+      moved: !!moved,
+      progressed: !!moved,
+      reason: moved ? 'relay_move_success' : 'relay_move_failed'
+    });
     return {
       ok: true,
       moved: !!moved,
