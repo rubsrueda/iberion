@@ -38,6 +38,8 @@ const IAArchipielago = {
   COMMERCIAL_SPLIT_MERGE_MANDATORY_TURN_LIMIT: 2,
   COMMERCIAL_MIN_SPLIT_MERGE_BEFORE_ROAD_BUILD: 3,
   LOG_ONLY_EARLY_TURN_EVENTS: true,
+  WORM_DETAILED_TRACE: false,
+  CORRIDOR_SUMMARY_SAMPLE_LIMIT: 3,
   EARLY_TURN_WORM_NODE_STATUS_LIMIT: 1,
   EARLY_TURN_IMPORTANT_EVENTS: Object.freeze([
     'OCCUPATION_LIMIT_CONFIG',
@@ -188,6 +190,12 @@ const IAArchipielago = {
 
   _shouldSuppressByEarlyTurnFilter(event, payload = {}, channel = 'important') {
     if (!this.LOG_ONLY_EARLY_TURN_EVENTS) return false;
+
+    if (channel === 'important' && !this.WORM_DETAILED_TRACE) {
+      if (event === 'WORM_ACTION' || event === 'WORM_DECISION' || event === 'WORM_STEP_SKIPPED') {
+        return true;
+      }
+    }
 
     const allowedImportant = this.EARLY_TURN_IMPORTANT_EVENTS || [];
     const allowedMetric = this.EARLY_TURN_METRIC_EVENTS || [];
@@ -478,10 +486,25 @@ const IAArchipielago = {
         uniqueCorridorObjectives.push(node.objective);
       }
       if (corredoresTop.length > 0) {
-        const resumen = corredoresTop
+        const sampleLimit = Math.max(1, Number(this.CORRIDOR_SUMMARY_SAMPLE_LIMIT) || 3);
+        const uniqueNodes = new Set();
+        for (const node of corredoresTop) {
+          if (node?.from) uniqueNodes.add(`${node.from.r},${node.from.c}`);
+          if (node?.to) uniqueNodes.add(`${node.to.r},${node.to.c}`);
+        }
+        const sample = corredoresTop
+          .slice(0, sampleLimit)
           .map(node => `${node.from?.name || 'NODO_A'}(${node.from?.r},${node.from?.c})->${node.to?.name || 'NODO_B'}(${node.to?.r},${node.to?.c}) via (${node.objective.r},${node.objective.c})`)
           .join(' | ');
-        console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Corredores objetivo: ${resumen}`);
+        const summaryBase = `[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Corredores objetivo: pares=${corredoresTop.length} objetivos=${uniqueCorridorObjectives.length} nodosUnicos=${uniqueNodes.size}`;
+        if (this.WORM_DETAILED_TRACE) {
+          const detalleCompleto = corredoresTop
+            .map(node => `${node.from?.name || 'NODO_A'}(${node.from?.r},${node.from?.c})->${node.to?.name || 'NODO_B'}(${node.to?.r},${node.to?.c}) via (${node.objective.r},${node.objective.c})`)
+            .join(' | ');
+          console.log(`${summaryBase} | detalle=${detalleCompleto}`);
+        } else {
+          console.log(`${summaryBase} | muestra=${sample}`);
+        }
         this._importantLog('CORRIDOR_OBJECTIVES', {
           playerId: myPlayer,
           count: uniqueCorridorObjectives.length,
@@ -3338,8 +3361,35 @@ const IAArchipielago = {
       return {
         ok: true,
         moved: false,
+        progressed: false,
         relayUnitId: relay.relayUnitId,
         reason: 'relay_without_movement'
+      };
+    }
+
+    // Si el relay ya quedó sobre el objetivo tras split/merge, lo contamos como progreso.
+    // Esto evita cortar la cadena en el primer hex y permite encadenar al siguiente paso del corredor.
+    if (relayUnit.r === objective.r && relayUnit.c === objective.c) {
+      this._importantLog('WORM_RELAY_MOVE', {
+        playerId: myPlayer,
+        pair: `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
+        objective: `${objective.r},${objective.c}`,
+        relayUnitId: relayUnit.id,
+        relayAt: `${relayUnit.r},${relayUnit.c}`,
+        relayMovement: relayUnit.currentMovement || 0,
+        moved: false,
+        progressed: true,
+        reason: 'relay_objective_reached'
+      });
+      if (missionType === this.MISSION_TYPE_COMMERCIAL_CORRIDOR) {
+        this._registerCommercialSplitMergeSuccess(myPlayer);
+      }
+      return {
+        ok: true,
+        moved: false,
+        progressed: true,
+        relayUnitId: relayUnit.id,
+        reason: 'relay_objective_reached'
       };
     }
 
@@ -3352,6 +3402,7 @@ const IAArchipielago = {
       relayAt: `${relayUnit.r},${relayUnit.c}`,
       relayMovement: relayUnit.currentMovement || 0,
       moved: !!moved,
+      progressed: !!moved,
       reason: moved ? 'relay_move_success' : 'relay_move_failed'
     });
     if (missionType === this.MISSION_TYPE_COMMERCIAL_CORRIDOR) {
@@ -3360,6 +3411,7 @@ const IAArchipielago = {
     return {
       ok: true,
       moved: !!moved,
+      progressed: !!moved,
       relayUnitId: relayUnit.id,
       reason: moved ? 'relay_move_success' : 'relay_move_failed'
     };
@@ -3494,6 +3546,7 @@ const IAArchipielago = {
     for (const node of corridorObjectives) {
       if (actions >= maxActions) break;
       let objective = node.objective;
+      let preferredRelayUnitId = null;
       const nodeActionsBefore = actions;
       let nodeTerminalReason = 'not_set';
       let nodeObjectiveHex = board[objective.r]?.[objective.c];
@@ -3559,6 +3612,13 @@ const IAArchipielago = {
           .filter(u => !u.iaExpeditionTarget)
           .sort((a, b) => hexDistance(a.r, a.c, objective.r, objective.c) - hexDistance(b.r, b.c, objective.r, objective.c));
 
+        const preferredRelayUnit = preferredRelayUnitId
+          ? myUnits.find(u => u.id === preferredRelayUnitId)
+          : null;
+        const orderedUnits = preferredRelayUnit
+          ? [preferredRelayUnit, ...myUnits.filter(u => u.id !== preferredRelayUnitId)]
+          : myUnits;
+
         if (!myUnits.length) {
           console.log(`[IA_ARCHIPIELAGO][GUSANO] Sin unidades aptas para objetivo (${objective.r},${objective.c}) ${node.from?.name || 'NODO_A'} -> ${node.to?.name || 'NODO_B'}.`);
           nodeTerminalReason = 'no_available_units_with_movement';
@@ -3573,7 +3633,7 @@ const IAArchipielago = {
         }
 
         let acted = false;
-        const splitCandidate = myUnits.find(u => (u.regiments?.length || 0) >= this.WORM_MIN_SPLIT_REGIMENTS);
+        const splitCandidate = orderedUnits.find(u => (u.regiments?.length || 0) >= this.WORM_MIN_SPLIT_REGIMENTS);
         const fallbackAllowed = !this._isCommercialSplitMergeMandatoryTurn();
         let controlledFallbackAllowed = false;
         if (splitCandidate) {
@@ -3586,9 +3646,10 @@ const IAArchipielago = {
           );
           if (relay.ok) {
             actions += relay.moved ? 2 : 1;
-            acted = !!relay.moved;
+            acted = !!(relay.moved || relay.progressed);
             controlledFallbackAllowed = !relay.moved && relay.reason === 'relay_without_movement';
-            nodeTerminalReason = relay.moved ? 'relay_progress' : (relay.reason || 'relay_partial');
+            nodeTerminalReason = (relay.moved || relay.progressed) ? 'relay_progress' : (relay.reason || 'relay_partial');
+            if (relay.relayUnitId) preferredRelayUnitId = relay.relayUnitId;
           } else {
             nodeTerminalReason = relay.reason || 'split_failed';
             this._importantLog('WORM_DECISION', {
@@ -3627,10 +3688,10 @@ const IAArchipielago = {
             });
             break;
           }
-          const mover = myUnits.find(u => {
+          const mover = orderedUnits.find(u => {
             if (splitCandidate && u.id === splitCandidate.id) return false;
             return !!this._findPathForUnit(u, objective.r, objective.c);
-          }) || myUnits.find(u => this._findPathForUnit(u, objective.r, objective.c));
+          }) || orderedUnits.find(u => this._findPathForUnit(u, objective.r, objective.c));
           if (mover && this._requestMoveOrAttack(mover, objective.r, objective.c, { missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR })) {
             this._importantLog('WORM_ACTION', {
               playerId: myPlayer,
@@ -3643,6 +3704,7 @@ const IAArchipielago = {
             });
             actions += 1;
             acted = true;
+            preferredRelayUnitId = mover.id;
             nodeTerminalReason = 'move_or_attack_progress';
           } else {
             nodeTerminalReason = mover ? 'move_or_attack_failed' : 'no_path_to_objective';
@@ -5905,7 +5967,7 @@ const IAArchipielago = {
           { from: target.from, to: target.to },
           this.MISSION_TYPE_COMMERCIAL_CORRIDOR
         );
-        if (relayAttempt.ok && relayAttempt.moved) {
+        if (relayAttempt.ok && (relayAttempt.moved || relayAttempt.progressed)) {
           this._metricMarkCommercialUseful(myPlayer, 'occupy_hex_split_merge_relay', {
             hex: `${objective.r},${objective.c}`,
             unitId: relayAttempt.relayUnitId || actingUnit.id,
