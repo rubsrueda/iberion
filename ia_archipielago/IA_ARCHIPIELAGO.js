@@ -40,6 +40,7 @@ const IAArchipielago = {
   LOG_ONLY_EARLY_TURN_EVENTS: true,
   WORM_HUMAN_TRACE: true,
   WORM_HUMAN_TRACE_INCLUDE_IDS: false,
+  WORM_LOG_ONLY_HUMAN_TRACE: true,
   WORM_DETAILED_TRACE: false,
   CORRIDOR_SUMMARY_SAMPLE_LIMIT: 3,
   EARLY_TURN_WORM_NODE_STATUS_LIMIT: 1,
@@ -192,6 +193,22 @@ const IAArchipielago = {
 
   _shouldSuppressByEarlyTurnFilter(event, payload = {}, channel = 'important') {
     if (!this.LOG_ONLY_EARLY_TURN_EVENTS) return false;
+
+    if (channel === 'important' && this.WORM_LOG_ONLY_HUMAN_TRACE) {
+      const noisyWormEvents = new Set([
+        'WORM_PLAN',
+        'WORM_NODE_STATUS',
+        'WORM_STEP_START',
+        'WORM_SPLIT',
+        'WORM_MERGE',
+        'WORM_RELAY_MOVE',
+        'WORM_ACTION',
+        'WORM_DECISION',
+        'WORM_STEP_SKIPPED',
+        'WORM_NODE_RESULT'
+      ]);
+      if (noisyWormEvents.has(event)) return true;
+    }
 
     if (channel === 'important' && !this.WORM_DETAILED_TRACE) {
       if (event === 'WORM_ACTION' || event === 'WORM_DECISION' || event === 'WORM_STEP_SKIPPED') {
@@ -3270,6 +3287,38 @@ const IAArchipielago = {
     console.log(`[IA_ARCHIPIELAGO][GUSANO TRAZA] J${myPlayer} ${pair} objetivo=(${objective?.r},${objective?.c}) | Inicio=${sourceText} | Split=${createdText} | ${mergeText} | Relay=${relayText} | ${resultText}`);
   },
 
+  _registerMergeContext(mergingUnit, targetUnit, context = null) {
+    if (!mergingUnit?.id || !targetUnit?.id || !context) return;
+    if (!this._pendingMergeContexts) this._pendingMergeContexts = new Map();
+    const now = Date.now();
+    for (const [k, v] of this._pendingMergeContexts.entries()) {
+      if ((now - Number(v?.ts || 0)) > 15000) this._pendingMergeContexts.delete(k);
+    }
+    this._pendingMergeContexts.set(`${mergingUnit.id}->${targetUnit.id}`, { ...context, ts: now });
+  },
+
+  _notifyMergeCompleted(payload = {}) {
+    const sourceId = payload.sourceId;
+    const targetId = payload.targetId;
+    if (!sourceId || !targetId || !this._pendingMergeContexts) return;
+
+    const key = `${sourceId}->${targetId}`;
+    const ctx = this._pendingMergeContexts.get(key);
+    if (!ctx) return;
+    this._pendingMergeContexts.delete(key);
+    if (ctx.kind !== 'worm') return;
+
+    const sourceName = payload.sourceName || sourceId;
+    const targetName = payload.targetName || targetId;
+    const pair = ctx.pair || 'NODO_A->NODO_B';
+    const objective = ctx.objective || '?,?';
+    const beforeSource = Number(payload.sourceRegsBefore || 0);
+    const beforeTarget = Number(payload.targetRegsBefore || 0);
+    const afterTarget = Number(payload.targetRegsAfter || 0);
+
+    console.log(`[IA_ARCHIPIELAGO][GUSANO MERGE CONFIRMADO] J${payload.playerId ?? '?'} ${pair} objetivo=${objective} | ${sourceName} -> ${targetName} | reg(${beforeSource}+${beforeTarget}=>${afterTarget})`);
+  },
+
   _splitUnitTowardsObjective(unit, objective) {
     if (!unit || !objective) return false;
     const regimientosActuales = unit.regiments?.length || 0;
@@ -3352,7 +3401,13 @@ const IAArchipielago = {
         } else if (typeof RequestMergeUnits !== 'function') {
           mergeRejectReason = 'merge_api_unavailable';
         } else {
-          merged = this._requestMergeUnits(original, created);
+          merged = this._requestMergeUnits(original, created, {
+            kind: 'worm',
+            pair: `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
+            objective: `${objective.r},${objective.c}`,
+            sourceUnitId: original.id,
+            targetUnitId: created.id
+          });
           mergeRequested = !!merged;
           if (!merged) mergeRejectReason = 'merge_request_rejected';
         }

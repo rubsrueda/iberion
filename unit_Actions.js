@@ -483,6 +483,13 @@ async function mergeUnits(mergingUnit, targetUnit) {
     if (!mergingUnit || !targetUnit || mergingUnit.player !== targetUnit.player || mergingUnit.id === targetUnit.id) {
         return false;
     }
+    const mergeSourceId = mergingUnit.id;
+    const mergeTargetId = targetUnit.id;
+    const mergeSourceName = mergingUnit.name;
+    const mergeTargetName = targetUnit.name;
+    const sourceRegsBefore = mergingUnit.regiments?.length || 0;
+    const targetRegsBefore = targetUnit.regiments?.length || 0;
+
     const targetHasNaval = targetUnit.regiments?.some(reg => REGIMENT_TYPES[reg.type]?.is_naval);
     const mergingHasNaval = mergingUnit.regiments?.some(reg => REGIMENT_TYPES[reg.type]?.is_naval);
     const isEmbarking = targetHasNaval && !mergingHasNaval;
@@ -543,6 +550,19 @@ async function mergeUnits(mergingUnit, targetUnit) {
 
     if (gameState.isTutorialActive) {
         TutorialManager.notifyActionCompleted('unitHasMerge');
+    }
+
+    if (typeof window !== 'undefined' && window.IAArchipielago && typeof window.IAArchipielago._notifyMergeCompleted === 'function') {
+        window.IAArchipielago._notifyMergeCompleted({
+            sourceId: mergeSourceId,
+            targetId: mergeTargetId,
+            sourceName: mergeSourceName,
+            targetName: mergeTargetName,
+            playerId: targetUnit.player,
+            sourceRegsBefore,
+            targetRegsBefore,
+            targetRegsAfter: targetUnit.regiments?.length || 0
+        });
     }
 
     logMessage(`Fusión completa.`, "success");
