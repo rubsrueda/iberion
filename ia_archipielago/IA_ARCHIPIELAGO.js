@@ -2119,9 +2119,19 @@ const IAArchipielago = {
   _requestMergeUnits(mergingUnit, targetUnit, opts = {}) {
     if (!mergingUnit || !targetUnit) return false;
     const bypassCooldown = !!opts.bypassCooldown;
+    const preferImmediateLocal = !!opts.preferImmediateLocal;
+    const networkActive = (typeof isNetworkGame === 'function' && isNetworkGame());
     if (!bypassCooldown && this._isUnitActionCoolingDown(mergingUnit.player, mergingUnit.id, 'merge')) return false;
     if (!bypassCooldown && this._isUnitActionCoolingDown(targetUnit.player, targetUnit.id, 'merge')) return false;
     if (!bypassCooldown && this._isMergePairCoolingDown(mergingUnit.player, mergingUnit.id, targetUnit.id)) return false;
+
+    // En local, el gusano necesita merge inmediato para que el relay conserve masa
+    // y pueda encadenar múltiples objetivos en el mismo turno.
+    if (preferImmediateLocal && !networkActive && typeof mergeUnits === 'function') {
+      mergeUnits(mergingUnit, targetUnit);
+      return true;
+    }
+
     if (typeof RequestMergeUnits !== 'function') {
       console.warn('[IA_ARCHIPIELAGO] RequestMergeUnits no disponible.');
       return false;
@@ -3400,6 +3410,7 @@ const IAArchipielago = {
         } else {
           merged = this._requestMergeUnits(original, created, {
             bypassCooldown: true,
+            preferImmediateLocal: true,
             kind: 'worm',
             pair: `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
             objective: `${objective.r},${objective.c}`,
@@ -3498,6 +3509,41 @@ const IAArchipielago = {
     }
 
     const relayUnit = (IASentidos.getUnits(myPlayer) || []).find(u => u.id === relay.relayUnitId);
+    if (relayUnit && (relayUnit.regiments?.length || 0) < this.WORM_MIN_SPLIT_REGIMENTS) {
+      this._importantLog('WORM_RELAY_MOVE', {
+        playerId: myPlayer,
+        pair: `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
+        objective: `${objective.r},${objective.c}`,
+        relayUnitId: relayUnit.id,
+        relayAt: `${relayUnit.r},${relayUnit.c}`,
+        relayRegiments: relayUnit.regiments?.length || 0,
+        moved: false,
+        reason: 'relay_understrength_after_merge'
+      });
+      this._emitWormHumanStepTrace({
+        myPlayer,
+        pair: relay.trace?.pair || `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
+        objective,
+        sourceBefore: relay.trace?.sourceBefore,
+        created: relay.trace?.created,
+        mergeRequested: relay.trace?.mergeRequested,
+        mergeRejectReason: relay.trace?.mergeRejectReason || 'relay_understrength_after_merge',
+        relayUnit,
+        moved: false,
+        progressed: false,
+        reason: 'relay_understrength_after_merge'
+      });
+      return {
+        ok: true,
+        moved: false,
+        progressed: false,
+        relayUnitId: relayUnit.id,
+        mergeRequested: !!relay.trace?.mergeRequested,
+        mergeRejectReason: relay.trace?.mergeRejectReason || 'relay_understrength_after_merge',
+        reason: 'relay_understrength_after_merge'
+      };
+    }
+
     if (!relayUnit || (relayUnit.currentMovement || 0) <= 0) {
       this._importantLog('WORM_RELAY_MOVE', {
         playerId: myPlayer,
@@ -3741,6 +3787,8 @@ const IAArchipielago = {
     let actions = 0;
     let passIndex = 0;
     const preferredRelayByPair = new Map();
+    let abortWormFlow = false;
+    let abortReason = null;
 
     while (actions < maxActions) {
       let passProgress = false;
@@ -3858,6 +3906,18 @@ const IAArchipielago = {
             controlledFallbackAllowed = !relay.progressed && (relay.reason === 'relay_without_movement' || relay.reason === 'relay_merge_not_completed');
             nodeTerminalReason = (relay.moved || relay.progressed) ? 'relay_progress' : (relay.reason || 'relay_partial');
             if (relay.relayUnitId) preferredRelayUnitId = relay.relayUnitId;
+            if (relay.reason === 'relay_merge_not_completed') {
+              abortWormFlow = true;
+              abortReason = 'merge_tardio_detectado';
+              nodeTerminalReason = 'worm_aborted_merge_tardio';
+              this._importantLog('WORM_ABORT', {
+                playerId: myPlayer,
+                pair: nodePair,
+                objective: `${objective.r},${objective.c}`,
+                passIndex,
+                reason: 'merge_tardio_detectado'
+              });
+            }
           } else {
             nodeTerminalReason = relay.reason || 'split_failed';
             this._importantLog('WORM_DECISION', {
@@ -3928,6 +3988,7 @@ const IAArchipielago = {
 
         if (acted) nodeActed = true;
 
+        if (abortWormFlow) break;
         if (!acted) break;
       }
 
@@ -3942,11 +4003,22 @@ const IAArchipielago = {
       });
 
       if (nodeActed) passProgress = true;
+      if (abortWormFlow) break;
     }
 
+      if (abortWormFlow) break;
       if (!passProgress) break;
       passIndex += 1;
       if (passIndex > (maxActions * 2)) break;
+    }
+
+    if (abortWormFlow) {
+      this._importantLog('WORM_ABORT_RESULT', {
+        playerId: myPlayer,
+        actions,
+        maxActions,
+        reason: abortReason || 'merge_tardio_detectado'
+      });
     }
 
     console.log(`[IA DIAG][GUSANO] J${myPlayer} objetivos=${corridorObjectives.length} bankObj=${bankObjectives} acciones=${actions}/${maxActions}`);
