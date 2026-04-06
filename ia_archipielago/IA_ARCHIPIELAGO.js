@@ -1672,7 +1672,7 @@ const IAArchipielago = {
     const ciudadesBarbaras = this._getBarbarianCities();
     if (ciudadesBarbaras.length === 0) {
       console.log(`[IA_ARCHIPIELAGO] No hay ciudades bárbaras disponibles`);
-      return;
+      return 0;
     }
 
     console.log(`[IA_ARCHIPIELAGO] CONQUISTA: ${ciudadesBarbaras.length} ciudades bárbaras detectadas`);
@@ -1685,7 +1685,7 @@ const IAArchipielago = {
     }
 
     const targetCity = this._pickBarbarianTarget(myPlayer, ciudadesBarbaras);
-    if (!targetCity) return;
+    if (!targetCity) return 0;
 
     const requiredPower = Math.ceil(this._getCityGarrisonStrength(targetCity) * this.BARBARIAN_CONQUEST_RATIO);
     let expeditionUnits = this._selectExpeditionUnits(myPlayer, targetCity, requiredPower);
@@ -1705,21 +1705,25 @@ const IAArchipielago = {
 
     if (totalPower < requiredPower) {
       console.log(`[IA_ARCHIPIELAGO] CONQUISTA: expedición insuficiente (${totalPower}/${requiredPower}).`);
-      return;
+      return 0;
     }
 
     // Si la ciudad ya es nuestra, registrar meta cumplida
     const cityObj = board[targetCity.r]?.[targetCity.c];
     if (cityObj && cityObj.owner === myPlayer) {
       this.registrarMetaFlujo('ocupacion', targetCity.r, targetCity.c, myPlayer);
-      return;
+      return 0;
     }
 
     console.log(`[IA_ARCHIPIELAGO] CONQUISTA: expedición lista (${totalPower}/${requiredPower}) hacia (${targetCity.r},${targetCity.c}).`);
+    let actions = 0;
     for (const unit of expeditionUnits) {
       unit.iaExpeditionTarget = `${targetCity.r},${targetCity.c}`;
-      this._requestMoveOrAttack(unit, targetCity.r, targetCity.c);
+      if (this._requestMoveOrAttack(unit, targetCity.r, targetCity.c, { missionType: this.MISSION_TYPE_CONQUEST_CITY })) {
+        actions += 1;
+      }
     }
+    return actions;
   },
 
   /**
@@ -2118,6 +2122,14 @@ const IAArchipielago = {
           return true;
         }
         return false;
+      }
+
+      // En local/hotseat o siendo anfitrión, processActionRequest evita bloqueos por "mi jugador"
+      // en RequestAttackUnit y garantiza que la IA pueda resolver capturas adyacentes.
+      if (typeof processActionRequest === 'function') {
+        this._markUnitActionDispatch(unit.player, unit.id, 'attack');
+        processActionRequest(action);
+        return true;
       }
 
       if (typeof RequestAttackUnit === 'function') {
@@ -6092,9 +6104,10 @@ const IAArchipielago = {
       case 'ruta_larga':
         this._ejecutarRutaLarga(situacion);
         return { action: 'ruta_larga', executed: true, note: 'ver logs de Ruta Larga para resultado' };
-      case 'ruta_emperador':
-        this.conquistarCiudadesBarbaras(myPlayer, IASentidos.getUnits(myPlayer));
-        return { action: 'conquistar_ciudades_barbaras', executed: true, note: 'ver logs de conquista' };
+      case 'ruta_emperador': {
+        const actions = this.conquistarCiudadesBarbaras(myPlayer, IASentidos.getUnits(myPlayer));
+        return { action: 'conquistar_ciudades_barbaras', executed: actions > 0, note: `acciones=${actions}` };
+      }
       case 'ruta_capital':
         return this._ejecutarRutaCapital(situacion);
       case 'ruta_aniquilacion':
