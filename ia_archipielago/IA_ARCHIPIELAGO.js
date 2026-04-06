@@ -47,7 +47,15 @@ const IAArchipielago = {
     'CORRIDOR_OBJECTIVES_DIAG',
     'OCCUPATION_PLAN',
     'WORM_PLAN',
-    'WORM_NODE_STATUS'
+    'WORM_NODE_STATUS',
+    'WORM_STEP_START',
+    'WORM_SPLIT',
+    'WORM_MERGE',
+    'WORM_RELAY_MOVE',
+    'WORM_ACTION',
+    'WORM_DECISION',
+    'WORM_STEP_SKIPPED',
+    'WORM_NODE_RESULT'
   ]),
   EARLY_TURN_METRIC_EVENTS: Object.freeze([
     'IA_METRIC_TURN_START'
@@ -3238,6 +3246,15 @@ const IAArchipielago = {
 
   _splitMergeWormStep(myPlayer, unit, objective, node) {
     if (!unit || !objective) return { ok: false, reason: 'invalid_input' };
+    this._importantLog('WORM_STEP_START', {
+      playerId: myPlayer,
+      pair: `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
+      objective: `${objective.r},${objective.c}`,
+      sourceUnitId: unit.id,
+      sourceAt: `${unit.r},${unit.c}`,
+      sourceRegiments: unit.regiments?.length || 0
+    });
+
     const beforeUnits = IASentidos.getUnits(myPlayer) || [];
     const beforeIds = new Set(beforeUnits.map(u => u.id));
     const splitOk = this._splitUnitTowardsObjective(unit, objective);
@@ -3248,12 +3265,33 @@ const IAArchipielago = {
       .filter(u => !beforeIds.has(u.id))
       .sort((a, b) => hexDistance(a.r, a.c, objective.r, objective.c) - hexDistance(b.r, b.c, objective.r, objective.c))[0] || null;
 
+    this._importantLog('WORM_SPLIT', {
+      playerId: myPlayer,
+      pair: `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
+      objective: `${objective.r},${objective.c}`,
+      sourceUnitId: unit.id,
+      createdUnitId: created?.id || null,
+      createdAt: created ? `${created.r},${created.c}` : null,
+      sourceAfterSplitRegiments: (afterUnits.find(u => u.id === unit.id)?.regiments?.length || 0),
+      createdRegiments: created?.regiments?.length || 0
+    });
+
     let relay = created || (afterUnits.find(u => u.id === unit.id) || unit);
     let merged = false;
     if (created) {
       const original = afterUnits.find(u => u.id === unit.id);
       if (original && original.id !== created.id) {
         merged = this._requestMergeUnits(original, created);
+        this._importantLog('WORM_MERGE', {
+          playerId: myPlayer,
+          pair: `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
+          objective: `${objective.r},${objective.c}`,
+          fromUnitId: original.id,
+          fromAt: `${original.r},${original.c}`,
+          toUnitId: created.id,
+          toAt: `${created.r},${created.c}`,
+          mergeRequested: !!merged
+        });
       }
       relay = afterUnits.find(u => u.id === created.id) || created;
     }
@@ -3287,6 +3325,16 @@ const IAArchipielago = {
 
     const relayUnit = (IASentidos.getUnits(myPlayer) || []).find(u => u.id === relay.relayUnitId);
     if (!relayUnit || (relayUnit.currentMovement || 0) <= 0) {
+      this._importantLog('WORM_RELAY_MOVE', {
+        playerId: myPlayer,
+        pair: `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
+        objective: `${objective.r},${objective.c}`,
+        relayUnitId: relay.relayUnitId,
+        relayAt: relayUnit ? `${relayUnit.r},${relayUnit.c}` : null,
+        relayMovement: relayUnit?.currentMovement ?? 0,
+        moved: false,
+        reason: 'relay_without_movement'
+      });
       return {
         ok: true,
         moved: false,
@@ -3296,6 +3344,16 @@ const IAArchipielago = {
     }
 
     const moved = this._requestMoveOrAttack(relayUnit, objective.r, objective.c, { missionType });
+    this._importantLog('WORM_RELAY_MOVE', {
+      playerId: myPlayer,
+      pair: `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
+      objective: `${objective.r},${objective.c}`,
+      relayUnitId: relayUnit.id,
+      relayAt: `${relayUnit.r},${relayUnit.c}`,
+      relayMovement: relayUnit.currentMovement || 0,
+      moved: !!moved,
+      reason: moved ? 'relay_move_success' : 'relay_move_failed'
+    });
     if (missionType === this.MISSION_TYPE_COMMERCIAL_CORRIDOR) {
       this._registerCommercialSplitMergeSuccess(myPlayer);
     }
