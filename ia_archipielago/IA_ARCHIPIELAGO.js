@@ -2116,18 +2116,21 @@ const IAArchipielago = {
     return !!this._crearUnidadNaval(myPlayer, navalType);
   },
 
-  _requestMergeUnits(mergingUnit, targetUnit) {
+  _requestMergeUnits(mergingUnit, targetUnit, opts = {}) {
     if (!mergingUnit || !targetUnit) return false;
-    if (this._isUnitActionCoolingDown(mergingUnit.player, mergingUnit.id, 'merge')) return false;
-    if (this._isUnitActionCoolingDown(targetUnit.player, targetUnit.id, 'merge')) return false;
-    if (this._isMergePairCoolingDown(mergingUnit.player, mergingUnit.id, targetUnit.id)) return false;
+    const bypassCooldown = !!opts.bypassCooldown;
+    if (!bypassCooldown && this._isUnitActionCoolingDown(mergingUnit.player, mergingUnit.id, 'merge')) return false;
+    if (!bypassCooldown && this._isUnitActionCoolingDown(targetUnit.player, targetUnit.id, 'merge')) return false;
+    if (!bypassCooldown && this._isMergePairCoolingDown(mergingUnit.player, mergingUnit.id, targetUnit.id)) return false;
     if (typeof RequestMergeUnits !== 'function') {
       console.warn('[IA_ARCHIPIELAGO] RequestMergeUnits no disponible.');
       return false;
     }
-    this._markUnitActionDispatch(mergingUnit.player, mergingUnit.id, 'merge');
-    this._markUnitActionDispatch(targetUnit.player, targetUnit.id, 'merge');
-    this._markMergePairDispatch(mergingUnit.player, mergingUnit.id, targetUnit.id);
+    if (!bypassCooldown) {
+      this._markUnitActionDispatch(mergingUnit.player, mergingUnit.id, 'merge');
+      this._markUnitActionDispatch(targetUnit.player, targetUnit.id, 'merge');
+      this._markMergePairDispatch(mergingUnit.player, mergingUnit.id, targetUnit.id);
+    }
     RequestMergeUnits(mergingUnit, targetUnit, true);
     return true;
   },
@@ -3392,16 +3395,11 @@ const IAArchipielago = {
     if (created) {
       const original = afterUnits.find(u => u.id === unit.id);
       if (original && original.id !== created.id) {
-        if (this._isUnitActionCoolingDown(original.player, original.id, 'merge')) {
-          mergeRejectReason = 'cooldown_source_unit';
-        } else if (this._isUnitActionCoolingDown(created.player, created.id, 'merge')) {
-          mergeRejectReason = 'cooldown_target_unit';
-        } else if (this._isMergePairCoolingDown(original.player, original.id, created.id)) {
-          mergeRejectReason = 'cooldown_pair';
-        } else if (typeof RequestMergeUnits !== 'function') {
+        if (typeof RequestMergeUnits !== 'function') {
           mergeRejectReason = 'merge_api_unavailable';
         } else {
           merged = this._requestMergeUnits(original, created, {
+            bypassCooldown: true,
             kind: 'worm',
             pair: `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
             objective: `${objective.r},${objective.c}`,
@@ -3409,7 +3407,7 @@ const IAArchipielago = {
             targetUnitId: created.id
           });
           mergeRequested = !!merged;
-          if (!merged) mergeRejectReason = 'merge_request_rejected';
+          if (!merged) mergeRejectReason = 'merge_request_rejected_worm';
         }
         this._importantLog('WORM_MERGE', {
           playerId: myPlayer,
@@ -3463,6 +3461,42 @@ const IAArchipielago = {
     });
     if (!relay.ok) return { ok: false, moved: false, reason: relay.reason || 'split_failed' };
 
+    const splitMergeReady = !!relay.trace?.mergeRequested && !relay.trace?.mergeRejectReason;
+    if (!splitMergeReady) {
+      this._importantLog('WORM_RELAY_MOVE', {
+        playerId: myPlayer,
+        pair: `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
+        objective: `${objective.r},${objective.c}`,
+        relayUnitId: relay.relayUnitId,
+        moved: false,
+        reason: 'relay_merge_not_completed',
+        mergeRequested: !!relay.trace?.mergeRequested,
+        mergeRejectReason: relay.trace?.mergeRejectReason || null
+      });
+      this._emitWormHumanStepTrace({
+        myPlayer,
+        pair: relay.trace?.pair || `${node?.from?.name || 'NODO_A'}->${node?.to?.name || 'NODO_B'}`,
+        objective,
+        sourceBefore: relay.trace?.sourceBefore,
+        created: relay.trace?.created,
+        mergeRequested: relay.trace?.mergeRequested,
+        mergeRejectReason: relay.trace?.mergeRejectReason,
+        relayUnit: (IASentidos.getUnits(myPlayer) || []).find(u => u.id === relay.relayUnitId) || null,
+        moved: false,
+        progressed: false,
+        reason: 'relay_merge_not_completed'
+      });
+      return {
+        ok: true,
+        moved: false,
+        progressed: false,
+        relayUnitId: relay.relayUnitId,
+        mergeRequested: !!relay.trace?.mergeRequested,
+        mergeRejectReason: relay.trace?.mergeRejectReason || null,
+        reason: 'relay_merge_not_completed'
+      };
+    }
+
     const relayUnit = (IASentidos.getUnits(myPlayer) || []).find(u => u.id === relay.relayUnitId);
     if (!relayUnit || (relayUnit.currentMovement || 0) <= 0) {
       this._importantLog('WORM_RELAY_MOVE', {
@@ -3493,6 +3527,8 @@ const IAArchipielago = {
         moved: false,
         progressed: false,
         relayUnitId: relay.relayUnitId,
+        mergeRequested: !!relay.trace?.mergeRequested,
+        mergeRejectReason: relay.trace?.mergeRejectReason || null,
         reason: 'relay_without_movement'
       };
     }
@@ -3532,6 +3568,8 @@ const IAArchipielago = {
         moved: false,
         progressed: true,
         relayUnitId: relayUnit.id,
+        mergeRequested: !!relay.trace?.mergeRequested,
+        mergeRejectReason: relay.trace?.mergeRejectReason || null,
         reason: 'relay_objective_reached'
       };
     }
@@ -3569,6 +3607,8 @@ const IAArchipielago = {
       moved: !!moved,
       progressed: !!moved,
       relayUnitId: relayUnit.id,
+      mergeRequested: !!relay.trace?.mergeRequested,
+      mergeRejectReason: relay.trace?.mergeRejectReason || null,
       reason: moved ? 'relay_move_success' : 'relay_move_failed'
     };
   },
@@ -3699,29 +3739,41 @@ const IAArchipielago = {
     });
 
     let actions = 0;
-    for (const node of corridorObjectives) {
-      if (actions >= maxActions) break;
-      let objective = node.objective;
-      let preferredRelayUnitId = null;
-      const nodeActionsBefore = actions;
-      let nodeTerminalReason = 'not_set';
-      let nodeObjectiveHex = board[objective.r]?.[objective.c];
-      const nodeUnits = IASentidos.getUnits(myPlayer)
-        .filter(u => this._isLandUnit(u))
-        .filter(u => (u.currentMovement || 0) > 0)
-        .filter(u => !u.iaExpeditionTarget);
-      this._importantLog('WORM_NODE_STATUS', {
-        playerId: myPlayer,
-        pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
-        objective: `${objective.r},${objective.c}`,
-        objectiveOwner: nodeObjectiveHex?.owner ?? null,
-        objectiveHasUnit: !!getUnitOnHex(objective.r, objective.c),
-        availableUnits: nodeUnits.length,
-        splitCandidates: nodeUnits.filter(u => (u.regiments?.length || 0) >= this.WORM_MIN_SPLIT_REGIMENTS).length,
-        pathCandidates: nodeUnits.filter(u => !!this._findPathForUnit(u, objective.r, objective.c)).length
-      });
-      const maxNodeSteps = Math.max(1, maxActions - actions);
-      for (let stepIndex = 0; stepIndex < maxNodeSteps && actions < maxActions; stepIndex++) {
+    let passIndex = 0;
+    const preferredRelayByPair = new Map();
+
+    while (actions < maxActions) {
+      let passProgress = false;
+
+      for (const node of corridorObjectives) {
+        if (actions >= maxActions) break;
+
+        let objective = node.objective;
+        const nodePair = `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`;
+        const relayStateKey = node.pairKey || `${nodePair}:${node.objective?.r},${node.objective?.c}`;
+        let preferredRelayUnitId = preferredRelayByPair.get(relayStateKey) || null;
+        const nodeActionsBefore = actions;
+        let nodeTerminalReason = 'not_set';
+        let nodeObjectiveHex = board[objective.r]?.[objective.c];
+        const nodeUnits = IASentidos.getUnits(myPlayer)
+          .filter(u => this._isLandUnit(u))
+          .filter(u => (u.currentMovement || 0) > 0)
+          .filter(u => !u.iaExpeditionTarget);
+        this._importantLog('WORM_NODE_STATUS', {
+          playerId: myPlayer,
+          pair: nodePair,
+          objective: `${objective.r},${objective.c}`,
+          objectiveOwner: nodeObjectiveHex?.owner ?? null,
+          objectiveHasUnit: !!getUnitOnHex(objective.r, objective.c),
+          availableUnits: nodeUnits.length,
+          splitCandidates: nodeUnits.filter(u => (u.regiments?.length || 0) >= this.WORM_MIN_SPLIT_REGIMENTS).length,
+          pathCandidates: nodeUnits.filter(u => !!this._findPathForUnit(u, objective.r, objective.c)).length,
+          passIndex
+        });
+        const maxNodeSteps = 1;
+        let nodeActed = false;
+
+        for (let stepIndex = 0; stepIndex < maxNodeSteps && actions < maxActions; stepIndex++) {
         const liveConn = this._findRoadConnection(node.from, node.to, myPlayer, 'ANY');
         const livePending = (liveConn?.pendingCaptureSegments || [])
           .filter(step => {
@@ -3737,7 +3789,7 @@ const IAArchipielago = {
           nodeTerminalReason = 'no_pending_capture_for_pair';
           this._importantLog('WORM_STEP_SKIPPED', {
             playerId: myPlayer,
-            pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+            pair: nodePair,
             objective: `${objective.r},${objective.c}`,
             stepIndex,
             reason: 'no_pending_capture_for_pair'
@@ -3752,7 +3804,7 @@ const IAArchipielago = {
           nodeTerminalReason = 'objective_already_owned_or_occupied';
           this._importantLog('WORM_STEP_SKIPPED', {
             playerId: myPlayer,
-            pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+            pair: nodePair,
             objective: `${objective.r},${objective.c}`,
             stepIndex,
             reason: 'objective_already_owned_or_occupied',
@@ -3776,11 +3828,11 @@ const IAArchipielago = {
           : myUnits;
 
         if (!myUnits.length) {
-          console.log(`[IA_ARCHIPIELAGO][GUSANO] Sin unidades aptas para objetivo (${objective.r},${objective.c}) ${node.from?.name || 'NODO_A'} -> ${node.to?.name || 'NODO_B'}.`);
+          console.log(`[IA_ARCHIPIELAGO][GUSANO] Sin unidades aptas para objetivo (${objective.r},${objective.c}) ${nodePair}.`);
           nodeTerminalReason = 'no_available_units_with_movement';
           this._importantLog('WORM_STEP_SKIPPED', {
             playerId: myPlayer,
-            pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+            pair: nodePair,
             objective: `${objective.r},${objective.c}`,
             stepIndex,
             reason: 'no_available_units_with_movement'
@@ -3801,9 +3853,9 @@ const IAArchipielago = {
             this.MISSION_TYPE_COMMERCIAL_CORRIDOR
           );
           if (relay.ok) {
-            actions += relay.moved ? 2 : 1;
+            actions += relay.progressed ? 1 : 0;
             acted = !!(relay.moved || relay.progressed);
-            controlledFallbackAllowed = !relay.moved && relay.reason === 'relay_without_movement';
+            controlledFallbackAllowed = !relay.progressed && (relay.reason === 'relay_without_movement' || relay.reason === 'relay_merge_not_completed');
             nodeTerminalReason = (relay.moved || relay.progressed) ? 'relay_progress' : (relay.reason || 'relay_partial');
             if (relay.relayUnitId) preferredRelayUnitId = relay.relayUnitId;
           } else {
@@ -3811,7 +3863,7 @@ const IAArchipielago = {
             this._importantLog('WORM_DECISION', {
               playerId: myPlayer,
               objective: `${objective.r},${objective.c}`,
-              pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+              pair: nodePair,
               split: 'rejected',
               reason: relay.reason || 'split_failed',
               unitId: splitCandidate.id,
@@ -3824,7 +3876,7 @@ const IAArchipielago = {
           this._importantLog('WORM_DECISION', {
             playerId: myPlayer,
             objective: `${objective.r},${objective.c}`,
-            pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+            pair: nodePair,
             split: 'not_possible',
             reason: 'insufficient_regiments',
             maxRegimentsSeen: maxRegs,
@@ -3837,7 +3889,7 @@ const IAArchipielago = {
             nodeTerminalReason = 'split_merge_required_no_fallback';
             this._importantLog('WORM_STEP_SKIPPED', {
               playerId: myPlayer,
-              pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+              pair: nodePair,
               objective: `${objective.r},${objective.c}`,
               stepIndex,
               reason: 'split_merge_required_no_fallback'
@@ -3854,7 +3906,7 @@ const IAArchipielago = {
               action: 'move_or_attack',
               missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR,
               objective: `${objective.r},${objective.c}`,
-              pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+              pair: nodePair,
               unitId: mover.id,
               regiments: mover.regiments?.length || 0
             });
@@ -3866,7 +3918,7 @@ const IAArchipielago = {
             nodeTerminalReason = mover ? 'move_or_attack_failed' : 'no_path_to_objective';
             this._importantLog('WORM_STEP_SKIPPED', {
               playerId: myPlayer,
-              pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+              pair: nodePair,
               objective: `${objective.r},${objective.c}`,
               stepIndex,
               reason: mover ? 'move_or_attack_failed' : 'no_path_to_objective'
@@ -3874,15 +3926,27 @@ const IAArchipielago = {
           }
         }
 
+        if (acted) nodeActed = true;
+
         if (!acted) break;
       }
+
+      if (preferredRelayUnitId) preferredRelayByPair.set(relayStateKey, preferredRelayUnitId);
       this._importantLog('WORM_NODE_RESULT', {
         playerId: myPlayer,
-        pair: `${node.from?.name || 'NODO_A'}->${node.to?.name || 'NODO_B'}`,
+        pair: nodePair,
         objective: `${objective.r},${objective.c}`,
+        passIndex,
         actionsDelta: actions - nodeActionsBefore,
         reason: nodeTerminalReason === 'not_set' ? 'no_progress_recorded' : nodeTerminalReason
       });
+
+      if (nodeActed) passProgress = true;
+    }
+
+      if (!passProgress) break;
+      passIndex += 1;
+      if (passIndex > (maxActions * 2)) break;
     }
 
     console.log(`[IA DIAG][GUSANO] J${myPlayer} objetivos=${corridorObjectives.length} bankObj=${bankObjectives} acciones=${actions}/${maxActions}`);
