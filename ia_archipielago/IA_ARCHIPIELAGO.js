@@ -698,6 +698,11 @@ const IAArchipielago = {
       });
       console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Finalizado. Conquistas: ${ocupacionesRealizadas}`);
 
+      // Tras ocupar corredores, forzar una capa de misiones tácticas para evitar divisiones inertes:
+      // 1) desalojar casillas de camino pendientes, 2) empujar conquistas de ciudad, 3) capturar hills rentables.
+      const postCorridorMissionBudget = Math.max(2, Math.min(6, maxOccupationObjectives));
+      this._executePostCorridorMissionLayer(myPlayer, { maxActions: postCorridorMissionBudget });
+
       // --- 3. FLUJO 2: CONSTRUCCIÓN EXHAUSTIVA ---
       if (typeof this.construirInfraestructura === 'function') {
         console.log(`[IA_ARCHIPIELAGO][FLUJO CONSTRUCCIÓN] Ejecutando construcción preventiva...`);
@@ -4314,6 +4319,229 @@ const IAArchipielago = {
     }
 
     return captures;
+  },
+
+  _getAvailableMissionUnits(myPlayer) {
+    return IASentidos.getUnits(myPlayer)
+      .filter(u => u && u.currentHealth > 0)
+      .filter(u => this._isLandUnit(u))
+      .filter(u => !u.hasMoved && (u.currentMovement || u.movement || 0) > 0)
+      .filter(u => !u.iaExpeditionTarget);
+  },
+
+  _assignMissionIfAvailable(unit, mission) {
+    if (!unit || !mission) return;
+    if (typeof AiGameplayManager === 'undefined' || !AiGameplayManager.missionAssignments?.set) return;
+    AiGameplayManager.missionAssignments.set(unit.id, mission);
+  },
+
+  _executePostCorridorRoadVacate(myPlayer, maxActions = 2) {
+    if (maxActions <= 0) return 0;
+    const roadMissions = this._getPriorityRoadInfrastructureMissions(myPlayer);
+    if (!roadMissions.length) return 0;
+
+    let actions = 0;
+    const seenUnits = new Set();
+
+    for (const mission of roadMissions) {
+      for (const step of mission.missingRoads || []) {
+        if (actions >= maxActions) return actions;
+        const blocker = getUnitOnHex(step.r, step.c);
+        if (!blocker || blocker.player !== myPlayer) continue;
+        if (seenUnits.has(blocker.id)) continue;
+        if (blocker.hasMoved || (blocker.currentMovement || blocker.movement || 0) <= 0) continue;
+
+        const vacated = this._scheduleVacateForBlockedBuild(myPlayer, blocker, step.r, step.c);
+        if (!vacated) continue;
+
+        actions += 1;
+        seenUnits.add(blocker.id);
+      }
+    }
+
+    return actions;
+  },
+
+  _collectPostCorridorCityTargets(myPlayer) {
+    const targets = [];
+    for (const c of (gameState.cities || [])) {
+      if (!c || c.owner === myPlayer) continue;
+      if (this._isBankCityByCoords(c.r, c.c)) continue;
+      targets.push({
+        r: c.r,
+        c: c.c,
+        owner: c.owner,
+        isBarbarian: !!c.isBarbarianCity || c.owner === 9 || c.owner == null,
+        priority: (c.owner != null && c.owner !== 9) ? 220 : 150,
+        name: c.name || 'Ciudad'
+      });
+    }
+
+    return targets;
+  },
+
+  _collectPostCorridorHillTargets(myPlayer) {
+    if (!Array.isArray(board)) return [];
+    const targets = [];
+
+    for (const row of board) {
+      if (!Array.isArray(row)) continue;
+      for (const hex of row) {
+        if (!hex || hex.owner === myPlayer) continue;
+        if (hex.terrain !== 'hills' || !hex.resourceNode) continue;
+
+        let rawResource = '';
+        if (typeof hex.resourceNode === 'string') {
+          rawResource = hex.resourceNode.toLowerCase();
+        } else if (typeof hex.resourceNode === 'object') {
+          try {
+            rawResource = JSON.stringify(hex.resourceNode).toLowerCase();
+          } catch (e) {
+            rawResource = '';
+          }
+        }
+
+        const stoneLike = rawResource.includes('piedra') || rawResource.includes('stone');
+        targets.push({
+          r: hex.r,
+          c: hex.c,
+          stoneLike,
+          priority: stoneLike ? 170 : 120
+        });
+      }
+    }
+
+    return targets;
+  },
+
+  _executePostCorridorCityPush(myPlayer, maxActions = 2) {
+    if (maxActions <= 0) return 0;
+    const targets = this._collectPostCorridorCityTargets(myPlayer);
+    if (!targets.length) return 0;
+
+    let actions = 0;
+    const claimed = new Set();
+
+    while (actions < maxActions) {
+      const availableUnits = this._getAvailableMissionUnits(myPlayer);
+      if (!availableUnits.length) break;
+
+      let best = null;
+      for (const unit of availableUnits) {
+        for (const target of targets) {
+          const key = `${target.r},${target.c}`;
+          if (claimed.has(key)) continue;
+          if (!this._findPathForUnit(unit, target.r, target.c)) continue;
+          const dist = hexDistance(unit.r, unit.c, target.r, target.c);
+          const score = Number(target.priority || 0) - (dist * 12);
+          if (!best || score > best.score) {
+            best = { unit, target, score };
+          }
+        }
+      }
+
+      if (!best) break;
+
+      this._assignMissionIfAvailable(best.unit, {
+        type: 'POST_CORRIDOR_CITY_PUSH',
+        objective: { r: best.target.r, c: best.target.c },
+        reason: best.target.isBarbarian ? 'POST_CORRIDOR_BARBARIAN_CITY' : 'POST_CORRIDOR_HUMAN_CITY'
+      });
+
+      const moved = this._requestMoveOrAttack(best.unit, best.target.r, best.target.c, {
+        missionType: this.MISSION_TYPE_CONQUEST_CITY
+      });
+      claimed.add(`${best.target.r},${best.target.c}`);
+      if (!moved) continue;
+
+      actions += 1;
+      this._importantLog('MISSION_ACTION_EXECUTED', {
+        playerId: myPlayer,
+        unitId: best.unit.id,
+        missionType: this.MISSION_TYPE_CONQUEST_CITY,
+        action: 'post_corridor_city_push',
+        objective: `${best.target.r},${best.target.c}`,
+        targetName: best.target.name || null,
+        result: 'success'
+      });
+    }
+
+    return actions;
+  },
+
+  _executePostCorridorHillPush(myPlayer, maxActions = 2) {
+    if (maxActions <= 0) return 0;
+    const targets = this._collectPostCorridorHillTargets(myPlayer);
+    if (!targets.length) return 0;
+
+    let actions = 0;
+    const claimed = new Set();
+
+    while (actions < maxActions) {
+      const availableUnits = this._getAvailableMissionUnits(myPlayer);
+      if (!availableUnits.length) break;
+
+      let best = null;
+      for (const unit of availableUnits) {
+        for (const target of targets) {
+          const key = `${target.r},${target.c}`;
+          if (claimed.has(key)) continue;
+          if (!this._findPathForUnit(unit, target.r, target.c)) continue;
+          const dist = hexDistance(unit.r, unit.c, target.r, target.c);
+          const score = Number(target.priority || 0) - (dist * 10);
+          if (!best || score > best.score) {
+            best = { unit, target, score };
+          }
+        }
+      }
+
+      if (!best) break;
+
+      this._assignMissionIfAvailable(best.unit, {
+        type: 'STONE_HILLS_EMERGENCY',
+        objective: { r: best.target.r, c: best.target.c },
+        reason: best.target.stoneLike ? 'POST_CORRIDOR_STONE_HILLS' : 'POST_CORRIDOR_HILLS'
+      });
+
+      const moved = this._requestMoveOrAttack(best.unit, best.target.r, best.target.c, {
+        missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR
+      });
+      claimed.add(`${best.target.r},${best.target.c}`);
+      if (!moved) continue;
+
+      actions += 1;
+      this._importantLog('MISSION_ACTION_EXECUTED', {
+        playerId: myPlayer,
+        unitId: best.unit.id,
+        missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR,
+        action: 'post_corridor_hills_push',
+        objective: `${best.target.r},${best.target.c}`,
+        hillPriority: best.target.stoneLike ? 'stone' : 'generic',
+        result: 'success'
+      });
+    }
+
+    return actions;
+  },
+
+  _executePostCorridorMissionLayer(myPlayer, opts = {}) {
+    const maxActions = Math.max(1, Number(opts.maxActions || 4));
+    if (maxActions <= 0) return 0;
+
+    let actions = 0;
+    actions += this._executePostCorridorRoadVacate(myPlayer, Math.min(2, maxActions - actions));
+    if (actions < maxActions) {
+      actions += this._executePostCorridorCityPush(myPlayer, Math.min(3, maxActions - actions));
+    }
+    if (actions < maxActions) {
+      actions += this._executePostCorridorHillPush(myPlayer, Math.min(2, maxActions - actions));
+    }
+
+    if (actions > 0) {
+      console.log(`[IA_ARCHIPIELAGO][POST_CORRIDOR] J${myPlayer} acciones ejecutadas: ${actions}/${maxActions}`);
+    }
+
+    return actions;
   },
 
   _ejecutarPlanEmergencia(situacion) {
