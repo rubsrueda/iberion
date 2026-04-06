@@ -590,9 +590,33 @@ const IAArchipielago = {
       });
       console.log(`[IA_ARCHIPIELAGO][GUSANO] Modo=${occupationMode} Acciones ejecutadas: ${accionesGusano}`);
 
+      const objetivosPendientesPostGusano = objetivosOcupacion.filter(obj => {
+        if (!Number.isInteger(obj?.r) || !Number.isInteger(obj?.c)) return false;
+        const hex = board[obj.r]?.[obj.c];
+        const occ = getUnitOnHex(obj.r, obj.c);
+        if (!hex) return false;
+        if (hex.owner === myPlayer) return false;
+        if (occ && occ.player === myPlayer) return false;
+        return true;
+      });
+
+      if (occupationMode === 'bootstrap' && accionesGusano >= maxOccupationObjectives) {
+        this._importantLog('OCCUPATION_POST_WORM', {
+          playerId: myPlayer,
+          mode: occupationMode,
+          skippedGlobalOccupation: true,
+          reason: 'worm_budget_full',
+          wormActions: accionesGusano,
+          pendingAfterWorm: objetivosPendientesPostGusano.length
+        });
+      }
+
       let ocupacionProcesadas = 0;
       let ocupacionObjetivosEvaluados = 0;
-      for (const obj of objetivosOcupacion) {
+      const objetivosParaBucleGlobal = (occupationMode === 'bootstrap' && accionesGusano >= maxOccupationObjectives)
+        ? []
+        : objetivosPendientesPostGusano;
+      for (const obj of objetivosParaBucleGlobal) {
         if (ocupacionProcesadas >= maxOccupationObjectives) {
           console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Límite de objetivos alcanzado (${maxOccupationObjectives}).`);
           break;
