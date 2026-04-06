@@ -495,7 +495,11 @@ const IAArchipielago = {
       // --- 2. FLUJO 1: OCUPACIÓN ---
       console.log(`[IA_ARCHIPIELAGO][FLUJO OCUPACIÓN] Iniciando...`);
       let ocupacionesRealizadas = 0;
-      const corredoresTop = this._getTopCorridorObjectives(myPlayer, Math.max(1, Math.floor(maxOccupationObjectives / 2)));
+      const earlyCorridorPush = (Number(gameState.turnNumber || 0) <= (Number(this.COMMERCIAL_SPLIT_MERGE_MANDATORY_TURN_LIMIT || 2) + 1));
+      const corridorObjectiveBudget = earlyCorridorPush
+        ? maxOccupationObjectives
+        : Math.max(1, Math.floor(maxOccupationObjectives / 2));
+      const corredoresTop = this._getTopCorridorObjectives(myPlayer, corridorObjectiveBudget);
       const uniqueCorridorObjectives = [];
       const uniqueCorridorSet = new Set();
       for (const node of corredoresTop) {
@@ -568,11 +572,23 @@ const IAArchipielago = {
         missionMode: 'corridor_capture_only'
       });
 
-      // Prioridad operativa: ejecutar gusano antes de la ocupación global para no gastar sus unidades en tareas generales.
-      const accionesGusano = this._ejecutarGusanoCorredor({ myPlayer }, {
-        maxActions: Math.max(1, Math.min(maxOccupationObjectives, Number(this.WORM_MAX_ACTIONS_PER_TURN) || maxOccupationObjectives))
+      const occupationMode = (earlyCorridorPush || objetivosOcupacion.length > 3) ? 'bootstrap' : 'maintenance';
+      this._importantLog('OCCUPATION_MODE', {
+        playerId: myPlayer,
+        mode: occupationMode,
+        earlyCorridorPush,
+        objectiveBudget: corridorObjectiveBudget,
+        objectivesPending: objetivosOcupacion.length
       });
-      console.log(`[IA_ARCHIPIELAGO][GUSANO] Acciones ejecutadas: ${accionesGusano}`);
+
+      // Prioridad operativa: ejecutar gusano antes de la ocupación global para no gastar sus unidades en tareas generales.
+      const wormActionBudget = occupationMode === 'bootstrap'
+        ? Math.max(1, Math.min(maxOccupationObjectives, Number(this.WORM_MAX_ACTIONS_PER_TURN) || maxOccupationObjectives))
+        : Math.max(1, Math.min(4, objetivosOcupacion.length, Number(this.WORM_MAX_ACTIONS_PER_TURN) || 4));
+      const accionesGusano = this._ejecutarGusanoCorredor({ myPlayer }, {
+        maxActions: wormActionBudget
+      });
+      console.log(`[IA_ARCHIPIELAGO][GUSANO] Modo=${occupationMode} Acciones ejecutadas: ${accionesGusano}`);
 
       let ocupacionProcesadas = 0;
       let ocupacionObjetivosEvaluados = 0;
@@ -592,26 +608,30 @@ const IAArchipielago = {
             .filter(u => u && u.currentHealth > 0)
             .filter(u => !u.hasMoved && (u.currentMovement || u.movement || 0) > 0)
             .filter(u => this._isLandUnit(u))
-            .filter(u => !this._isCorridorPioneer(u))
+            .filter(u => occupationMode === 'bootstrap' ? true : !this._isCorridorPioneer(u))
             .sort((a, b) => hexDistance(a.r, a.c, obj.r, obj.c) - hexDistance(b.r, b.c, obj.r, obj.c))
             .find(u => !!this._findPathForUnit(u, obj.r, obj.c));
 
           if (!candidateUnit) continue;
           const beforeOwner = board[obj.r]?.[obj.c]?.owner;
           let result = false;
-          const fallbackAllowed = !this._isCommercialSplitMergeMandatoryTurn();
+          const fallbackAllowed = occupationMode === 'bootstrap' || !this._isCommercialSplitMergeMandatoryTurn();
 
-          const relayAttempt = this._attemptSplitMergeRelayToObjective(
-            myPlayer,
-            candidateUnit,
-            obj,
-            { from: { name: 'OCUPACION_GENERAL' }, to: { name: 'OBJETIVO_CORREDOR' } },
-            this.MISSION_TYPE_COMMERCIAL_CORRIDOR
-          );
-          if (relayAttempt.ok && relayAttempt.moved) {
-            result = true;
-          } else if (fallbackAllowed) {
+          if (occupationMode === 'bootstrap') {
             result = this._requestMoveOrAttack(candidateUnit, obj.r, obj.c, { missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR });
+          } else {
+            const relayAttempt = this._attemptSplitMergeRelayToObjective(
+              myPlayer,
+              candidateUnit,
+              obj,
+              { from: { name: 'OCUPACION_GENERAL' }, to: { name: 'OBJETIVO_CORREDOR' } },
+              this.MISSION_TYPE_COMMERCIAL_CORRIDOR
+            );
+            if (relayAttempt.ok && (relayAttempt.moved || relayAttempt.progressed)) {
+              result = true;
+            } else if (fallbackAllowed) {
+              result = this._requestMoveOrAttack(candidateUnit, obj.r, obj.c, { missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR });
+            }
           }
 
           if (result) {
