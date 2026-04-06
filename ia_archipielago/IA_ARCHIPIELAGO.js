@@ -2125,6 +2125,10 @@ const IAArchipielago = {
     if (!bypassCooldown && this._isUnitActionCoolingDown(targetUnit.player, targetUnit.id, 'merge')) return false;
     if (!bypassCooldown && this._isMergePairCoolingDown(mergingUnit.player, mergingUnit.id, targetUnit.id)) return false;
 
+    if (opts && opts.kind === 'worm') {
+      this._registerMergeContext(mergingUnit, targetUnit, opts);
+    }
+
     // En local, el gusano necesita merge inmediato para que el relay conserve masa
     // y pueda encadenar múltiples objetivos en el mismo turno.
     if (preferImmediateLocal && !networkActive && typeof mergeUnits === 'function') {
@@ -3286,15 +3290,17 @@ const IAArchipielago = {
     return `${name}${idText} ${coords} ${regs} reg`;
   },
 
-  _emitWormHumanStepTrace({ myPlayer, pair, objective, sourceBefore, created, mergeRequested, mergeRejectReason = null, relayUnit, moved, progressed, reason }) {
+  _emitWormHumanStepTrace({ myPlayer, pair, objective, sourceBefore, created, mergeRequested, mergeConfirmed = false, mergeRejectReason = null, relayUnit, moved, progressed, reason }) {
     if (!this.WORM_HUMAN_TRACE) return;
     const sourceText = this._formatWormUnitForHumanTrace(sourceBefore);
     const createdText = created ? this._formatWormUnitForHumanTrace(created) : 'sin nueva division';
     const relayText = this._formatWormUnitForHumanTrace(relayUnit);
     const mergeText = created
-      ? (mergeRequested
-        ? 'Merge=OK'
-        : `Merge=FALLO${mergeRejectReason ? `(${mergeRejectReason})` : ''}`)
+      ? (mergeConfirmed
+        ? 'Merge=CONFIRMADO'
+        : (mergeRequested
+          ? `Merge=PENDIENTE${mergeRejectReason ? `(${mergeRejectReason})` : ''}`
+          : `Merge=FALLO${mergeRejectReason ? `(${mergeRejectReason})` : ''}`))
       : 'Merge=N/A';
     const resultText = `Resultado=${reason || 'desconocido'} moved=${!!moved} progressed=${!!progressed}`;
     console.log(`[IA_ARCHIPIELAGO][GUSANO TRAZA] J${myPlayer} ${pair} objetivo=(${objective?.r},${objective?.c}) | Inicio=${sourceText} | Split=${createdText} | ${mergeText} | Relay=${relayText} | ${resultText}`);
@@ -3310,6 +3316,25 @@ const IAArchipielago = {
     this._pendingMergeContexts.set(`${mergingUnit.id}->${targetUnit.id}`, { ...context, ts: now });
   },
 
+  _markWormMergeConfirmed(sourceId, targetId, payload = null) {
+    if (!sourceId || !targetId) return;
+    if (!this._wormMergeConfirmations) this._wormMergeConfirmations = new Map();
+    const now = Date.now();
+    for (const [k, v] of this._wormMergeConfirmations.entries()) {
+      if ((now - Number(v?.ts || 0)) > 15000) this._wormMergeConfirmations.delete(k);
+    }
+    this._wormMergeConfirmations.set(`${sourceId}->${targetId}`, { ts: now, payload: payload || null });
+  },
+
+  _consumeWormMergeConfirmed(sourceId, targetId) {
+    if (!sourceId || !targetId || !this._wormMergeConfirmations) return null;
+    const key = `${sourceId}->${targetId}`;
+    const entry = this._wormMergeConfirmations.get(key);
+    if (!entry) return null;
+    this._wormMergeConfirmations.delete(key);
+    return entry;
+  },
+
   _notifyMergeCompleted(payload = {}) {
     const sourceId = payload.sourceId;
     const targetId = payload.targetId;
@@ -3320,6 +3345,7 @@ const IAArchipielago = {
     if (!ctx) return;
     this._pendingMergeContexts.delete(key);
     if (ctx.kind !== 'worm') return;
+    this._markWormMergeConfirmed(sourceId, targetId, payload);
 
     const sourceName = payload.sourceName || sourceId;
     const targetName = payload.targetName || targetId;
@@ -3401,6 +3427,7 @@ const IAArchipielago = {
     let relay = created || (afterUnits.find(u => u.id === unit.id) || unit);
     let merged = false;
     let mergeRequested = false;
+    let mergeConfirmed = false;
     let mergeRejectReason = null;
     if (created) {
       const original = afterUnits.find(u => u.id === unit.id);
@@ -3418,7 +3445,12 @@ const IAArchipielago = {
             targetUnitId: created.id
           });
           mergeRequested = !!merged;
-          if (!merged) mergeRejectReason = 'merge_request_rejected_worm';
+          if (!merged) {
+            mergeRejectReason = 'merge_request_rejected_worm';
+          } else {
+            mergeConfirmed = !!this._consumeWormMergeConfirmed(original.id, created.id);
+            if (!mergeConfirmed) mergeRejectReason = 'merge_not_confirmed_yet';
+          }
         }
         this._importantLog('WORM_MERGE', {
           playerId: myPlayer,
@@ -3429,6 +3461,7 @@ const IAArchipielago = {
           toUnitId: created.id,
           toAt: `${created.r},${created.c}`,
           mergeRequested: !!merged,
+          mergeConfirmed,
           mergeRejectReason: mergeRejectReason || null
         });
       }
@@ -3455,6 +3488,7 @@ const IAArchipielago = {
         sourceBefore,
         created: created || null,
         mergeRequested,
+        mergeConfirmed,
         mergeRejectReason
       }
     };
@@ -3472,7 +3506,7 @@ const IAArchipielago = {
     });
     if (!relay.ok) return { ok: false, moved: false, reason: relay.reason || 'split_failed' };
 
-    const splitMergeReady = !!relay.trace?.mergeRequested && !relay.trace?.mergeRejectReason;
+    const splitMergeReady = !!relay.trace?.mergeConfirmed;
     if (!splitMergeReady) {
       this._importantLog('WORM_RELAY_MOVE', {
         playerId: myPlayer,
@@ -3491,6 +3525,7 @@ const IAArchipielago = {
         sourceBefore: relay.trace?.sourceBefore,
         created: relay.trace?.created,
         mergeRequested: relay.trace?.mergeRequested,
+        mergeConfirmed: relay.trace?.mergeConfirmed,
         mergeRejectReason: relay.trace?.mergeRejectReason,
         relayUnit: (IASentidos.getUnits(myPlayer) || []).find(u => u.id === relay.relayUnitId) || null,
         moved: false,
@@ -3503,6 +3538,7 @@ const IAArchipielago = {
         progressed: false,
         relayUnitId: relay.relayUnitId,
         mergeRequested: !!relay.trace?.mergeRequested,
+        mergeConfirmed: !!relay.trace?.mergeConfirmed,
         mergeRejectReason: relay.trace?.mergeRejectReason || null,
         reason: 'relay_merge_not_completed'
       };
@@ -3527,6 +3563,7 @@ const IAArchipielago = {
         sourceBefore: relay.trace?.sourceBefore,
         created: relay.trace?.created,
         mergeRequested: relay.trace?.mergeRequested,
+        mergeConfirmed: relay.trace?.mergeConfirmed,
         mergeRejectReason: relay.trace?.mergeRejectReason || 'relay_understrength_after_merge',
         relayUnit,
         moved: false,
@@ -3539,6 +3576,7 @@ const IAArchipielago = {
         progressed: false,
         relayUnitId: relayUnit.id,
         mergeRequested: !!relay.trace?.mergeRequested,
+        mergeConfirmed: !!relay.trace?.mergeConfirmed,
         mergeRejectReason: relay.trace?.mergeRejectReason || 'relay_understrength_after_merge',
         reason: 'relay_understrength_after_merge'
       };
@@ -3562,6 +3600,7 @@ const IAArchipielago = {
         sourceBefore: relay.trace?.sourceBefore,
         created: relay.trace?.created,
         mergeRequested: relay.trace?.mergeRequested,
+        mergeConfirmed: relay.trace?.mergeConfirmed,
         mergeRejectReason: relay.trace?.mergeRejectReason,
         relayUnit,
         moved: false,
@@ -3574,6 +3613,7 @@ const IAArchipielago = {
         progressed: false,
         relayUnitId: relay.relayUnitId,
         mergeRequested: !!relay.trace?.mergeRequested,
+        mergeConfirmed: !!relay.trace?.mergeConfirmed,
         mergeRejectReason: relay.trace?.mergeRejectReason || null,
         reason: 'relay_without_movement'
       };
@@ -3603,6 +3643,7 @@ const IAArchipielago = {
         sourceBefore: relay.trace?.sourceBefore,
         created: relay.trace?.created,
         mergeRequested: relay.trace?.mergeRequested,
+        mergeConfirmed: relay.trace?.mergeConfirmed,
         mergeRejectReason: relay.trace?.mergeRejectReason,
         relayUnit,
         moved: false,
@@ -3615,6 +3656,7 @@ const IAArchipielago = {
         progressed: true,
         relayUnitId: relayUnit.id,
         mergeRequested: !!relay.trace?.mergeRequested,
+        mergeConfirmed: !!relay.trace?.mergeConfirmed,
         mergeRejectReason: relay.trace?.mergeRejectReason || null,
         reason: 'relay_objective_reached'
       };
@@ -3642,6 +3684,7 @@ const IAArchipielago = {
       sourceBefore: relay.trace?.sourceBefore,
       created: relay.trace?.created,
       mergeRequested: relay.trace?.mergeRequested,
+      mergeConfirmed: relay.trace?.mergeConfirmed,
       mergeRejectReason: relay.trace?.mergeRejectReason,
       relayUnit,
       moved: !!moved,
@@ -3654,6 +3697,7 @@ const IAArchipielago = {
       progressed: !!moved,
       relayUnitId: relayUnit.id,
       mergeRequested: !!relay.trace?.mergeRequested,
+      mergeConfirmed: !!relay.trace?.mergeConfirmed,
       mergeRejectReason: relay.trace?.mergeRejectReason || null,
       reason: moved ? 'relay_move_success' : 'relay_move_failed'
     };
