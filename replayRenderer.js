@@ -10,6 +10,7 @@ const ReplayRenderer = {
     boardContainer: null,
     boardLayer: null,
     unitsLayer: null,
+    boardViewport: null,
     replayData: null,
     boardData: null,
     currentTurn: 0,
@@ -20,6 +21,9 @@ const ReplayRenderer = {
     unitsStateMap: new Map(),
     hexElements: new Map(),
     unitElements: new Map(),
+    onResizeHandler: null,
+    boardPixelWidth: 0,
+    boardPixelHeight: 0,
 
     initialize: function(canvasElement, replayData, boardData) {
         this._reset();
@@ -65,6 +69,12 @@ const ReplayRenderer = {
         this.boardContainer = null;
         this.boardLayer = null;
         this.unitsLayer = null;
+        this.boardViewport = null;
+
+        if (this.onResizeHandler) {
+            window.removeEventListener('resize', this.onResizeHandler);
+            this.onResizeHandler = null;
+        }
     },
 
     _createReplayDOM: function() {
@@ -74,14 +84,19 @@ const ReplayRenderer = {
 
         const root = document.createElement('div');
         root.className = 'replay-live-root';
-        root.style.cssText = 'width:100%;height:100%;position:relative;overflow:auto;background:rgba(12,22,32,0.75);';
+        root.style.cssText = 'width:100%;height:100%;position:relative;overflow:hidden;background:rgba(12,22,32,0.75);';
+
+        const viewport = document.createElement('div');
+        viewport.className = 'replay-live-viewport';
+        viewport.style.cssText = 'position:absolute;left:0;top:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;overflow:auto;padding:8px;';
 
         const container = document.createElement('div');
         container.className = 'replay-live-board-container';
-        container.style.cssText = 'position:relative;margin:16px auto;';
+        container.style.cssText = 'position:relative;transform-origin:center center;';
 
         const boardLayer = document.createElement('div');
         boardLayer.className = 'replay-live-board-layer';
+        boardLayer.id = 'replayBoard';
         boardLayer.style.cssText = 'position:relative;';
 
         const unitsLayer = document.createElement('div');
@@ -90,13 +105,18 @@ const ReplayRenderer = {
 
         container.appendChild(boardLayer);
         container.appendChild(unitsLayer);
-        root.appendChild(container);
+        viewport.appendChild(container);
+        root.appendChild(viewport);
         this.canvasParent.appendChild(root);
 
         this.replayRoot = root;
+        this.boardViewport = viewport;
         this.boardContainer = container;
         this.boardLayer = boardLayer;
         this.unitsLayer = unitsLayer;
+
+        this.onResizeHandler = () => this._fitBoardToViewport();
+        window.addEventListener('resize', this.onResizeHandler);
     },
 
     _normalizeBoardData: function(boardData, replayData) {
@@ -135,6 +155,8 @@ const ReplayRenderer = {
 
         this.boardLayer.style.width = `${cols * hexWidth + hexWidth / 2}px`;
         this.boardLayer.style.height = `${rows * hexVert + hexHeight * 0.25}px`;
+        this.boardPixelWidth = cols * hexWidth + hexWidth / 2;
+        this.boardPixelHeight = rows * hexVert + hexHeight * 0.25;
         this.boardContainer.style.width = this.boardLayer.style.width;
         this.boardContainer.style.height = this.boardLayer.style.height;
 
@@ -154,6 +176,20 @@ const ReplayRenderer = {
                 this.hexElements.set(`${r},${c}`, hexEl);
             }
         }
+
+        this._fitBoardToViewport();
+    },
+
+    _fitBoardToViewport: function() {
+        if (!this.boardViewport || !this.boardContainer || !this.boardPixelWidth || !this.boardPixelHeight) return;
+
+        const availableW = Math.max(200, this.boardViewport.clientWidth - 20);
+        const availableH = Math.max(200, this.boardViewport.clientHeight - 20);
+        const scaleX = availableW / this.boardPixelWidth;
+        const scaleY = availableH / this.boardPixelHeight;
+        const scale = Math.min(1, scaleX, scaleY);
+
+        this.boardContainer.style.transform = `scale(${scale})`;
     },
 
     _applyHexVisuals: function(hexState) {
@@ -214,6 +250,7 @@ const ReplayRenderer = {
         if (!unitEl) {
             unitEl = document.createElement('div');
             unitEl.classList.add('unit');
+            unitEl.classList.add('unit-smooth-move');
             unitEl.dataset.id = key;
 
             const strength = document.createElement('div');
@@ -396,11 +433,19 @@ const ReplayRenderer = {
             if (event.type === 'BATTLE' || event.type === 'UNIT_DEATH') {
                 hexEl.classList.add('hit-effect');
                 setTimeout(() => hexEl.classList.remove('hit-effect'), 350);
+                if (this.boardLayer) {
+                    this.boardLayer.classList.add('board-impact');
+                    setTimeout(() => this.boardLayer && this.boardLayer.classList.remove('board-impact'), 320);
+                }
             }
 
             if (event.type === 'CONQUEST') {
                 hexEl.classList.add('owner-change-effect');
                 setTimeout(() => hexEl.classList.remove('owner-change-effect'), 600);
+                if (this.boardLayer) {
+                    this.boardLayer.classList.add('board-conquest');
+                    setTimeout(() => this.boardLayer && this.boardLayer.classList.remove('board-conquest'), 520);
+                }
             }
         });
     },

@@ -3346,7 +3346,8 @@ body {
 /* ========================================================================== */
 
 /* Esta regla dibuja la capa marrón con la forma hexagonal correcta */
-#gameBoard .hex.structure-Camino::after {
+#gameBoard .hex.structure-Camino::after,
+#replayBoard .hex.structure-Camino::after {
     content: ''; 
     position: absolute;
     top: 0;
@@ -3361,7 +3362,8 @@ body {
 }
 
 /* Esta regla se asegura de OCULTAR SIEMPRE el emoji del camino */
-#gameBoard .hex.structure-Camino .structure-sprite {
+#gameBoard .hex.structure-Camino .structure-sprite,
+#replayBoard .hex.structure-Camino .structure-sprite {
     display: none !important;
 }
 
@@ -7881,11 +7883,13 @@ body.graphics-mode-performance .hex:hover {
     font-size: 18px;
 }
 
-#gameBoard.board-impact {
+#gameBoard.board-impact,
+#replayBoard.board-impact {
     animation: boardImpact 0.32s ease-out;
 }
 
-#gameBoard.board-conquest {
+#gameBoard.board-conquest,
+#replayBoard.board-conquest {
     animation: boardConquestPulse 0.52s ease-out;
 }
 
@@ -8155,7 +8159,9 @@ body.graphics-form-desktop #profileModal .modal-content {
     .unit.unit-move-glow,
     .unit.unit-hit-emphasis,
     #gameBoard.board-impact,
+    #replayBoard.board-impact,
     #gameBoard.board-conquest,
+    #replayBoard.board-conquest,
     .damage-dealt-text {
         animation: none !important;
         transition: none !important;
@@ -8163,7 +8169,8 @@ body.graphics-form-desktop #profileModal .modal-content {
 }
 
 #gameContainer.board-shake,
-#gameBoard.board-shake {
+#gameBoard.board-shake,
+#replayBoard.board-shake {
     animation: boardShake 0.1s ease-in-out;
 }
 

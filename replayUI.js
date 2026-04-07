@@ -7,12 +7,16 @@
 const ReplayUI = {
     currentReplay: null,
     renderer: null,
+    replayMeta: null,
+    replayPlayersMap: {},
 
     /**
      * Abre el modal del visor de replay
      */
     openReplayModal: function(replayData, boardData) {
         this.currentReplay = replayData;
+        this.replayMeta = this._parseReplayMetadata(replayData);
+        this.replayPlayersMap = this._buildPlayersMap(this.replayMeta);
 
         const modal = document.getElementById('replayModal');
         if (!modal) {
@@ -96,6 +100,10 @@ const ReplayUI = {
             alert('Error al configurar controles: ' + err.message);
             return;
         }
+
+        // Inicializar HUD contextual del replay
+        this.renderReplayHud();
+        this.updateTurnDisplay();
 
         // ⭐ NUEVO: Mostrar leyenda automáticamente
         setTimeout(() => {
@@ -254,6 +262,93 @@ const ReplayUI = {
         // Actualizar slider
         const progress = total > 0 ? (current / total) * 100 : 0;
         document.getElementById('replayTimeline').value = progress;
+
+        this.renderReplayHud();
+    },
+
+    _parseReplayMetadata: function(replayData) {
+        let metadata = replayData?.metadata || {};
+        if (typeof metadata === 'string') {
+            try {
+                metadata = JSON.parse(metadata);
+            } catch (err) {
+                metadata = {};
+            }
+        }
+        return metadata || {};
+    },
+
+    _buildPlayersMap: function(metadata) {
+        const map = {};
+        const players = metadata?.players || metadata?.p || [];
+        if (!Array.isArray(players)) return map;
+
+        players.forEach((p, idx) => {
+            const pid = p?.id ?? p?.player_number ?? p?.playerId ?? (idx + 1);
+            const label = p?.name || p?.display_name || p?.civilization || `Jugador ${pid}`;
+            if (pid !== null && pid !== undefined) {
+                map[Number(pid)] = label;
+            }
+        });
+
+        return map;
+    },
+
+    _playerLabel: function(playerId) {
+        const normalized = Number(playerId);
+        if (normalized === 0) return 'La Banca';
+        return this.replayPlayersMap[normalized] || `Jugador ${normalized}`;
+    },
+
+    renderReplayHud: function() {
+        if (!this.currentReplay || !this.renderer) return;
+
+        const timeline = this.currentReplay.timeline || [];
+        const currentTurn = this.renderer.currentTurn || 0;
+        const turnData = timeline[currentTurn] || null;
+        const currentPlayer = turnData?.currentPlayer;
+        const turnEvents = Array.isArray(turnData?.events) ? turnData.events.length : 0;
+
+        const totalTurns = Number(this.replayMeta?.t || this.currentReplay?.total_turns || Math.max(0, timeline.length - 1));
+        const winner = this.replayMeta?.w;
+        const winnerText = (winner !== undefined && winner !== null) ? this._playerLabel(winner) : 'Sin dato';
+        const durationMin = this.replayMeta?.m ?? '--';
+        const boardInfo = this.replayMeta?.b || {};
+        const rows = boardInfo.rows || '--';
+        const cols = boardInfo.cols || '--';
+        const playerCount = Object.keys(this.replayPlayersMap).length || this.replayMeta?.players?.length || '--';
+
+        const replayInfo = document.getElementById('replayInfo');
+        if (replayInfo) {
+            replayInfo.innerHTML = `
+                <div style="display:grid;gap:8px;">
+                    <div style="background:rgba(0,243,255,0.08);border:1px solid rgba(0,243,255,0.45);border-radius:6px;padding:8px;">
+                        <div style="color:#8fd6ff;font-size:11px;opacity:.9;">Estado táctico</div>
+                        <div style="color:#ffffff;font-weight:700;">Turno ${currentTurn}/${Math.max(0, timeline.length - 1)}</div>
+                        <div style="color:#d4ecff;font-size:12px;">Actor: ${currentPlayer ? this._playerLabel(currentPlayer) : 'Despliegue'}</div>
+                        <div style="color:#d4ecff;font-size:12px;">Eventos: ${turnEvents}</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.18);border-radius:6px;padding:8px;">
+                        <div style="color:#ffd799;font-size:11px;opacity:.9;">Resumen de batalla</div>
+                        <div style="font-size:12px;">Ganador: <strong>${winnerText}</strong></div>
+                        <div style="font-size:12px;">Duración: ${durationMin} min</div>
+                        <div style="font-size:12px;">Mapa: ${rows}x${cols}</div>
+                        <div style="font-size:12px;">Jugadores: ${playerCount}</div>
+                        <div style="font-size:12px;">Turnos: ${totalTurns}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        const replayDuration = document.getElementById('replayDuration');
+        if (replayDuration) {
+            replayDuration.textContent = `Duración: ${durationMin} min`;
+        }
+
+        const replayPlayers = document.getElementById('replayPlayers');
+        if (replayPlayers) {
+            replayPlayers.textContent = `Jugadores: ${playerCount}`;
+        }
     },
 
     /**
