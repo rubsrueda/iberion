@@ -2248,6 +2248,7 @@ const IAArchipielago = {
 
   _scheduleVacateForBlockedBuild(playerId, blockerUnit, r, c) {
     if (!blockerUnit || blockerUnit.player !== playerId) return false;
+    if (blockerUnit.regiments?.some(reg => reg.type === 'Explorador')) return false;
     if (typeof AiGameplayManager === 'undefined' || !AiGameplayManager.missionAssignments?.set) return false;
 
     const objective = this._resolveVacateObjectiveForRoad(playerId, r, c);
@@ -4473,16 +4474,43 @@ const IAArchipielago = {
 
   _collectGiftCityTargets(myPlayer) {
     const targets = [];
+    const seen = new Set();
+
+    const pushTarget = (r, c, priority = 240, name = 'Ciudad') => {
+      if (!Number.isInteger(r) || !Number.isInteger(c)) return;
+      const key = `${r},${c}`;
+      if (seen.has(key)) return;
+      const occ = getUnitOnHex(r, c);
+      if (occ) return;
+      const hex = board[r]?.[c];
+      if (!hex || hex.owner === myPlayer) return;
+      seen.add(key);
+      targets.push({ r, c, priority, name });
+    };
+
     for (const c of (gameState.cities || [])) {
       if (!c || c.owner === myPlayer) continue;
       if (this._isBankCityByCoords(c.r, c.c)) continue;
-      if (getUnitOnHex(c.r, c.c)) continue;
-      targets.push({
-        r: c.r,
-        c: c.c,
-        priority: (c.owner != null && c.owner !== 9) ? 280 : 240,
-        name: c.name || 'Ciudad'
-      });
+      pushTarget(
+        c.r,
+        c.c,
+        (c.owner != null && c.owner !== 9) ? 280 : 240,
+        c.name || 'Ciudad'
+      );
+    }
+
+    // Respaldo: algunas ciudades pueden no estar sincronizadas en gameState.cities.
+    if (Array.isArray(board)) {
+      for (const row of board) {
+        if (!Array.isArray(row)) continue;
+        for (const hex of row) {
+          if (!hex) continue;
+          const isUrbanHex = !!hex.isCity || ['Ciudad', 'Metrópoli', 'Aldea'].includes(hex.structure);
+          if (!isUrbanHex) continue;
+          if (this._isBankCityByCoords(hex.r, hex.c)) continue;
+          pushTarget(hex.r, hex.c, 250, hex.name || hex.structure || 'Ciudad');
+        }
+      }
     }
     return targets;
   },
@@ -4638,7 +4666,16 @@ const IAArchipielago = {
       }
     }
 
-    if (!explorers.length) return 0;
+    if (!explorers.length) {
+      this._metricLog('IA_EXPLORER_PROTOCOL_STATUS', {
+        turn: gameState.turnNumber,
+        playerId: myPlayer,
+        actions: 0,
+        reason: 'no_explorer_with_movement',
+        ruins: ruins.length
+      });
+      return 0;
+    }
 
     const hasRecon = this._ensureTech(myPlayer, 'RECONNAISSANCE');
     for (const explorer of explorers) {
@@ -4686,6 +4723,15 @@ const IAArchipielago = {
         actions += 1;
       }
     }
+
+    this._metricLog('IA_EXPLORER_PROTOCOL_STATUS', {
+      turn: gameState.turnNumber,
+      playerId: myPlayer,
+      actions,
+      ruins: ruins.length,
+      explorerCandidates: explorers.length,
+      hasRecon
+    });
 
     return actions;
   },
@@ -4745,8 +4791,8 @@ const IAArchipielago = {
     return IASentidos.getUnits(myPlayer)
       .filter(u => u && u.currentHealth > 0)
       .filter(u => this._isLandUnit(u))
-      .filter(u => !u.hasMoved && (u.currentMovement || u.movement || 0) > 0)
-      .filter(u => !u.iaExpeditionTarget);
+      .filter(u => (u.currentMovement || u.movement || 0) > 0)
+      .filter(u => !u.tradeRoute);
   },
 
   _assignMissionIfAvailable(unit, mission) {
@@ -6463,6 +6509,7 @@ const IAArchipielago = {
     }
     for (let idx = 0; idx < rutas.length; idx++) {
       const ruta = rutas[idx];
+      this._enforceUngarrisonedCityPriority(situacion.myPlayer, 1);
       if (executedRoutes >= maxRouteActions) {
         console.log(`[IA_ARCHIPIELAGO] Límite de acciones de ruta alcanzado (${maxRouteActions}).`);
         break;
