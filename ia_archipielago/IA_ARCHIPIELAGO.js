@@ -754,6 +754,12 @@ const IAArchipielago = {
         this._ejecutarPlanEmergencia(situacion);
       }
 
+      // Cierre obligatorio: dar una última pasada a unidades con movimiento disponible
+      // para evitar que queden congeladas por creación tardía u orden de pipeline.
+      const finalSweepReport = this._executeFinalMovementSweep(myPlayer, { maxActions: 10 });
+      console.log(`[IA_ARCHIPIELAGO][FINAL_SWEEP] J${myPlayer} acciones=${finalSweepReport.actions} intentos=${finalSweepReport.attempts} capped=${finalSweepReport.capped}`);
+      this._logIdleMovableUnitsReport(myPlayer, finalSweepReport);
+
       // --- 6. FINALIZACIÓN ---
       console.log(`[IA_ARCHIPIELAGO] Turno completado para Jugador ${myPlayer}.`);
       this._metricEndTurn(myPlayer, 'normal');
@@ -1951,9 +1957,35 @@ const IAArchipielago = {
     state.lastByPair.set(pairKey, Date.now());
   },
 
+  _logMandatoryUnitExecution(unit, payload = {}) {
+    const regTypes = Array.isArray(unit?.regiments) ? unit.regiments.map(r => r?.type).filter(Boolean) : [];
+    const isExplorer = regTypes.includes('Explorador');
+    const channel = isExplorer ? 'IA_EXPLORER_EXEC' : 'IA_UNIT_EXEC';
+    const base = {
+      turn: gameState.turnNumber,
+      playerId: unit?.player || null,
+      unitId: unit?.id || null,
+      unitName: unit?.name || null,
+      at: (Number.isInteger(unit?.r) && Number.isInteger(unit?.c)) ? `${unit.r},${unit.c}` : null,
+      regiments: regTypes,
+      ...payload
+    };
+    console.log(`[${channel}] ${JSON.stringify(base)}`);
+  },
+
   _requestMoveUnit(unit, r, c, ctx = {}) {
     if (!unit) return false;
+    const from = `${unit.r},${unit.c}`;
     if (this._isUnitActionCoolingDown(unit.player, unit.id, 'move')) {
+      this._logMandatoryUnitExecution(unit, {
+        action: 'move',
+        from,
+        to: `${r},${c}`,
+        success: false,
+        reason: 'cooldown',
+        source: ctx.executionSource || null,
+        missionType: ctx.missionType || null
+      });
       return false;
     }
     const mission = (typeof AiGameplayManager !== 'undefined' && AiGameplayManager.missionAssignments?.get)
@@ -1971,6 +2003,15 @@ const IAArchipielago = {
         success: false,
         failReason: 'repeated_invalid_move_suppressed'
       });
+      this._logMandatoryUnitExecution(unit, {
+        action: 'move',
+        from,
+        to: `${r},${c}`,
+        success: false,
+        reason: 'repeated_invalid_move_suppressed',
+        source: ctx.executionSource || null,
+        missionType
+      });
       return false;
     }
     if (typeof isValidMove === 'function' && !isValidMove(unit, r, c)) {
@@ -1984,6 +2025,15 @@ const IAArchipielago = {
         missionType,
         success: false,
         failReason: 'invalid_move'
+      });
+      this._logMandatoryUnitExecution(unit, {
+        action: 'move',
+        from,
+        to: `${r},${c}`,
+        success: false,
+        reason: 'invalid_move',
+        source: ctx.executionSource || null,
+        missionType
       });
       return false;
     }
@@ -2010,6 +2060,16 @@ const IAArchipielago = {
           success: true,
           mode: 'network_client'
         });
+        this._logMandatoryUnitExecution(unit, {
+          action: 'move',
+          from,
+          to: `${r},${c}`,
+          success: true,
+          reason: 'ok',
+          mode: 'network_client',
+          source: ctx.executionSource || null,
+          missionType
+        });
         return true;
       }
       this._metricLog('IA_ACTION_MOVE', {
@@ -2021,6 +2081,15 @@ const IAArchipielago = {
         missionType,
         success: false,
         failReason: 'network_send_unavailable'
+      });
+      this._logMandatoryUnitExecution(unit, {
+        action: 'move',
+        from,
+        to: `${r},${c}`,
+        success: false,
+        reason: 'network_send_unavailable',
+        source: ctx.executionSource || null,
+        missionType
       });
       return false;
     }
@@ -2041,6 +2110,16 @@ const IAArchipielago = {
         success: true,
         mode: 'RequestMoveUnit'
       });
+      this._logMandatoryUnitExecution(unit, {
+        action: 'move',
+        from,
+        to: `${r},${c}`,
+        success: true,
+        reason: 'ok',
+        mode: 'RequestMoveUnit',
+        source: ctx.executionSource || null,
+        missionType
+      });
       return true;
     }
 
@@ -2060,6 +2139,16 @@ const IAArchipielago = {
         success: true,
         mode: 'processActionRequest'
       });
+      this._logMandatoryUnitExecution(unit, {
+        action: 'move',
+        from,
+        to: `${r},${c}`,
+        success: true,
+        reason: 'ok',
+        mode: 'processActionRequest',
+        source: ctx.executionSource || null,
+        missionType
+      });
       return true;
     }
 
@@ -2073,6 +2162,15 @@ const IAArchipielago = {
       missionType,
       success: false,
       failReason: 'move_api_unavailable'
+    });
+    this._logMandatoryUnitExecution(unit, {
+      action: 'move',
+      from,
+      to: `${r},${c}`,
+      success: false,
+      reason: 'move_api_unavailable',
+      source: ctx.executionSource || null,
+      missionType
     });
     return false;
   },
@@ -2090,6 +2188,15 @@ const IAArchipielago = {
     const targetUnit = getUnitOnHex(r, c);
     if (targetUnit && targetUnit.player !== unit.player) {
       if (this._isUnitActionCoolingDown(unit.player, unit.id, 'attack')) {
+        this._logMandatoryUnitExecution(unit, {
+          action: 'attack',
+          from: `${unit.r},${unit.c}`,
+          to: `${r},${c}`,
+          success: false,
+          reason: 'cooldown',
+          source: ctx.executionSource || null,
+          missionType: ctx.missionType || null
+        });
         return false;
       }
       let canAttack = false;
@@ -2107,6 +2214,15 @@ const IAArchipielago = {
       if (!canAttack) {
         const step = this._getMoveStepTowards(unit, r, c);
         if (step) return this._requestMoveUnit(unit, step.r, step.c, ctx);
+        this._logMandatoryUnitExecution(unit, {
+          action: 'attack',
+          from: `${unit.r},${unit.c}`,
+          to: `${r},${c}`,
+          success: false,
+          reason: 'attack_no_step',
+          source: ctx.executionSource || null,
+          missionType: ctx.missionType || null
+        });
         return false;
       }
 
@@ -2120,8 +2236,27 @@ const IAArchipielago = {
       if (typeof isNetworkGame === 'function' && isNetworkGame() && hasNetworkMatch && typeof NetworkManager !== 'undefined' && !NetworkManager.esAnfitrion) {
         if (NetworkManager.enviarDatos) {
           NetworkManager.enviarDatos({ type: 'actionRequest', action });
+          this._logMandatoryUnitExecution(unit, {
+            action: 'attack',
+            from: `${unit.r},${unit.c}`,
+            to: `${r},${c}`,
+            success: true,
+            reason: 'ok',
+            mode: 'network_client',
+            source: ctx.executionSource || null,
+            missionType: ctx.missionType || null
+          });
           return true;
         }
+        this._logMandatoryUnitExecution(unit, {
+          action: 'attack',
+          from: `${unit.r},${unit.c}`,
+          to: `${r},${c}`,
+          success: false,
+          reason: 'network_send_unavailable',
+          source: ctx.executionSource || null,
+          missionType: ctx.missionType || null
+        });
         return false;
       }
 
@@ -2130,26 +2265,74 @@ const IAArchipielago = {
       if (typeof processActionRequest === 'function') {
         this._markUnitActionDispatch(unit.player, unit.id, 'attack');
         processActionRequest(action);
+        this._logMandatoryUnitExecution(unit, {
+          action: 'attack',
+          from: `${unit.r},${unit.c}`,
+          to: `${r},${c}`,
+          success: true,
+          reason: 'ok',
+          mode: 'processActionRequest',
+          source: ctx.executionSource || null,
+          missionType: ctx.missionType || null
+        });
         return true;
       }
 
       if (typeof RequestAttackUnit === 'function') {
         this._markUnitActionDispatch(unit.player, unit.id, 'attack');
         RequestAttackUnit(unit, targetUnit);
+        this._logMandatoryUnitExecution(unit, {
+          action: 'attack',
+          from: `${unit.r},${unit.c}`,
+          to: `${r},${c}`,
+          success: true,
+          reason: 'ok',
+          mode: 'RequestAttackUnit',
+          source: ctx.executionSource || null,
+          missionType: ctx.missionType || null
+        });
         return true;
       }
 
       if (typeof processActionRequest === 'function') {
         this._markUnitActionDispatch(unit.player, unit.id, 'attack');
         processActionRequest(action);
+        this._logMandatoryUnitExecution(unit, {
+          action: 'attack',
+          from: `${unit.r},${unit.c}`,
+          to: `${r},${c}`,
+          success: true,
+          reason: 'ok',
+          mode: 'processActionRequest_fallback',
+          source: ctx.executionSource || null,
+          missionType: ctx.missionType || null
+        });
         return true;
       }
 
       console.warn('[IA_ARCHIPIELAGO] RequestAttackUnit no disponible.');
+      this._logMandatoryUnitExecution(unit, {
+        action: 'attack',
+        from: `${unit.r},${unit.c}`,
+        to: `${r},${c}`,
+        success: false,
+        reason: 'attack_api_unavailable',
+        source: ctx.executionSource || null,
+        missionType: ctx.missionType || null
+      });
       return false;
     }
     const step = this._getMoveStepTowards(unit, r, c);
     if (step) return this._requestMoveUnit(unit, step.r, step.c, ctx);
+    this._logMandatoryUnitExecution(unit, {
+      action: 'move_or_attack',
+      from: `${unit.r},${unit.c}`,
+      to: `${r},${c}`,
+      success: false,
+      reason: 'no_step_to_target',
+      source: ctx.executionSource || null,
+      missionType: ctx.missionType || null
+    });
     return false;
   },
 
@@ -4827,6 +5010,7 @@ const IAArchipielago = {
 
         const stepToRuin = ruinPlan?.destination || null;
         const movedToRuin = !!(stepToRuin && this._requestMoveUnit(explorer, stepToRuin.r, stepToRuin.c, {
+          executionSource: 'explorer_protocol',
           missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR
         }));
 
@@ -4845,8 +5029,10 @@ const IAArchipielago = {
           actions += 1;
           progressed = true;
           stallReason = 'moved_to_ruin';
+          console.log(`[IA_EXPLORER_EXEC] unit=${explorer.id} objetivo=ruina(${ruinTarget.r},${ruinTarget.c}) destino=(${stepToRuin.r},${stepToRuin.c}) success=true`);
           continue;
         }
+        console.log(`[IA_EXPLORER_EXEC] unit=${explorer.id} objetivo=ruina(${ruinTarget.r},${ruinTarget.c}) destino=${stepToRuin ? `(${stepToRuin.r},${stepToRuin.c})` : 'none'} success=false reason=${stepToRuin ? 'move_failed' : 'no_step'}`);
         stallReason = stepToRuin ? 'ruin_move_failed' : 'ruin_no_step';
       } else {
         stallReason = 'no_ruins_target';
@@ -4891,11 +5077,13 @@ const IAArchipielago = {
 
       const fallbackStep = fallbackPlan?.destination || null;
       if (fallbackStep && this._requestMoveUnit(explorer, fallbackStep.r, fallbackStep.c, {
+        executionSource: 'explorer_protocol_fallback',
         missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR
       })) {
         actions += 1;
         progressed = true;
         stallReason = 'moved_fallback';
+        console.log(`[IA_EXPLORER_EXEC] unit=${explorer.id} objetivo=fallback(${fallbackTarget.r},${fallbackTarget.c}) destino=(${fallbackStep.r},${fallbackStep.c}) success=true`);
         this._metricLog('IA_EXPLORER_MOVE_RESULT', {
           turn: gameState.turnNumber,
           playerId: myPlayer,
@@ -4908,6 +5096,7 @@ const IAArchipielago = {
         });
       } else {
         stallReason = fallbackStep ? 'fallback_move_failed' : 'fallback_no_step';
+        console.log(`[IA_EXPLORER_EXEC] unit=${explorer.id} objetivo=fallback(${fallbackTarget.r},${fallbackTarget.c}) destino=${fallbackStep ? `(${fallbackStep.r},${fallbackStep.c})` : 'none'} success=false reason=${stallReason}`);
         this._metricLog('IA_EXPLORER_MOVE_RESULT', {
           turn: gameState.turnNumber,
           playerId: myPlayer,
@@ -4944,6 +5133,281 @@ const IAArchipielago = {
     });
 
     return actions;
+  },
+
+  _executeFinalMovementSweep(myPlayer, opts = {}) {
+    const maxActions = Math.max(1, Number(opts.maxActions || 8));
+    const attemptedUnitIds = new Set();
+    const skippedByCapUnitIds = new Set();
+    let actions = 0;
+    let attempts = 0;
+    let capped = false;
+
+    while (actions < maxActions) {
+      const candidates = (IASentidos.getUnits(myPlayer) || [])
+        .filter(u => u && u.currentHealth > 0)
+        .filter(u => !u.hasMoved && (u.currentMovement || 0) > 0)
+        .sort((a, b) => (b.currentMovement || 0) - (a.currentMovement || 0));
+
+      if (!candidates.length) break;
+
+      let progressed = false;
+      for (const unit of candidates) {
+        attemptedUnitIds.add(unit.id);
+        attempts += 1;
+
+        const mission = (typeof AiGameplayManager !== 'undefined' && AiGameplayManager.missionAssignments?.get)
+          ? AiGameplayManager.missionAssignments.get(unit.id)
+          : null;
+
+        let target = null;
+        let missionType = this.MISSION_TYPE_COMMERCIAL_CORRIDOR;
+        let reason = 'final_sweep_no_target';
+
+        if (mission?.objective && Number.isInteger(mission.objective.r) && Number.isInteger(mission.objective.c)) {
+          target = { r: mission.objective.r, c: mission.objective.c };
+          missionType = this._inferCanonicalMissionType(unit) || mission.type || this.MISSION_TYPE_COMMERCIAL_CORRIDOR;
+          reason = 'mission_objective';
+        }
+
+        if (!target) {
+          const giftCities = this._collectGiftCityTargets(myPlayer);
+          if (giftCities.length > 0) {
+            target = this._pickObjective(giftCities, unit, myPlayer);
+            missionType = this.MISSION_TYPE_CONQUEST_CITY;
+            reason = 'gift_city';
+          }
+        }
+
+        if (!target) {
+          const expansion = this._collectExpansionTargets(myPlayer);
+          if (expansion.length > 0) {
+            target = this._pickObjective(expansion, unit, myPlayer);
+            missionType = this.MISSION_TYPE_COMMERCIAL_CORRIDOR;
+            reason = 'expansion';
+          }
+        }
+
+        if (!target) {
+          const enemies = IASentidos.getEnemyUnits(myPlayer) || [];
+          if (enemies.length > 0) {
+            target = this._pickObjective(enemies, unit, myPlayer);
+            missionType = this.MISSION_TYPE_CONQUEST_CITY;
+            reason = 'enemy_pressure';
+          }
+        }
+
+        if (!target) {
+          this._logMandatoryUnitExecution(unit, {
+            action: 'final_sweep',
+            success: false,
+            reason,
+            source: 'final_sweep'
+          });
+          continue;
+        }
+
+        const moved = this._requestMoveOrAttack(unit, target.r, target.c, {
+          missionType,
+          executionSource: 'final_sweep'
+        });
+
+        console.log(`[IA_FINAL_SWEEP] unit=${unit.id} from=(${unit.r},${unit.c}) target=(${target.r},${target.c}) moved=${moved} reason=${reason}`);
+
+        if (!moved) continue;
+        actions += 1;
+        progressed = true;
+
+        if (actions >= maxActions) {
+          capped = true;
+          const remaining = (IASentidos.getUnits(myPlayer) || [])
+            .filter(u => u && u.currentHealth > 0)
+            .filter(u => !u.hasMoved && (u.currentMovement || 0) > 0);
+          for (const rem of remaining) skippedByCapUnitIds.add(rem.id);
+        }
+        break;
+      }
+
+      if (!progressed) break;
+    }
+
+    return {
+      actions,
+      attempts,
+      capped,
+      maxActions,
+      attemptedUnitIds: Array.from(attemptedUnitIds),
+      skippedByCapUnitIds: Array.from(skippedByCapUnitIds)
+    };
+  },
+
+  _classifyIdleUnitReason(myPlayer, unit, finalSweepReport = null) {
+    const mission = (typeof AiGameplayManager !== 'undefined' && AiGameplayManager.missionAssignments?.get)
+      ? AiGameplayManager.missionAssignments.get(unit.id)
+      : null;
+
+    const missionType = String(mission?.type || '');
+    const missionReason = String(mission?.reason || '');
+    const missionText = `${missionType} ${missionReason}`.toUpperCase();
+    const holdKeywords = ['AWAIT', 'HOLD', 'DEFEND', 'GUARD', 'CONSOLID'];
+    const isHoldMission = holdKeywords.some(k => missionText.includes(k));
+
+    if (isHoldMission) {
+      return {
+        code: 'hold_mission',
+        category: 4,
+        reason: 'mission_hold_position',
+        missionType,
+        missionReason
+      };
+    }
+
+    if (finalSweepReport?.capped && Array.isArray(finalSweepReport.skippedByCapUnitIds) && finalSweepReport.skippedByCapUnitIds.includes(unit.id)) {
+      return {
+        code: 'final_sweep_cap_reached',
+        category: 3,
+        reason: 'final_sweep_action_cap_reached',
+        missionType,
+        missionReason
+      };
+    }
+
+    let target = null;
+    let targetSource = null;
+
+    if (mission?.objective && Number.isInteger(mission.objective.r) && Number.isInteger(mission.objective.c)) {
+      target = { r: mission.objective.r, c: mission.objective.c };
+      targetSource = 'mission_objective';
+    }
+
+    if (!target) {
+      const giftCities = this._collectGiftCityTargets(myPlayer);
+      if (giftCities.length > 0) {
+        target = this._pickObjective(giftCities, unit, myPlayer);
+        targetSource = 'gift_city';
+      }
+    }
+
+    if (!target) {
+      const expansion = this._collectExpansionTargets(myPlayer);
+      if (expansion.length > 0) {
+        target = this._pickObjective(expansion, unit, myPlayer);
+        targetSource = 'expansion';
+      }
+    }
+
+    if (!target) {
+      const enemies = IASentidos.getEnemyUnits(myPlayer) || [];
+      if (enemies.length > 0) {
+        target = this._pickObjective(enemies, unit, myPlayer);
+        targetSource = 'enemy_pressure';
+      }
+    }
+
+    if (!target) {
+      return {
+        code: 'no_valid_target',
+        category: 1,
+        reason: 'no_valid_target',
+        missionType,
+        missionReason
+      };
+    }
+
+    const path = this._findPathForUnit(unit, target.r, target.c);
+    const step = this._getMoveStepTowards(unit, target.r, target.c);
+    const blocker = step ? getUnitOnHex(step.r, step.c) : null;
+
+    if (!path || path.length <= 1) {
+      return {
+        code: 'action_failed',
+        category: 2,
+        reason: 'no_path_to_target',
+        missionType,
+        missionReason,
+        target: `${target.r},${target.c}`,
+        targetSource
+      };
+    }
+
+    if (!step) {
+      return {
+        code: 'action_failed',
+        category: 2,
+        reason: 'no_step_to_target',
+        missionType,
+        missionReason,
+        target: `${target.r},${target.c}`,
+        targetSource
+      };
+    }
+
+    if (blocker && blocker.player === myPlayer) {
+      return {
+        code: 'action_failed',
+        category: 2,
+        reason: 'blocked_by_friendly_unit',
+        missionType,
+        missionReason,
+        target: `${target.r},${target.c}`,
+        targetSource,
+        blockerUnitId: blocker.id || null,
+        blockerAt: `${blocker.r},${blocker.c}`
+      };
+    }
+
+    const missionTypeCanonical = this._inferCanonicalMissionType(unit) || missionType || this.MISSION_TYPE_COMMERCIAL_CORRIDOR;
+    const canDirectMove = (typeof isValidMove === 'function') ? !!isValidMove(unit, step.r, step.c) : true;
+
+    return {
+      code: 'action_failed',
+      category: 2,
+      reason: canDirectMove ? 'request_or_runtime_rejected_move' : 'invalid_move_by_rules',
+      missionType,
+      missionReason,
+      missionTypeCanonical,
+      target: `${target.r},${target.c}`,
+      targetSource,
+      step: `${step.r},${step.c}`,
+      stepDistance: hexDistance(unit.r, unit.c, step.r, step.c)
+    };
+  },
+
+  _logIdleMovableUnitsReport(myPlayer, finalSweepReport = null) {
+    const idleMovables = (IASentidos.getUnits(myPlayer) || [])
+      .filter(u => u && u.currentHealth > 0)
+      .filter(u => !u.hasMoved && (u.currentMovement || 0) > 0);
+
+    if (!idleMovables.length) {
+      console.log(`[IA_IDLE_REPORT] ${JSON.stringify({ turn: gameState.turnNumber, playerId: myPlayer, idleUnits: 0, status: 'all_movable_units_acted' })}`);
+      return;
+    }
+
+    for (const unit of idleMovables) {
+      const diag = this._classifyIdleUnitReason(myPlayer, unit, finalSweepReport);
+      console.log(`[IA_IDLE_REPORT] ${JSON.stringify({
+        turn: gameState.turnNumber,
+        playerId: myPlayer,
+        unitId: unit.id,
+        unitName: unit.name || null,
+        at: `${unit.r},${unit.c}`,
+        movement: Number(unit.currentMovement || 0),
+        hasMoved: !!unit.hasMoved,
+        category: diag.category,
+        code: diag.code,
+        reason: diag.reason,
+        missionType: diag.missionType || null,
+        missionReason: diag.missionReason || null,
+        target: diag.target || null,
+        targetSource: diag.targetSource || null,
+        step: diag.step || null,
+        blockerUnitId: diag.blockerUnitId || null,
+        blockerAt: diag.blockerAt || null,
+        finalSweepCapped: !!finalSweepReport?.capped,
+        finalSweepActions: Number(finalSweepReport?.actions || 0),
+        finalSweepMaxActions: Number(finalSweepReport?.maxActions || 0)
+      })}`);
+    }
   },
 
   _executeIdleUnitActivationProtocol(myPlayer, opts = {}) {
