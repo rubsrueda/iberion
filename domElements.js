@@ -111,6 +111,7 @@ domElements.scenarioBriefingModalEl = null;
 domElements.scenarioTitleEl = null; 
 domElements.scenarioImageEl = null; 
 domElements.scenarioDescriptionEl = null;
+domElements.scenarioHistoricalMetaEl = null;
 domElements.startScenarioBattleBtnEl = null;
 domElements.closeScenarioBriefingBtnEl = null;
 domElements.gameBoard = null;
@@ -329,6 +330,7 @@ function initializeDomElements() {
     domElements.scenarioTitleEl = document.getElementById('scenarioTitle');
     domElements.scenarioImageEl = document.getElementById('scenarioImage');
     domElements.scenarioDescriptionEl = document.getElementById('scenarioDescription');
+    domElements.scenarioHistoricalMetaEl = document.getElementById('scenarioHistoricalMeta');
     domElements.startScenarioBattleBtnEl = document.getElementById('startScenarioBattleBtn');
     domElements.closeScenarioBriefingBtnEl = document.getElementById('closeScenarioBriefingBtn'); 
     domElements.gameBoard = document.getElementById('gameBoard');

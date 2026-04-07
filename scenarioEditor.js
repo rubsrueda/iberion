@@ -302,6 +302,14 @@ const EditorSerializer = {
                     ? PlayerDataManager.currentPlayer.displayName 
                     : 'Anónimo',
                 description: EditorState.scenarioMeta.description || '',
+                historicalTitle: EditorState.scenarioMeta.historicalTitle || '',
+                historicalPeriod: EditorState.scenarioMeta.historicalPeriod || '',
+                historicalDate: EditorState.scenarioMeta.historicalDate || '',
+                historicalLocation: EditorState.scenarioMeta.historicalLocation || '',
+                historicalSides: EditorState.scenarioMeta.historicalSides || '',
+                historicalContext: EditorState.scenarioMeta.historicalContext || '',
+                historicalObjectives: EditorState.scenarioMeta.historicalObjectives || '',
+                historicalSources: EditorState.scenarioMeta.historicalSources || '',
                 created_at: EditorState.scenarioMeta.created_at || Date.now(),
                 modified_at: Date.now(),
                 version: '1.0'
@@ -389,7 +397,18 @@ const EditorSerializer = {
         }
         
         // Actualizar metadata del editor
-        EditorState.scenarioMeta = scenarioJSON.meta;
+        EditorState.scenarioMeta = {
+            ...EditorState.scenarioMeta,
+            ...scenarioJSON.meta,
+            historicalTitle: scenarioJSON.meta.historicalTitle || '',
+            historicalPeriod: scenarioJSON.meta.historicalPeriod || '',
+            historicalDate: scenarioJSON.meta.historicalDate || '',
+            historicalLocation: scenarioJSON.meta.historicalLocation || '',
+            historicalSides: scenarioJSON.meta.historicalSides || '',
+            historicalContext: scenarioJSON.meta.historicalContext || '',
+            historicalObjectives: scenarioJSON.meta.historicalObjectives || '',
+            historicalSources: scenarioJSON.meta.historicalSources || ''
+        };
         EditorState.scenarioSettings = scenarioJSON.settings;
         EditorState.playerConfigs = scenarioJSON.playerConfig;
         

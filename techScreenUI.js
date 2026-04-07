@@ -5,7 +5,18 @@ const TECH_TREE_NODE_SIZE = 64;
 function _computeTechTreeLayout(container) {
     const techEntries = Object.values(TECHNOLOGY_TREE_DATA || {});
     if (techEntries.length === 0) {
-        return { scale: 1, centerX: 0, centerY: 0, width: container.clientWidth || 620, height: container.clientHeight || 260 };
+        const fallbackWidth = container.clientWidth || 620;
+        const fallbackHeight = container.clientHeight || 260;
+        return {
+            width: fallbackWidth,
+            height: fallbackHeight,
+            minX: -1,
+            maxX: 1,
+            minY: -1,
+            maxY: 1,
+            paddingX: Math.round(fallbackWidth * 0.05),
+            paddingY: Math.round(fallbackHeight * 0.05)
+        };
     }
 
     let minX = Infinity;
@@ -22,26 +33,32 @@ function _computeTechTreeLayout(container) {
 
     const width = container.clientWidth || 620;
     const height = container.clientHeight || 260;
-    const margin = TECH_TREE_NODE_SIZE;
-
-    const rangeX = Math.max(1, maxX - minX);
-    const rangeY = Math.max(1, maxY - minY);
-    const scaleX = (width - margin * 2) / rangeX;
-    const scaleY = (height - margin * 2) / rangeY;
-    const scale = Math.max(0.22, Math.min(scaleX, scaleY, 1));
+    const paddingX = Math.max(12, Math.round(width * 0.05));
+    const paddingY = Math.max(8, Math.round(height * 0.05));
 
     return {
-        scale,
-        centerX: (minX + maxX) / 2,
-        centerY: (minY + maxY) / 2,
+        minX,
+        maxX,
+        minY,
+        maxY,
+        paddingX,
+        paddingY,
         width,
         height
     };
 }
 
 function _toScreenPosition(tech, layout) {
-    const x = (tech.position.x - layout.centerX) * layout.scale + layout.width / 2;
-    const y = (tech.position.y - layout.centerY) * layout.scale + layout.height / 2;
+    const rangeX = Math.max(1, layout.maxX - layout.minX);
+    const rangeY = Math.max(1, layout.maxY - layout.minY);
+    const usableWidth = Math.max(1, layout.width - layout.paddingX * 2);
+    const usableHeight = Math.max(1, layout.height - layout.paddingY * 2);
+
+    const normalizedX = (tech.position.x - layout.minX) / rangeX;
+    const normalizedY = (tech.position.y - layout.minY) / rangeY;
+
+    const x = layout.paddingX + normalizedX * usableWidth;
+    const y = layout.paddingY + normalizedY * usableHeight;
     return { x, y };
 }
 

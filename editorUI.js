@@ -10,13 +10,22 @@ console.log("editorUI.js CARGADO");
  * EditorUI: Maneja toda la interacción del usuario con el editor
  */
 const EditorUI = {
+    _integrationContext: {
+        returnToCampaignEditor: false,
+        onScenarioSaved: null
+    },
     
     /**
      * Abre el editor de escenarios
      * @param {Object} existingScenario - Escenario a editar (opcional)
      */
-    openScenarioEditor(existingScenario = null) {
+    openScenarioEditor(existingScenario = null, options = {}) {
         console.log('[EditorUI] Abriendo editor de escenarios');
+
+        this._integrationContext = {
+            returnToCampaignEditor: !!options.returnToCampaignEditor,
+            onScenarioSaved: typeof options.onScenarioSaved === 'function' ? options.onScenarioSaved : null
+        };
         
         // Ocultar menú principal
         const mainMenu = document.getElementById('mainMenuScreen');
@@ -71,8 +80,35 @@ const EditorUI = {
         
         // Actualizar nombre del escenario en UI
         this.updateScenarioName();
+
+        // Herramienta por defecto para facilitar edición inmediata
+        this.selectTool('terrain');
         
         console.log('[EditorUI] Editor de escenarios abierto');
+    },
+
+    _closeAndRouteBack() {
+        EditorState.isEditorMode = false;
+
+        const editorContainer = document.getElementById('scenarioEditorContainer');
+        if (editorContainer) editorContainer.style.display = 'none';
+
+        if (this._integrationContext.returnToCampaignEditor) {
+            const campaignEditorContainer = document.getElementById('campaignEditorContainer');
+            if (campaignEditorContainer) campaignEditorContainer.style.display = 'flex';
+            return;
+        }
+
+        // Flujo normal: volver al menú principal
+        const gameContainer = document.querySelector('.game-container');
+        if (gameContainer) {
+            gameContainer.style.display = 'none';
+            gameContainer.style.paddingTop = '';
+            gameContainer.style.paddingBottom = '';
+        }
+
+        const mainMenu = document.getElementById('mainMenuScreen');
+        if (mainMenu) mainMenu.style.display = 'flex';
     },
     
     /**
@@ -227,18 +263,25 @@ const EditorUI = {
      * Pobla el selector de jugadores
      */
     populatePlayerSelector() {
-        const selector = document.getElementById('unitPlayerSelector');
-        if (!selector) return;
-        
-        selector.innerHTML = '';
-        
+        const selectors = [
+            document.getElementById('unitPlayerSelector'),
+            document.getElementById('structurePlayerSelector'),
+            document.getElementById('ownerPlayerSelector')
+        ].filter(Boolean);
+
+        if (selectors.length === 0) return;
+
         const maxPlayers = EditorState.scenarioSettings.maxPlayers;
-        for (let i = 1; i <= maxPlayers; i++) {
-            const option = document.createElement('option');
-            option.value = i;
-            option.textContent = `Jugador ${i}`;
-            selector.appendChild(option);
-        }
+        selectors.forEach(selector => {
+            selector.innerHTML = '';
+            for (let i = 1; i <= maxPlayers; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = `Jugador ${i}`;
+                selector.appendChild(option);
+            }
+            selector.value = String(EditorState.selectedPlayer || 1);
+        });
     },
     
     /**
@@ -344,9 +387,15 @@ const EditorUI = {
             EditorState.selectedUnitType = unitTypeSelector.value;
         }
         
-        const unitPlayerSelector = document.getElementById('unitPlayerSelector');
-        if (unitPlayerSelector) {
-            EditorState.selectedPlayer = parseInt(unitPlayerSelector.value);
+        const playerSelectorByTool = {
+            unit: 'unitPlayerSelector',
+            structure: 'structurePlayerSelector',
+            player_owner: 'ownerPlayerSelector'
+        };
+        const playerSelectorId = playerSelectorByTool[EditorState.currentTool];
+        const playerSelector = playerSelectorId ? document.getElementById(playerSelectorId) : null;
+        if (playerSelector) {
+            EditorState.selectedPlayer = parseInt(playerSelector.value, 10) || 1;
         }
         
         const structureSelector = document.getElementById('structureTypeSelector');
@@ -369,20 +418,36 @@ const EditorUI = {
         }
         
         const scenarioData = EditorSerializer.exportScenario();
-        
-        // Guardar en localStorage
-        const scenarioId = `SCENARIO_${Date.now()}`;
+
+        // Metadatos de guardado
+        scenarioData.meta.modified_at = Date.now();
+
         try {
-            localStorage.setItem(scenarioId, JSON.stringify(scenarioData));
+            let scenarioId = null;
+            if (typeof ScenarioStorage !== 'undefined' && ScenarioStorage.saveToLocalStorage) {
+                scenarioId = ScenarioStorage.saveToLocalStorage(scenarioData);
+            } else {
+                scenarioId = `SCENARIO_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                localStorage.setItem(scenarioId, JSON.stringify(scenarioData));
+            }
+
             console.log('[EditorUI] Escenario guardado en localStorage:', scenarioId);
             
             // Guardar también en Supabase si está disponible
             if (typeof ScenarioStorage !== 'undefined' && ScenarioStorage.saveToSupabase) {
                 await ScenarioStorage.saveToSupabase(scenarioData, false);
             }
+
+            if (this._integrationContext.onScenarioSaved) {
+                this._integrationContext.onScenarioSaved(scenarioData, scenarioId);
+            }
             
             alert('✅ Escenario guardado correctamente');
             this.updateScenarioName();
+
+            if (this._integrationContext.returnToCampaignEditor) {
+                this._closeAndRouteBack();
+            }
         } catch (error) {
             console.error('[EditorUI] Error guardando escenario:', error);
             alert('❌ Error al guardar el escenario');
@@ -486,22 +551,8 @@ const EditorUI = {
         if (!confirm('¿Salir del editor? Los cambios no guardados se perderán.')) return;
         
         console.log('[EditorUI] Cerrando editor');
-        
-        EditorState.isEditorMode = false;
-        
-        const editorContainer = document.getElementById('scenarioEditorContainer');
-        if (editorContainer) editorContainer.style.display = 'none';
-        
-        // Ocultar el contenedor del juego y restaurar estilos
-        const gameContainer = document.querySelector('.game-container');
-        if (gameContainer) {
-            gameContainer.style.display = 'none';
-            gameContainer.style.paddingTop = '';
-            gameContainer.style.paddingBottom = '';
-        }
-        
-        const mainMenu = document.getElementById('mainMenuScreen');
-        if (mainMenu) mainMenu.style.display = 'flex';
+
+        this._closeAndRouteBack();
     },
     
     /**
@@ -584,6 +635,7 @@ const EditorUI = {
         const options = [
             '📤 Exportar JSON',
             '📥 Importar JSON',
+            '📜 Metadatos Históricos',
             '↶ Deshacer',
             '↷ Rehacer',
             '⚙️ Tamaño del Mapa',
@@ -611,12 +663,13 @@ const EditorUI = {
                 switch(index) {
                     case 0: this.exportScenario(); break;
                     case 1: this.importScenario(); break;
-                    case 2: this.undo(); break;
-                    case 3: this.redo(); break;
-                    case 4: this.openMapSettings(); break;
-                    case 5: this.openPlayerSettings(); break;
-                    case 6: this.openVictoryConditions(); break;
-                    case 7: this.generateProcedural(); break;
+                    case 2: this.openHistoricalMetadata(); break;
+                    case 3: this.undo(); break;
+                    case 4: this.redo(); break;
+                    case 5: this.openMapSettings(); break;
+                    case 6: this.openPlayerSettings(); break;
+                    case 7: this.openVictoryConditions(); break;
+                    case 8: this.generateProcedural(); break;
                 }
             };
             
@@ -679,6 +732,86 @@ const EditorUI = {
               '⏱️ Límite de turnos (configurable)\n' +
               '🏰 Capturar ciudades clave');
     },
+
+    /**
+     * Abre modal de metadatos históricos del escenario
+     */
+    openHistoricalMetadata() {
+        const existing = document.getElementById('editorHistoricalMetaModal');
+        if (existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'editorHistoricalMetaModal';
+        modal.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 10520; display: flex; align-items: center; justify-content: center; padding: 16px; pointer-events: auto;';
+
+        const panel = document.createElement('div');
+        panel.style.cssText = 'width: min(720px, 100%); max-height: 90vh; overflow-y: auto; background: #0b1623; border: 2px solid #00f3ff; border-radius: 10px; padding: 16px; color: #e5f6ff;';
+
+        const esc = (v) => String(v || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+
+        panel.innerHTML = `
+            <h3 style="margin: 0 0 12px 0; color: #00f3ff;">Metadatos Históricos del Escenario</h3>
+            <p style="margin: 0 0 14px 0; color: #9fd3e6; font-size: 0.92em;">Documenta la batalla para convertir este escenario en una recreación histórica completa.</p>
+
+            <label style="display:block; margin-bottom:8px;">Título histórico
+                <input id="histTitle" type="text" style="width:100%; margin-top:4px;" value="${esc(EditorState.scenarioMeta.historicalTitle)}">
+            </label>
+            <label style="display:block; margin-bottom:8px;">Periodo
+                <input id="histPeriod" type="text" style="width:100%; margin-top:4px;" placeholder="Ej: Segunda Guerra Púnica" value="${esc(EditorState.scenarioMeta.historicalPeriod)}">
+            </label>
+            <label style="display:block; margin-bottom:8px;">Fecha o rango temporal
+                <input id="histDate" type="text" style="width:100%; margin-top:4px;" placeholder="Ej: 216 a.C." value="${esc(EditorState.scenarioMeta.historicalDate)}">
+            </label>
+            <label style="display:block; margin-bottom:8px;">Ubicación
+                <input id="histLocation" type="text" style="width:100%; margin-top:4px;" placeholder="Ej: Cannas, Apulia" value="${esc(EditorState.scenarioMeta.historicalLocation)}">
+            </label>
+            <label style="display:block; margin-bottom:8px;">Bandos y comandantes
+                <textarea id="histSides" rows="3" style="width:100%; margin-top:4px;">${esc(EditorState.scenarioMeta.historicalSides)}</textarea>
+            </label>
+            <label style="display:block; margin-bottom:8px;">Contexto histórico
+                <textarea id="histContext" rows="5" style="width:100%; margin-top:4px;">${esc(EditorState.scenarioMeta.historicalContext)}</textarea>
+            </label>
+            <label style="display:block; margin-bottom:8px;">Objetivos del escenario
+                <textarea id="histObjectives" rows="4" style="width:100%; margin-top:4px;">${esc(EditorState.scenarioMeta.historicalObjectives)}</textarea>
+            </label>
+            <label style="display:block; margin-bottom:8px;">Fuentes / bibliografía
+                <textarea id="histSources" rows="4" style="width:100%; margin-top:4px;">${esc(EditorState.scenarioMeta.historicalSources)}</textarea>
+            </label>
+
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px;">
+                <button id="histCancelBtn" style="padding:10px 14px; background:#444; color:#fff; border:none; border-radius:6px; cursor:pointer;">Cancelar</button>
+                <button id="histSaveBtn" style="padding:10px 14px; background:#00f3ff; color:#001018; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">Guardar metadatos</button>
+            </div>
+        `;
+
+        modal.appendChild(panel);
+        document.body.appendChild(modal);
+
+        const closeModal = () => modal.remove();
+        panel.querySelector('#histCancelBtn').addEventListener('click', closeModal);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+
+        panel.querySelector('#histSaveBtn').addEventListener('click', () => {
+            EditorState.scenarioMeta.historicalTitle = panel.querySelector('#histTitle').value.trim();
+            EditorState.scenarioMeta.historicalPeriod = panel.querySelector('#histPeriod').value.trim();
+            EditorState.scenarioMeta.historicalDate = panel.querySelector('#histDate').value.trim();
+            EditorState.scenarioMeta.historicalLocation = panel.querySelector('#histLocation').value.trim();
+            EditorState.scenarioMeta.historicalSides = panel.querySelector('#histSides').value.trim();
+            EditorState.scenarioMeta.historicalContext = panel.querySelector('#histContext').value.trim();
+            EditorState.scenarioMeta.historicalObjectives = panel.querySelector('#histObjectives').value.trim();
+            EditorState.scenarioMeta.historicalSources = panel.querySelector('#histSources').value.trim();
+            EditorState.scenarioMeta.modified_at = Date.now();
+
+            alert('✅ Metadatos históricos guardados en el escenario');
+            closeModal();
+        });
+    },
     
     /**
      * Genera un mapa procedural
@@ -716,7 +849,7 @@ function handleEditorHexClick(r, c) {
             
         case 'unit':
             EditorState.selectedUnitType = document.getElementById('unitTypeSelector')?.value;
-            EditorState.selectedPlayer = parseInt(document.getElementById('unitPlayerSelector')?.value || 1);
+            EditorState.selectedPlayer = parseInt(document.getElementById('unitPlayerSelector')?.value || 1, 10);
             
             if (EditorState.selectedUnitType) {
                 EditorTools.placeUnit(r, c, {
@@ -728,7 +861,7 @@ function handleEditorHexClick(r, c) {
             
         case 'structure':
             EditorState.selectedStructure = document.getElementById('structureTypeSelector')?.value;
-            EditorState.selectedPlayer = parseInt(document.getElementById('unitPlayerSelector')?.value || 1);
+            EditorState.selectedPlayer = parseInt(document.getElementById('structurePlayerSelector')?.value || 1, 10);
             
             if (EditorState.selectedStructure) {
                 EditorTools.placeStructure(r, c, EditorState.selectedStructure);
@@ -736,7 +869,7 @@ function handleEditorHexClick(r, c) {
             break;
             
         case 'player_owner':
-            EditorState.selectedPlayer = parseInt(document.getElementById('unitPlayerSelector')?.value || 1);
+            EditorState.selectedPlayer = parseInt(document.getElementById('ownerPlayerSelector')?.value || 1, 10);
             EditorTools.setHexOwner(r, c, EditorState.selectedPlayer);
             break;
             

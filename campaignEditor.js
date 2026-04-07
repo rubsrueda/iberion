@@ -100,6 +100,24 @@ const CampaignEditor = {
         console.log(`[CampaignEditor] Escenario "${scenarioData.meta.name}" añadido (orden ${targetOrder})`);
         return true;
     },
+
+    /**
+     * Actualiza un escenario existente por orden
+     * @param {number} order - Orden del escenario
+     * @param {Object} scenarioData - Datos actualizados del escenario
+     */
+    updateScenario(order, scenarioData) {
+        const scenario = CampaignState.scenarios.find(s => s.order === order);
+        if (!scenario || !scenarioData || !scenarioData.meta) {
+            console.warn('[CampaignEditor] No se pudo actualizar escenario en orden:', order);
+            return false;
+        }
+
+        scenario.scenarioData = scenarioData;
+        scenario.scenarioId = scenarioData.meta.name || scenario.scenarioId;
+        console.log(`[CampaignEditor] Escenario actualizado (orden ${order}): ${scenario.scenarioId}`);
+        return true;
+    },
     
     /**
      * Remueve un escenario de la campaña
@@ -344,7 +362,13 @@ const CampaignUI = {
         
         // Abrir editor de escenarios con el escenario
         if (typeof EditorUI !== 'undefined') {
-            EditorUI.openScenarioEditor(scenario.scenarioData);
+            EditorUI.openScenarioEditor(scenario.scenarioData, {
+                returnToCampaignEditor: true,
+                onScenarioSaved: (savedScenarioData) => {
+                    CampaignEditor.updateScenario(order, savedScenarioData);
+                    this.renderScenarioList();
+                }
+            });
         }
     },
     
@@ -368,6 +392,10 @@ const CampaignUI = {
         
         if (choice === '1') {
             // Cargar escenarios guardados
+            if (typeof ScenarioStorage === 'undefined' || !ScenarioStorage.listLocalScenarios) {
+                alert('❌ ScenarioStorage no está disponible. Recarga la página e inténtalo de nuevo.');
+                return;
+            }
             const scenarios = ScenarioStorage.listLocalScenarios();
             
             if (scenarios.length === 0) {
@@ -382,7 +410,7 @@ const CampaignUI = {
             });
             
             const selection = prompt(listText);
-            const index = parseInt(selection) - 1;
+            const index = parseInt(selection, 10) - 1;
             
             if (index >= 0 && index < scenarios.length) {
                 const scenarioData = ScenarioStorage.loadFromLocalStorage(scenarios[index].id);
@@ -396,7 +424,13 @@ const CampaignUI = {
             document.getElementById('campaignEditorContainer').style.display = 'none';
             
             if (typeof EditorUI !== 'undefined') {
-                EditorUI.openScenarioEditor();
+                EditorUI.openScenarioEditor(null, {
+                    returnToCampaignEditor: true,
+                    onScenarioSaved: (savedScenarioData) => {
+                        CampaignEditor.addScenario(savedScenarioData);
+                        this.renderScenarioList();
+                    }
+                });
             }
         }
     },

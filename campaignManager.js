@@ -216,9 +216,52 @@ function onTerritoryClick(territoryId) {
     }
     campaignState.currentScenarioDataForBattle = scenarioData;
 
+    const escapeHtml = (value) => String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+
+    const getHistoricalValue = (key) => {
+        if (scenarioData.meta && scenarioData.meta[key]) return scenarioData.meta[key];
+        if (scenarioData[key]) return scenarioData[key];
+        return '';
+    };
+
+    const historicalData = {
+        title: getHistoricalValue('historicalTitle'),
+        period: getHistoricalValue('historicalPeriod'),
+        date: getHistoricalValue('historicalDate'),
+        location: getHistoricalValue('historicalLocation'),
+        sides: getHistoricalValue('historicalSides'),
+        context: getHistoricalValue('historicalContext'),
+        objectives: getHistoricalValue('historicalObjectives'),
+        sources: getHistoricalValue('historicalSources')
+    };
+
     // --- ¡CORRECCIÓN CLAVE AQUÍ! Acceder a los elementos a través de domElements ---
     if (domElements.scenarioTitleEl) domElements.scenarioTitleEl.textContent = scenarioData.displayName;
     if (domElements.scenarioDescriptionEl) domElements.scenarioDescriptionEl.textContent = scenarioData.description;
+    if (domElements.scenarioHistoricalMetaEl) {
+        const hasHistoricalData = Object.values(historicalData).some(value => String(value || '').trim() !== '');
+        if (hasHistoricalData) {
+            const rows = [];
+            if (historicalData.title) rows.push(`<div><strong>Referencia histórica:</strong> ${escapeHtml(historicalData.title)}</div>`);
+            if (historicalData.period) rows.push(`<div><strong>Periodo:</strong> ${escapeHtml(historicalData.period)}</div>`);
+            if (historicalData.date) rows.push(`<div><strong>Fecha:</strong> ${escapeHtml(historicalData.date)}</div>`);
+            if (historicalData.location) rows.push(`<div><strong>Ubicación:</strong> ${escapeHtml(historicalData.location)}</div>`);
+            if (historicalData.sides) rows.push(`<div><strong>Bandos:</strong> ${escapeHtml(historicalData.sides)}</div>`);
+            if (historicalData.context) rows.push(`<div style="margin-top:6px;"><strong>Contexto:</strong><br>${escapeHtml(historicalData.context).replace(/\n/g, '<br>')}</div>`);
+            if (historicalData.objectives) rows.push(`<div style="margin-top:6px;"><strong>Objetivos:</strong><br>${escapeHtml(historicalData.objectives).replace(/\n/g, '<br>')}</div>`);
+            if (historicalData.sources) rows.push(`<div style="margin-top:6px;"><strong>Fuentes:</strong><br>${escapeHtml(historicalData.sources).replace(/\n/g, '<br>')}</div>`);
+
+            domElements.scenarioHistoricalMetaEl.innerHTML = rows.join('');
+            domElements.scenarioHistoricalMetaEl.style.display = 'block';
+        } else {
+            domElements.scenarioHistoricalMetaEl.innerHTML = '';
+            domElements.scenarioHistoricalMetaEl.style.display = 'none';
+        }
+    }
     if (domElements.scenarioImageEl) {
         domElements.scenarioImageEl.src = scenarioData.briefingImage || "";
         domElements.scenarioImageEl.style.display = (scenarioData.briefingImage && scenarioData.briefingImage !== "") ? 'block' : 'none';
