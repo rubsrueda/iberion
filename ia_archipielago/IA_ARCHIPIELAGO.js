@@ -4304,11 +4304,21 @@ const IAArchipielago = {
         reason: arbitration.reason
       });
 
+      const ownerBefore = board[target.r]?.[target.c]?.owner;
       const ok = this._requestMoveOrAttack(candidate, target.r, target.c, { missionType: arbitration.selectedMissionType });
       if (!ok) continue;
 
+      const ownerAfter = board[target.r]?.[target.c]?.owner;
+      const occupiedAfter = getUnitOnHex(target.r, target.c);
+      const captured = ownerBefore !== myPlayer && ownerAfter === myPlayer;
+      const reached = !!(occupiedAfter && occupiedAfter.player === myPlayer);
+
       captures += 1;
-      console.log(`[IA_ARCHIPIELAGO] [EMERGENCIA CAPTURA] J${myPlayer}: ${candidate.name} toma ${target.type} en (${target.r},${target.c}) ${target.name ? `- ${target.name}` : ''}`);
+      if (captured) {
+        console.log(`[IA_ARCHIPIELAGO] [EMERGENCIA CAPTURA] J${myPlayer}: ${candidate.name} conquista ${target.type} en (${target.r},${target.c}) ${target.name ? `- ${target.name}` : ''}`);
+      } else {
+        console.log(`[IA_ARCHIPIELAGO] [EMERGENCIA CAPTURA] J${myPlayer}: ${candidate.name} avanza hacia ${target.type} en (${target.r},${target.c}) reached=${reached} ownerAntes=${ownerBefore} ownerDespues=${ownerAfter}`);
+      }
       this._importantLog('MISSION_ACTION_EXECUTED', {
         playerId: myPlayer,
         unitId: candidate.id,
@@ -4317,7 +4327,7 @@ const IAArchipielago = {
         targetType: target.type,
         objective: `${target.r},${target.c}`,
         targetName: target.name || null,
-        result: 'success'
+        result: captured ? 'captured' : 'advanced'
       });
       this._metricLog('IA_OPPORTUNISTIC_CAPTURE', {
         turn: gameState.turnNumber,
@@ -4327,7 +4337,11 @@ const IAArchipielago = {
         targetType: target.type,
         hex: `${target.r},${target.c}`,
         targetName: target.name || null,
-        success: true
+        success: true,
+        captured,
+        reached,
+        ownerBefore,
+        ownerAfter
       });
     }
 
@@ -4357,6 +4371,59 @@ const IAArchipielago = {
 
     if (actions > 0) {
       console.log(`[IA_ARCHIPIELAGO][PROTOCOLOS] J${myPlayer} fase=${phase} acciones=${actions} neutralRatio=${neutralRatio.toFixed(2)}`);
+    }
+
+    return actions;
+  },
+
+  _getUngarrisonedCityOpportunity(myPlayer) {
+    const targets = this._collectGiftCityTargets(myPlayer);
+    if (!targets.length) return null;
+
+    const availableUnits = this._getAvailableMissionUnits(myPlayer);
+    if (!availableUnits.length) return null;
+
+    let best = null;
+    for (const target of targets) {
+      for (const unit of availableUnits) {
+        if (!this._findPathForUnit(unit, target.r, target.c)) continue;
+        const dist = hexDistance(unit.r, unit.c, target.r, target.c);
+        const score = 400 - (dist * 18);
+        if (!best || score > best.score) {
+          best = { unit, target, score };
+        }
+      }
+    }
+
+    return best;
+  },
+
+  _hasUngarrisonedCityWithPath(myPlayer) {
+    return !!this._getUngarrisonedCityOpportunity(myPlayer);
+  },
+
+  _enforceUngarrisonedCityPriority(myPlayer, maxActions = 1) {
+    let actions = 0;
+    const budget = Math.max(1, Number(maxActions || 1));
+
+    while (actions < budget) {
+      const opp = this._getUngarrisonedCityOpportunity(myPlayer);
+      if (!opp) break;
+
+      const { unit, target } = opp;
+      this._assignMissionIfAvailable(unit, {
+        type: 'CITY_SNATCH_IMMEDIATE',
+        objective: { r: target.r, c: target.c },
+        reason: 'UNGARRISONED_CITY_ABSOLUTE_PRIORITY'
+      });
+
+      const step = this._getMoveStepTowards(unit, target.r, target.c);
+      const moved = !!(step && this._requestMoveUnit(unit, step.r, step.c, {
+        missionType: this.MISSION_TYPE_CONQUEST_CITY
+      }));
+
+      if (!moved) break;
+      actions += 1;
     }
 
     return actions;
@@ -4558,7 +4625,10 @@ const IAArchipielago = {
       .filter(u => !u.hasMoved && (u.currentMovement || 0) > 0)
       .filter(u => u.regiments?.some(reg => reg.type === 'Explorador'));
 
-    if (!explorers.length && typeof AiGameplayManager !== 'undefined' && AiGameplayManager.produceUnit) {
+    const anyExplorerAlive = (IASentidos.getUnits(myPlayer) || [])
+      .some(u => u && u.currentHealth > 0 && u.regiments?.some(reg => reg.type === 'Explorador'));
+
+    if (!explorers.length && !anyExplorerAlive && typeof AiGameplayManager !== 'undefined' && AiGameplayManager.produceUnit) {
       const createdExplorer = AiGameplayManager.produceUnit(myPlayer, ['Explorador'], 'scout', 'Explorador Protocolo');
       if (createdExplorer) {
         explorers = (IASentidos.getUnits(myPlayer) || [])
@@ -5332,7 +5402,10 @@ const IAArchipielago = {
       !u.hasMoved &&
       u.regiments?.some(r => r.type === 'Explorador')
     );
-    if (!explorerUnit && typeof AiGameplayManager !== 'undefined' && AiGameplayManager.produceUnit) {
+    const anyExplorerAlive = (units || []).some(u =>
+      u && u.player === myPlayer && u.currentHealth > 0 && u.regiments?.some(r => r.type === 'Explorador')
+    );
+    if (!explorerUnit && !anyExplorerAlive && typeof AiGameplayManager !== 'undefined' && AiGameplayManager.produceUnit) {
       explorerUnit = AiGameplayManager.produceUnit(myPlayer, ['Explorador'], 'scout', 'Explorador');
     }
 
@@ -5356,7 +5429,8 @@ const IAArchipielago = {
       }
     }
 
-    if (this._requestMoveOrAttack(explorerUnit, target.r, target.c)) {
+    const step = this._getMoveStepTowards(explorerUnit, target.r, target.c);
+    if (step && this._requestMoveUnit(explorerUnit, step.r, step.c, { missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR })) {
       return { action: 'explorar_ruinas', executed: true, note: 'moviendo_explorador' };
     }
 
@@ -6373,6 +6447,9 @@ const IAArchipielago = {
     const rutas = situacion.rutas || [];
     if (!rutas.length) return;
 
+    // Regla dura: si hay ciudad sin guarnición alcanzable, intentar ocuparla antes de rutas.
+    this._enforceUngarrisonedCityPriority(situacion.myPlayer, 2);
+
     const logLimit = this.ARCHI_LOG_VERBOSE ? rutas.length : (this.ARCHI_LOG_ROUTE_LIMIT || 3);
     const pointRushActive = rutas.some(r => r?.meta?.pointSupremacyRush === true);
     const pointRushBonus = pointRushActive ? Math.max(0, Number(this.POINT_SUPREMACY_ROUTE_ACTION_BONUS) || 0) : 0;
@@ -6426,6 +6503,32 @@ const IAArchipielago = {
 
   _ejecutarAccionPorRuta(ruta, situacion) {
     const { myPlayer } = situacion;
+    const blockedByCityPriority = new Set([
+      'ruta_aniquilacion',
+      'ruta_mas_victorias',
+      'ruta_sabotaje',
+      'ruta_cortar_suministro',
+      'ruta_dominar_casillas',
+      'ruta_frente_humano',
+      'ruta_caza_envolvente'
+    ]);
+
+    if (blockedByCityPriority.has(ruta.id) && this._hasUngarrisonedCityWithPath(myPlayer)) {
+      const forcedActions = this._enforceUngarrisonedCityPriority(myPlayer, 1);
+      if (forcedActions > 0) {
+        return {
+          action: 'prioridad_ciudad_sin_guarnicion',
+          executed: true,
+          note: `acciones=${forcedActions}`
+        };
+      }
+      return {
+        action: 'prioridad_ciudad_sin_guarnicion',
+        executed: false,
+        reason: 'city_priority_active'
+      };
+    }
+
     switch (ruta.id) {
       case 'ruta_piedra_hills_urgente': {
         const moves = this._executeEarlyStoneHillsMission(myPlayer);
