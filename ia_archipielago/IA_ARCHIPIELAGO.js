@@ -6438,17 +6438,53 @@ const IAArchipielago = {
       if (!newUnit) break;
       produced += 1;
 
-      this._assignMissionIfAvailable(newUnit, {
+      // En algunos flujos de producción, la unidad nace sin currentMovement util
+      // hasta el reset de turno. Forzamos disponibilidad inmediata para que esta
+      // division de conquista no pierda el primer turno.
+      const refreshedNewUnit = (typeof getUnitById === 'function' ? getUnitById(newUnit.id) : null) || newUnit;
+      const computedMovement = Number(refreshedNewUnit.currentMovement || refreshedNewUnit.movement || 0);
+      if (computedMovement <= 0) {
+        refreshedNewUnit.currentMovement = Number(refreshedNewUnit.movement || 1);
+      }
+      refreshedNewUnit.hasMoved = false;
+      refreshedNewUnit.hasAttacked = false;
+
+      // Recalcular objetivo tras spawn: no siempre el target inicial es el más
+      // alcanzable para la unidad recién creada por bloqueo local de vecindad.
+      let immediateTarget = freeTargets.find(t => !!this._findPathForUnit(refreshedNewUnit, t.r, t.c)) || null;
+      if (!immediateTarget) {
+        const adjacentNeutral = getHexNeighbors(refreshedNewUnit.r, refreshedNewUnit.c)
+          .map(n => board[n.r]?.[n.c])
+          .filter(h => h && h.terrain !== 'water')
+          .filter(h => h.owner === null || h.owner === undefined)
+          .filter(h => !getUnitOnHex(h.r, h.c))[0] || null;
+        if (adjacentNeutral) {
+          immediateTarget = { r: adjacentNeutral.r, c: adjacentNeutral.c, priority: 999 };
+        }
+      }
+      if (!immediateTarget) {
+        this._importantLog('AGGRESSIVE_CONQUEST_NEW_UNIT_BLOCKED', {
+          playerId: myPlayer,
+          unitId: refreshedNewUnit.id,
+          at: `${refreshedNewUnit.r},${refreshedNewUnit.c}`,
+          reason: 'no_reachable_target_after_spawn'
+        });
+        continue;
+      }
+
+      this._assignMissionIfAvailable(refreshedNewUnit, {
         type: 'AGGRESSIVE_MAP_CONQUEST',
-        objective: { r: target.r, c: target.c },
+        objective: { r: immediateTarget.r, c: immediateTarget.c },
         reason: 'TURN5_NEW_DIVISION_RUSH'
       });
 
-      const moved = this._requestMoveOrAttack(newUnit, target.r, target.c, {
+      const moved = this._requestMoveOrAttack(refreshedNewUnit, immediateTarget.r, immediateTarget.c, {
         missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR
       });
-      claimed.add(`${target.r},${target.c}`);
-      if (moved) actions += 1;
+      if (moved) {
+        claimed.add(`${immediateTarget.r},${immediateTarget.c}`);
+        actions += 1;
+      }
     }
 
     this._importantLog('AGGRESSIVE_CONQUEST_RESULT', {
