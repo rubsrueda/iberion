@@ -960,6 +960,12 @@ const UIManager = {
 
         // Paso 2: Volver a crear cada unidad desde la fuente de datos `units`.
         for (const unit of units) {
+            const hasRenderableRegiments = Array.isArray(unit?.regiments) && unit.regiments.length > 0;
+            const hasRenderableHealth = Number(unit?.currentHealth || 0) > 0;
+            if (!hasRenderableRegiments || !hasRenderableHealth) {
+                continue;
+            }
+
             // Se recrea el elemento DOM para cada unidad en la lista de datos.
             const unitElement = document.createElement('div');
             unitElement.className = `unit player${unit.player}`;

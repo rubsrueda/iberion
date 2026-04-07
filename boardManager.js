@@ -1635,6 +1635,13 @@ for (let r = 0; r < currentRows; r++) {
     }
 }
 units.forEach(unit => { 
+    const hasRenderableRegiments = Array.isArray(unit?.regiments) && unit.regiments.length > 0;
+    const hasRenderableHealth = Number(unit?.currentHealth || 0) > 0;
+    if (!hasRenderableRegiments || !hasRenderableHealth) {
+        if (unit?.element?.parentElement) unit.element.remove();
+        return;
+    }
+
     if (unit.element && !unit.element.parentElement && domElements.gameBoard) { // Usar domElements.gameBoard
         domElements.gameBoard.appendChild(unit.element); // Usar domElements.gameBoard
     }
@@ -1721,7 +1728,7 @@ function renderSingleHexVisuals(r, c) {
         const spriteValue = STRUCTURE_TYPES[hexData.structure].sprite;
         if (hasStoneRoadsVisual) {
             structureSpriteEl.style.backgroundImage = 'none';
-            structureSpriteEl.textContent = '🧱';
+            structureSpriteEl.textContent = '🛣️';
             structureSpriteEl.title = 'Camino de Piedra (movimiento avanzado)';
         } else if (spriteValue.includes('.') || spriteValue.includes('/')) {
             structureSpriteEl.style.backgroundImage = `url('${spriteValue}')`;
