@@ -179,6 +179,23 @@ body {
 .hex.hills { background-color: #A9A9A9; } /* Tono Roca/Tierra */
 .hex.water { background-color: #4682b4; } /* Azul Acero (SteelBlue) */
 
+/* Paleta estacional por terreno (suave pero clara) */
+.hex.season-spring.plains { background-color: #c9efbe; }
+.hex.season-spring.forest { background-color: #5f8f3f; }
+.hex.season-spring.hills  { background-color: #9eaa89; }
+
+.hex.season-summer.plains { background-color: #b7e17b; }
+.hex.season-summer.forest { background-color: #4f7c2e; }
+.hex.season-summer.hills  { background-color: #9e9a73; }
+
+.hex.season-autumn.plains { background-color: #b7ca83; }
+.hex.season-autumn.forest { background-color: #6a6b3c; }
+.hex.season-autumn.hills  { background-color: #92856d; }
+
+.hex.season-winter.plains { background-color: #cdd6c3; }
+.hex.season-winter.forest { background-color: #5c675c; }
+.hex.season-winter.hills  { background-color: #b6bcc4; }
+
 /* --- Resaltados de Acción (Highlights) --- */
 .hex.highlight-move { background-color: rgba(0, 255, 0, 0.4); }
 .hex.highlight-attack { background-color: rgba(255, 0, 0, 0.4); }
@@ -8155,6 +8172,431 @@ body.graphics-form-desktop #profileModal .modal-content {
 .rdc-icon {
     font-size: 2rem;
     line-height: 1;
+}
+
+/* ========================================================================== */
+/* ==   CUADERNO DE ESTADO: MODO LECTURA RAPIDA (2 segundos)                == */
+/* ========================================================================== */
+
+#ledgerModal .ledger-shell {
+    width: min(96vw, 1120px) !important;
+    height: min(94vh, 760px) !important;
+}
+
+#ledgerModal .ledger-header {
+    padding: 12px 16px !important;
+}
+
+#ledgerModal .ledger-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(6, minmax(90px, 1fr));
+    gap: 8px !important;
+    padding: 10px 12px !important;
+}
+
+#ledgerModal .ledger-tab,
+#ledgerModal .ledger-tab-btn {
+    padding: 7px 8px !important;
+    font-size: 0.78rem !important;
+    line-height: 1.15;
+    min-height: 34px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#ledgerModal [data-tab] {
+    background: transparent !important;
+    color: #00f3ff !important;
+    border: 1px solid #00f3ff !important;
+}
+
+#ledgerModal [data-tab].active {
+    background: #00f3ff !important;
+    color: #08121a !important;
+    border-color: #00f3ff !important;
+    box-shadow: 0 0 12px rgba(0, 243, 255, 0.35);
+}
+
+#ledgerModal .ledger-content {
+    padding: 12px !important;
+}
+
+.ledger-glance-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.ledger-glance-pill {
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 8px;
+    background: rgba(16, 26, 38, 0.72);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 64px;
+}
+
+.ledger-glance-pill .title {
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #9ec8da;
+}
+
+.ledger-glance-pill strong {
+    font-size: 1.08rem;
+    color: #ffffff;
+    line-height: 1.05;
+}
+
+.ledger-glance-pill small {
+    font-size: 0.68rem;
+    color: #c7d6df;
+}
+
+.ledger-glance-pill.ok {
+    border-color: rgba(88, 200, 128, 0.55);
+    background: linear-gradient(180deg, rgba(28, 58, 42, 0.92), rgba(14, 30, 22, 0.92));
+}
+
+.ledger-glance-pill.alerta {
+    border-color: rgba(245, 187, 84, 0.65);
+    background: linear-gradient(180deg, rgba(84, 56, 22, 0.92), rgba(34, 24, 12, 0.92));
+}
+
+.ledger-glance-pill.critico {
+    border-color: rgba(239, 110, 110, 0.65);
+    background: linear-gradient(180deg, rgba(84, 28, 28, 0.92), rgba(35, 14, 14, 0.92));
+}
+
+.ledger-glance-pill.neutro {
+    border-color: rgba(128, 168, 203, 0.5);
+}
+
+#ledgerModal .ledger-section {
+    margin-bottom: 10px;
+}
+
+#ledgerModal .ledger-section h3 {
+    margin: 0 0 6px;
+    font-size: 0.88rem;
+}
+
+#ledgerModal .ledger-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+}
+
+#ledgerModal .ledger-card {
+    background: rgba(19, 30, 42, 0.78);
+    border: 1px solid rgba(130, 165, 189, 0.24);
+    border-radius: 7px;
+    padding: 7px;
+    min-height: 56px;
+}
+
+#ledgerModal .ledger-card .label {
+    display: block;
+    font-size: 0.66rem;
+    color: #98b7c8;
+    margin-bottom: 3px;
+}
+
+#ledgerModal .ledger-card .value {
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+#ledgerModal .ledger-table-container {
+    max-height: min(28vh, 230px);
+    overflow: auto;
+    border: 1px solid rgba(125, 166, 190, 0.22);
+    border-radius: 7px;
+}
+
+#ledgerModal .ledger-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.74rem;
+}
+
+#ledgerModal .ledger-table th,
+#ledgerModal .ledger-table td {
+    padding: 5px 6px;
+    white-space: nowrap;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+@media (max-width: 900px) {
+    #ledgerModal .ledger-tabs {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    #ledgerModal .ledger-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* ========================================================================== */
+/* ==   PERFIL 620x320: TELEFONO EN HORIZONTAL Y VERTICAL                   == */
+/* ========================================================================== */
+
+@media (max-width: 620px), (max-height: 360px) {
+    html, body {
+        font-size: 12px;
+    }
+
+    .top-bar {
+        height: 36px;
+    }
+
+    #top-bar-phase-turn {
+        top: 2px;
+        left: 6px;
+        font-size: 0.56rem;
+    }
+
+    .resource-item,
+    .top-bar-actions-panel button,
+    .top-bar-actions-panel .button-like-label {
+        width: 30px;
+        height: 30px;
+    }
+
+    .resource-item strong {
+        font-size: 0.52rem;
+    }
+
+    #event-feed {
+        width: 150px;
+        max-height: 120px;
+        top: 40px;
+        right: 4px;
+    }
+
+    #tactical-ui-container {
+        gap: 6px;
+        padding: 4px;
+    }
+
+    #tactical-ui-container button,
+    .floating-action-group button,
+    .menu-toggle-btn {
+        width: 34px !important;
+        height: 34px !important;
+        font-size: 0.9rem !important;
+    }
+
+    #contextualInfoPanel,
+    .tutorial-panel {
+        width: calc(100vw - 10px);
+        left: 5px;
+        right: 5px;
+        bottom: 44px;
+        max-height: 82px;
+        padding: 6px 8px;
+        font-size: 0.72rem;
+    }
+
+    #ledgerModal .ledger-shell {
+        width: 100vw !important;
+        height: 100vh !important;
+        border-radius: 0;
+        border-width: 1px;
+    }
+
+    #ledgerModal .ledger-header {
+        padding: 8px 10px !important;
+    }
+
+    #ledgerModal .ledger-header h2 {
+        font-size: 0.95rem !important;
+    }
+
+    #ledgerModal .ledger-tabs {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 4px !important;
+        padding: 6px 8px !important;
+    }
+
+    #ledgerModal .ledger-tab,
+    #ledgerModal .ledger-tab-btn {
+        min-height: 30px;
+        font-size: 0.68rem !important;
+        padding: 5px 6px !important;
+    }
+
+    #ledgerModal .ledger-content {
+        padding: 8px !important;
+    }
+
+    .ledger-glance-strip {
+        grid-template-columns: 1fr;
+        gap: 5px;
+    }
+
+    .ledger-glance-pill {
+        min-height: 52px;
+        padding: 6px;
+    }
+
+    .ledger-glance-pill strong {
+        font-size: 0.95rem;
+    }
+
+    #ledgerModal .ledger-table-container {
+        max-height: 120px;
+    }
+
+    #ledgerModal .ledger-table {
+        font-size: 0.66rem;
+    }
+
+    .modal .modal-content,
+    .modal-themed .modal-content {
+        width: 97vw !important;
+        max-width: 97vw !important;
+        max-height: 90vh !important;
+    }
+
+    .modal-header {
+        padding: 6px 8px !important;
+    }
+
+    .modal-body {
+        padding: 6px 8px !important;
+    }
+
+    .modal-footer {
+        padding: 6px 8px !important;
+        gap: 6px !important;
+    }
+
+    .modal-footer button,
+    .modal-content button,
+    .button-primary,
+    .button-secondary,
+    .button-danger {
+        min-height: 28px;
+        padding: 5px 8px !important;
+        font-size: 0.74rem !important;
+    }
+
+    input,
+    select,
+    textarea {
+        min-height: 26px;
+        font-size: 0.72rem !important;
+        padding: 4px 6px !important;
+    }
+
+    h1 { font-size: 1rem !important; }
+    h2 { font-size: 0.92rem !important; }
+    h3 { font-size: 0.84rem !important; }
+    h4 { font-size: 0.78rem !important; }
+}
+
+/* 620x320 en horizontal: aprovechar ancho y minimizar altura consumida */
+@media (max-height: 360px) and (min-width: 560px) {
+    #ledgerModal .ledger-header {
+        padding: 6px 8px !important;
+    }
+
+    #ledgerModal .ledger-header h2 {
+        font-size: 0.84rem !important;
+    }
+
+    #ledgerModal .ledger-content {
+        padding: 6px !important;
+    }
+
+    .ledger-glance-strip {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 4px;
+        margin-bottom: 6px;
+    }
+
+    .ledger-glance-pill {
+        min-height: 38px;
+        padding: 4px 5px;
+    }
+
+    .ledger-glance-pill .title {
+        font-size: 0.56rem;
+    }
+
+    .ledger-glance-pill strong {
+        font-size: 0.78rem;
+    }
+
+    .ledger-glance-pill small {
+        font-size: 0.56rem;
+    }
+
+    #ledgerModal .ledger-section {
+        margin-bottom: 6px;
+    }
+
+    #ledgerModal .ledger-section h3 {
+        margin: 0 0 4px;
+        font-size: 0.72rem;
+    }
+
+    #ledgerModal .ledger-card {
+        min-height: 40px;
+        padding: 4px;
+    }
+
+    #ledgerModal .ledger-card .label {
+        font-size: 0.54rem;
+        margin-bottom: 1px;
+    }
+
+    #ledgerModal .ledger-card .value {
+        font-size: 0.72rem;
+    }
+
+    #ledgerModal .ledger-table-container {
+        max-height: 92px;
+    }
+
+    #ledgerModal .ledger-table {
+        font-size: 0.58rem;
+    }
+
+    #ledgerModal .ledger-table th,
+    #ledgerModal .ledger-table td {
+        padding: 3px 4px;
+    }
+}
+
+/* Compactacion sin ocultar datos para 620x320 */
+@media (max-width: 620px), (max-height: 360px) {
+    #ledgerModal .ledger-table {
+        table-layout: fixed;
+        width: 100%;
+    }
+
+    #ledgerModal .ledger-table th,
+    #ledgerModal .ledger-table td {
+        white-space: normal;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        line-height: 1.1;
+    }
+
+    #ledgerModal [data-content="militar"] .progress-mini {
+        width: 34px !important;
+        height: 4px;
+        display: inline-block;
+        vertical-align: middle;
+        margin-right: 3px;
+    }
 }
 .rdc-title {
     font-size: 1.05rem;

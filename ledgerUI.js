@@ -133,7 +133,32 @@ const LedgerUI = {
         const content = this.modalElement.querySelector('[data-content="resumen"]');
         if (!content) return;
 
+        const supplyUse = resumen.capacidadMilitar.porcentajeUso || 0;
+        const corruption = resumen.estabilidad.corrupcion || 0;
+        const balance = resumen.tesoreria.balance || 0;
+        const balanceState = balance < 0 ? 'critico' : (balance < 10 ? 'alerta' : 'ok');
+        const supplyState = supplyUse > 85 ? 'critico' : (supplyUse > 60 ? 'alerta' : 'ok');
+        const corruptionState = corruption > 60 ? 'critico' : (corruption > 35 ? 'alerta' : 'ok');
+
         const html = `
+            <div class="ledger-glance-strip">
+                <div class="ledger-glance-pill ${balanceState}">
+                    <span class="title">Balance</span>
+                    <strong>${balance > 0 ? '+' : ''}${balance}</strong>
+                    <small>${balanceState === 'critico' ? 'Perdiendo oro' : (balanceState === 'alerta' ? 'Margen bajo' : 'Caja sana')}</small>
+                </div>
+                <div class="ledger-glance-pill ${supplyState}">
+                    <span class="title">Suministros</span>
+                    <strong>${supplyUse}%</strong>
+                    <small>${supplyState === 'critico' ? 'Ejercito saturado' : (supplyState === 'alerta' ? 'Vigilar reclutas' : 'Capacidad estable')}</small>
+                </div>
+                <div class="ledger-glance-pill ${corruptionState}">
+                    <span class="title">Corrupcion</span>
+                    <strong>${corruption}%</strong>
+                    <small>${corruptionState === 'critico' ? 'Drena ingresos' : (corruptionState === 'alerta' ? 'Riesgo creciente' : 'Bajo control')}</small>
+                </div>
+            </div>
+
             <div class="ledger-section">
                 <h3>💰 TESORERÍA</h3>
                 <div class="ledger-grid">
@@ -222,6 +247,10 @@ const LedgerUI = {
         const content = this.modalElement.querySelector('[data-content="comercio"]');
         if (!content) return;
 
+        const inactiveRoutes = (comercio.activeRoutes || []).filter(r => r.isOperational === false).length;
+        const totalRoutes = comercio.activeCount || 0;
+        const routeState = inactiveRoutes > 0 ? 'alerta' : (totalRoutes > 0 ? 'ok' : 'neutro');
+
         const activeRows = (comercio.activeRoutes || []).map(r => `
             <tr>
                 <td>${r.originName}</td>
@@ -247,6 +276,19 @@ const LedgerUI = {
         `).join('') || '<tr><td colspan="4">No hay pares de ciudades disponibles</td></tr>';
 
         const html = `
+            <div class="ledger-glance-strip">
+                <div class="ledger-glance-pill ${routeState}">
+                    <span class="title">Rutas activas</span>
+                    <strong>${totalRoutes}</strong>
+                    <small>${inactiveRoutes > 0 ? `${inactiveRoutes} con problemas` : (totalRoutes === 0 ? 'Sin comercio activo' : 'Operativas')}</small>
+                </div>
+                <div class="ledger-glance-pill neutro">
+                    <span class="title">Rutas libres</span>
+                    <strong>${comercio.freeCount || 0}</strong>
+                    <small>Oportunidades de expansion</small>
+                </div>
+            </div>
+
             <div class="ledger-section">
                 <h3>🛒 Rutas Comerciales Activas (${comercio.activeCount || 0})</h3>
                 <div class="ledger-table-container">
@@ -309,6 +351,11 @@ const LedgerUI = {
             return;
         }
 
+        const myRow = tabla.find(row => row.isMe) || tabla[0];
+        const myRank = myRow?.rango || 1;
+        const rankState = myRank <= 2 ? 'ok' : (myRank <= 4 ? 'alerta' : 'critico');
+        const topThreat = tabla.find(row => !row.isMe) || null;
+
         const rows = tabla.map((row, idx) => `
             <tr class="${row.isMe ? 'highlight-row' : ''}">
                 <td class="rank">${row.isMe ? '👤' : '🤖'} #${row.rango || idx + 1}</td>
@@ -323,6 +370,24 @@ const LedgerUI = {
         `).join('');
 
         const html = `
+            <div class="ledger-glance-strip">
+                <div class="ledger-glance-pill ${rankState}">
+                    <span class="title">Tu rango</span>
+                    <strong>#${myRank}</strong>
+                    <small>${rankState === 'ok' ? 'Posicion dominante' : (rankState === 'alerta' ? 'Competencia cercana' : 'Urgente remontar')}</small>
+                </div>
+                <div class="ledger-glance-pill neutro">
+                    <span class="title">Puntuacion</span>
+                    <strong>${myRow?.score ?? '—'}</strong>
+                    <small>Militar ${myRow?.power ?? '—'} • Oro ${myRow?.gold ?? '—'}</small>
+                </div>
+                <div class="ledger-glance-pill alerta">
+                    <span class="title">Rival lider</span>
+                    <strong>${topThreat?.civilization || '—'}</strong>
+                    <small>${topThreat ? `Score ${topThreat.score ?? '—'}` : 'Sin rival visible'}</small>
+                </div>
+            </div>
+
             <div class="ledger-section">
                 <h3>Rankings - Situación Global</h3>
                 <div class="ledger-table-container">
@@ -357,7 +422,13 @@ const LedgerUI = {
         const content = this.modalElement.querySelector('[data-content="militar"]');
         if (!content) return;
 
-        const supplyClass = (militar.supplyStatus || 'N/A').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+        const supplyRatio = militar.manpower > 0
+            ? Math.round(((militar.suppliedRegiments ?? 0) / militar.manpower) * 100)
+            : 0;
+        const unsupplied = militar.unsuppliedRegiments ?? 0;
+        const supplyState = unsupplied > 4 ? 'critico' : (unsupplied > 0 ? 'alerta' : 'ok');
+        const landCount = Array.isArray(militar.tierra) ? militar.tierra.length : 0;
+        const navalCount = Array.isArray(militar.naval) ? militar.naval.length : 0;
 
         const tierraRows = militar.tierra.map(unit => {
             // Mostrar desglose de regimientos si hay
@@ -404,6 +475,24 @@ const LedgerUI = {
             `).join('');
 
         const html = `
+            <div class="ledger-glance-strip">
+                <div class="ledger-glance-pill ${supplyState}">
+                    <span class="title">Suministro</span>
+                    <strong>${supplyRatio}%</strong>
+                    <small>${unsupplied} regimientos en riesgo</small>
+                </div>
+                <div class="ledger-glance-pill neutro">
+                    <span class="title">Fuerzas</span>
+                    <strong>${landCount + navalCount}</strong>
+                    <small>${landCount} tierra • ${navalCount} naval</small>
+                </div>
+                <div class="ledger-glance-pill alerta">
+                    <span class="title">Manpower</span>
+                    <strong>${militar.manpower}</strong>
+                    <small>Capacidad total disponible</small>
+                </div>
+            </div>
+
             <div class="ledger-section">
                 <h3>🏛️ EJÉRCITO DE TIERRA</h3>
                 <div class="ledger-table-container">
@@ -487,9 +576,32 @@ const LedgerUI = {
         const content = this.modalElement.querySelector('[data-content="economia"]');
         if (!content) return;
 
+        const balanceState = economia.balance < 0 ? 'critico' : (economia.balance < 10 ? 'alerta' : 'ok');
+        const impuestosRatio = economia.desglosePorcentual.impuestos ?? 0;
+        const comercioRatio = economia.desglosePorcentual.comercio ?? 0;
+        const dependencyState = impuestosRatio > 70 ? 'alerta' : 'ok';
+
         const html = `
+            <div class="ledger-glance-strip">
+                <div class="ledger-glance-pill ${balanceState}">
+                    <span class="title">Balance neto</span>
+                    <strong>${economia.balance > 0 ? '+' : ''}${economia.balance}</strong>
+                    <small>${balanceState === 'critico' ? 'Recorta gastos ya' : (balanceState === 'alerta' ? 'Margen estrecho' : 'Finanzas estables')}</small>
+                </div>
+                <div class="ledger-glance-pill ${dependencyState}">
+                    <span class="title">Dependencia</span>
+                    <strong>${impuestosRatio}%</strong>
+                    <small>Ingresos por impuestos</small>
+                </div>
+                <div class="ledger-glance-pill neutro">
+                    <span class="title">Comercio</span>
+                    <strong>${comercioRatio}%</strong>
+                    <small>Peso del comercio en caja</small>
+                </div>
+            </div>
+
             <div class="ledger-section">
-                <h3>� INGRESOS</h3>
+                <h3>INGRESOS</h3>
                 <div class="ledger-grid">
                     <div class="ledger-card">
                         <span class="label">Impuestos (Territorio)</span>

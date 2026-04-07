@@ -1679,6 +1679,10 @@ function renderSingleHexVisuals(r, c) {
 
     // Añadir clases de estado actuales
     if (hexData.terrain) hexEl.classList.add(hexData.terrain);
+    const seasonKey = (typeof gameState !== 'undefined' && gameState?.currentSeasonKey)
+        ? gameState.currentSeasonKey
+        : 'spring';
+    hexEl.classList.add(`season-${seasonKey}`);
     if (hexData.owner) hexEl.classList.add(`player${hexData.owner}-owner`);
     if (hexData.isCity) hexEl.classList.add('city');
     if (hexData.isCapital) hexEl.classList.add('capital-city');
@@ -1705,18 +1709,18 @@ function renderSingleHexVisuals(r, c) {
             hexEl.classList.add('low-stability-danger');
         } else if (stability === 2) {
             hexEl.classList.add('low-stability-warning');
-
-            // Clima dinámico: casilla inundada
-            if (hexData.isFlooded) {
-                hexEl.classList.add('hex-flooded');
-            }
-
-            // Clima dinámico: tormenta invernal en colinas/bosque
-            if (typeof gameState !== 'undefined' && gameState?.activeWeatherEvent?.type === 'winter_storm' &&
-                (hexData.terrain === 'hills' || hexData.terrain === 'forest')) {
-                hexEl.classList.add('hex-winter-storm');
-            }
         }
+    }
+
+    // Clima dinámico: casilla inundada
+    if (hexData.isFlooded) {
+        hexEl.classList.add('hex-flooded');
+    }
+
+    // Clima dinámico: tormenta invernal en colinas/bosque
+    if (typeof gameState !== 'undefined' && gameState?.activeWeatherEvent?.type === 'winter_storm' &&
+        (hexData.terrain === 'hills' || hexData.terrain === 'forest')) {
+        hexEl.classList.add('hex-winter-storm');
     }
 
     // Si hay una ESTRUCTURA, creamos su sprite

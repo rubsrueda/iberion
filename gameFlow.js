@@ -43,6 +43,7 @@ function syncSeasonState(logOnChange = false) {
 
     const season = getCurrentSeasonState();
     const previousKey = gameState.currentSeasonKey;
+    const seasonChanged = previousKey !== season.key;
 
     gameState.currentSeasonKey = season.key;
     gameState.currentSeasonName = season.name;
@@ -53,6 +54,10 @@ function syncSeasonState(logOnChange = false) {
 
     if (logOnChange && previousKey && previousKey !== season.key) {
         logMessage(`Cambio de estacion: ${season.name}. Mov ${Math.round(season.movementMultiplier * 100)}% | Atricion ${Math.round(season.attritionMultiplier * 100)}%.`, 'important');
+    }
+
+    if (seasonChanged && typeof renderFullBoardVisualState === 'function') {
+        renderFullBoardVisualState();
     }
 
     // Actualizar eventos climatológicos activos
