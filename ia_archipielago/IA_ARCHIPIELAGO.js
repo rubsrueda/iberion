@@ -1957,6 +1957,14 @@ const IAArchipielago = {
     state.lastByPair.set(pairKey, Date.now());
   },
 
+  _isUnitCoolingDownForAnyAction(unit) {
+    if (!unit) return false;
+    return this._isUnitActionCoolingDown(unit.player, unit.id, 'move')
+      || this._isUnitActionCoolingDown(unit.player, unit.id, 'attack')
+      || this._isUnitActionCoolingDown(unit.player, unit.id, 'split')
+      || this._isUnitActionCoolingDown(unit.player, unit.id, 'merge');
+  },
+
   _logMandatoryUnitExecution(unit, payload = {}) {
     const regTypes = Array.isArray(unit?.regiments) ? unit.regiments.map(r => r?.type).filter(Boolean) : [];
     const isExplorer = regTypes.includes('Explorador');
@@ -2043,13 +2051,27 @@ const IAArchipielago = {
       payload: { playerId: unit.player, unitId: unit.id, toR: r, toC: c }
     };
 
+    const snapshotBefore = {
+      r: unit.r,
+      c: unit.c,
+      hasMoved: !!unit.hasMoved,
+      currentMovement: Number(unit.currentMovement || 0)
+    };
+
+    const didMovementApply = () => {
+      const refreshed = (typeof getUnitById === 'function' ? getUnitById(unit.id) : null) || unit;
+      if (!refreshed) return false;
+      if (refreshed.r === r && refreshed.c === c) return true;
+      if (!!refreshed.hasMoved !== snapshotBefore.hasMoved) return true;
+      if (Number(refreshed.currentMovement || 0) < snapshotBefore.currentMovement) return true;
+      return false;
+    };
+
     const hasNetworkMatch = typeof NetworkManager !== 'undefined' && !!NetworkManager.miId;
     if (typeof isNetworkGame === 'function' && isNetworkGame() && hasNetworkMatch && typeof NetworkManager !== 'undefined' && !NetworkManager.esAnfitrion) {
       if (NetworkManager.enviarDatos) {
         NetworkManager.enviarDatos({ type: 'actionRequest', action });
-        if (!this.LOG_ONLY_EARLY_TURN_EVENTS) {
-          console.log(`[IA_ARCHIPIELAGO][MOVE] Unidad ${unit.id} movida a (${r},${c})`);
-        }
+        this._markUnitActionDispatch(unit.player, unit.id, 'move');
         this._metricLog('IA_ACTION_MOVE', {
           turn: gameState.turnNumber,
           playerId: unit.player,
@@ -2057,20 +2079,21 @@ const IAArchipielago = {
           from: `${unit.r},${unit.c}`,
           to: `${r},${c}`,
           missionType,
-          success: true,
+          success: false,
+          failReason: 'network_dispatch_pending',
           mode: 'network_client'
         });
         this._logMandatoryUnitExecution(unit, {
           action: 'move',
           from,
           to: `${r},${c}`,
-          success: true,
-          reason: 'ok',
+          success: false,
+          reason: 'network_dispatch_pending',
           mode: 'network_client',
           source: ctx.executionSource || null,
           missionType
         });
-        return true;
+        return false;
       }
       this._metricLog('IA_ACTION_MOVE', {
         turn: gameState.turnNumber,
@@ -2094,11 +2117,18 @@ const IAArchipielago = {
       return false;
     }
 
-    if (typeof RequestMoveUnit === 'function') {
-      this._markUnitActionDispatch(unit.player, unit.id, 'move');
-      RequestMoveUnit(unit, r, c);
-      if (!this.LOG_ONLY_EARLY_TURN_EVENTS) {
-        console.log(`[IA_ARCHIPIELAGO][MOVE] Unidad ${unit.id} movida a (${r},${c})`);
+    if (typeof processActionRequest === 'function') {
+      processActionRequest(action);
+      let applied = didMovementApply();
+
+      // Fallback: algunos entornos requieren RequestMoveUnit para aplicar localmente.
+      if (!applied && typeof RequestMoveUnit === 'function') {
+        RequestMoveUnit(unit, r, c);
+        applied = didMovementApply();
+      }
+
+      if (applied) {
+        this._markUnitActionDispatch(unit.player, unit.id, 'move');
       }
       this._metricLog('IA_ACTION_MOVE', {
         turn: gameState.turnNumber,
@@ -2107,27 +2137,28 @@ const IAArchipielago = {
         from: `${unit.r},${unit.c}`,
         to: `${r},${c}`,
         missionType,
-        success: true,
-        mode: 'RequestMoveUnit'
+        success: applied,
+        failReason: applied ? undefined : 'request_not_applied',
+        mode: applied ? 'processActionRequest' : 'processActionRequest+RequestMoveUnit_fallback'
       });
       this._logMandatoryUnitExecution(unit, {
         action: 'move',
         from,
         to: `${r},${c}`,
-        success: true,
-        reason: 'ok',
-        mode: 'RequestMoveUnit',
+        success: applied,
+        reason: applied ? 'ok' : 'request_not_applied',
+        mode: applied ? 'processActionRequest' : 'processActionRequest+RequestMoveUnit_fallback',
         source: ctx.executionSource || null,
         missionType
       });
-      return true;
+      return applied;
     }
 
-    if (typeof processActionRequest === 'function') {
-      this._markUnitActionDispatch(unit.player, unit.id, 'move');
-      processActionRequest(action);
-      if (!this.LOG_ONLY_EARLY_TURN_EVENTS) {
-        console.log(`[IA_ARCHIPIELAGO][MOVE] Unidad ${unit.id} movida a (${r},${c})`);
+    if (typeof RequestMoveUnit === 'function') {
+      RequestMoveUnit(unit, r, c);
+      const applied = didMovementApply();
+      if (applied) {
+        this._markUnitActionDispatch(unit.player, unit.id, 'move');
       }
       this._metricLog('IA_ACTION_MOVE', {
         turn: gameState.turnNumber,
@@ -2136,20 +2167,21 @@ const IAArchipielago = {
         from: `${unit.r},${unit.c}`,
         to: `${r},${c}`,
         missionType,
-        success: true,
-        mode: 'processActionRequest'
+        success: applied,
+        failReason: applied ? undefined : 'request_not_applied',
+        mode: 'RequestMoveUnit_only'
       });
       this._logMandatoryUnitExecution(unit, {
         action: 'move',
         from,
         to: `${r},${c}`,
-        success: true,
-        reason: 'ok',
-        mode: 'processActionRequest',
+        success: applied,
+        reason: applied ? 'ok' : 'request_not_applied',
+        mode: 'RequestMoveUnit_only',
         source: ctx.executionSource || null,
         missionType
       });
-      return true;
+      return applied;
     }
 
     console.warn('[IA_ARCHIPIELAGO] RequestMoveUnit no disponible.');
@@ -5147,6 +5179,7 @@ const IAArchipielago = {
       const candidates = (IASentidos.getUnits(myPlayer) || [])
         .filter(u => u && u.currentHealth > 0)
         .filter(u => !u.hasMoved && (u.currentMovement || 0) > 0)
+        .filter(u => !this._isUnitCoolingDownForAnyAction(u))
         .sort((a, b) => (b.currentMovement || 0) - (a.currentMovement || 0));
 
       if (!candidates.length) break;
@@ -5267,6 +5300,16 @@ const IAArchipielago = {
         code: 'final_sweep_cap_reached',
         category: 3,
         reason: 'final_sweep_action_cap_reached',
+        missionType,
+        missionReason
+      };
+    }
+
+    if (this._isUnitCoolingDownForAnyAction(unit)) {
+      return {
+        code: 'action_failed',
+        category: 2,
+        reason: 'action_dispatch_cooldown',
         missionType,
         missionReason
       };
@@ -5466,6 +5509,7 @@ const IAArchipielago = {
       .filter(u => u && u.currentHealth > 0)
       .filter(u => this._isLandUnit(u))
       .filter(u => (u.currentMovement || u.movement || 0) > 0)
+      .filter(u => !this._isUnitCoolingDownForAnyAction(u))
       .filter(u => !u.tradeRoute);
   },
 
