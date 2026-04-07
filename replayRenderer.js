@@ -1,829 +1,496 @@
 /**
  * replayRenderer.js
- * Renderizador visual para replay - dibuja eventos sin ejecutar lógica de juego
- * Desacoplado completamente de la lógica de combate
+ * Renderizador de replay basado en DOM para reutilizar el look real del juego.
  */
 
 const ReplayRenderer = {
     canvas: null,
-    ctx: null,
-    boardData: null,
+    canvasParent: null,
+    replayRoot: null,
+    boardContainer: null,
+    boardLayer: null,
+    unitsLayer: null,
     replayData: null,
+    boardData: null,
     currentTurn: 0,
     isPlaying: false,
-    playbackSpeed: 1, // 1x, 2x, 4x
-    unitsOnMap: {}, // Posición actual de cada unidad
+    playbackSpeed: 1,
     animationFrameId: null,
-    eventsToAnimate: [], // Cola de eventos con animaciones pendientes
-    hexWidth: 50,
-    hexHeight: 58,
-    currentBoardState: null,  // ⭐ DELTA: Estado reconstruido del board
-    currentUnitsState: {},    // ⭐ DELTA: Estado reconstruido de unidades
+    boardStateMap: new Map(),
+    unitsStateMap: new Map(),
+    hexElements: new Map(),
+    unitElements: new Map(),
 
-    /**
-     * Inicializa el renderizador con datos de replay
-     */
     initialize: function(canvasElement, replayData, boardData) {
+        this._reset();
+
         this.canvas = canvasElement;
-        this.ctx = canvasElement.getContext('2d');
-        this.replayData = replayData;
-        this.boardData = boardData;
-        this.currentTurn = 0;
-        this.isPlaying = false;
-        this.unitsOnMap = {};
-        this.eventsToAnimate = [];
-        
-        // ⭐ DELTA: Inicializar estados reconstruidos
-        this.currentBoardState = null;
-        this.currentUnitsState = {};
+        this.canvasParent = canvasElement ? canvasElement.parentElement : null;
+        this.replayData = replayData || { timeline: [] };
+        this.boardData = this._normalizeBoardData(boardData, this.replayData);
 
-        // VALIDACIONES CRÍTICAS
-        if (!this.canvas || !this.ctx) {
-            console.error('[ReplayRenderer] Canvas o contexto 2D no disponible');
+        if (!this.canvasParent) {
+            console.error('[ReplayRenderer] Contenedor visual no disponible');
             return;
         }
-        
-        if (!replayData || !replayData.timeline) {
-            console.warn('[ReplayRenderer] replayData.timeline no disponible. Usando timeline vacío.');
-            this.replayData = replayData || { timeline: [] };
+
+        this._createReplayDOM();
+        this._buildBoard();
+
+        const timeline = this.replayData.timeline || [];
+        if (timeline.length === 0) {
+            this.currentTurn = 0;
+            return;
         }
-        
-        const timelineLength = (replayData?.timeline?.length) || 0;
-        console.log(`[ReplayRenderer] Inicializado para replay de ${timelineLength} turnos`);
-        
-        // ⭐ DELTA: Cargar snapshot inicial (turno 0 - deployment)
-        this._loadInitialSnapshot();
-        
-        // Dibujar estado inicial
-        this.drawFrame();
+
+        this.goToTurn(0);
     },
 
-    /**
-     * ⭐ DELTA: Carga el snapshot inicial completo (turno 0)
-     */
-    _loadInitialSnapshot: function() {
-        if (!this.replayData || !this.replayData.timeline || this.replayData.timeline.length === 0) {
-            console.warn('[ReplayRenderer] No hay timeline para cargar snapshot inicial');
-            return;
+    _reset: function() {
+        this.stop();
+        this.boardStateMap = new Map();
+        this.unitsStateMap = new Map();
+        this.hexElements = new Map();
+        this.unitElements = new Map();
+
+        if (this.replayRoot && this.replayRoot.parentElement) {
+            this.replayRoot.parentElement.removeChild(this.replayRoot);
         }
-        
-        const firstTurn = this.replayData.timeline[0];
-        
-        if (firstTurn && firstTurn.isFullSnapshot) {
-            console.log('[ReplayRenderer] Cargando snapshot inicial completo...');
-            
-            // Cargar board state completo
-            if (firstTurn.boardState) {
-                this.currentBoardState = this._cloneBoardSnapshot(firstTurn.boardState);
-                this.applyBoardState(this.currentBoardState);
+
+        if (this.canvas) {
+            this.canvas.style.display = 'block';
+        }
+
+        this.replayRoot = null;
+        this.boardContainer = null;
+        this.boardLayer = null;
+        this.unitsLayer = null;
+    },
+
+    _createReplayDOM: function() {
+        if (this.canvas) {
+            this.canvas.style.display = 'none';
+        }
+
+        const root = document.createElement('div');
+        root.className = 'replay-live-root';
+        root.style.cssText = 'width:100%;height:100%;position:relative;overflow:auto;background:rgba(12,22,32,0.75);';
+
+        const container = document.createElement('div');
+        container.className = 'replay-live-board-container';
+        container.style.cssText = 'position:relative;margin:16px auto;';
+
+        const boardLayer = document.createElement('div');
+        boardLayer.className = 'replay-live-board-layer';
+        boardLayer.style.cssText = 'position:relative;';
+
+        const unitsLayer = document.createElement('div');
+        unitsLayer.className = 'replay-live-units-layer';
+        unitsLayer.style.cssText = 'position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;';
+
+        container.appendChild(boardLayer);
+        container.appendChild(unitsLayer);
+        root.appendChild(container);
+        this.canvasParent.appendChild(root);
+
+        this.replayRoot = root;
+        this.boardContainer = container;
+        this.boardLayer = boardLayer;
+        this.unitsLayer = unitsLayer;
+    },
+
+    _normalizeBoardData: function(boardData, replayData) {
+        if (Array.isArray(boardData) && boardData.length > 0) {
+            return boardData;
+        }
+
+        let metadata = replayData?.metadata;
+        if (typeof metadata === 'string') {
+            try { metadata = JSON.parse(metadata); } catch (err) { metadata = null; }
+        }
+
+        const boardInfo = metadata?.b || replayData?.boardInfo || { rows: 20, cols: 20 };
+        const rows = Number(boardInfo.rows) || 20;
+        const cols = Number(boardInfo.cols) || 20;
+
+        const generated = [];
+        for (let r = 0; r < rows; r++) {
+            generated[r] = [];
+            for (let c = 0; c < cols; c++) {
+                generated[r][c] = { r, c, terrain: 'plains', owner: null, structure: null, isCity: false, isCapital: false };
             }
-            
-            // Cargar units state completo
-            if (firstTurn.unitsState) {
-                this._reconstructUnitsFromSnapshot(firstTurn.unitsState);
+        }
+
+        return generated;
+    },
+
+    _buildBoard: function() {
+        if (!this.boardLayer || !Array.isArray(this.boardData) || this.boardData.length === 0) return;
+
+        const rows = this.boardData.length;
+        const cols = this.boardData[0]?.length || 0;
+        const hexWidth = typeof HEX_WIDTH !== 'undefined' ? HEX_WIDTH : 50;
+        const hexHeight = typeof HEX_HEIGHT !== 'undefined' ? HEX_HEIGHT : 57.73;
+        const hexVert = typeof HEX_VERT_SPACING !== 'undefined' ? HEX_VERT_SPACING : (hexHeight * 0.75);
+
+        this.boardLayer.style.width = `${cols * hexWidth + hexWidth / 2}px`;
+        this.boardLayer.style.height = `${rows * hexVert + hexHeight * 0.25}px`;
+        this.boardContainer.style.width = this.boardLayer.style.width;
+        this.boardContainer.style.height = this.boardLayer.style.height;
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const hexEl = document.createElement('div');
+                hexEl.className = 'hex';
+                hexEl.dataset.r = String(r);
+                hexEl.dataset.c = String(c);
+
+                const xPos = c * hexWidth + (r % 2 !== 0 ? hexWidth / 2 : 0);
+                const yPos = r * hexVert;
+                hexEl.style.left = `${xPos}px`;
+                hexEl.style.top = `${yPos}px`;
+
+                this.boardLayer.appendChild(hexEl);
+                this.hexElements.set(`${r},${c}`, hexEl);
             }
-            
-            console.log('[ReplayRenderer] ✅ Snapshot inicial cargado');
+        }
+    },
+
+    _applyHexVisuals: function(hexState) {
+        const key = `${hexState.r},${hexState.c}`;
+        const hexEl = this.hexElements.get(key);
+        if (!hexEl) return;
+
+        const structureSprite = hexEl.querySelector('.structure-sprite');
+        if (structureSprite) structureSprite.remove();
+
+        hexEl.className = 'hex';
+
+        const terrain = hexState.t || hexState.terrain || 'plains';
+        hexEl.classList.add(terrain);
+
+        const seasonKey = (typeof gameState !== 'undefined' && gameState?.currentSeasonKey)
+            ? gameState.currentSeasonKey
+            : 'spring';
+        hexEl.classList.add(`season-${seasonKey}`);
+
+        const owner = hexState.o !== undefined ? hexState.o : hexState.owner;
+        if (owner !== null && owner !== undefined) {
+            hexEl.classList.add(`player${owner}-owner`);
+        }
+
+        if (hexState.iC || hexState.isCity) hexEl.classList.add('city');
+        if (hexState.iCa || hexState.isCapital) hexEl.classList.add('capital-city');
+
+        const structure = hexState.s || hexState.structure;
+        if (structure) {
+            const safeStructure = String(structure).replace(/\s+/g, '-');
+            hexEl.classList.add(`structure-${safeStructure}`);
+
+            const spriteEl = document.createElement('span');
+            spriteEl.className = 'structure-sprite';
+            const structureData = (typeof STRUCTURE_TYPES !== 'undefined') ? STRUCTURE_TYPES[structure] : null;
+            const sprite = structureData?.sprite || '🏛️';
+
+            if (typeof sprite === 'string' && (sprite.includes('/') || sprite.includes('.'))) {
+                spriteEl.style.backgroundImage = `url('${sprite}')`;
+                spriteEl.style.backgroundSize = 'contain';
+                spriteEl.style.backgroundRepeat = 'no-repeat';
+                spriteEl.style.backgroundPosition = 'center';
+                spriteEl.textContent = '';
+            } else {
+                spriteEl.style.backgroundImage = 'none';
+                spriteEl.textContent = sprite;
+            }
+
+            hexEl.appendChild(spriteEl);
+        }
+    },
+
+    _renderUnit: function(unitState) {
+        const key = String(unitState.id || unitState.unitId);
+        let unitEl = this.unitElements.get(key);
+
+        if (!unitEl) {
+            unitEl = document.createElement('div');
+            unitEl.classList.add('unit');
+            unitEl.dataset.id = key;
+
+            const strength = document.createElement('div');
+            strength.className = 'unit-strength';
+            unitEl.appendChild(strength);
+
+            this.unitsLayer.appendChild(unitEl);
+            this.unitElements.set(key, unitEl);
+        }
+
+        const playerId = unitState.p ?? unitState.playerId ?? 1;
+        const classesToRemove = [];
+        unitEl.classList.forEach(cls => {
+            if (cls.startsWith('player')) classesToRemove.push(cls);
+        });
+        classesToRemove.forEach(cls => unitEl.classList.remove(cls));
+        unitEl.classList.add(`player${playerId}`);
+
+        const sprite = unitState.spr || unitState.sprite || '';
+        if (typeof sprite === 'string' && (sprite.includes('/') || sprite.includes('.'))) {
+            unitEl.style.backgroundImage = `url('${sprite}')`;
+            unitEl.textContent = '';
         } else {
-            console.warn('[ReplayRenderer] Primer turno no es un snapshot completo');
-        }
-    },
-
-    /**
-     * ⭐ DELTA: Clona un board snapshot
-     */
-    _cloneBoardSnapshot: function(snapshot) {
-        return snapshot.map(hex => ({ ...hex }));
-    },
-
-    /**
-     * ⭐ DELTA: Reconstruye el estado de unidades desde snapshot completo
-     */
-    _reconstructUnitsFromSnapshot: function(snapshot) {
-        if (!Array.isArray(snapshot)) return;
-        
-        this.currentUnitsState = {};
-        
-        for (const unit of snapshot) {
-            this.currentUnitsState[unit.id] = {
-                unitId: unit.id,
-                name: unit.n,
-                playerId: unit.p,
-                r: unit.r,
-                c: unit.c,
-                regiments: unit.reg,
-                regimentType: unit.rt || 'Infantería Ligera',      // ⭐ NUEVO: tipo de regimiento
-                sprite: unit.spr || '🚶',                         // ⭐ NUEVO: ícono
-                health: unit.h,
-                maxHealth: unit.mh,
-                morale: unit.m,
-                isDead: false
-            };
-        }
-        
-        this.unitsOnMap = { ...this.currentUnitsState };
-    },
-
-    /**
-     * Dibuja el mapa base + unidades + efectos actuales
-     */
-    drawFrame: function() {
-        if (!this.canvas || !this.ctx) return;
-
-        // Limpiar canvas
-        this.ctx.fillStyle = '#1a252f';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-        // Dibujar hexágonos del terreno
-        this.drawTerrain();
-
-        // Dibujar unidades
-        this.drawUnits();
-
-        // Dibujar efectos de eventos (explosiones, batalla, etc)
-        this.drawEventEffects();
-    },
-
-    /**
-     * Dibuja el terreno base (estático durante toda la partida)
-     * ⭐ MEJORADO: Muestra tipos de terreno con íconos
-     */
-    drawTerrain: function() {
-        if (!this.boardData) {
-            console.warn('[ReplayRenderer] boardData es null, no se puede dibujar terreno');
-            return;
+            unitEl.style.backgroundImage = 'none';
+            unitEl.textContent = sprite || '⚔️';
         }
 
-        for (let r = 0; r < this.boardData.length; r++) {
-            for (let c = 0; c < this.boardData[r].length; c++) {
-                const hex = this.boardData[r][c];
-                if (!hex) continue;
-                
-                const pos = this.hexToPixel(r, c);
-
-                // ⭐ MEJORADO: Colores más diferenciados según terreno
-                let color = '#3a4a5f'; // default
-                let terrainIcon = '';
-                
-                if (hex.terrain === 'water') {
-                    color = '#1e5a96';
-                    terrainIcon = '🌊'; // Agua
-                } else if (hex.terrain === 'forest') {
-                    color = '#2d5a2d';
-                    terrainIcon = '🌲'; // Bosque
-                } else if (hex.terrain === 'hills') {
-                    color = '#6b5c47';
-                    terrainIcon = '⛰️'; // Montaña
-                } else if (hex.terrain === 'plains') {
-                    color = '#4a6b3a';
-                    terrainIcon = '🌾'; // Llanura
-                }
-
-                this.drawHexagon(pos.x, pos.y, color);
-
-                // ⭐ NUEVO: Dibujar ícono de terreno (pequeño, en esquina)
-                if (terrainIcon && (r + c) % 3 === 0) { // Solo en algunos hex para no saturar
-                    this.ctx.fillStyle = '#ffffffaa';
-                    this.ctx.font = '10px Arial';
-                    this.ctx.textAlign = 'right';
-                    this.ctx.textBaseline = 'top';
-                    this.ctx.fillText(terrainIcon, pos.x + 20, pos.y - 20);
-                }
-
-                // ⭐ MEJORADO: Dibujar propietario (overlay ligero)
-                if (hex.owner && hex.owner !== null) {
-                    const playerColor = this.getPlayerColor(hex.owner);
-                    this.ctx.fillStyle = playerColor + '40'; // Transparencia
-                    this.drawHexagon(pos.x, pos.y, playerColor + '40');
-                }
-
-                // ⭐ MEJORADO: Dibujar estructura usando STRUCTURE_TYPES
-                if (hex.structure) {
-                    this.drawStructure(pos.x, pos.y, hex.structure);
-                }
-                // Si es ciudad pero no tiene structure definida
-                else if (hex.isCity) {
-                    const structureType = hex.isCapital ? 'Metrópoli' : 'Ciudad';
-                    this.drawStructure(pos.x, pos.y, structureType);
-                }
-            }
+        const strengthEl = unitEl.querySelector('.unit-strength');
+        if (strengthEl) {
+            const hp = Number(unitState.h ?? unitState.health ?? 0);
+            strengthEl.textContent = String(Math.max(0, Math.round(hp)));
+            unitEl.appendChild(strengthEl);
         }
+
+        this._positionUnitElement(unitEl, unitState.r, unitState.c);
     },
 
-    /**
-     * ⭐ NUEVO: Helper para obtener color de un jugador desde metadata
-     */
-    getPlayerColor: function(playerId) {
-        if (!playerId) return '#ffffff';
-        
-        // Intentar obtener desde metadata
-        try {
-            if (this.replayData && this.replayData.metadata) {
-                let metadata = this.replayData.metadata;
-                
-                if (typeof metadata === 'string') {
-                    metadata = JSON.parse(metadata);
-                }
-                
-                if (metadata && metadata.players && Array.isArray(metadata.players)) {
-                    const player = metadata.players.find(p => 
-                        p && (p.id === playerId || p.player_number === playerId)
-                    );
-                    if (player && player.color) {
-                        return player.color;
-                    }
-                }
-            }
-        } catch (err) {
-            // Silenciar error y usar fallback
-        }
-        
-        // Colores por defecto
-        const defaultColors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#ff9ff3', '#95e1d3', '#feca57', '#a29bfe'];
-        return defaultColors[((playerId || 1) - 1) % defaultColors.length];
+    _positionUnitElement: function(unitEl, r, c) {
+        const hexWidth = typeof HEX_WIDTH !== 'undefined' ? HEX_WIDTH : 50;
+        const hexVert = typeof HEX_VERT_SPACING !== 'undefined' ? HEX_VERT_SPACING : 43.3;
+        const xPos = c * hexWidth + (r % 2 !== 0 ? hexWidth / 2 : 0) + (hexWidth / 2) - 18;
+        const yPos = r * hexVert + 11;
+
+        unitEl.style.left = `${xPos}px`;
+        unitEl.style.top = `${yPos}px`;
     },
 
-    /**
-     * Dibuja todas las unidades en sus posiciones actuales
-     * ⭐ MEJORADO: Muestra número de regimientos y color del jugador
-     */
-    drawUnits: function() {
-        for (const unitId in this.unitsOnMap) {
-            const unit = this.unitsOnMap[unitId];
-            if (!unit || unit.isDead) continue;
+    _syncDOMFromState: function() {
+        this.boardStateMap.forEach(hexState => this._applyHexVisuals(hexState));
 
-            const pos = this.hexToPixel(unit.r, unit.c);
-            const playerColor = this.getPlayerColor(unit.playerId);
+        const aliveUnitIds = new Set();
+        this.unitsStateMap.forEach(unitState => {
+            const health = Number(unitState.h ?? unitState.health ?? 0);
+            if (health <= 0 || unitState.isDead) return;
+            const id = String(unitState.id || unitState.unitId);
+            aliveUnitIds.add(id);
+            this._renderUnit(unitState);
+        });
 
-            // ⭐ MEJORADO: Pasar sprite de la unidad en lugar del nombre
-            this.drawUnit(pos.x, pos.y, unit.sprite || '🚶', playerColor, unit.regiments, unit.regimentType);
-        }
-    },
-
-    /**
-     * Dibuja efectos visuales de eventos (batallas, muertes, etc)
-     */
-    drawEventEffects: function() {
-        // Los efectos tienen duración temporal
-        const now = Date.now();
-        this.eventsToAnimate = this.eventsToAnimate.filter(effect => {
-            if (now - effect.startTime > effect.duration) {
-                return false; // Remover efecto expirado
-            }
-
-            const pos = this.hexToPixel(effect.location[0], effect.location[1]);
-            const progress = (now - effect.startTime) / effect.duration;
-
-            if (effect.type === 'BATTLE') {
-                this.drawBattleEffect(pos.x, pos.y, progress);
-            } else if (effect.type === 'DEATH') {
-                this.drawDeathEffect(pos.x, pos.y, progress);
-            }
-
-            return true;
+        Array.from(this.unitElements.keys()).forEach(id => {
+            if (aliveUnitIds.has(id)) return;
+            const unitEl = this.unitElements.get(id);
+            if (unitEl && unitEl.parentElement) unitEl.parentElement.removeChild(unitEl);
+            this.unitElements.delete(id);
         });
     },
 
-    /**
-     * Reproduce los eventos del turno actual
-     * ⭐ OPTIMIZADO: Aplica deltas en lugar de snapshots completos
-     */
-    playTurn: function() {
-        if (!this.replayData || !this.replayData.timeline) {
-            console.error('[ReplayRenderer] No hay timeline disponible');
-            return;
-        }
-
-        const turnData = this.replayData.timeline[this.currentTurn];
-        if (!turnData) {
-            console.warn(`[ReplayRenderer] Turno ${this.currentTurn} no encontrado o fin de replay`);
-            return;
-        }
-
-        // Validar estructura del turno
-        if (!Array.isArray(turnData.events)) {
-            console.error(`[ReplayRenderer] Turno ${this.currentTurn} no tiene array de eventos:`, turnData);
-            this.currentTurn++;
-            return;
-        }
-
-        console.log(`[ReplayRenderer] Reproduciendo turno ${turnData.turn || this.currentTurn} (${turnData.events.length} eventos)`);
-
-        // ⭐ DELTA: Aplicar cambios según el tipo de snapshot
-        if (turnData.isFullSnapshot) {
-            // Es un snapshot completo (turno 0 - deployment)
-            if (turnData.boardState) {
-                this.currentBoardState = this._cloneBoardSnapshot(turnData.boardState);
-                this.applyBoardState(this.currentBoardState);
-            }
-            if (turnData.unitsState) {
-                this._reconstructUnitsFromSnapshot(turnData.unitsState);
-            }
-        } else {
-            // Es un delta, aplicar cambios incrementales
-            if (turnData.boardDelta) {
-                this._applyBoardDelta(turnData.boardDelta);
-            }
-            if (turnData.unitsDelta) {
-                this._applyUnitsDelta(turnData.unitsDelta);
-            }
-        }
-
-        // Procesar cada evento del turno
-        if (turnData.events.length > 0) {
-            for (const event of turnData.events) {
-                this.processEvent(event);
-            }
-        }
-
-        this.currentTurn++;
-    },
-
-    /**
-     * ⭐ DELTA: Aplica cambios incrementales al board
-     */
-    _applyBoardDelta: function(boardDelta) {
-        if (!boardDelta || !this.boardData) return;
-        
-        // Si no tenemos estado previo, usar el delta como estado completo
-        if (!this.currentBoardState) {
-            this.currentBoardState = this._cloneBoardSnapshot(boardDelta);
-        } else {
-            // Aplicar cambios al estado actual
-            for (const hexChange of boardDelta) {
-                // Buscar y actualizar en currentBoardState
-                const existingIndex = this.currentBoardState.findIndex(
-                    h => h.r === hexChange.r && h.c === hexChange.c
-                );
-                
-                if (existingIndex >= 0) {
-                    this.currentBoardState[existingIndex] = { ...hexChange };
-                } else {
-                    this.currentBoardState.push({ ...hexChange });
-                }
-            }
-        }
-        
-        // Aplicar al boardData para renderizado
-        this.applyBoardState(this.currentBoardState);
-    },
-
-    /**
-     * ⭐ DELTA: Aplica cambios incrementales a las unidades
-     */
-    _applyUnitsDelta: function(unitsDelta) {
-        if (!unitsDelta) return;
-        
-        // Si es array (snapshot completo), reconstruir
-        if (Array.isArray(unitsDelta)) {
-            this._reconstructUnitsFromSnapshot(unitsDelta);
-            return;
-        }
-        
-        // Si es objeto con added/modified/removed, aplicar deltas
-        if (unitsDelta.added) {
-            for (const unit of unitsDelta.added) {
-                this.currentUnitsState[unit.id] = {
-                    unitId: unit.id,
-                    name: unit.n,
-                    playerId: unit.p,
-                    r: unit.r,
-                    c: unit.c,
-                    regiments: unit.reg,
-                    regimentType: unit.rt || 'Infantería Ligera',      // ⭐ NUEVO
-                    sprite: unit.spr || '🚶',                         // ⭐ NUEVO
-                    health: unit.h,
-                    maxHealth: unit.mh,
-                    morale: unit.m,
-                    isDead: false
-                };
-            }
-        }
-        
-        if (unitsDelta.modified) {
-            for (const unit of unitsDelta.modified) {
-                if (this.currentUnitsState[unit.id]) {
-                    // Actualizar solo los campos que cambiaron
-                    this.currentUnitsState[unit.id].r = unit.r;
-                    this.currentUnitsState[unit.id].c = unit.c;
-                    this.currentUnitsState[unit.id].regiments = unit.reg;
-                    this.currentUnitsState[unit.id].regimentType = unit.rt || this.currentUnitsState[unit.id].regimentType;
-                    this.currentUnitsState[unit.id].sprite = unit.spr || this.currentUnitsState[unit.id].sprite;
-                    this.currentUnitsState[unit.id].health = unit.h;
-                    this.currentUnitsState[unit.id].morale = unit.m;
-                } else {
-                    // Si no existe, crearla (fallback)
-                    this.currentUnitsState[unit.id] = {
-                        unitId: unit.id,
-                        name: unit.n,
-                        playerId: unit.p,
-                        r: unit.r,
-                        c: unit.c,
-                        regiments: unit.reg,
-                        regimentType: unit.rt || 'Infantería Ligera',
-                        sprite: unit.spr || '🚶',
-                        health: unit.h,
-                        maxHealth: unit.mh,
-                        morale: unit.m,
-                        isDead: false
-                    };
-                }
-            }
-        }
-        
-        if (unitsDelta.removed) {
-            for (const unitId of unitsDelta.removed) {
-                if (this.currentUnitsState[unitId]) {
-                    this.currentUnitsState[unitId].isDead = true;
-                }
-            }
-        }
-        
-        // Actualizar unitsOnMap para renderizado
-        this.unitsOnMap = { ...this.currentUnitsState };
-    },
-
-    /**
-     * ⭐ MEJORADO: Aplica el estado del tablero capturado (incluye terrain)
-     */
-    applyBoardState: function(boardState) {
-        if (!this.boardData || !boardState) return;
-        
-        // Aplicar cada hexágono del snapshot
-        for (const hexSnapshot of boardState) {
-            const hex = this.boardData[hexSnapshot.r]?.[hexSnapshot.c];
-            if (!hex) continue;
-            
-            hex.owner = hexSnapshot.o !== undefined ? hexSnapshot.o : null;
-            hex.structure = hexSnapshot.s || null;
-            hex.isCity = hexSnapshot.iC || false;
-            hex.isCapital = hexSnapshot.iCa || false;
-            hex.terrain = hexSnapshot.t || hex.terrain || 'plains'; // ⭐ NUEVO: Actualizar terrain
-        }
-    },
-
-    /**
-     * ⭐ NUEVO: Aplica el estado de las unidades capturado
-     * Wrapper para compatibilidad - usa _reconstructUnitsFromSnapshot
-     */
-    applyUnitsState: function(unitsState) {
-        if (!unitsState) return;
-        
-        this._reconstructUnitsFromSnapshot(unitsState);
-    },
-
-    /**
-     * Procesa un evento individual
-     */
-    processEvent: function(event) {
-        switch (event.type) {
-            case 'MOVE':
-                this.processMove(event);
-                break;
-            case 'BATTLE':
-                this.processBattle(event);
-                break;
-            case 'UNIT_DEATH':
-                this.processUnitDeath(event);
-                break;
-            case 'CONQUEST':
-                this.processConquest(event);
-                break;
-            case 'BUILD':
-                this.processBuild(event);
-                break;
-        }
-    },
-
-    /**
-     * Procesa evento de movimiento
-     */
-    processMove: function(event) {
-        // Actualizar posición de la unidad
-        this.unitsOnMap[event.unitId] = {
-            unitId: event.unitId,
-            name: event.unitName,
-            playerId: event.playerId,
-            r: event.to[0],
-            c: event.to[1],
-            isDead: false
+    _cloneHexState: function(hex) {
+        return {
+            r: hex.r,
+            c: hex.c,
+            o: hex.o !== undefined ? hex.o : (hex.owner ?? null),
+            s: hex.s !== undefined ? hex.s : (hex.structure ?? null),
+            iC: Boolean(hex.iC !== undefined ? hex.iC : hex.isCity),
+            iCa: Boolean(hex.iCa !== undefined ? hex.iCa : hex.isCapital),
+            t: hex.t || hex.terrain || 'plains'
         };
     },
 
-    /**
-     * Procesa evento de batalla
-     */
-    processBattle: function(event) {
-        // Agregar efecto visual
-        this.eventsToAnimate.push({
-            type: 'BATTLE',
-            location: event.location,
-            startTime: Date.now(),
-            duration: 1000 // 1 segundo
-        });
+    _cloneUnitState: function(unit) {
+        return {
+            id: unit.id ?? unit.unitId,
+            n: unit.n ?? unit.name ?? 'Unidad',
+            p: unit.p ?? unit.playerId ?? 1,
+            r: unit.r,
+            c: unit.c,
+            reg: unit.reg ?? unit.regiments ?? 0,
+            rt: unit.rt ?? unit.regimentType ?? 'Infanteria Ligera',
+            spr: unit.spr ?? unit.sprite ?? '',
+            h: unit.h ?? unit.health ?? 0,
+            mh: unit.mh ?? unit.maxHealth ?? 0,
+            m: unit.m ?? unit.morale ?? 100,
+            isDead: Boolean(unit.isDead)
+        };
+    },
 
-        // Si el defensor murió, marcarlo
-        if (event.casualties && event.casualties.defender >= 100) {
-            if (this.unitsOnMap[event.defenderId]) {
-                this.unitsOnMap[event.defenderId].isDead = true;
+    _applyTurnState: function(turnIndex) {
+        const timeline = this.replayData?.timeline || [];
+        this.boardStateMap.clear();
+        this.unitsStateMap.clear();
+
+        if (timeline.length === 0) return;
+
+        for (let i = 0; i <= turnIndex; i++) {
+            const turn = timeline[i];
+            if (!turn) continue;
+
+            if (Array.isArray(turn.boardState)) {
+                this.boardStateMap.clear();
+                turn.boardState.forEach(hex => {
+                    const normalized = this._cloneHexState(hex);
+                    this.boardStateMap.set(`${normalized.r},${normalized.c}`, normalized);
+                });
+            }
+
+            if (Array.isArray(turn.unitsState)) {
+                this.unitsStateMap.clear();
+                turn.unitsState.forEach(unit => {
+                    const normalized = this._cloneUnitState(unit);
+                    this.unitsStateMap.set(String(normalized.id), normalized);
+                });
+            }
+
+            if (turn.isFullSnapshot) {
+                continue;
+            }
+
+            if (Array.isArray(turn.boardDelta)) {
+                turn.boardDelta.forEach(hex => {
+                    const normalized = this._cloneHexState(hex);
+                    this.boardStateMap.set(`${normalized.r},${normalized.c}`, normalized);
+                });
+            }
+
+            const unitsDelta = turn.unitsDelta;
+            if (Array.isArray(unitsDelta)) {
+                this.unitsStateMap.clear();
+                unitsDelta.forEach(unit => {
+                    const normalized = this._cloneUnitState(unit);
+                    this.unitsStateMap.set(String(normalized.id), normalized);
+                });
+            } else if (unitsDelta && typeof unitsDelta === 'object') {
+                (unitsDelta.added || []).forEach(unit => {
+                    const normalized = this._cloneUnitState(unit);
+                    this.unitsStateMap.set(String(normalized.id), normalized);
+                });
+
+                (unitsDelta.modified || []).forEach(unit => {
+                    const id = String(unit.id);
+                    const existing = this.unitsStateMap.get(id) || { id };
+                    const merged = this._cloneUnitState({ ...existing, ...unit, id });
+                    this.unitsStateMap.set(id, merged);
+                });
+
+                (unitsDelta.removed || []).forEach(unitId => {
+                    const id = String(unitId);
+                    const existing = this.unitsStateMap.get(id);
+                    if (existing) {
+                        existing.isDead = true;
+                        existing.h = 0;
+                        this.unitsStateMap.set(id, existing);
+                    }
+                });
             }
         }
     },
 
-    /**
-     * Procesa evento de muerte de unidad
-     */
-    processUnitDeath: function(event) {
-        if (this.unitsOnMap[event.unitId]) {
-            this.unitsOnMap[event.unitId].isDead = true;
-        }
+    _addTurnEffects: function(turnIndex) {
+        const turn = this.replayData?.timeline?.[turnIndex];
+        if (!turn || !Array.isArray(turn.events)) return;
 
-        // Efecto visual de desvanecimiento
-        this.eventsToAnimate.push({
-            type: 'DEATH',
-            location: event.location,
-            startTime: Date.now(),
-            duration: 500 // 0.5 segundos
+        turn.events.forEach(event => {
+            const loc = event.location || event.to;
+            if (!Array.isArray(loc) || loc.length < 2) return;
+
+            const key = `${loc[0]},${loc[1]}`;
+            const hexEl = this.hexElements.get(key);
+            if (!hexEl) return;
+
+            if (event.type === 'BATTLE' || event.type === 'UNIT_DEATH') {
+                hexEl.classList.add('hit-effect');
+                setTimeout(() => hexEl.classList.remove('hit-effect'), 350);
+            }
+
+            if (event.type === 'CONQUEST') {
+                hexEl.classList.add('owner-change-effect');
+                setTimeout(() => hexEl.classList.remove('owner-change-effect'), 600);
+            }
         });
     },
 
-    /**
-     * Procesa evento de conquista
-     */
-    processConquest: function(event) {
-        // Actualizar color del territorio en boardData
-        if (this.boardData[event.location[0]] && this.boardData[event.location[0]][event.location[1]]) {
-            this.boardData[event.location[0]][event.location[1]].owner = event.playerId;
-        }
-    },
-
-    /**
-     * Procesa evento de construcción
-     */
-    processBuild: function(event) {
-        if (this.boardData[event.location[0]] && this.boardData[event.location[0]][event.location[1]]) {
-            this.boardData[event.location[0]][event.location[1]].structure = event.structureType;
-        }
-    },
-
-    // ====== FUNCIONES DE DIBUJO BÁSICO ======
-
-    drawHexagon: function(x, y, color) {
-        const size = 25;
-        this.ctx.fillStyle = color;
-        this.ctx.beginPath();
-        for (let i = 0; i < 6; i++) {
-            const angle = (Math.PI / 3) * i;
-            const hx = x + size * Math.cos(angle);
-            const hy = y + size * Math.sin(angle);
-            if (i === 0) this.ctx.moveTo(hx, hy);
-            else this.ctx.lineTo(hx, hy);
-        }
-        this.ctx.closePath();
-        this.ctx.fill();
-    },
-
-    /**
-     * ⭐ MEJORADO: Dibuja una unidad con su ícono del juego y número de regimientos
-     */
-    drawUnit: function(x, y, sprite, color, regiments, regimentType) {
-        // Círculo de fondo con color del jugador
-        this.ctx.fillStyle = color + '99'; // Semi-transparente
-        this.ctx.beginPath();
-        this.ctx.arc(x, y, 14, 0, Math.PI * 2);
-        this.ctx.fill();
-
-        // Borde blanco
-        this.ctx.strokeStyle = '#ffffff';
-        this.ctx.lineWidth = 2;
-        this.ctx.stroke();
-
-        // ⭐ NUEVO: Mostrar ícono del tipo de regimiento
-        // Si el sprite es una imagen, mostrar emoji genérico basado en el tipo
-        let displayIcon = sprite;
-        
-        // Si es una ruta de imagen, usar emoji basado en el tipo
-        if (typeof sprite === 'string' && sprite.includes('images/')) {
-            // Mapeo de tipos a emojis
-            const typeToEmoji = {
-                'Infantería Ligera': '🚶',
-                'Infantería Pesada': '🛡️',
-                'Caballería Ligera': '🐎',
-                'Caballería Pesada': '🏇',
-                'Arqueros a Caballo': '🏹',
-                'Arqueros': '🏹',
-                'Arcabuceros': '🔫',
-                'Artillería': '🎯',
-                'Cuartel General': '⭐',
-                'Ingenieros': '👷',
-                'Hospital de Campaña': '⚕️',
-                'Columna de Suministro': '📦',
-                'Patache': '⛵',
-                'Barco de Guerra': '🚢',
-                'Colono': '🏘️',
-                'Explorador': '🔭',
-                'Pueblo': '🏡'
-            };
-            displayIcon = typeToEmoji[regimentType] || '⚔️';
-        }
-        
-        this.ctx.fillStyle = '#fff';
-        this.ctx.font = 'bold 16px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-        this.ctx.fillText(displayIcon, x, y);
-        
-        // ⭐ Mostrar número de regimientos debajo de la unidad
-        if (regiments !== undefined && regiments > 0) {
-            this.ctx.font = 'bold 10px Arial';
-            this.ctx.textAlign = 'center';
-            this.ctx.textBaseline = 'top';
-            
-            // Fondo oscuro para mejor legibilidad
-            const text = `${regiments}R`;
-            const textWidth = this.ctx.measureText(text).width;
-            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-            this.ctx.fillRect(x - textWidth/2 - 2, y + 16, textWidth + 4, 12);
-            
-            // Texto del número de regimientos
-            this.ctx.fillStyle = '#00f3ff'; // Color cyan brillante
-            this.ctx.fillText(text, x, y + 17);
-        }
-    },
-
-    /**
-     * ⭐ MEJORADO: Dibuja estructura usando STRUCTURE_TYPES del juego
-     */
-    drawStructure: function(x, y, structureType) {
-        // Usar STRUCTURE_TYPES si está disponible
-        let icon = '🏛️'; // Default: edificio clásico
-        
-        if (typeof STRUCTURE_TYPES !== 'undefined' && STRUCTURE_TYPES[structureType]) {
-            const structData = STRUCTURE_TYPES[structureType];
-            icon = structData.sprite || icon;
-        } else {
-            // Fallback a íconos manuales si STRUCTURE_TYPES no está disponible
-            const iconMap = {
-                'Camino': '🞰',
-                'Fortaleza': '🏰',
-                'Fortaleza con Muralla': '🧱',
-                'Aldea': '🏡',
-                'Ciudad': '🏫️',
-                'Metrópoli': '🏙️',
-                'Atalaya': '🔭'
-            };
-            icon = iconMap[structureType] || icon;
-        }
-
-        this.ctx.fillStyle = '#FFD700';
-        this.ctx.font = 'bold 14px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-        this.ctx.fillText(icon, x, y);
-    },
-
-    drawBattleEffect: function(x, y, progress) {
-        // Iconos de espadas que aparecen y desaparecen
-        this.ctx.globalAlpha = 1 - progress; // Fade out
-        this.ctx.fillStyle = '#FF6B6B';
-        this.ctx.font = 'bold 20px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-        this.ctx.fillText('⚔️', x, y - 10 * progress);
-        this.ctx.globalAlpha = 1;
-    },
-
-    drawDeathEffect: function(x, y, progress) {
-        // Desvanecimiento hacia transparencia
-        this.ctx.globalAlpha = 1 - progress;
-        this.ctx.fillStyle = '#999';
-        this.ctx.beginPath();
-        this.ctx.arc(x, y, 15, 0, Math.PI * 2);
-        this.ctx.fill();
-        this.ctx.globalAlpha = 1;
-    },
-
-    hexToPixel: function(r, c) {
-        const x = c * this.hexWidth + (r % 2) * (this.hexWidth / 2);
-        const y = r * (this.hexHeight * 0.75);
-        return { x: x + 50, y: y + 50 }; // Offset
-    },
-
-    /**
-     * Control: Ir a turno específico
-     */
     goToTurn: function(turnNumber) {
-        this.currentTurn = Math.max(0, Math.min(turnNumber, this.replayData.timeline.length - 1));
-        this.unitsOnMap = {}; // Reset de unidades
-        this.eventsToAnimate = [];
-
-        // Reproducir turnos hasta el objetivo
-        for (let i = 0; i < this.currentTurn; i++) {
-            const turnData = this.replayData.timeline[i];
-            for (const event of turnData.events) {
-                this.processEvent(event);
-            }
+        const timeline = this.replayData?.timeline || [];
+        if (timeline.length === 0) {
+            this.currentTurn = 0;
+            return;
         }
 
-        this.drawFrame();
-    },
+        const clamped = Math.max(0, Math.min(turnNumber, timeline.length - 1));
+        this.currentTurn = clamped;
 
-    /**
-     * Control: Play/Pause
-     */
-    togglePlayPause: function() {
-        this.isPlaying = !this.isPlaying;
-        if (this.isPlaying) {
-            this.playLoop();
+        this._applyTurnState(clamped);
+        this._syncDOMFromState();
+
+        if (typeof window !== 'undefined' && window.ReplayUI && typeof window.ReplayUI.updateTurnDisplay === 'function') {
+            window.ReplayUI.updateTurnDisplay();
         }
     },
 
-    /**
-     * Loop de reproducción automática
-     */
+    play: function() {
+        if (this.isPlaying) return;
+        this.isPlaying = true;
+        this.playLoop();
+    },
+
     playLoop: function() {
         if (!this.isPlaying) return;
 
-        // Calcular delay según velocidad
-        const baseDelay = 1000 / this.playbackSpeed; // 1 segundo por turno / velocidad
-        
-        if (this.currentTurn < this.replayData.timeline.length) {
-            this.playTurn();
-            this.drawFrame();
-            this.animationFrameId = setTimeout(() => this.playLoop(), baseDelay);
-        } else {
+        const totalTurns = this.replayData?.timeline?.length || 0;
+        if (totalTurns <= 1 || this.currentTurn >= totalTurns - 1) {
             this.isPlaying = false;
-            console.log('[ReplayRenderer] Replay finalizado');
+            return;
         }
-    },
 
-    /**
-     * Control: Cambiar velocidad
-     */
-    setPlaybackSpeed: function(speed) {
-        this.playbackSpeed = speed; // 1, 2, 4
-    },
+        this.currentTurn += 1;
+        this._applyTurnState(this.currentTurn);
+        this._syncDOMFromState();
+        this._addTurnEffects(this.currentTurn);
 
-    /**
-     * Control: Stop
-     */
-    stop: function() {
-        this.isPlaying = false;
-        if (this.animationFrameId) {
-            clearTimeout(this.animationFrameId);
+        if (typeof window !== 'undefined' && window.ReplayUI && typeof window.ReplayUI.updateTurnDisplay === 'function') {
+            window.ReplayUI.updateTurnDisplay();
         }
-        this.currentTurn = 0;
-        this.unitsOnMap = {};
-        this.eventsToAnimate = [];
-        this.drawFrame();
+
+        const baseDelay = 1000 / Math.max(1, this.playbackSpeed);
+        this.animationFrameId = setTimeout(() => this.playLoop(), baseDelay);
     },
 
-    /**
-     * INTERFAZ PÚBLICA - Métodos alias para ReplayUI
-     */
-
-    /**
-     * Play: Inicia reproducción
-     */
-    play: function() {
-        if (!this.isPlaying) {
-            this.isPlaying = true;
-            this.playLoop();
-        }
-    },
-
-    /**
-     * Seek: Salta a un momento en el replay (0.0 - 1.0)
-     */
     seek: function(progress) {
-        // Convertir progreso (0-1) a número de turno
-        const maxTurns = this.replayData?.timeline?.length || 1;
-        const targetTurn = Math.floor(progress * maxTurns);
+        const totalTurns = this.replayData?.timeline?.length || 1;
+        const targetTurn = Math.floor(Math.max(0, Math.min(1, progress)) * (totalTurns - 1));
         this.goToTurn(targetTurn);
     },
 
-    /**
-     * Previous Turn: Retrocede un turno
-     */
     previousTurn: function() {
-        if (this.currentTurn > 0) {
-            this.currentTurn--;
-        }
-        this.drawFrame();
+        this.stopPlaybackOnly();
+        this.goToTurn(this.currentTurn - 1);
     },
 
-    /**
-     * Next Turn: Avanza un turno
-     */
     nextTurn: function() {
-        if (this.currentTurn < (this.replayData?.timeline?.length || 0)) {
-            this.currentTurn++;
+        this.stopPlaybackOnly();
+        const next = this.currentTurn + 1;
+        this.goToTurn(next);
+        this._addTurnEffects(this.currentTurn);
+    },
+
+    setPlaybackSpeed: function(speed) {
+        this.playbackSpeed = Number(speed) || 1;
+    },
+
+    stopPlaybackOnly: function() {
+        this.isPlaying = false;
+        if (this.animationFrameId) {
+            clearTimeout(this.animationFrameId);
+            this.animationFrameId = null;
         }
-        this.drawFrame();
+    },
+
+    stop: function() {
+        this.stopPlaybackOnly();
+        this.goToTurn(0);
+    },
+
+    destroy: function() {
+        this._reset();
     }
 };
 
-// Exponer globalmente
 if (typeof window !== 'undefined') {
     window.ReplayRenderer = ReplayRenderer;
 }

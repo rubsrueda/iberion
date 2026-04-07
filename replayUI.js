@@ -266,6 +266,12 @@ const ReplayUI = {
         if (this.renderer && this.renderer.stop) {
             this.renderer.stop();
         }
+
+        if (this.renderer && this.renderer.destroy) {
+            this.renderer.destroy();
+        }
+
+        this.renderer = null;
     },
 
     /**

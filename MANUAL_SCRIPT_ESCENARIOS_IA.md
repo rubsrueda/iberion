@@ -68,13 +68,31 @@ ScenarioScriptFactory.register({
     enemyResources: { oro: 800, comida: 600, madera: 200, piedra: 100, hierro: 100 },
 
     playerUnits: [
-      { type: 'Infantería Pesada', r: 13, c: 9, name: 'Linea 1' },
-      { type: 'Arqueros', r: 12, c: 9, name: 'Hostigadores' }
+      {
+        r: 13,
+        c: 9,
+        name: 'Ejercito A',
+        regimentComposition: {
+          'Infantería Pesada': 8,
+          'Infantería Ligera': 6,
+          'Arqueros': 4,
+          'Caballería Ligera': 2
+        }
+      }
     ],
 
     enemyUnits: [
-      { type: 'Infantería Pesada', r: 3, c: 9, name: 'Guardia 1' },
-      { type: 'Caballería Ligera', r: 4, c: 9, name: 'Caballeria' }
+      {
+        r: 3,
+        c: 9,
+        name: 'Ejercito B',
+        regimentComposition: {
+          'Infantería Pesada': 7,
+          'Infantería Ligera': 5,
+          'Arqueros': 4,
+          'Caballería Ligera': 4
+        }
+      }
     ]
   },
 
@@ -87,27 +105,68 @@ ScenarioScriptFactory.register({
 ```
 
 ## 3) Terrenos recomendados
-- `plains`, `forest`, `hills`, `mountain`, `water`, `desert`, `swamp`, `beach`.
+- En el juego actual, usa solo estos terrenos:
+  - `plains`
+  - `forest`
+  - `hills`
+  - `water`
+
+No uses `mountain`, `desert`, `swamp`, `beach` mientras no existan en `TERRAIN_TYPES`.
+
+### Importante: no necesitas definir cada casilla
+- `map.defaultTerrain` define el terreno base de TODO el mapa.
+- `map.terrains` solo se usa para excepciones (ríos, bosques, colinas concretas).
+- Usa utilidades del factory para no escribir hex por hex: `lineH`, `lineV`, `rect`.
 
 ## 4) Estructuras recomendadas
-- `Fortaleza`, `Ciudad`, `Aldea`, `Metrópoli`, `Camino`, `Puerto`, `Atalaya`.
+- En el juego actual, usa estructuras existentes en `STRUCTURE_DEFINITIONS`, por ejemplo:
+  - `Camino`
+  - `Fortaleza`
+  - `Fortaleza con Muralla`
+  - `Aldea`
+  - `Ciudad`
+  - `Metrópoli`
+  - `Atalaya`
+
+No uses `Puerto` si no está definido en `STRUCTURE_DEFINITIONS`.
 
 ## 4.1) Owners validos para ciudades
 En `map.cities[].owner` usa solo estos valores:
 - `player`
 - `enemy`
 - `neutral`
+- `bank` (para la Banca)
+- `barbarian` (si quieres etiquetar ciudad bárbara)
+- número entero (`1`, `2`, `3`, etc.) si tu lógica de escenario lo necesita
 
 Si usas otro valor, el comportamiento puede ser ambiguo.
 
 ## 5) Tipos de unidad
-Usa tipos existentes del juego (claves de `REGIMENT_TYPES`), por ejemplo:
+Usa tipos existentes del juego (claves de `REGIMENT_TYPES`). Base útil actual:
 - `Infantería Pesada`
 - `Infantería Ligera`
 - `Caballería Ligera`
+- `Caballería Pesada`
 - `Arqueros`
+- `Arqueros a Caballo`
+- `Arcabuceros`
+- `Artillería`
+- `Cuartel General`
+- `Ingenieros`
+- `Hospital de Campaña`
+- `Columna de Suministro`
+- `Patache`
+- `Barco de Guerra`
+- `Colono`
+- `Explorador`
+- `Pueblo`
 
 Si un tipo no existe, no se podra colocar.
+
+### Divisiones multi-regimiento
+- Una división puede tener hasta `20` regimientos (`MAX_REGIMENTS_PER_DIVISION`).
+- Recomendado usar `regimentComposition` para escribir escenarios rápido.
+- También puedes usar `regiments` como lista explícita.
 
 ## 5.1) Condiciones de victoria/derrota recomendadas
 Para maxima compatibilidad, prioriza estas:
@@ -129,9 +188,9 @@ Objetivo: crear un escenario historico base de [BATALLA].
 
 Requisitos:
 1) mapa de [filas]x[columnas]
-2) relieve coherente (colinas, bosque, rio si aplica)
+2) relieve coherente usando solo terrenos válidos actuales: plains, forest, hills, water
 3) capitals, ciudades neutrales y recursos
-4) despliegue inicial de ambos bandos con unidades realistas
+4) despliegue inicial de ambos bandos con divisiones multi-regimiento (hasta 20 por división)
 5) metadatos historicos completos (titulo, fecha, bandos, contexto, objetivos, fuentes)
 6) condiciones de victoria centradas en la batalla
 7) usar claves scenarioKey/mapKey en mayusculas con prefijo SCRIPT_
@@ -150,7 +209,8 @@ Devuelve solo el contenido del archivo .js, listo para pegar en /scenarios/.
 - `rows` y `cols` son enteros positivos.
 - Todas las coordenadas `r,c` estan dentro del mapa.
 - Las unidades usan tipos existentes en `REGIMENT_TYPES`.
-- `map.cities[].owner` solo usa `player|enemy|neutral`.
+- `map.cities[].owner` usa valores válidos (`player|enemy|neutral|bank|barbarian|numero`).
+- Ninguna división supera 20 regimientos.
 - Hay al menos una condicion de victoria y una de derrota.
 - El script llama exactamente a `ScenarioScriptFactory.register(definition)`.
 

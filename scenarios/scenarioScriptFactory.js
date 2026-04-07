@@ -34,31 +34,101 @@ console.log("scenarioScriptFactory.js CARGADO");
         assert(hex.c >= 0 && hex.c < cols, `${label}: c fuera de rango (${hex.c})`);
     }
 
+    function getValidTerrains() {
+        if (typeof TERRAIN_TYPES !== 'undefined' && TERRAIN_TYPES && typeof TERRAIN_TYPES === 'object') {
+            return new Set(Object.keys(TERRAIN_TYPES));
+        }
+        return new Set(['plains', 'forest', 'hills', 'water']);
+    }
+
+    function getValidStructures() {
+        if (typeof STRUCTURE_DEFINITIONS !== 'undefined' && STRUCTURE_DEFINITIONS && typeof STRUCTURE_DEFINITIONS === 'object') {
+            return new Set(Object.keys(STRUCTURE_DEFINITIONS));
+        }
+        return new Set(['Camino', 'Fortaleza', 'Aldea', 'Ciudad', 'Metrópoli', 'Atalaya']);
+    }
+
+    function isValidCityOwner(owner) {
+        if (owner === null || owner === undefined) return true;
+        if (['player', 'enemy', 'neutral', 'bank', 'barbarian'].includes(owner)) return true;
+        if (isInt(Number(owner))) return true;
+        return false;
+    }
+
     function normalizeSpecificHexes(rows, cols, mapDef) {
         const specificHexes = [];
+        const validTerrains = getValidTerrains();
+        const validStructures = getValidStructures();
 
         (mapDef.terrains || []).forEach((h, idx) => {
             validateHex(rows, cols, h, `map.terrains[${idx}]`);
-            specificHexes.push({ r: h.r, c: h.c, terrain: h.terrain || 'plains' });
+            const terrain = h.terrain || 'plains';
+            assert(validTerrains.has(terrain), `map.terrains[${idx}]: terreno no valido (${terrain})`);
+            specificHexes.push({ r: h.r, c: h.c, terrain });
         });
 
         (mapDef.structures || []).forEach((h, idx) => {
             validateHex(rows, cols, h, `map.structures[${idx}]`);
-            specificHexes.push({ r: h.r, c: h.c, terrain: h.terrain || mapDef.defaultTerrain || 'plains', structure: h.structure });
+            const terrain = h.terrain || mapDef.defaultTerrain || 'plains';
+            assert(validTerrains.has(terrain), `map.structures[${idx}]: terreno no valido (${terrain})`);
+            assert(typeof h.structure === 'string' && h.structure.trim(), `map.structures[${idx}]: structure es obligatorio`);
+            assert(validStructures.has(h.structure), `map.structures[${idx}]: estructura no valida (${h.structure})`);
+            specificHexes.push({ r: h.r, c: h.c, terrain, structure: h.structure });
         });
 
         return specificHexes;
     }
 
+    function expandRegimentsFromUnitDef(unit, label) {
+        const validRegimentTypes = typeof REGIMENT_TYPES !== 'undefined' ? new Set(Object.keys(REGIMENT_TYPES)) : null;
+
+        // A) Lista explicita
+        if (Array.isArray(unit.regiments) && unit.regiments.length > 0) {
+            return unit.regiments.map((reg, idx) => {
+                const type = typeof reg === 'string' ? reg : reg?.type;
+                assert(typeof type === 'string' && type.trim(), `${label}.regiments[${idx}]: type invalido`);
+                if (validRegimentTypes) assert(validRegimentTypes.has(type), `${label}.regiments[${idx}]: tipo no existe (${type})`);
+                return reg;
+            });
+        }
+
+        // B) Composición compacta por conteo
+        if (unit.regimentComposition && typeof unit.regimentComposition === 'object') {
+            const expanded = [];
+            Object.entries(unit.regimentComposition).forEach(([type, count]) => {
+                const safeCount = Math.max(0, parseInt(count, 10) || 0);
+                if (validRegimentTypes) assert(validRegimentTypes.has(type), `${label}.regimentComposition: tipo no existe (${type})`);
+                for (let i = 0; i < safeCount; i++) expanded.push(type);
+            });
+            if (expanded.length > 0) return expanded;
+        }
+
+        // C) type + regimentCount
+        if (unit.type && Number.isInteger(unit.regimentCount) && unit.regimentCount > 1) {
+            if (validRegimentTypes) assert(validRegimentTypes.has(unit.type), `${label}: tipo no existe (${unit.type})`);
+            return Array(unit.regimentCount).fill(unit.type);
+        }
+
+        // D) fallback histórico (1 regimiento)
+        assert(typeof unit.type === 'string' && unit.type.trim(), `${label}: se requiere type o regiments/regimentComposition`);
+        if (validRegimentTypes) assert(validRegimentTypes.has(unit.type), `${label}: tipo no existe (${unit.type})`);
+        return [unit.type];
+    }
+
     function normalizeUnits(rows, cols, units, label) {
         return (units || []).map((u, idx) => {
             validateHex(rows, cols, u, `${label}[${idx}]`);
-            assert(typeof u.type === 'string' && u.type.trim(), `${label}[${idx}]: type es obligatorio`);
+            const regiments = expandRegimentsFromUnitDef(u, `${label}[${idx}]`);
+            assert(regiments.length > 0, `${label}[${idx}]: unidad sin regimientos`);
+            assert(regiments.length <= 20, `${label}[${idx}]: maximo 20 regimientos por division`);
+
+            const primaryType = typeof regiments[0] === 'string' ? regiments[0] : regiments[0].type;
             return {
-                type: u.type,
+                type: primaryType,
                 r: u.r,
                 c: u.c,
-                name: u.name || u.type
+                name: u.name || primaryType,
+                regiments
             };
         });
     }
@@ -89,6 +159,7 @@ console.log("scenarioScriptFactory.js CARGADO");
 
             const cities = (mapDef.cities || []).map((city, idx) => {
                 validateHex(rows, cols, city, `map.cities[${idx}]`);
+                assert(isValidCityOwner(city.owner), `map.cities[${idx}]: owner no valido (${city.owner})`);
                 return {
                     r: city.r,
                     c: city.c,

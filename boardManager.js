@@ -1377,6 +1377,8 @@ mapTacticalData.cities?.forEach(cityInfo => {
     else if (cityInfo.owner === 'enemy') cityOwnerPlayerNumber = 2; 
     else if (cityInfo.owner === 'neutral' || cityInfo.owner === null || cityInfo.owner === undefined) { cityOwnerPlayerNumber = null; }
     else if (cityInfo.owner === 0 || cityInfo.owner === '0' || cityInfo.owner === 'bank') { cityOwnerPlayerNumber = BankManager?.PLAYER_ID ?? 0; }
+    else if (cityInfo.owner === 'barbarian') { cityOwnerPlayerNumber = typeof BARBARIAN_PLAYER_ID !== 'undefined' ? BARBARIAN_PLAYER_ID : null; }
+    else if (Number.isInteger(Number(cityInfo.owner))) { cityOwnerPlayerNumber = Number(cityInfo.owner); }
     addCityToBoardData(cityInfo.r, cityInfo.c, cityOwnerPlayerNumber, cityInfo.name, false);
     if (cityOwnerPlayerNumber !== null && cityOwnerPlayerNumber !== undefined && board[cityInfo.r]?.[cityInfo.c]) {
         board[cityInfo.r][cityInfo.c].owner = cityOwnerPlayerNumber;
@@ -1413,34 +1415,103 @@ console.log("boardManager.js: initializeGameBoardForScenario completada.");
 
 // --- FUNCIONES HELPER PARA LA INICIALIZACIÓN DE ESCENARIOS ---
 function createUnitDataObjectFromDefinition(unitDef, player) {
-const regimentTypeData = REGIMENT_TYPES[unitDef.type];
-if (!regimentTypeData) {
-        console.error(`Tipo de regimiento desconocido "${unitDef.type}" en la definición de unidad del escenario.`);
-return null;
+const normalizeDefinitionRegiments = (def) => {
+    // 1) Lista explicita de regimientos: ['Infantería Pesada', ...] o [{type, health}, ...]
+    if (Array.isArray(def.regiments) && def.regiments.length > 0) {
+        return def.regiments;
+    }
+
+    // 2) Composición compacta: { 'Infantería Pesada': 10, 'Arqueros': 6 }
+    if (def.regimentComposition && typeof def.regimentComposition === 'object') {
+        const expanded = [];
+        Object.entries(def.regimentComposition).forEach(([type, count]) => {
+            const safeCount = Math.max(0, parseInt(count, 10) || 0);
+            for (let i = 0; i < safeCount; i++) expanded.push(type);
+        });
+        if (expanded.length > 0) return expanded;
+    }
+
+    // 3) Alias corto: regimentCount + type
+    if (def.type && Number.isInteger(def.regimentCount) && def.regimentCount > 1) {
+        return Array(def.regimentCount).fill(def.type);
+    }
+
+    // 4) Compatibilidad histórica: una sola plantilla por "type"
+    return def.type ? [def.type] : [];
+};
+
+const rawRegiments = normalizeDefinitionRegiments(unitDef);
+if (!rawRegiments.length) {
+    console.error('Definición de unidad sin regimientos válidos:', unitDef);
+    return null;
 }
 
-const singleRegiment = { ...regimentTypeData, type: unitDef.type };
+if (rawRegiments.length > MAX_REGIMENTS_PER_DIVISION) {
+    console.warn(`Unidad "${unitDef.name || unitDef.type}" excede ${MAX_REGIMENTS_PER_DIVISION} regimientos; se recorta automáticamente.`);
+}
 
-return {
-    id: `u${unitIdCounter++}`, 
+const regimentDefs = rawRegiments.slice(0, MAX_REGIMENTS_PER_DIVISION);
+const normalizedRegiments = [];
+
+for (const regimentDef of regimentDefs) {
+    const regType = typeof regimentDef === 'string' ? regimentDef : regimentDef?.type;
+    const baseRegimentTypeData = REGIMENT_TYPES[regType];
+
+    if (!baseRegimentTypeData) {
+        console.error(`Tipo de regimiento desconocido "${regType}" en la definición de unidad del escenario.`, unitDef);
+        return null;
+    }
+
+    const regHealth = typeof regimentDef === 'object' && typeof regimentDef.health === 'number'
+        ? regimentDef.health
+        : baseRegimentTypeData.health;
+
+    normalizedRegiments.push({
+        ...baseRegimentTypeData,
+        type: regType,
+        health: regHealth,
+        maxHealth: baseRegimentTypeData.health
+    });
+}
+
+const firstRegiment = normalizedRegiments[0];
+const unit = {
+    id: `u${unitIdCounter++}`,
     player: player,
-    name: unitDef.name || unitDef.type,
-    regiments: [JSON.parse(JSON.stringify(singleRegiment))], 
-    attack: regimentTypeData.attack,
-    defense: regimentTypeData.defense,
-    maxHealth: regimentTypeData.health,
-    currentHealth: regimentTypeData.health,
-    movement: regimentTypeData.movement,
-    currentMovement: regimentTypeData.movement,
-    visionRange: regimentTypeData.visionRange,
-    attackRange: regimentTypeData.attackRange,
-    r: unitDef.r, 
-    c: unitDef.c, 
-    sprite: regimentTypeData.sprite,
-    element: null, 
-    hasMoved: false, 
+    name: unitDef.name || unitDef.type || firstRegiment.type,
+    regiments: normalizedRegiments,
+    attack: firstRegiment.attack,
+    defense: firstRegiment.defense,
+    maxHealth: normalizedRegiments.reduce((sum, reg) => sum + (reg.maxHealth || reg.health || 0), 0),
+    currentHealth: normalizedRegiments.reduce((sum, reg) => sum + (reg.health || 0), 0),
+    movement: firstRegiment.movement,
+    currentMovement: firstRegiment.movement,
+    visionRange: firstRegiment.visionRange,
+    attackRange: firstRegiment.attackRange,
+    r: unitDef.r,
+    c: unitDef.c,
+    sprite: firstRegiment.sprite,
+    element: null,
+    hasMoved: false,
     hasAttacked: false,
+    level: 0
 };
+
+if (typeof recalculateUnitStats === 'function') {
+    recalculateUnitStats(unit);
+    unit.currentMovement = unit.movement;
+} else {
+    // Fallback seguro por si recalculateUnitStats aún no está disponible.
+    unit.attack = normalizedRegiments.reduce((sum, r) => sum + (REGIMENT_TYPES[r.type]?.attack || 0), 0);
+    unit.defense = normalizedRegiments.reduce((sum, r) => sum + (REGIMENT_TYPES[r.type]?.defense || 0), 0);
+    unit.movement = normalizedRegiments.reduce((min, r) => Math.min(min, REGIMENT_TYPES[r.type]?.movement || min), Infinity);
+    unit.movement = unit.movement === Infinity ? 0 : unit.movement;
+    unit.currentMovement = unit.movement;
+    unit.visionRange = normalizedRegiments.reduce((max, r) => Math.max(max, REGIMENT_TYPES[r.type]?.visionRange || 0), 0);
+    unit.attackRange = normalizedRegiments.reduce((max, r) => Math.max(max, REGIMENT_TYPES[r.type]?.attackRange || 0), 0);
+}
+
+return unit;
 }
 
 function placeInitialUnit(unitData) {

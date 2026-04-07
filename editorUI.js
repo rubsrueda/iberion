@@ -526,6 +526,9 @@ const EditorUI = {
     _cityOwnerToKeyword(owner) {
         if (owner === 1 || owner === '1' || owner === 'player') return 'player';
         if (owner === 2 || owner === '2' || owner === 'enemy') return 'enemy';
+        if (owner === 'bank' || owner === 0 || owner === '0') return 'bank';
+        if (owner === 'barbarian') return 'barbarian';
+        if (Number.isInteger(Number(owner))) return Number(owner);
         return 'neutral';
     },
 
@@ -559,7 +562,7 @@ const EditorUI = {
         const resourceNodes = [];
 
         (scenarioData.boardData || []).forEach(hex => {
-            if (hex.terrain && hex.terrain !== 'plains') {
+            if (hex.terrain && hex.terrain !== 'plains' && TERRAIN_TYPES[hex.terrain]) {
                 terrains.push({ r: hex.r, c: hex.c, terrain: hex.terrain });
             }
             if (hex.structure) {

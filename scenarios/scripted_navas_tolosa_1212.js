@@ -10,7 +10,7 @@
     const U = ScenarioScriptFactory.utils;
 
     const mountainRidge = [
-        ...U.lineH(3, 4, 13, 'mountain'),
+        ...U.lineH(3, 4, 13, 'hills'),
         ...U.lineH(4, 5, 12, 'hills'),
         ...U.lineH(5, 6, 11, 'hills')
     ];
@@ -81,17 +81,76 @@
             playerResources: { oro: 850, comida: 700, madera: 220, piedra: 140, hierro: 120 },
             enemyResources: { oro: 900, comida: 650, madera: 210, piedra: 180, hierro: 140 },
             playerUnits: [
-                { type: 'Infantería Pesada', r: 13, c: 8, name: 'Linea Castellana I' },
-                { type: 'Infantería Pesada', r: 13, c: 9, name: 'Linea Castellana II' },
-                { type: 'Caballería Ligera', r: 13, c: 10, name: 'Caballeria de Choque' },
-                { type: 'Arqueros', r: 12, c: 9, name: 'Arqueros de Vanguardia' }
+                {
+                    r: 13,
+                    c: 7,
+                    name: 'Ejercito de Castilla',
+                    regimentComposition: {
+                        'Infantería Pesada': 9,
+                        'Infantería Ligera': 5,
+                        'Arqueros': 4,
+                        'Caballería Ligera': 2
+                    }
+                },
+                {
+                    r: 13,
+                    c: 10,
+                    name: 'Ejercito de Aragón',
+                    regimentComposition: {
+                        'Infantería Pesada': 7,
+                        'Infantería Ligera': 4,
+                        'Arqueros': 4,
+                        'Caballería Ligera': 3,
+                        'Caballería Pesada': 2
+                    }
+                },
+                {
+                    r: 12,
+                    c: 9,
+                    name: 'Ejercito de Navarra',
+                    regimentComposition: {
+                        'Infantería Pesada': 6,
+                        'Infantería Ligera': 5,
+                        'Arqueros': 4,
+                        'Caballería Ligera': 3,
+                        'Caballería Pesada': 2
+                    }
+                }
             ],
             enemyUnits: [
-                { type: 'Infantería Pesada', r: 3, c: 8, name: 'Guardia Almohade I' },
-                { type: 'Infantería Pesada', r: 3, c: 9, name: 'Guardia Almohade II' },
-                { type: 'Infantería Pesada', r: 3, c: 10, name: 'Guardia Almohade III' },
-                { type: 'Caballería Ligera', r: 4, c: 9, name: 'Caballeria Bereber' },
-                { type: 'Arqueros', r: 4, c: 8, name: 'Hostigadores' }
+                {
+                    r: 3,
+                    c: 8,
+                    name: 'Centro Almohade',
+                    regimentComposition: {
+                        'Infantería Pesada': 10,
+                        'Infantería Ligera': 4,
+                        'Arqueros': 4,
+                        'Caballería Ligera': 2
+                    }
+                },
+                {
+                    r: 3,
+                    c: 11,
+                    name: 'Ala Bereber',
+                    regimentComposition: {
+                        'Infantería Ligera': 7,
+                        'Arqueros': 5,
+                        'Caballería Ligera': 6,
+                        'Caballería Pesada': 2
+                    }
+                },
+                {
+                    r: 4,
+                    c: 9,
+                    name: 'Guardia del Califa',
+                    regimentComposition: {
+                        'Infantería Pesada': 8,
+                        'Arqueros': 4,
+                        'Caballería Pesada': 4,
+                        'Caballería Ligera': 4
+                    }
+                }
             ]
         },
 
