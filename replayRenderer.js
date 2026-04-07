@@ -51,7 +51,8 @@ const ReplayRenderer = {
     },
 
     _reset: function() {
-        this.stop();
+        this.stopPlaybackOnly();
+        this.currentTurn = 0;
         this.boardStateMap = new Map();
         this.unitsStateMap = new Map();
         this.hexElements = new Map();
@@ -244,6 +245,8 @@ const ReplayRenderer = {
     },
 
     _renderUnit: function(unitState) {
+        if (!this.unitsLayer) return;
+
         const key = String(unitState.id || unitState.unitId);
         let unitEl = this.unitElements.get(key);
 
@@ -299,6 +302,8 @@ const ReplayRenderer = {
     },
 
     _syncDOMFromState: function() {
+        if (!this.boardLayer || !this.unitsLayer) return;
+
         this.boardStateMap.forEach(hexState => this._applyHexVisuals(hexState));
 
         const aliveUnitIds = new Set();

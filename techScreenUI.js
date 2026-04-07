@@ -2,12 +2,78 @@
 // DEFINIR FUNCIONES GLOBALMENTE (fuera de DOMContentLoaded para que estén disponibles inmediatamente)
 const TECH_TREE_NODE_SIZE = 64;
 
+function _findNearestFreeCell(targetCol, targetRow, cols, rows, occupied) {
+    const clampCol = Math.max(0, Math.min(cols - 1, targetCol));
+    const clampRow = Math.max(0, Math.min(rows - 1, targetRow));
+    const centerKey = `${clampCol},${clampRow}`;
+    if (!occupied.has(centerKey)) return { col: clampCol, row: clampRow };
+
+    const maxRadius = Math.max(cols, rows);
+    for (let radius = 1; radius <= maxRadius; radius++) {
+        for (let dy = -radius; dy <= radius; dy++) {
+            for (let dx = -radius; dx <= radius; dx++) {
+                const col = clampCol + dx;
+                const row = clampRow + dy;
+                if (col < 0 || col >= cols || row < 0 || row >= rows) continue;
+                const key = `${col},${row}`;
+                if (!occupied.has(key)) return { col, row };
+            }
+        }
+    }
+
+    return { col: clampCol, row: clampRow };
+}
+
+function _buildTechTreeMatrix(layout) {
+    const techEntries = Object.values(TECHNOLOGY_TREE_DATA || {});
+    if (techEntries.length === 0) return {};
+
+    const usableWidth = Math.max(1, layout.width - layout.paddingX * 2);
+    const usableHeight = Math.max(1, layout.height - layout.paddingY * 2);
+    const minNodeGap = Math.max(TECH_TREE_NODE_SIZE + 8, 70);
+
+    const cols = Math.max(3, Math.floor(usableWidth / minNodeGap));
+    const rows = Math.max(3, Math.floor(usableHeight / minNodeGap));
+
+    const rangeX = Math.max(1, layout.maxX - layout.minX);
+    const rangeY = Math.max(1, layout.maxY - layout.minY);
+
+    const sortedEntries = [...techEntries].sort((a, b) => {
+        const tierDelta = (a.tier || 0) - (b.tier || 0);
+        if (tierDelta !== 0) return tierDelta;
+        return (a.position.y - b.position.y) || (a.position.x - b.position.x);
+    });
+
+    const occupied = new Set();
+    const matrixPositions = {};
+
+    sortedEntries.forEach(tech => {
+        const normalizedX = (tech.position.x - layout.minX) / rangeX;
+        const normalizedY = (tech.position.y - layout.minY) / rangeY;
+
+        const targetCol = Math.round(normalizedX * (cols - 1));
+        const targetRow = Math.round(normalizedY * (rows - 1));
+        const free = _findNearestFreeCell(targetCol, targetRow, cols, rows, occupied);
+
+        const key = `${free.col},${free.row}`;
+        occupied.add(key);
+
+        const colRatio = cols === 1 ? 0.5 : free.col / (cols - 1);
+        const rowRatio = rows === 1 ? 0.5 : free.row / (rows - 1);
+        const x = layout.paddingX + colRatio * usableWidth;
+        const y = layout.paddingY + rowRatio * usableHeight;
+        matrixPositions[tech.id] = { x, y, col: free.col, row: free.row };
+    });
+
+    return matrixPositions;
+}
+
 function _computeTechTreeLayout(container) {
     const techEntries = Object.values(TECHNOLOGY_TREE_DATA || {});
     if (techEntries.length === 0) {
         const fallbackWidth = container.clientWidth || 620;
         const fallbackHeight = container.clientHeight || 260;
-        return {
+        const fallbackLayout = {
             width: fallbackWidth,
             height: fallbackHeight,
             minX: -1,
@@ -17,6 +83,8 @@ function _computeTechTreeLayout(container) {
             paddingX: Math.round(fallbackWidth * 0.05),
             paddingY: Math.round(fallbackHeight * 0.05)
         };
+        fallbackLayout.matrixPositions = _buildTechTreeMatrix(fallbackLayout);
+        return fallbackLayout;
     }
 
     let minX = Infinity;
@@ -36,7 +104,7 @@ function _computeTechTreeLayout(container) {
     const paddingX = Math.max(12, Math.round(width * 0.05));
     const paddingY = Math.max(8, Math.round(height * 0.05));
 
-    return {
+    const layout = {
         minX,
         maxX,
         minY,
@@ -46,9 +114,17 @@ function _computeTechTreeLayout(container) {
         width,
         height
     };
+
+    layout.matrixPositions = _buildTechTreeMatrix(layout);
+    return layout;
 }
 
 function _toScreenPosition(tech, layout) {
+    if (layout?.matrixPositions?.[tech.id]) {
+        const p = layout.matrixPositions[tech.id];
+        return { x: p.x, y: p.y };
+    }
+
     const rangeX = Math.max(1, layout.maxX - layout.minX);
     const rangeY = Math.max(1, layout.maxY - layout.minY);
     const usableWidth = Math.max(1, layout.width - layout.paddingX * 2);
@@ -182,10 +258,36 @@ function openTechTreeScreen() {
     if (typeof AutoResearchManager !== 'undefined') {
         AutoResearchManager.updateTechTreeVisualization(currentPlayer);
     }
+
+    window._lastTechTreeLayout = layout;
 }
     
 // Exportar openTechTreeScreen a window
 window.openTechTreeScreen = openTechTreeScreen;
+
+window.printTechTreeMatrixCoordinates = function() {
+    const layout = window._lastTechTreeLayout;
+    if (!layout?.matrixPositions) {
+        console.warn('Abre primero el arbol tecnologico para generar la matriz.');
+        return;
+    }
+
+    const rows = Object.keys(TECHNOLOGY_TREE_DATA).map(techId => {
+        const tech = TECHNOLOGY_TREE_DATA[techId];
+        const m = layout.matrixPositions[techId] || {};
+        return {
+            id: techId,
+            nombre: tech.name,
+            tier: tech.tier,
+            fila: m.row,
+            columna: m.col,
+            x: Math.round(m.x || 0),
+            y: Math.round(m.y || 0)
+        };
+    });
+
+    console.table(rows.sort((a, b) => (a.fila - b.fila) || (a.columna - b.columna)));
+};
 
     function closeTechTreeScreen() {
         const screen = document.getElementById('techTreeScreen');
