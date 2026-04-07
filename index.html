@@ -1840,6 +1840,8 @@
         <div class="editor-top-bar-mobile">
             <button onclick="EditorUI.saveScenario()" title="Guardar">💾</button>
             <button onclick="EditorUI.testScenario()" title="Probar">▶️</button>
+            <button onclick="EditorUI.exportScenarioAsScript()" title="Exportar Script IA">📜</button>
+            <button onclick="EditorUI.importScenario()" title="Importar JSON">📥</button>
             <button onclick="EditorUI.toggleToolPanel()" title="Herramientas" id="toolsPanelToggle">🛠️</button>
             <span id="editorScenarioName" style="flex: 1; text-align: center; color: #fff; font-size: 0.9em; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Sin título</span>
             <button onclick="EditorUI.openEditorMenu()" title="Menú">⋮</button>
@@ -1968,9 +1970,11 @@
     <script src="debug_functions.js"></script> <!-- Funciones de debug para pruebas -->
 
     <!-- === ARCHIVOS DE JUEGO (Mapas y Escenarios Estándar) === -->
+    <script src="scenarios/scenarioScriptFactory.js"></script>
     <script src="maps/tactical_britain_coast_map.js"></script>
     <script src="scenarios/tutorial_scenario.js"></script>
     <script src="scenarios/britain_defense_scenario.js"></script>
+    <script src="scenarios/scripted_navas_tolosa_1212.js"></script>
     <script src="maps/iberia_map_data.js"></script>
     
     <!-- === ARCHIVOS DE PRUEBA DE IA (NUESTROS NUEVOS MAPAS) === -->

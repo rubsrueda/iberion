@@ -25,7 +25,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: ["Pueblo"],
         unlocksStructures: [],
         prerequisites: ["ORGANIZATION"],
-        position: { x: -100, y: -60 },
+        position: { x: -80, y: -170 },
         tier: 1
     },
 
@@ -43,7 +43,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: ["Ingenieros"],
         unlocksStructures: ["Camino"],
         prerequisites: ["ORGANIZATION"],
-        position: { x: 0, y: 120 },
+        position: { x: -40, y: 180 },
         tier: 1
     },
     "MINING": {
@@ -55,7 +55,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: [],
         unlocksStructures: [],
         prerequisites: ["ORGANIZATION"],
-        position: { x: 150, y: 120 },
+        position: { x: 180, y: 180 },
         tier: 1
     },
     "PROSPECTING": {
@@ -67,7 +67,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: [],
         unlocksStructures: [],
         prerequisites: ["MINING"],
-        position: { x: 250, y: 200 },
+        position: { x: 320, y: 300 },
         tier: 2
     },
     "IRON_WORKING": {
@@ -79,7 +79,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: [],
         unlocksStructures: [],
         prerequisites: ["MINING"],
-        position: { x: 150, y: 200 },
+        position: { x: 170, y: 300 },
         tier: 2
     },
 
@@ -93,7 +93,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: ["Patache", "Barco de Guerra"],
         unlocksStructures: [], // Futuro: Astilleros
         prerequisites: ["ENGINEERING", "FORESTRY"], // Requiere madera e ingeniería
-        position: { x: -150, y: 200 }, // Posición en la rama civil/maderera
+        position: { x: -210, y: 300 }, // Posición en la rama civil/maderera
         tier: 2
     },
 
@@ -107,7 +107,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: [],
         unlocksStructures: ["Fortaleza"],
         prerequisites: ["ENGINEERING"],
-        position: { x: 0, y: 200 },
+        position: { x: -20, y: 320 },
         tier: 2
     },
     
@@ -125,7 +125,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: ["Infantería Pesada", "Cuartel General"],
         unlocksStructures: [],
         prerequisites: ["ORGANIZATION"],
-        position: { x: -200, y: -120 },
+        position: { x: -250, y: -170 },
         tier: 1
     },
 
@@ -138,7 +138,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: [], 
         unlocksStructures: [],
         prerequisites: ["DRILL_TACTICS"],
-        position: { x: -400, y: -120 }, // Lo colocamos a la izquierda de las tácticas militares
+        position: { x: -470, y: -230 }, // Lo colocamos a la izquierda de las tácticas militares
         tier: 1
     },
 
@@ -152,7 +152,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: ["Hospital de Campaña"],
         unlocksStructures: [],
         prerequisites: ["DRILL_TACTICS"],
-        position: { x: 0, y: -220 }, // Lo ponemos donde estaba GUNPOWDER
+        position: { x: -20, y: -330 },
         tier: 2
     },
 
@@ -166,7 +166,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: ["Arcabuceros"],
         unlocksStructures: [],
         prerequisites: ["MEDICINE", "IRON_WORKING"], // Ahora requiere Medicina y Herrería
-        position: { x: 0, y: -320 }, // La movemos un tier más abajo
+        position: { x: 220, y: -420 },
         tier: 3
     },
 
@@ -180,7 +180,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: ["Arqueros"],
         unlocksStructures: [],
         prerequisites: ["ORGANIZATION"],
-        position: { x: 0, y: -120 },
+        position: { x: -20, y: -180 },
         tier: 1
     },
     "ANIMAL_HUSBANDRY": {
@@ -192,7 +192,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: ["Caballería Ligera"],
         unlocksStructures: [],
         prerequisites: ["ORGANIZATION"],
-        position: { x: 200, y: -120 },
+        position: { x: 210, y: -170 },
         tier: 1
     },
 
@@ -205,7 +205,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: ["Explorador"],
         unlocksStructures: ["Atalaya"],
         prerequisites: ["ORGANIZATION"],
-        position: { x: 400, y: -120 }, // Lo ponemos a la derecha de ANIMAL_HUSBANDRY
+        position: { x: 430, y: -150 }, // Lo ponemos a la derecha de ANIMAL_HUSBANDRY
         tier: 1
     },
 
@@ -219,7 +219,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: ["Artillería"],
         unlocksStructures: [],
         prerequisites: ["DRILL_TACTICS", "ENGINEERING"],
-        position: { x: -200, y: -220 },
+        position: { x: -280, y: -320 },
         tier: 2
     },
     
@@ -232,7 +232,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: ["Caballería Pesada"],
         unlocksStructures: [],
         prerequisites: ["ANIMAL_HUSBANDRY", "IRON_WORKING"],
-        position: { x: 200, y: -220 },
+        position: { x: 210, y: -300 },
         tier: 2
     },
 
@@ -246,7 +246,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: ["Arqueros a Caballo"],
         unlocksStructures: [],
         prerequisites: ["STIRRUPS", "FLETCHING"],
-        position: { x: 100, y: -320 },
+        position: { x: 420, y: -390 },
         tier: 3
     },
 
@@ -262,7 +262,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: [],
         unlocksStructures: [],
         prerequisites: ["ORGANIZATION"],
-        position: { x: -300, y: 0 },
+        position: { x: -40, y: 70 },
         tier: 1
     },
     "MASONRY": {
@@ -274,7 +274,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: [],
         unlocksStructures: [],
         prerequisites: ["ORGANIZATION"],
-        position: { x: -200, y: 0 },
+        position: { x: 210, y: 70 },
         tier: 1
     },
     "SELECTIVE_BREEDING": {
@@ -286,7 +286,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: [],
         unlocksStructures: [],
         prerequisites: ["ORGANIZATION"],
-        position: { x: 200, y: 0 },
+        position: { x: 380, y: 80 },
         tier: 1
     },
     "STATE_CENSUS": {
@@ -298,7 +298,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: [],
         unlocksStructures: [],
         prerequisites: ["ENGINEERING", "PROSPECTING"],
-        position: { x: 120, y: 290 },
+        position: { x: 330, y: 430 },
         tier: 3,
         effects: { censusActive: true }
     },
@@ -311,7 +311,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: [],
         unlocksStructures: [],
         prerequisites: ["IRON_WORKING", "ENGINEERING"],
-        position: { x: 280, y: 290 },
+        position: { x: 500, y: 430 },
         tier: 3,
         effects: { autoReinforcementForge: true }
     },
@@ -324,7 +324,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: [],
         unlocksStructures: [],
         prerequisites: ["FORGE_STANDARDIZATION", "FORTIFICATIONS"],
-        position: { x: 380, y: 360 },
+        position: { x: 560, y: 520 },
         tier: 4,
         effects: { autoReinforcement: true }
     },
@@ -337,7 +337,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: [],
         unlocksStructures: [],
         prerequisites: ["LEADERSHIP", "STATE_CENSUS"],
-        position: { x: -380, y: -230 },
+        position: { x: -470, y: -360 },
         tier: 3,
         effects: { contractsCodified: true }
     },
@@ -350,7 +350,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: [],
         unlocksStructures: [],
         prerequisites: ["MEDICINE", "FORTIFICATIONS"],
-        position: { x: -100, y: -340 },
+        position: { x: -180, y: -430 },
         tier: 3,
         effects: { militaryMedicine: true }
     },
@@ -363,7 +363,7 @@ const TECHNOLOGY_TREE_DATA = {
         unlocksUnits: ["Colono"], // Desbloquea la unidad "Colono"
         unlocksStructures: ["Aldea", "Ciudad", "Metrópoli"], // Permite la construcción de estas estructuras
         prerequisites: ["ENGINEERING"], // Requerirá tener Ingeniería Civil
-        position: { x: -100, y: 280 }, // Ubicada debajo de Ingeniería en el árbol visual
+        position: { x: -220, y: 430 },
         tier: 3
     }
 };

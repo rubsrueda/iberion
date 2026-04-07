@@ -513,6 +513,149 @@ const EditorUI = {
         URL.revokeObjectURL(url);
         console.log('[EditorUI] Escenario exportado');
     },
+
+    _slugifyForScript(text) {
+        return String(text || 'escenario')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-zA-Z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .toUpperCase() || 'ESCENARIO';
+    },
+
+    _cityOwnerToKeyword(owner) {
+        if (owner === 1 || owner === '1' || owner === 'player') return 'player';
+        if (owner === 2 || owner === '2' || owner === 'enemy') return 'enemy';
+        return 'neutral';
+    },
+
+    _victoryToScript(victoryConditions) {
+        if (!Array.isArray(victoryConditions) || victoryConditions.length === 0) {
+            return [{ type: 'eliminate_all_enemies' }];
+        }
+        return victoryConditions.map(cond => {
+            if (typeof cond === 'string') {
+                if (cond === 'eliminate_enemy') return { type: 'eliminate_all_enemies' };
+                return { type: cond };
+            }
+            return cond;
+        });
+    },
+
+    exportScenarioAsScript() {
+        console.log('[EditorUI] Exportando escenario como script IA...');
+
+        const scenarioData = EditorSerializer.exportScenario();
+        const name = scenarioData.meta?.name || 'Escenario';
+        const slug = this._slugifyForScript(name);
+        const scenarioKey = `SCRIPT_${slug}_SCENARIO`;
+        const mapKey = `SCRIPT_${slug}_MAP`;
+
+        const rows = scenarioData.settings?.dimensions?.rows || 12;
+        const cols = scenarioData.settings?.dimensions?.cols || 15;
+
+        const terrains = [];
+        const structures = [];
+        const resourceNodes = [];
+
+        (scenarioData.boardData || []).forEach(hex => {
+            if (hex.terrain && hex.terrain !== 'plains') {
+                terrains.push({ r: hex.r, c: hex.c, terrain: hex.terrain });
+            }
+            if (hex.structure) {
+                structures.push({ r: hex.r, c: hex.c, structure: hex.structure, terrain: hex.terrain || 'plains' });
+            }
+            if (hex.resourceNode) {
+                resourceNodes.push({ r: hex.r, c: hex.c, type: hex.resourceNode });
+            }
+        });
+
+        const allCities = scenarioData.citiesData || [];
+        const playerCapitalCity = allCities.find(c => c.isCapital && (c.owner === 1 || c.owner === '1'));
+        const enemyCapitalCity = allCities.find(c => c.isCapital && !(c.owner === 1 || c.owner === '1'));
+        const neutralCities = allCities
+            .filter(c => !c.isCapital)
+            .map(c => ({ r: c.r, c: c.c, name: c.name || 'Ciudad', owner: this._cityOwnerToKeyword(c.owner) }));
+
+        const playerUnits = [];
+        const enemyUnits = [];
+        (scenarioData.unitsData || []).forEach(u => {
+            const unitDef = {
+                type: u.type || (u.regiments && u.regiments[0] ? u.regiments[0].type : 'Infantería Ligera'),
+                r: u.r,
+                c: u.c,
+                name: u.customName || u.type || 'Unidad'
+            };
+
+            if (u.player === 1 || u.player === '1') {
+                playerUnits.push(unitDef);
+            } else {
+                enemyUnits.push(unitDef);
+            }
+        });
+
+        const definition = {
+            scenarioKey,
+            mapKey,
+            meta: {
+                scenarioId: `SCRIPT_${slug}`,
+                displayName: scenarioData.meta?.name || 'Escenario Scripted',
+                description: scenarioData.meta?.description || '',
+                historicalTitle: scenarioData.meta?.historicalTitle || '',
+                historicalPeriod: scenarioData.meta?.historicalPeriod || '',
+                historicalDate: scenarioData.meta?.historicalDate || '',
+                historicalLocation: scenarioData.meta?.historicalLocation || '',
+                historicalSides: scenarioData.meta?.historicalSides || '',
+                historicalContext: scenarioData.meta?.historicalContext || '',
+                historicalObjectives: scenarioData.meta?.historicalObjectives || '',
+                historicalSources: scenarioData.meta?.historicalSources || ''
+            },
+            map: {
+                mapId: `${slug.toLowerCase()}_map_v1`,
+                displayName: scenarioData.meta?.name || 'Mapa Scripted',
+                rows,
+                cols,
+                defaultTerrain: 'plains',
+                terrains,
+                structures,
+                playerCapital: playerCapitalCity
+                    ? { r: playerCapitalCity.r, c: playerCapitalCity.c, name: playerCapitalCity.name || 'Capital Jugador' }
+                    : { r: rows - 2, c: 1, name: 'Capital Jugador' },
+                enemyCapital: enemyCapitalCity
+                    ? { r: enemyCapitalCity.r, c: enemyCapitalCity.c, name: enemyCapitalCity.name || 'Capital Enemiga' }
+                    : { r: 1, c: cols - 2, name: 'Capital Enemiga' },
+                cities: neutralCities,
+                resourceNodes
+            },
+            setup: {
+                enemyAiProfile: 'ai_normal',
+                playerResources: scenarioData.playerConfig?.['1']?.resources || { oro: 800, comida: 600, madera: 200, piedra: 100, hierro: 100 },
+                enemyResources: scenarioData.playerConfig?.['2']?.resources || { oro: 800, comida: 600, madera: 200, piedra: 100, hierro: 100 },
+                playerUnits,
+                enemyUnits
+            },
+            rules: {
+                victoryConditions: this._victoryToScript(scenarioData.settings?.victoryConditions),
+                lossConditions: [{ type: 'player_capital_lost' }],
+                resourceLevelOverride: 'med'
+            }
+        };
+
+        const definitionStr = JSON.stringify(definition, null, 4);
+        const script = `// Escenario generado desde el editor de Iberion\n(function () {\n    if (typeof ScenarioScriptFactory === 'undefined') {\n        console.warn('[script-export] ScenarioScriptFactory no disponible.');\n        return;\n    }\n\n    const definition = ${definitionStr};\n    ScenarioScriptFactory.register(definition);\n})();\n`;
+
+        const fileName = `scripted_${slug.toLowerCase()}.js`;
+        const blob = new Blob([script], { type: 'application/javascript' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        a.click();
+
+        URL.revokeObjectURL(url);
+        alert(`✅ Script exportado: ${fileName}`);
+    },
     
     /**
      * Importa un escenario desde archivo JSON
@@ -635,6 +778,7 @@ const EditorUI = {
         const options = [
             '📤 Exportar JSON',
             '📥 Importar JSON',
+            '📜 Exportar Script IA',
             '📜 Metadatos Históricos',
             '↶ Deshacer',
             '↷ Rehacer',
@@ -663,13 +807,14 @@ const EditorUI = {
                 switch(index) {
                     case 0: this.exportScenario(); break;
                     case 1: this.importScenario(); break;
-                    case 2: this.openHistoricalMetadata(); break;
-                    case 3: this.undo(); break;
-                    case 4: this.redo(); break;
-                    case 5: this.openMapSettings(); break;
-                    case 6: this.openPlayerSettings(); break;
-                    case 7: this.openVictoryConditions(); break;
-                    case 8: this.generateProcedural(); break;
+                    case 2: this.exportScenarioAsScript(); break;
+                    case 3: this.openHistoricalMetadata(); break;
+                    case 4: this.undo(); break;
+                    case 5: this.redo(); break;
+                    case 6: this.openMapSettings(); break;
+                    case 7: this.openPlayerSettings(); break;
+                    case 8: this.openVictoryConditions(); break;
+                    case 9: this.generateProcedural(); break;
                 }
             };
             
