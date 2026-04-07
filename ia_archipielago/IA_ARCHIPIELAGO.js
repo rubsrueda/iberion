@@ -1538,6 +1538,14 @@ const IAArchipielago = {
     return unit.regiments.some(reg => !REGIMENT_TYPES?.[reg.type]?.is_naval);
   },
 
+  _isExplorerUnit(unit) {
+    return !!unit?.regiments?.some(reg => reg?.type === 'Explorador');
+  },
+
+  _getRemainingMovement(unit) {
+    return Number(unit?.currentMovement ?? 0);
+  },
+
   _isTerrainPassableForUnit(unit, terrain) {
     if (!unit?.regiments?.length || !terrain) return false;
     const isNaval = unit.regiments.some(reg => REGIMENT_TYPES?.[reg.type]?.is_naval);
@@ -1923,6 +1931,36 @@ const IAArchipielago = {
     return this._actionDispatchState[playerId];
   },
 
+  _getExplorerTurnLockState(playerId) {
+    if (!this._explorerTurnLockState) this._explorerTurnLockState = {};
+    const turn = Number(gameState.turnNumber || 0);
+    const current = this._explorerTurnLockState[playerId];
+    if (!current || current.turn !== turn) {
+      this._explorerTurnLockState[playerId] = {
+        turn,
+        lockedExplorerIds: new Set()
+      };
+    }
+    return this._explorerTurnLockState[playerId];
+  },
+
+  _lockExplorerForTurn(unit) {
+    if (!unit || !this._isExplorerUnit(unit)) return;
+    const st = this._getExplorerTurnLockState(unit.player);
+    st.lockedExplorerIds.add(unit.id);
+  },
+
+  _isExplorerLockedForTurn(unit) {
+    if (!unit || !this._isExplorerUnit(unit)) return false;
+    const st = this._getExplorerTurnLockState(unit.player);
+    return st.lockedExplorerIds.has(unit.id);
+  },
+
+  _isExplorerExecutionAllowedBySource(ctx = {}) {
+    const src = String(ctx.executionSource || '');
+    return src.startsWith('explorer_') || !!ctx.allowExplorerLockBypass;
+  },
+
   _isUnitActionCoolingDown(playerId, unitId, actionKind = 'generic') {
     if (!unitId) return false;
     const state = this._getActionDispatchState(playerId);
@@ -1984,6 +2022,33 @@ const IAArchipielago = {
   _requestMoveUnit(unit, r, c, ctx = {}) {
     if (!unit) return false;
     const from = `${unit.r},${unit.c}`;
+
+    if (this._isExplorerLockedForTurn(unit) && !this._isExplorerExecutionAllowedBySource(ctx)) {
+      this._logMandatoryUnitExecution(unit, {
+        action: 'move',
+        from,
+        to: `${r},${c}`,
+        success: false,
+        reason: 'explorer_turn_lock_non_exploration',
+        source: ctx.executionSource || null,
+        missionType: ctx.missionType || null
+      });
+      return false;
+    }
+
+    if (!ctx.ignoreTurnMoveGate && (unit.hasMoved || this._getRemainingMovement(unit) <= 0)) {
+      this._logMandatoryUnitExecution(unit, {
+        action: 'move',
+        from,
+        to: `${r},${c}`,
+        success: false,
+        reason: 'no_remaining_movement_or_already_moved',
+        source: ctx.executionSource || null,
+        missionType: ctx.missionType || null
+      });
+      return false;
+    }
+
     if (this._isUnitActionCoolingDown(unit.player, unit.id, 'move')) {
       this._logMandatoryUnitExecution(unit, {
         action: 'move',
@@ -2217,6 +2282,20 @@ const IAArchipielago = {
         return false;
       }
     }
+
+    if (this._isExplorerLockedForTurn(unit) && !this._isExplorerExecutionAllowedBySource(ctx)) {
+      this._logMandatoryUnitExecution(unit, {
+        action: 'move_or_attack',
+        from: `${unit.r},${unit.c}`,
+        to: `${r},${c}`,
+        success: false,
+        reason: 'explorer_turn_lock_non_exploration',
+        source: ctx.executionSource || null,
+        missionType: ctx.missionType || null
+      });
+      return false;
+    }
+
     const targetUnit = getUnitOnHex(r, c);
     if (targetUnit && targetUnit.player !== unit.player) {
       if (this._isUnitActionCoolingDown(unit.player, unit.id, 'attack')) {
@@ -4453,8 +4532,9 @@ const IAArchipielago = {
   _executeOpportunisticCapture(myPlayer) {
     const myUnits = IASentidos.getUnits(myPlayer)
       .filter(u => u && u.currentHealth > 0)
-      .filter(u => !u.hasMoved && (u.currentMovement || u.movement || 0) > 0)
-      .filter(u => this._isLandUnit(u));
+      .filter(u => !u.hasMoved && this._getRemainingMovement(u) > 0)
+      .filter(u => this._isLandUnit(u))
+      .filter(u => !this._isExplorerUnit(u));
 
     if (!myUnits.length) return 0;
 
@@ -4498,7 +4578,7 @@ const IAArchipielago = {
       if (captures >= maxCapturesPerTurn) break;
 
       const candidate = myUnits
-        .filter(u => !u.hasMoved && (u.currentMovement || u.movement || 0) > 0)
+        .filter(u => !u.hasMoved && this._getRemainingMovement(u) > 0)
         .sort((a, b) => hexDistance(a.r, a.c, target.r, target.c) - hexDistance(b.r, b.c, target.r, target.c))
         .find(u => hexDistance(u.r, u.c, target.r, target.c) <= 1 && this._findPathForUnit(u, target.r, target.c));
 
@@ -4969,6 +5049,10 @@ const IAArchipielago = {
 
     const anyExplorerAlive = (IASentidos.getUnits(myPlayer) || [])
       .some(u => u && u.currentHealth > 0 && u.regiments?.some(reg => reg.type === 'Explorador'));
+
+    for (const ex of allAliveExplorers) {
+      this._lockExplorerForTurn(ex);
+    }
 
     if (!explorers.length && !anyExplorerAlive && typeof AiGameplayManager !== 'undefined' && AiGameplayManager.produceUnit) {
       const createdExplorer = AiGameplayManager.produceUnit(myPlayer, ['Explorador'], 'scout', 'Explorador Protocolo');
@@ -5504,11 +5588,14 @@ const IAArchipielago = {
     return actions;
   },
 
-  _getAvailableMissionUnits(myPlayer) {
+  _getAvailableMissionUnits(myPlayer, opts = {}) {
+    const includeExplorers = !!opts.includeExplorers;
     return IASentidos.getUnits(myPlayer)
       .filter(u => u && u.currentHealth > 0)
       .filter(u => this._isLandUnit(u))
-      .filter(u => (u.currentMovement || u.movement || 0) > 0)
+      .filter(u => !u.hasMoved)
+      .filter(u => this._getRemainingMovement(u) > 0)
+      .filter(u => includeExplorers || !this._isExplorerUnit(u))
       .filter(u => !this._isUnitCoolingDownForAnyAction(u))
       .filter(u => !u.tradeRoute);
   },
@@ -5516,6 +5603,22 @@ const IAArchipielago = {
   _assignMissionIfAvailable(unit, mission) {
     if (!unit || !mission) return;
     if (typeof AiGameplayManager === 'undefined' || !AiGameplayManager.missionAssignments?.set) return;
+
+    if (this._isExplorerLockedForTurn(unit)) {
+      const missionType = String(mission.type || '');
+      const isExplorerMission = missionType.startsWith('EXPLORER_');
+      if (!isExplorerMission) {
+        this._logMandatoryUnitExecution(unit, {
+          action: 'mission_assign',
+          success: false,
+          reason: 'explorer_turn_lock_non_exploration_mission',
+          missionType: missionType || null,
+          source: 'mission_assignment'
+        });
+        return;
+      }
+    }
+
     AiGameplayManager.missionAssignments.set(unit.id, mission);
   },
 
