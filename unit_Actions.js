@@ -4579,11 +4579,16 @@ function _executeExploreRuins(payload) {
         }
     }
     
-    // Mostrar modal de descubrimiento (con opción de anuncio para doblar botín)
-    if (typeof showRuinDiscoveryModal === 'function') {
-        showRuinDiscoveryModal(selectedEvent, lootResult, playerId);
-    } else if (typeof showToast === 'function') {
-        showToast(`${lootResult.icon} ${lootResult.label}`, lootResult.toastType, 4000);
+    // Mostrar modal de descubrimiento solo para jugadores humanos.
+    const playerType = gameState?.playerTypes?.[`player${playerId}`] || 'human';
+    const isAiPlayer = typeof playerType === 'string' && playerType.includes('ai');
+
+    if (!isAiPlayer) {
+        if (typeof showRuinDiscoveryModal === 'function') {
+            showRuinDiscoveryModal(selectedEvent, lootResult, playerId);
+        } else if (typeof showToast === 'function') {
+            showToast(`${lootResult.icon} ${lootResult.label}`, lootResult.toastType, 4000);
+        }
     }
 
     if (UIManager) UIManager.hideContextualPanel();

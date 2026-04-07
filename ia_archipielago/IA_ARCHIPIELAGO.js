@@ -1,6 +1,20 @@
 // IA_ARCHIPIELAGO.js
-// Cerebro principal para Archipiélago. Coordina sentidos + módulos.
-// EJECUTA ACCIONES REALES: Movimiento, fusión, división, conquista, construcción, caravanas
+// Cerebro principal para Archipielago. Coordina sentidos + modulos.
+// EJECUTA ACCIONES REALES: movimiento, fusion, division, conquista, construccion, caravanas.
+//
+// GLOSARIO RAPIDO DEL ARCHIVO
+// - "Gusano": pipeline de split/merge para abrir/capturar corredor comercial por capas.
+// - "Rutas": heuristicas de victoria (capital, gloria, comercio, etc.) ponderadas por peso.
+// - "Protocolos": bloques post-gusano/post-rutas para desbloquear unidades y evitar inercia.
+// - "Final sweep": ultima pasada para gastar movimiento restante y eliminar congelamientos.
+// - "Explorer lock": candado por turno para que exploradores solo acepten flujo de exploracion.
+//
+// PRINCIPIO OPERATIVO
+// Casi toda accion publica de IA debe pasar por wrappers _request* para conservar:
+// 1) trazabilidad (IA_UNIT_EXEC / IA_EXPLORER_EXEC)
+// 2) seguridad en red/local
+// 3) confirmacion de aplicacion real
+// 4) mitigacion de loops (cooldown + invalid_move suppression)
 
 const IAArchipielago = {
   ARCHI_LOG_VERBOSE: false,
@@ -67,6 +81,14 @@ const IAArchipielago = {
   ]),
   MISSION_TYPE_COMMERCIAL_CORRIDOR: 'COMERCIAL_CORREDOR',
   MISSION_TYPE_CONQUEST_CITY: 'CONQUISTA_CIUDAD',
+  /**
+   * IAArchipielago.deployUnitsAI
+   * Proposito: Coordina despliegue inicial de unidades IA.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   deployUnitsAI(myPlayer) {
     console.log(`[IA_ARCHIPIELAGO] Despliegue IA iniciado para Jugador ${myPlayer}.`);
     if (gameState.currentPhase !== 'deployment') {
@@ -92,6 +114,14 @@ const IAArchipielago = {
 
   // === Helpers globales para metas ===
 // === Helpers globales para metas ===
+  /**
+   * IAArchipielago.registrarMetaFlujo
+   * Proposito: Marca objetivos ya completados por flujo para evitar repetir trabajo dentro del mismo plan.
+   * Entradas: flujo, r, c, myPlayer.
+   * Efectos: persiste marcas en gameState.iaCompletedGoals y emite log de meta registrada.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   registrarMetaFlujo(flujo, r, c, myPlayer) {
     if (!gameState.iaCompletedGoals) gameState.iaCompletedGoals = {};
     if (!gameState.iaCompletedGoals[myPlayer]) gameState.iaCompletedGoals[myPlayer] = { ocupacion: [], construccion: [], caravana: [] };
@@ -102,11 +132,27 @@ const IAArchipielago = {
     }
   },
 
+  /**
+   * IAArchipielago.isGoalCompletedFlujo
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: flujo, r, c, myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   isGoalCompletedFlujo(flujo, r, c, myPlayer) {
     if (!gameState.iaCompletedGoals?.[myPlayer]?.[flujo]) return false;
     return gameState.iaCompletedGoals[myPlayer][flujo].some(g => g.r === r && g.c === c);
   },
 
+  /**
+   * IAArchipielago._metricLog
+   * Proposito: Registra metricas operativas para diagnostico y balance de IA.
+   * Entradas: event, payload = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: evento/payload serializable para log JSON.
+   * Fallos comunes: supresion por filtros de ruido o payload no serializable.
+   */
   _metricLog(event, payload = {}) {
     if (this._shouldSuppressByEarlyTurnFilter(event, payload, 'metric')) return;
     try {
@@ -116,6 +162,14 @@ const IAArchipielago = {
     }
   },
 
+  /**
+   * IAArchipielago._importantLog
+   * Proposito: Emite logs estructurados para auditoria y depuracion.
+   * Entradas: event, payload = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: evento/payload serializable para log JSON.
+   * Fallos comunes: supresion por filtros de ruido o payload no serializable.
+   */
   _importantLog(event, payload = {}) {
     if (this._shouldSuppressByEarlyTurnFilter(event, payload, 'important')) return;
     if (this._shouldSuppressImportantEvent(event, payload)) return;
@@ -127,6 +181,14 @@ const IAArchipielago = {
     }
   },
 
+  /**
+   * IAArchipielago._normalizeImportantPayload
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: event, payload = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _normalizeImportantPayload(event, payload = {}) {
     if (this.IMPORTANT_LOG_VERBOSE) return payload;
 
@@ -164,6 +226,14 @@ const IAArchipielago = {
     return payload;
   },
 
+  /**
+   * IAArchipielago._shouldSuppressImportantEvent
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: event, payload = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _shouldSuppressImportantEvent(event, payload = {}) {
     const repeatable = new Set(['WORM_STEP_SKIPPED', 'WORM_DECISION']);
     if (!repeatable.has(event)) return false;
@@ -179,6 +249,14 @@ const IAArchipielago = {
     return false;
   },
 
+  /**
+   * IAArchipielago._getEarlyTurnLogState
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: turn.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getEarlyTurnLogState(turn) {
     if (!this._earlyTurnLogState) this._earlyTurnLogState = {};
     if (!this._earlyTurnLogState[turn]) {
@@ -191,6 +269,14 @@ const IAArchipielago = {
     return this._earlyTurnLogState[turn];
   },
 
+  /**
+   * IAArchipielago._shouldSuppressByEarlyTurnFilter
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: event, payload = {}, channel = 'important'.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _shouldSuppressByEarlyTurnFilter(event, payload = {}, channel = 'important') {
     if (!this.LOG_ONLY_EARLY_TURN_EVENTS) return false;
 
@@ -232,6 +318,14 @@ const IAArchipielago = {
     return false;
   },
 
+  /**
+   * IAArchipielago._inferCanonicalMissionType
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: unit.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _inferCanonicalMissionType(unit) {
     const assignments = (typeof AiGameplayManager !== 'undefined') ? AiGameplayManager.missionAssignments : null;
     const mission = assignments?.get ? assignments.get(unit?.id) : null;
@@ -246,6 +340,14 @@ const IAArchipielago = {
     return null;
   },
 
+  /**
+   * IAArchipielago._selectExecutionMission
+   * Proposito: Selecciona el mejor candidato segun heuristicas de prioridad/distancia.
+   * Entradas: { unit = null, target = null, candidateMissionType = null }.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _selectExecutionMission({ unit = null, target = null, candidateMissionType = null }) {
     const inferred = this._inferCanonicalMissionType(unit);
     const fromCandidate = candidateMissionType || inferred;
@@ -278,6 +380,14 @@ const IAArchipielago = {
     };
   },
 
+  /**
+   * IAArchipielago._metricGetTurnState
+   * Proposito: Registra metricas operativas para diagnostico y balance de IA.
+   * Entradas: playerId.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: evento/payload serializable para log JSON.
+   * Fallos comunes: supresion por filtros de ruido o payload no serializable.
+   */
   _metricGetTurnState(playerId) {
     if (!this._metricTurnState) this._metricTurnState = {};
     const currentTurn = Number(gameState.turnNumber || 0);
@@ -299,12 +409,28 @@ const IAArchipielago = {
     return this._metricTurnState[playerId];
   },
 
+  /**
+   * IAArchipielago._isCommercialSplitMergeMandatoryTurn
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: sin parametros explicitos.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _isCommercialSplitMergeMandatoryTurn() {
     const turn = Number(gameState.turnNumber || 0);
     const limit = Math.max(1, Number(this.COMMERCIAL_SPLIT_MERGE_MANDATORY_TURN_LIMIT) || 2);
     return turn <= limit;
   },
 
+  /**
+   * IAArchipielago._getCommercialSplitMergeTurnState
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: playerId.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getCommercialSplitMergeTurnState(playerId) {
     if (!this._commercialSplitMergeState) this._commercialSplitMergeState = {};
     const currentTurn = Number(gameState.turnNumber || 0);
@@ -319,12 +445,28 @@ const IAArchipielago = {
     return this._commercialSplitMergeState[playerId];
   },
 
+  /**
+   * IAArchipielago._registerCommercialSplitMergeSuccess
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: playerId.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _registerCommercialSplitMergeSuccess(playerId) {
     const st = this._getCommercialSplitMergeTurnState(playerId);
     st.successfulRelays += 1;
     return st.successfulRelays;
   },
 
+  /**
+   * IAArchipielago._hasCommercialSplitMergeQuotaForRoadBuild
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: playerId.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _hasCommercialSplitMergeQuotaForRoadBuild(playerId) {
     if (!this._isCommercialSplitMergeMandatoryTurn()) return true;
     const minRequired = Math.max(1, Number(this.COMMERCIAL_MIN_SPLIT_MERGE_BEFORE_ROAD_BUILD) || 3);
@@ -332,6 +474,14 @@ const IAArchipielago = {
     return st.successfulRelays >= minRequired;
   },
 
+  /**
+   * IAArchipielago._metricStartTurn
+   * Proposito: Registra metricas operativas para diagnostico y balance de IA.
+   * Entradas: playerId, phase = 'unknown'.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: evento/payload serializable para log JSON.
+   * Fallos comunes: supresion por filtros de ruido o payload no serializable.
+   */
   _metricStartTurn(playerId, phase = 'unknown') {
     const st = this._metricGetTurnState(playerId);
     const routesCount = (units || []).filter(u => u.player === playerId && !!u.tradeRoute).length;
@@ -351,6 +501,14 @@ const IAArchipielago = {
     });
   },
 
+  /**
+   * IAArchipielago._metricMarkCommercialUseful
+   * Proposito: Registra metricas operativas para diagnostico y balance de IA.
+   * Entradas: playerId, usefulActionType, extra = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: evento/payload serializable para log JSON.
+   * Fallos comunes: supresion por filtros de ruido o payload no serializable.
+   */
   _metricMarkCommercialUseful(playerId, usefulActionType, extra = {}) {
     const st = this._metricGetTurnState(playerId);
     st.actionUsefulCommercial = true;
@@ -363,6 +521,14 @@ const IAArchipielago = {
     });
   },
 
+  /**
+   * IAArchipielago._metricSetCommercialBlocker
+   * Proposito: Registra metricas operativas para diagnostico y balance de IA.
+   * Entradas: playerId, blocker, nextPlannedAction = null, extra = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: evento/payload serializable para log JSON.
+   * Fallos comunes: supresion por filtros de ruido o payload no serializable.
+   */
   _metricSetCommercialBlocker(playerId, blocker, nextPlannedAction = null, extra = {}) {
     const st = this._metricGetTurnState(playerId);
     // Si todavía faltan segmentos de camino, el bloqueo dominante no debe degradarse a "sin candidata de ruta".
@@ -381,6 +547,14 @@ const IAArchipielago = {
     });
   },
 
+  /**
+   * IAArchipielago._metricSetCommercialPending
+   * Proposito: Registra metricas operativas para diagnostico y balance de IA.
+   * Entradas: playerId, counts = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: evento/payload serializable para log JSON.
+   * Fallos comunes: supresion por filtros de ruido o payload no serializable.
+   */
   _metricSetCommercialPending(playerId, counts = {}) {
     const st = this._metricGetTurnState(playerId);
     st.pendingNoOwn = Number(counts.pendingNoOwn ?? st.pendingNoOwn ?? 0);
@@ -388,6 +562,14 @@ const IAArchipielago = {
     st.pendingBlocked = Number(counts.pendingBlocked ?? st.pendingBlocked ?? 0);
   },
 
+  /**
+   * IAArchipielago._metricEndTurn
+   * Proposito: Registra metricas operativas para diagnostico y balance de IA.
+   * Entradas: playerId, reason = 'normal'.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: evento/payload serializable para log JSON.
+   * Fallos comunes: supresion por filtros de ruido o payload no serializable.
+   */
   _metricEndTurn(playerId, reason = 'normal') {
     const st = this._metricGetTurnState(playerId);
     this._metricLog('IA_METRIC_TURN_END', {
@@ -404,6 +586,14 @@ const IAArchipielago = {
     });
   },
 
+  /**
+   * IAArchipielago._isRepeatedInvalidMoveThisTurn
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: playerId, unitId, r, c.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _isRepeatedInvalidMoveThisTurn(playerId, unitId, r, c) {
     if (!this._invalidMoveAttempts) this._invalidMoveAttempts = {};
     const turn = Number(gameState.turnNumber || 0);
@@ -416,6 +606,14 @@ const IAArchipielago = {
     return st.keys.has(key);
   },
 
+  /**
+   * IAArchipielago._registerInvalidMoveThisTurn
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: playerId, unitId, r, c.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _registerInvalidMoveThisTurn(playerId, unitId, r, c) {
     if (!this._invalidMoveAttempts) this._invalidMoveAttempts = {};
     const turn = Number(gameState.turnNumber || 0);
@@ -426,7 +624,29 @@ const IAArchipielago = {
     this._invalidMoveAttempts[playerId].keys.add(key);
   },
 
-  // Método principal unificado
+  // ---------------------------------------------------------------------------
+  // METODO PRINCIPAL UNIFICADO
+  // ---------------------------------------------------------------------------
+  // ejecutarTurno es el orquestador de todo el comportamiento IA del turno.
+  // El orden interno NO es arbitrario: evita competir por las mismas unidades
+  // entre gusano, ocupacion, rutas y protocolos de cierre.
+  //
+  // Secuencia conceptual:
+  // 1) Guardas + metricas del turno.
+  // 2) Lock de explorador + desbloqueos pendientes.
+  // 3) Ocupacion por corredor (gusano primero, ocupacion global despues).
+  // 4) Protocolos post-corredor para evitar inercia.
+  // 5) Construccion + capas estrategicas + rutas de victoria.
+  // 6) Emergencia si no hubo progreso + final sweep obligatorio.
+  // 7) Finalizacion segura del turno (incluso ante errores).
+  /**
+   * IAArchipielago.ejecutarTurno
+   * Proposito: Orquesta el pipeline completo del turno IA (ocupacion, rutas, protocolos y cierre seguro).
+   * Entradas: myPlayer.
+   * Efectos: ejecuta acciones reales sobre tablero/unidades, actualiza metricas y programa fin de turno.
+   * Precondiciones: fase actual = play, IASentidos disponible y jugador valido.
+   * Fallos comunes: phase_mismatch, excepcion en subflujo, budget de tiempo agotado o APIs ausentes.
+   */
   ejecutarTurno(myPlayer) {
     console.log(`[IA_ARCHIPIELAGO] ========= TURNO ${gameState.turnNumber} - JUGADOR ${myPlayer} =========`);
 
@@ -776,6 +996,14 @@ const IAArchipielago = {
       return null;
     }
   },
+  /**
+   * IAArchipielago._runDeterministicBootstrapController
+   * Proposito: Ejecuta un controlador de alto nivel con secuencia determinista.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _runDeterministicBootstrapController(situacion) {
     const { myPlayer } = situacion;
     if (gameState.currentPhase !== 'play') return;
@@ -868,6 +1096,14 @@ const IAArchipielago = {
     }
   },
 
+  /**
+   * IAArchipielago._ejecutarCapaEstructuralRed
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarCapaEstructuralRed(situacion) {
     const { myPlayer } = situacion || {};
     if (!myPlayer) return;
@@ -924,6 +1160,14 @@ const IAArchipielago = {
     }
   },
 
+  /**
+   * IAArchipielago._ensureMinimumCommercialAction
+   * Proposito: Garantiza una precondicion estrategica; intenta corregirla si falta.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _ensureMinimumCommercialAction(situacion) {
     const myPlayer = situacion?.myPlayer;
     if (!myPlayer) return false;
@@ -973,6 +1217,14 @@ const IAArchipielago = {
   /**
    * Crea una unidad mínima en Archipiélago si la IA no tiene ninguna.
    * Evita partidas “muertas” en el primer turno.
+   */
+  /**
+   * IAArchipielago.crearUnidadInicialDeEmergencia
+   * Proposito: Crea una unidad minima cuando la IA queda sin fuerzas por fallo de despliegue o estado inconsistente.
+   * Entradas: myPlayer.
+   * Efectos: intenta producir unidad y deja trazas para depuracion de arranque.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
    */
   crearUnidadInicialDeEmergencia(myPlayer) {
     try {
@@ -1054,6 +1306,14 @@ const IAArchipielago = {
    * FASE 1: FUSIÓN DEFENSIVA
    * Fusiona unidades cuando hay amenaza para formar "cuerpos de ejército"
    */
+  /**
+   * IAArchipielago.ejecutarFusionesDefensivas
+   * Proposito: Consolida divisiones propias para resistir presion enemiga cuando la densidad de amenazas lo requiere.
+   * Entradas: myPlayer, misUnidades, amenazas, frente, enemyProfile.
+   * Efectos: puede disparar merges y reasignar masa de combate en primera linea.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   ejecutarFusionesDefensivas(myPlayer, misUnidades, amenazas, frente, enemyProfile) {
     if (misUnidades.length < 2) return;
 
@@ -1109,6 +1369,14 @@ const IAArchipielago = {
    * Divide unidades grandes para ocupar más territorio
    * COMO LOS LATIDOS DEL CORAZÓN: Continuo y automático
    */
+  /**
+   * IAArchipielago.ejecutarDivisionesEstrategicas
+   * Proposito: Divide stacks grandes para ampliar presencia territorial sin perder capacidad operativa local.
+   * Entradas: myPlayer, misUnidades, hexesPropios, enemyProfile.
+   * Efectos: emite split_unit y redistribuye regimientos en hexes adyacentes validos.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   ejecutarDivisionesEstrategicas(myPlayer, misUnidades, hexesPropios, enemyProfile) {
     console.log(`[IA_ARCHIPIELAGO] DIVISIÓN ESTRATÉGICA: ${misUnidades.length} unidades`);
 
@@ -1147,6 +1415,14 @@ const IAArchipielago = {
   /**
    * FASE 3: MOVIMIENTOS TÁCTICOS
    * Mueve unidades hacia objetivos estratégicos
+   */
+  /**
+   * IAArchipielago.ejecutarMovimientosTacticos
+   * Proposito: Aplica maniobra tactica por prioridades (defensa, caza, sabotaje, suministro, expansion).
+   * Entradas: myPlayer, misUnidades, situacion.
+   * Efectos: solicita movimientos/ataques segun objetivos elegidos por heuristica.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
    */
   ejecutarMovimientosTacticos(myPlayer, misUnidades, situacion) {
     const { amenazas, frente, recursos: recursosEnHexes } = situacion;
@@ -1251,6 +1527,14 @@ const IAArchipielago = {
     }
   },
 
+  /**
+   * IAArchipielago._planHuntSmallDivisions
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer, misUnidades, unidadesEnemigas.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _planHuntSmallDivisions(myPlayer, misUnidades, unidadesEnemigas) {
     const used = new Set();
     const prey = unidadesEnemigas
@@ -1281,6 +1565,14 @@ const IAArchipielago = {
     return used;
   },
 
+  /**
+   * IAArchipielago._mergeHuntersIntoReserve
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer, misUnidades, usedSet.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _mergeHuntersIntoReserve(myPlayer, misUnidades, usedSet) {
     const reserve = misUnidades
       .filter(u => !usedSet.has(u.id))
@@ -1311,6 +1603,14 @@ const IAArchipielago = {
     return true;
   },
 
+  /**
+   * IAArchipielago._canAffordStructure
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: playerId, structureType.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _canAffordStructure(playerId, structureType) {
     const data = STRUCTURE_TYPES?.[structureType];
     const res = gameState.playerResources?.[playerId];
@@ -1326,6 +1626,14 @@ const IAArchipielago = {
    * - Si poder >= 1.3x → ATAQUE DIRECTO (fusión mínima)
    * - Si poder 0.8-1.3x → ENVOLVIMIENTO (flanqueo)
    * - Si poder < 0.8x → RETIRADA O FUSIONAR TODO
+   */
+  /**
+   * IAArchipielago.ejecutarFusionesOfensivas
+   * Proposito: Concentra fuerza para crear puntas de lanza cuando la ofensiva requiere stacks mas densos.
+   * Entradas: myPlayer, misUnidades, situacion.
+   * Efectos: puede fusionar unidades cercanas y reconfigurar la composicion ofensiva del turno.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
    */
   ejecutarFusionesOfensivas(myPlayer, misUnidades, situacion) {
     const unidadesEnemigas = IASentidos.getEnemyUnits(myPlayer);
@@ -1348,6 +1656,14 @@ const IAArchipielago = {
   /**
    * EVALUAR Y ACTUAR CONTRA ENEMIGO AISLADO
    * Calcula poder relativo e ejecuta estrategia correspondiente
+   */
+  /**
+   * IAArchipielago._evaluarYActuarContraEnemigoAislado
+   * Proposito: Evalua oportunidad de castigar una unidad enemiga aislada con bajo riesgo tactico.
+   * Entradas: myPlayer, misUnidades, enemigo.
+   * Efectos: puede ejecutar ataque concentrado, envolvimiento o retiro estrategico segun contexto.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
    */
   _evaluarYActuarContraEnemigoAislado(myPlayer, misUnidades, enemigo) {
     // Encontrar nuestras unidades cercanas (radio 5)
@@ -1383,6 +1699,14 @@ const IAArchipielago = {
    * ATAQUE CONCENTRADO
    * Cuando tenemos ventaja clara (1.3x+), atacamos directamente
    * Fusionamos MÍNIMAMENTE solo para refuerzo
+   */
+  /**
+   * IAArchipielago._ejecutarAtaqueConcentrado
+   * Proposito: Prioriza foco de daño sobre un objetivo enemigo para forzar ruptura rapida.
+   * Entradas: myPlayer, unidadesNuestras, enemigo.
+   * Efectos: coordina ataques/movimientos de multiples unidades sobre un mismo objetivo.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
    */
   _ejecutarAtaqueConcentrado(myPlayer, unidadesNuestras, enemigo) {
     unidadesNuestras.sort((a, b) =>
@@ -1424,6 +1748,14 @@ const IAArchipielago = {
    * ENVOLVIMIENTO
    * Batalla dudosa (0.8-1.3x): posicionamos en múltiples hexes alrededor
    */
+  /**
+   * IAArchipielago._ejecutarEnvolvimiento
+   * Proposito: Busca flanqueo para mejorar posicion y limitar rutas de escape del enemigo.
+   * Entradas: myPlayer, unidadesNuestras, enemigo.
+   * Efectos: mueve unidades a casillas de cerco cuando la geometria del frente lo permite.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarEnvolvimiento(myPlayer, unidadesNuestras, enemigo) {
     const posicionesAlrededor = getHexNeighbors(enemigo.r, enemigo.c).filter(n => !board[n.r]?.[n.c]?.unit);
     
@@ -1444,6 +1776,14 @@ const IAArchipielago = {
   /**
    * RETIRADA ESTRATÉGICA
    * Cuando somos débiles (< 0.5x), nos reagrupamos o huimos
+   */
+  /**
+   * IAArchipielago._ejecutarRetiradaEstrategica
+   * Proposito: Preserva unidades expuestas retirandolas a posiciones mas seguras cuando el intercambio es desfavorable.
+   * Entradas: myPlayer, unidadesNuestras, enemigo.
+   * Efectos: ejecuta movimientos de repliegue y reduce riesgo de bajas innecesarias.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
    */
   _ejecutarRetiradaEstrategica(myPlayer, unidadesNuestras, enemigo) {
     // Opción 1: Fusionar TODO lo disponible
@@ -1471,6 +1811,14 @@ const IAArchipielago = {
   /**
    * FUSIONAR TODO DISPONIBLE
    * Crea una súper-unidad para defensa concentrada
+   */
+  /**
+   * IAArchipielago._fusionarTodo
+   * Proposito: Intenta fusion masiva de una lista de unidades para compactar frente o simplificar microgestion.
+   * Entradas: unidades.
+   * Efectos: dispara merges secuenciales cuando hay pares compatibles.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
    */
   _fusionarTodo(unidades) {
     if (unidades.length < 2) return;
@@ -1504,6 +1852,14 @@ const IAArchipielago = {
     }
   },
 
+  /**
+   * IAArchipielago._getBarbarianCities
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: sin parametros explicitos.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getBarbarianCities() {
     const barbarianId = (typeof BARBARIAN_PLAYER_ID !== 'undefined') ? BARBARIAN_PLAYER_ID : 9;
     return (gameState.cities || []).filter(c => c && (
@@ -1514,27 +1870,75 @@ const IAArchipielago = {
     ));
   },
 
+  /**
+   * IAArchipielago._getCityGarrisonStrength
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: ciudad.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getCityGarrisonStrength(ciudad) {
     return ciudad?.garrison?.length || 4;
   },
 
+  /**
+   * IAArchipielago._getUnitPower
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: unit.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getUnitPower(unit) {
     return unit?.regiments?.length || 0;
   },
 
+  /**
+   * IAArchipielago._isLandUnit
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: unit.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _isLandUnit(unit) {
     if (!unit?.regiments?.length) return false;
     return unit.regiments.some(reg => !REGIMENT_TYPES?.[reg.type]?.is_naval);
   },
 
+  /**
+   * IAArchipielago._isExplorerUnit
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: unit.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _isExplorerUnit(unit) {
     return !!unit?.regiments?.some(reg => reg?.type === 'Explorador');
   },
 
+  /**
+   * IAArchipielago._getRemainingMovement
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: unit.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getRemainingMovement(unit) {
     return Number(unit?.currentMovement ?? 0);
   },
 
+  /**
+   * IAArchipielago._isTerrainPassableForUnit
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: unit, terrain.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _isTerrainPassableForUnit(unit, terrain) {
     if (!unit?.regiments?.length || !terrain) return false;
     const isNaval = unit.regiments.some(reg => REGIMENT_TYPES?.[reg.type]?.is_naval);
@@ -1548,6 +1952,14 @@ const IAArchipielago = {
     return true;
   },
 
+  /**
+   * IAArchipielago._findPathForUnit
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: unit, targetR, targetC.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _findPathForUnit(unit, targetR, targetC) {
     if (!unit || typeof targetR === 'undefined' || typeof targetC === 'undefined') return null;
     if (unit.r === targetR && unit.c === targetC) return [{ r: unit.r, c: unit.c }];
@@ -1582,6 +1994,14 @@ const IAArchipielago = {
     return null;
   },
 
+  /**
+   * IAArchipielago._getMoveStepTowards
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: unit, targetR, targetC.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getMoveStepTowards(unit, targetR, targetC) {
     const movement = unit?.currentMovement || unit?.movement || 0;
     if (!unit || movement <= 0) return null;
@@ -1602,6 +2022,14 @@ const IAArchipielago = {
     return bestStep;
   },
 
+  /**
+   * IAArchipielago._pickBarbarianTarget
+   * Proposito: Selecciona el mejor candidato segun heuristicas de prioridad/distancia.
+   * Entradas: myPlayer, ciudadesBarbaras.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _pickBarbarianTarget(myPlayer, ciudadesBarbaras) {
     if (!ciudadesBarbaras.length) return null;
     const ownCities = (gameState.cities || []).filter(c => c.owner === myPlayer);
@@ -1622,6 +2050,14 @@ const IAArchipielago = {
       .sort((a, b) => a.score - b.score)[0].ciudad;
   },
 
+  /**
+   * IAArchipielago._selectExpeditionUnits
+   * Proposito: Selecciona el mejor candidato segun heuristicas de prioridad/distancia.
+   * Entradas: myPlayer, targetCity, minPower.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _selectExpeditionUnits(myPlayer, targetCity, minPower) {
     const myUnits = IASentidos.getUnits(myPlayer)
       .filter(u => u.currentHealth > 0 && this._isLandUnit(u))
@@ -1639,6 +2075,14 @@ const IAArchipielago = {
     return selected;
   },
 
+  /**
+   * IAArchipielago._sumUnitPower
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: unitsList.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _sumUnitPower(unitsList) {
     return (unitsList || []).reduce((sum, u) => sum + this._getUnitPower(u), 0);
   },
@@ -1646,6 +2090,14 @@ const IAArchipielago = {
   /**
    * EVALUAR CONQUISTA DE CIUDAD BÁRBARA
    * ¿Tenemos suficiente poder para ganar?
+   */
+  /**
+   * IAArchipielago._evaluarConquistaDeCity
+   * Proposito: Calcula viabilidad de capturar una ciudad dada fuerza disponible y resistencia esperada.
+   * Entradas: myPlayer, unidades, ciudad.
+   * Efectos: devuelve diagnostico de viabilidad para decidir si lanzar expedicion.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
    */
   _evaluarConquistaDeCity(myPlayer, unidades, ciudad) {
     const unidadesCercanas = unidades.filter(u =>
@@ -1671,6 +2123,14 @@ const IAArchipielago = {
   /**
    * FASE 4: CONQUISTA DE CIUDADES BÁRBARAS
    * Identifica y conquista ciudades sin dueño
+   */
+  /**
+   * IAArchipielago.conquistarCiudadesBarbaras
+   * Proposito: Ejecuta rutina de conquista barbarica para avance territorial y puntos de victoria.
+   * Entradas: myPlayer, misUnidades.
+   * Efectos: selecciona objetivo, arma expedicion y solicita acciones de captura.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
    */
   conquistarCiudadesBarbaras(myPlayer, misUnidades) {
     const ciudadesBarbaras = this._getBarbarianCities();
@@ -1733,6 +2193,14 @@ const IAArchipielago = {
   /**
    * FASE 5: CONSTRUCCIÓN DE INFRAESTRUCTURA
    * Construye caminos, fortalezas y ciudades
+   */
+  /**
+   * IAArchipielago.construirInfraestructura
+   * Proposito: Planifica y ejecuta construcciones (caminos, fortalezas, aldeas) segun fase y economia.
+   * Entradas: myPlayer, hexesPropios, economia.
+   * Efectos: consume recursos, construye estructuras y registra metas de flujo de construccion.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
    */
   construirInfraestructura(myPlayer, hexesPropios, economia) {
     const capital = gameState.cities.find(c => c.owner === myPlayer && c.isCapital);
@@ -1883,6 +2351,14 @@ const IAArchipielago = {
    * FASE 6: CARAVANAS COMERCIALES
    * Crea caravanas para ingresos pasivos
    */
+  /**
+   * IAArchipielago.crearCaravanas
+   * Proposito: Intenta establecer rutas/caravanas para sostener ingresos y sinergia comercial.
+   * Entradas: myPlayer, ciudades.
+   * Efectos: puede crear rutas comerciales y registrar metas del flujo caravana.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   crearCaravanas(myPlayer, ciudades) {
     if (ciudades.length < 2) {
       console.log(`[IA_ARCHIPIELAGO][FLUJO CARAVANA] No hay suficientes ciudades para crear rutas/caravanas (actual: ${ciudades.length})`);
@@ -1902,10 +2378,26 @@ const IAArchipielago = {
   }
   ,
 
+  /**
+   * IAArchipielago._isValidTarget
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: target.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _isValidTarget(target) {
     return !!(target && Number.isInteger(target.r) && Number.isInteger(target.c) && board[target.r]?.[target.c]);
   },
 
+  /**
+   * IAArchipielago._getActionDispatchState
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: playerId.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getActionDispatchState(playerId) {
     if (!this._actionDispatchState) this._actionDispatchState = {};
     const turn = Number(gameState.turnNumber || 0);
@@ -1920,6 +2412,14 @@ const IAArchipielago = {
     return this._actionDispatchState[playerId];
   },
 
+  /**
+   * IAArchipielago._getExplorerTurnLockState
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: playerId.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getExplorerTurnLockState(playerId) {
     if (!this._explorerTurnLockState) this._explorerTurnLockState = {};
     const turn = Number(gameState.turnNumber || 0);
@@ -1933,12 +2433,28 @@ const IAArchipielago = {
     return this._explorerTurnLockState[playerId];
   },
 
+  /**
+   * IAArchipielago._lockExplorerForTurn
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: unit.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _lockExplorerForTurn(unit) {
     if (!unit || !this._isExplorerUnit(unit)) return;
     const st = this._getExplorerTurnLockState(unit.player);
     st.lockedExplorerIds.add(unit.id);
   },
 
+  /**
+   * IAArchipielago._lockAllExplorersForTurn
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: playerId.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _lockAllExplorersForTurn(playerId) {
     const myUnits = IASentidos.getUnits(playerId) || [];
     for (const unit of myUnits) {
@@ -1948,17 +2464,41 @@ const IAArchipielago = {
     }
   },
 
+  /**
+   * IAArchipielago._isExplorerLockedForTurn
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: unit.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _isExplorerLockedForTurn(unit) {
     if (!unit || !this._isExplorerUnit(unit)) return false;
     const st = this._getExplorerTurnLockState(unit.player);
     return st.lockedExplorerIds.has(unit.id);
   },
 
+  /**
+   * IAArchipielago._isExplorerExecutionAllowedBySource
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: ctx = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _isExplorerExecutionAllowedBySource(ctx = {}) {
     const src = String(ctx.executionSource || '');
     return src.startsWith('explorer_') || !!ctx.allowExplorerLockBypass;
   },
 
+  /**
+   * IAArchipielago._isUnitActionCoolingDown
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: playerId, unitId, actionKind = 'generic'.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _isUnitActionCoolingDown(playerId, unitId, actionKind = 'generic') {
     if (!unitId) return false;
     const state = this._getActionDispatchState(playerId);
@@ -1968,6 +2508,14 @@ const IAArchipielago = {
     return cooldown > 0 && (Date.now() - lastTs) < cooldown;
   },
 
+  /**
+   * IAArchipielago._markUnitActionDispatch
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: playerId, unitId, actionKind = 'generic'.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _markUnitActionDispatch(playerId, unitId, actionKind = 'generic') {
     if (!unitId) return;
     const state = this._getActionDispatchState(playerId);
@@ -1975,6 +2523,14 @@ const IAArchipielago = {
     state.lastByUnit.set(key, Date.now());
   },
 
+  /**
+   * IAArchipielago._isMergePairCoolingDown
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: playerId, unitAId, unitBId.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _isMergePairCoolingDown(playerId, unitAId, unitBId) {
     if (!unitAId || !unitBId) return false;
     const ordered = [unitAId, unitBId].sort();
@@ -1985,6 +2541,14 @@ const IAArchipielago = {
     return cooldown > 0 && (Date.now() - lastTs) < cooldown;
   },
 
+  /**
+   * IAArchipielago._markMergePairDispatch
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: playerId, unitAId, unitBId.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _markMergePairDispatch(playerId, unitAId, unitBId) {
     if (!unitAId || !unitBId) return;
     const ordered = [unitAId, unitBId].sort();
@@ -1993,6 +2557,14 @@ const IAArchipielago = {
     state.lastByPair.set(pairKey, Date.now());
   },
 
+  /**
+   * IAArchipielago._isUnitCoolingDownForAnyAction
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: unit.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _isUnitCoolingDownForAnyAction(unit) {
     if (!unit) return false;
     return this._isUnitActionCoolingDown(unit.player, unit.id, 'move')
@@ -2001,7 +2573,20 @@ const IAArchipielago = {
       || this._isUnitActionCoolingDown(unit.player, unit.id, 'merge');
   },
 
+  /**
+   * IAArchipielago._logMandatoryUnitExecution
+   * Proposito: Emite logs estructurados para auditoria y depuracion.
+   * Entradas: unit, payload = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: evento/payload serializable para log JSON.
+   * Fallos comunes: supresion por filtros de ruido o payload no serializable.
+   */
   _logMandatoryUnitExecution(unit, payload = {}) {
+    // Log canonico de acciones por unidad.
+    // Este canal es la fuente de verdad para diagnosticar:
+    // - por que no se movio una unidad
+    // - si un movimiento fue bloqueado por cooldown/lock
+    // - si un intento vino de exploracion o de flujo generico
     const regTypes = Array.isArray(unit?.regiments) ? unit.regiments.map(r => r?.type).filter(Boolean) : [];
     const isExplorer = regTypes.includes('Explorador');
     const channel = isExplorer ? 'IA_EXPLORER_EXEC' : 'IA_UNIT_EXEC';
@@ -2017,7 +2602,23 @@ const IAArchipielago = {
     console.log(`[${channel}] ${JSON.stringify(base)}`);
   },
 
+  /**
+   * IAArchipielago._requestMoveUnit
+   * Proposito: Encapsula una accion de juego con validaciones, trazabilidad y confirmacion de aplicacion.
+   * Entradas: unit, r, c, ctx = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: unidad valida, con movimiento/accion disponible y destino coherente.
+   * Fallos comunes: invalid_move, cooldown, lock de explorador, request_no_aplicada o API no disponible.
+   */
   _requestMoveUnit(unit, r, c, ctx = {}) {
+    // Wrapper de movimiento con validacion fuerte.
+    // Reglas claves:
+    // - No reportar success=true salvo mutacion real de estado.
+    // - Aplicar locks de explorador antes de cualquier dispatch.
+    // - Frenar spam de retries con cooldown y supresion de invalidos repetidos.
+    //
+    // ctx.executionSource: trazabilidad de subsistema llamador.
+    // ctx.missionType: contexto estrategico para logs/metrica.
     if (!unit) return false;
     const from = `${unit.r},${unit.c}`;
 
@@ -2121,6 +2722,7 @@ const IAArchipielago = {
       currentMovement: Number(unit.currentMovement || 0)
     };
 
+    // Confirmacion de aplicacion real (no "fire-and-forget").
     const didMovementApply = () => {
       const refreshed = (typeof getUnitById === 'function' ? getUnitById(unit.id) : null) || unit;
       if (!refreshed) return false;
@@ -2270,7 +2872,19 @@ const IAArchipielago = {
     return false;
   },
 
+  /**
+   * IAArchipielago._requestMoveOrAttack
+   * Proposito: Encapsula una accion de juego con validaciones, trazabilidad y confirmacion de aplicacion.
+   * Entradas: unit, r, c, ctx = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: unidad valida, con movimiento/accion disponible y destino coherente.
+   * Fallos comunes: sin paso al objetivo, ataque invalido, cooldown o APIs de combate no disponibles.
+   */
   _requestMoveOrAttack(unit, r, c, ctx = {}) {
+    // Wrapper combinado para simplificar decisiones tacticas de alto nivel.
+    // - Si hay enemigo en destino: intenta ataque (o aproxima si no llega).
+    // - Si no hay enemigo: intenta avance hacia objetivo.
+    // Siempre conserva los mismos guardrails de lock/cooldown/trazabilidad.
     if (!unit) return false;
     if (!Number.isInteger(unit.r) || !Number.isInteger(unit.c) || !Array.isArray(unit.regiments) || unit.regiments.length === 0) {
       const resolved = getUnitOnHex(unit.r, unit.c);
@@ -2445,6 +3059,14 @@ const IAArchipielago = {
     return false;
   },
 
+  /**
+   * IAArchipielago._getUnexploredRuins
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: sin parametros explicitos.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getUnexploredRuins() {
     const ruins = [];
     if (!Array.isArray(board)) return ruins;
@@ -2457,6 +3079,14 @@ const IAArchipielago = {
     return ruins;
   },
 
+  /**
+   * IAArchipielago._ensureNavalPresence
+   * Proposito: Garantiza una precondicion estrategica; intenta corregirla si falta.
+   * Entradas: myPlayer, economia.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _ensureNavalPresence(myPlayer, economia) {
     const hasNavigation = this._ensureTech(myPlayer, 'NAVIGATION');
     if (!hasNavigation) return false;
@@ -2470,6 +3100,14 @@ const IAArchipielago = {
     return !!this._crearUnidadNaval(myPlayer, navalType);
   },
 
+  /**
+   * IAArchipielago._requestMergeUnits
+   * Proposito: Encapsula una accion de juego con validaciones, trazabilidad y confirmacion de aplicacion.
+   * Entradas: mergingUnit, targetUnit, opts = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: entidades objetivo resueltas y API de accion correspondiente disponible.
+   * Fallos comunes: accion rechazada por validaciones, cooldown o ausencia de API de ejecucion.
+   */
   _requestMergeUnits(mergingUnit, targetUnit, opts = {}) {
     if (!mergingUnit || !targetUnit) return false;
     const bypassCooldown = !!opts.bypassCooldown;
@@ -2503,6 +3141,14 @@ const IAArchipielago = {
     return true;
   },
 
+  /**
+   * IAArchipielago._requestSplitUnit
+   * Proposito: Encapsula una accion de juego con validaciones, trazabilidad y confirmacion de aplicacion.
+   * Entradas: unit, r, c.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: entidades objetivo resueltas y API de accion correspondiente disponible.
+   * Fallos comunes: accion rechazada por validaciones, cooldown o ausencia de API de ejecucion.
+   */
   _requestSplitUnit(unit, r, c) {
     if (!unit) return false;
     if (this._isUnitActionCoolingDown(unit.player, unit.id, 'split')) return false;
@@ -2515,6 +3161,14 @@ const IAArchipielago = {
     return true;
   },
 
+  /**
+   * IAArchipielago._resolveVacateObjectiveForRoad
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: playerId, blockedR, blockedC.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _resolveVacateObjectiveForRoad(playerId, blockedR, blockedC) {
     if ((gameState.turnNumber || 0) <= 1 && typeof AiDeploymentManager !== 'undefined') {
       const analysis = typeof AiDeploymentManager.analyzeEnvironment === 'function'
@@ -2538,6 +3192,14 @@ const IAArchipielago = {
     return null;
   },
 
+  /**
+   * IAArchipielago._scheduleVacateForBlockedBuild
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: playerId, blockerUnit, r, c.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _scheduleVacateForBlockedBuild(playerId, blockerUnit, r, c) {
     if (!blockerUnit || blockerUnit.player !== playerId) return false;
     if (blockerUnit.regiments?.some(reg => reg.type === 'Explorador')) return false;
@@ -2587,6 +3249,14 @@ const IAArchipielago = {
     return true;
   },
 
+  /**
+   * IAArchipielago._tryImmediateVacateForBuild
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: blockerUnit, blockedHex, objective = null.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _tryImmediateVacateForBuild(blockerUnit, blockedHex, objective = null) {
     if (!blockerUnit || !blockedHex) return false;
     const mobility = (blockerUnit.currentMovement || blockerUnit.movement || 0);
@@ -2613,6 +3283,14 @@ const IAArchipielago = {
     return !(stillBlocking && stillBlocking.id === blockerUnit.id);
   },
 
+  /**
+   * IAArchipielago._procesarDesbloqueoConstruccionesPendientes
+   * Proposito: Procesa un conjunto de tareas/objetivos y aplica reglas de filtro.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _procesarDesbloqueoConstruccionesPendientes(myPlayer) {
     const ownUnits = IASentidos.getUnits(myPlayer) || [];
     if (!ownUnits.length) return;
@@ -2665,6 +3343,14 @@ const IAArchipielago = {
     }
   },
 
+  /**
+   * IAArchipielago._requestBuildStructure
+   * Proposito: Encapsula una accion de juego con validaciones, trazabilidad y confirmacion de aplicacion.
+   * Entradas: playerId, r, c, structureType.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: hex de construccion valido, recursos suficientes y API de build disponible.
+   * Fallos comunes: costo no cubierto, build invalido, hex bloqueado o API de build ausente.
+   */
   _requestBuildStructure(playerId, r, c, structureType) {
     if (!this._turnBuildRetryBlock) this._turnBuildRetryBlock = {};
     if (!this._turnBuildRetryBlock[playerId] || this._turnBuildRetryBlock[playerId].turn !== gameState.turnNumber) {
@@ -2928,7 +3614,23 @@ const IAArchipielago = {
     return false;
   },
 
+  /**
+   * IAArchipielago._requestExploreRuins
+   * Proposito: Encapsula una accion de juego con validaciones, trazabilidad y confirmacion de aplicacion.
+   * Entradas: unit.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: unidad sobre ruina no saqueada y APIs de exploracion accesibles.
+   * Fallos comunes: not_on_unexplored_ruin, request_not_applied o API de exploracion no disponible.
+   */
   _requestExploreRuins(unit) {
+    // Wrapper especializado para ruinas.
+    // Diferencia clave frente a move/attack:
+    // - exige estar sobre ruina no saqueada
+    // - ejecuta accion de evento de ruina
+    // - verifica aplicacion por cambios en feature/looted/flags de unidad
+    //
+    // Esto evita falsos positivos en los que "se envio" la accion pero no
+    // se aplico en estado de tablero.
     if (!unit) return false;
     const ruinHex = board?.[unit.r]?.[unit.c] || null;
     if (!ruinHex || ruinHex.feature !== 'ruins' || ruinHex.looted) {
@@ -2959,6 +3661,7 @@ const IAArchipielago = {
       hasAttacked: !!unit.hasAttacked
     };
 
+    // Confirmacion robusta de exploracion para variantes del motor.
     const didExploreApply = () => {
       const refreshedUnit = (typeof getUnitById === 'function' ? getUnitById(unit.id) : null) || unit;
       const refreshedHex = board?.[targetR]?.[targetC] || board?.[unit.r]?.[unit.c] || null;
@@ -3041,6 +3744,14 @@ const IAArchipielago = {
     return false;
   },
 
+  /**
+   * IAArchipielago._requestEstablishTradeRoute
+   * Proposito: Encapsula una accion de juego con validaciones, trazabilidad y confirmacion de aplicacion.
+   * Entradas: unit, origin, destination, path.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: entidades objetivo resueltas y API de accion correspondiente disponible.
+   * Fallos comunes: accion rechazada por validaciones, cooldown o ausencia de API de ejecucion.
+   */
   _requestEstablishTradeRoute(unit, origin, destination, path) {
     if (!unit) return false;
     const action = {
@@ -3124,6 +3835,14 @@ const IAArchipielago = {
     return false;
   },
 
+  /**
+   * IAArchipielago._getTradeCityCandidates
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getTradeCityCandidates(myPlayer) {
     const cities = (gameState.cities || []).filter(c => c && Number.isInteger(c.r) && Number.isInteger(c.c));
     const bankCity = this._getBankCity();
@@ -3132,6 +3851,14 @@ const IAArchipielago = {
     return alreadyIncluded ? cities : cities.concat([bankCity]);
   },
 
+  /**
+   * IAArchipielago._isBarbarianTradeCity
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: city.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _isBarbarianTradeCity(city) {
     if (!city) return false;
     if (city.isBarbarianCity) return true;
@@ -3139,6 +3866,14 @@ const IAArchipielago = {
     return Number(city.owner) === 9;
   },
 
+  /**
+   * IAArchipielago._isAllowedTradeDestinationForCaravan
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: city, myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _isAllowedTradeDestinationForCaravan(city, myPlayer) {
     if (!city) return false;
     if (city.owner === null || city.owner === undefined) return false;
@@ -3151,11 +3886,27 @@ const IAArchipielago = {
     return true;
   },
 
+  /**
+   * IAArchipielago._getBankCity
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: sin parametros explicitos.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getBankCity() {
     const bankId = typeof BankManager !== 'undefined' ? BankManager.PLAYER_ID : 0;
     return (gameState.cities || []).find(c => c && c.owner === bankId) || null;
   },
 
+  /**
+   * IAArchipielago._isBankCityByCoords
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: r, c.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _isBankCityByCoords(r, c) {
     if (!Number.isInteger(r) || !Number.isInteger(c)) return false;
     const bank = this._getBankCity();
@@ -3168,6 +3919,14 @@ const IAArchipielago = {
     return String(city.name || '').toLowerCase().includes('banca');
   },
 
+  /**
+   * IAArchipielago._getEnemyPlayerIds
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getEnemyPlayerIds(myPlayer) {
     if (typeof IASentidos !== 'undefined' && typeof IASentidos.getEnemyPlayerIds === 'function') {
       const ids = IASentidos.getEnemyPlayerIds(myPlayer);
@@ -3189,6 +3948,14 @@ const IAArchipielago = {
     return Array.from(ids).sort((a, b) => a - b);
   },
 
+  /**
+   * IAArchipielago._getEnemyPlayerId
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getEnemyPlayerId(myPlayer) {
     const enemies = this._getEnemyPlayerIds(myPlayer);
     if (!enemies.length) return null;
@@ -3209,17 +3976,41 @@ const IAArchipielago = {
     return withDistance[0].id;
   },
 
+  /**
+   * IAArchipielago._getPlayerType
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: playerId.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getPlayerType(playerId) {
     const types = gameState.playerTypes || {};
     return types[`player${playerId}`] ?? types[playerId] ?? types[Number(playerId)] ?? null;
   },
 
+  /**
+   * IAArchipielago._isHumanType
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: type.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _isHumanType(type) {
     if (!type) return true;
     if (type === 'human') return true;
     return !type.includes('ai');
   },
 
+  /**
+   * IAArchipielago._getLandmassFromHex
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: startR, startC.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getLandmassFromHex(startR, startC) {
     const startHex = board[startR]?.[startC];
     if (!startHex || startHex.terrain === 'water') return new Set();
@@ -3243,6 +4034,14 @@ const IAArchipielago = {
     return visited;
   },
 
+  /**
+   * IAArchipielago._findInvaderIslandFortressSpot
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer, hexesPropios.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _findInvaderIslandFortressSpot(myPlayer, hexesPropios) {
     const enemyPlayer = this._getEnemyPlayerId(myPlayer);
     const enemyType = this._getPlayerType(enemyPlayer);
@@ -3302,6 +4101,14 @@ const IAArchipielago = {
     return best?.h || null;
   },
 
+  /**
+   * IAArchipielago._evaluateEnemyExpansionStrategy
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _evaluateEnemyExpansionStrategy(myPlayer) {
     const enemyPlayer = this._getEnemyPlayerId(myPlayer);
     const enemyUnits = IASentidos.getUnits(enemyPlayer) || [];
@@ -3336,11 +4143,27 @@ const IAArchipielago = {
     };
   },
 
+  /**
+   * IAArchipielago._isHumanOpponent
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _isHumanOpponent(myPlayer) {
     const enemyPlayer = this._getEnemyPlayerId(myPlayer);
     return this._isHumanType(this._getPlayerType(enemyPlayer));
   },
 
+  /**
+   * IAArchipielago._getFortressLimitByHuman
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getFortressLimitByHuman(myPlayer) {
     const enemyIds = this._getEnemyPlayerIds(myPlayer) || [];
     const humanEnemyId = enemyIds.find(id => this._isHumanType(this._getPlayerType(id))) || enemyIds[0] || null;
@@ -3354,6 +4177,14 @@ const IAArchipielago = {
     return Math.max(1, humanFortresses + 2);
   },
 
+  /**
+   * IAArchipielago._ensureHeavyDivisions
+   * Proposito: Garantiza una precondicion estrategica; intenta corregirla si falta.
+   * Entradas: myPlayer, targetRegiments.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _ensureHeavyDivisions(myPlayer, targetRegiments) {
     const desired = Math.min(
       MAX_REGIMENTS_PER_DIVISION,
@@ -3419,6 +4250,14 @@ const IAArchipielago = {
     return total >= desired;
   },
 
+  /**
+   * IAArchipielago._ensureHunterDivisions
+   * Proposito: Garantiza una precondicion estrategica; intenta corregirla si falta.
+   * Entradas: myPlayer, targetRegiments.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _ensureHunterDivisions(myPlayer, targetRegiments) {
     const desired = Math.max(3, targetRegiments || 3);
     const maxRegs = MAX_REGIMENTS_PER_DIVISION || desired;
@@ -3432,6 +4271,14 @@ const IAArchipielago = {
     return this._producirDivisiones(myPlayer, createCount, regimentsPerDivision);
   },
 
+  /**
+   * IAArchipielago._pressEnemyHomeIsland
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _pressEnemyHomeIsland(myPlayer) {
     const isNavalMap = !!gameState.setupTempSettings?.navalMap || gameState.gameMode === 'invasion';
     if (!isNavalMap) return false;
@@ -3506,6 +4353,14 @@ const IAArchipielago = {
     return this._requestMoveUnit(transport, landing.water.r, landing.water.c);
   },
 
+  /**
+   * IAArchipielago._buildPressureFortressOnEnemyIsland
+   * Proposito: Construye un plan o estructura intermedia para una decision posterior.
+   * Entradas: myPlayer, enemyLandmass, enemyCapital.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _buildPressureFortressOnEnemyIsland(myPlayer, enemyLandmass, enemyCapital) {
     const hexesPropios = IASentidos?.getOwnedHexes ? IASentidos.getOwnedHexes(myPlayer) : [];
     if (!hexesPropios.length) return false;
@@ -3528,6 +4383,14 @@ const IAArchipielago = {
     return this._requestBuildStructure(myPlayer, spot.r, spot.c, 'Fortaleza');
   },
 
+  /**
+   * IAArchipielago._findEnemyLandingTarget
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: enemyLandmass, enemyCapital, frente = [], enemyUnits = [].
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _findEnemyLandingTarget(enemyLandmass, enemyCapital, frente = [], enemyUnits = []) {
     let best = null;
 
@@ -3570,6 +4433,14 @@ const IAArchipielago = {
     return { land: best.land, water: best.water };
   },
 
+  /**
+   * IAArchipielago._getTransportCapacity
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: unit.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getTransportCapacity(unit) {
     if (!unit?.regiments?.length) return 0;
     return unit.regiments.reduce((max, reg) => {
@@ -3578,6 +4449,14 @@ const IAArchipielago = {
     }, 0);
   },
 
+  /**
+   * IAArchipielago._findTransportShip
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _findTransportShip(myPlayer) {
     // Preferir barcos que ya llevan regimientos de tierra (capacidad usada), luego cualquiera con capacidad
     const withLand = units.find(u => u.player === myPlayer && u.regiments?.some(r => REGIMENT_TYPES?.[r.type] && !REGIMENT_TYPES[r.type].is_naval) && this._getTransportCapacity(u) > 0);
@@ -3585,6 +4464,14 @@ const IAArchipielago = {
     return units.find(u => u.player === myPlayer && u.regiments?.some(r => REGIMENT_TYPES?.[r.type]?.is_naval) && this._getTransportCapacity(u) > 0) || null;
   },
 
+  /**
+   * IAArchipielago._createTransportShip
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _createTransportShip(myPlayer) {
     const preferred = REGIMENT_TYPES['Barco de Guerra'] ? 'Barco de Guerra' : null;
     if (preferred) return this._crearUnidadNaval(myPlayer, preferred);
@@ -3597,6 +4484,14 @@ const IAArchipielago = {
     return this._crearUnidadNaval(myPlayer, fallback);
   },
 
+  /**
+   * IAArchipielago._selectEmbarkUnit
+   * Proposito: Selecciona el mejor candidato segun heuristicas de prioridad/distancia.
+   * Entradas: myPlayer, transport.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _selectEmbarkUnit(myPlayer, transport) {
     const maxRegs = Number.isFinite(MAX_REGIMENTS_PER_DIVISION) ? MAX_REGIMENTS_PER_DIVISION : 20;
     const transportRegs = transport?.regiments?.length || 0;
@@ -3611,6 +4506,14 @@ const IAArchipielago = {
     return candidates[0] || null;
   },
 
+  /**
+   * IAArchipielago._requestDisembark
+   * Proposito: Encapsula una accion de juego con validaciones, trazabilidad y confirmacion de aplicacion.
+   * Entradas: transport, landHex.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: entidades objetivo resueltas y API de accion correspondiente disponible.
+   * Fallos comunes: accion rechazada por validaciones, cooldown o ausencia de API de ejecucion.
+   */
   _requestDisembark(transport, landHex) {
     if (!transport || !landHex) return false;
     if (landHex.terrain === 'water' || landHex.unit) return false;
@@ -3630,6 +4533,14 @@ const IAArchipielago = {
     return this._requestSplitUnit(transport, landHex.r, landHex.c);
   },
 
+  /**
+   * IAArchipielago._getTradePairKey
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: cityA, cityB.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getTradePairKey(cityA, cityB) {
     if (!cityA || !cityB) return null;
     const aKey = Number.isInteger(cityA.r) && Number.isInteger(cityA.c) ? `${cityA.r},${cityA.c}` : cityA.name;
@@ -3638,6 +4549,14 @@ const IAArchipielago = {
     return [aKey, bKey].sort().join('|');
   },
 
+  /**
+   * IAArchipielago._getExistingTradeRouteKeys
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: playerFilter = null.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getExistingTradeRouteKeys(playerFilter = null) {
     const keys = new Set();
     (units || []).forEach(u => {
@@ -3651,6 +4570,14 @@ const IAArchipielago = {
   },
 
 
+  /**
+   * IAArchipielago._pickNextTradeRouteCandidate
+   * Proposito: Selecciona el mejor candidato segun heuristicas de prioridad/distancia.
+   * Entradas: myPlayer, existingRouteKeys.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _pickNextTradeRouteCandidate(myPlayer, existingRouteKeys) {
     const cities = this._getTradeCityCandidates(myPlayer);
     const ownCities = cities.filter(c => c.owner === myPlayer);
@@ -3685,6 +4612,14 @@ const IAArchipielago = {
     return candidates[0];
   },
 
+  /**
+   * IAArchipielago._pickObjective
+   * Proposito: Selecciona el mejor candidato segun heuristicas de prioridad/distancia.
+   * Entradas: list, unit, myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _pickObjective(list, unit, myPlayer) {
     if (!Array.isArray(list) || list.length === 0) return null;
     const valid = list.filter(item => this._isValidTarget(item));
@@ -3708,6 +4643,14 @@ const IAArchipielago = {
     });
   },
 
+  /**
+   * IAArchipielago._isCorridorPioneer
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: unit.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _isCorridorPioneer(unit) {
     if (!unit) return false;
     if ((unit.name || '').includes('Pionero de Corredor')) return true;
@@ -3716,6 +4659,14 @@ const IAArchipielago = {
     return !!(mission && (mission.type === 'OCCUPY_THEN_BUILD' || mission.nodoRazon === 'ORGANIC_CARAVAN_CORRIDOR'));
   },
 
+  /**
+   * IAArchipielago._formatWormUnitForHumanTrace
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: unitLike.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _formatWormUnitForHumanTrace(unitLike) {
     if (!unitLike) return 'Division desconocida (?,?)';
     const name = unitLike.name || 'Division';
@@ -3730,6 +4681,14 @@ const IAArchipielago = {
     return `${name}${idText} ${coords} ${regs} reg`;
   },
 
+  /**
+   * IAArchipielago._emitWormHumanStepTrace
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: { myPlayer, pair, objective, sourceBefore, created, mergeRequested, mergeConfirmed = false, mergeRejectReason = null, relayUnit, moved, progressed, reason }.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _emitWormHumanStepTrace({ myPlayer, pair, objective, sourceBefore, created, mergeRequested, mergeConfirmed = false, mergeRejectReason = null, relayUnit, moved, progressed, reason }) {
     if (!this.WORM_HUMAN_TRACE) return;
     const sourceText = this._formatWormUnitForHumanTrace(sourceBefore);
@@ -3746,6 +4705,14 @@ const IAArchipielago = {
     console.log(`[IA_ARCHIPIELAGO][GUSANO TRAZA] J${myPlayer} ${pair} objetivo=(${objective?.r},${objective?.c}) | Inicio=${sourceText} | Split=${createdText} | ${mergeText} | Relay=${relayText} | ${resultText}`);
   },
 
+  /**
+   * IAArchipielago._registerMergeContext
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: mergingUnit, targetUnit, context = null.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _registerMergeContext(mergingUnit, targetUnit, context = null) {
     if (!mergingUnit?.id || !targetUnit?.id || !context) return;
     if (!this._pendingMergeContexts) this._pendingMergeContexts = new Map();
@@ -3756,6 +4723,14 @@ const IAArchipielago = {
     this._pendingMergeContexts.set(`${mergingUnit.id}->${targetUnit.id}`, { ...context, ts: now });
   },
 
+  /**
+   * IAArchipielago._markWormMergeConfirmed
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: sourceId, targetId, payload = null.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _markWormMergeConfirmed(sourceId, targetId, payload = null) {
     if (!sourceId || !targetId) return;
     if (!this._wormMergeConfirmations) this._wormMergeConfirmations = new Map();
@@ -3766,6 +4741,14 @@ const IAArchipielago = {
     this._wormMergeConfirmations.set(`${sourceId}->${targetId}`, { ts: now, payload: payload || null });
   },
 
+  /**
+   * IAArchipielago._consumeWormMergeConfirmed
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: sourceId, targetId.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _consumeWormMergeConfirmed(sourceId, targetId) {
     if (!sourceId || !targetId || !this._wormMergeConfirmations) return null;
     const key = `${sourceId}->${targetId}`;
@@ -3775,6 +4758,14 @@ const IAArchipielago = {
     return entry;
   },
 
+  /**
+   * IAArchipielago._notifyMergeCompleted
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: payload = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _notifyMergeCompleted(payload = {}) {
     const sourceId = payload.sourceId;
     const targetId = payload.targetId;
@@ -3798,6 +4789,14 @@ const IAArchipielago = {
     console.log(`[IA_ARCHIPIELAGO][GUSANO MERGE CONFIRMADO] J${payload.playerId ?? '?'} ${pair} objetivo=${objective} | ${sourceName} -> ${targetName} | reg(${beforeSource}+${beforeTarget}=>${afterTarget})`);
   },
 
+  /**
+   * IAArchipielago._splitUnitTowardsObjective
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: unit, objective.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _splitUnitTowardsObjective(unit, objective) {
     if (!unit || !objective) return false;
     const regimientosActuales = unit.regiments?.length || 0;
@@ -3825,6 +4824,14 @@ const IAArchipielago = {
     return this._requestSplitUnit(unit, splitHex.r, splitHex.c);
   },
 
+  /**
+   * IAArchipielago._splitMergeWormStep
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer, unit, objective, node.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _splitMergeWormStep(myPlayer, unit, objective, node) {
     if (!unit || !objective) return { ok: false, reason: 'invalid_input' };
     const sourceBefore = {
@@ -3952,6 +4959,14 @@ const IAArchipielago = {
     };
   },
 
+  /**
+   * IAArchipielago._attemptSplitMergeRelayToObjective
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer, unit, objective, node = null, missionType = null.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _attemptSplitMergeRelayToObjective(myPlayer, unit, objective, node = null, missionType = null) {
     if (!unit || !objective) return { ok: false, moved: false, reason: 'invalid_input' };
     if ((unit.regiments?.length || 0) < this.WORM_MIN_SPLIT_REGIMENTS) {
@@ -4161,6 +5176,14 @@ const IAArchipielago = {
     };
   },
 
+  /**
+   * IAArchipielago._getTopCorridorObjectives
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: myPlayer, maxObjectives = 3.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getTopCorridorObjectives(myPlayer, maxObjectives = 3) {
     const roadPlan = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
     if (!roadPlan.connections?.length) return [];
@@ -4223,6 +5246,14 @@ const IAArchipielago = {
     return candidates;
   },
 
+  /**
+   * IAArchipielago._diagnoseCorridorObjectives
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer, maxPairs = 8.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _diagnoseCorridorObjectives(myPlayer, maxPairs = 8) {
     const cities = this._getTradeCityCandidates(myPlayer);
     const ownCities = cities.filter(c => c && c.owner === myPlayer);
@@ -4267,6 +5298,14 @@ const IAArchipielago = {
     };
   },
 
+  /**
+   * IAArchipielago._ejecutarGusanoCorredor
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion, opts = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarGusanoCorredor(situacion, opts = {}) {
     const { myPlayer } = situacion;
     const maxActions = Math.max(1, Number(opts.maxActions || this.WORM_MAX_ACTIONS_PER_TURN));
@@ -4528,6 +5567,14 @@ const IAArchipielago = {
     return actions;
   },
 
+  /**
+   * IAArchipielago._collectSupplyCutTargets
+   * Proposito: Recolecta y normaliza candidatos/objetivos para decisiones IA.
+   * Entradas: myPlayer, limit = null.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _collectSupplyCutTargets(myPlayer, limit = null) {
     const enemyPlayer = this._getEnemyPlayerId(myPlayer);
     if (enemyPlayer == null || typeof getSupplyPath !== 'function') return [];
@@ -4567,6 +5614,14 @@ const IAArchipielago = {
       .slice(0, effectiveLimit);
   },
 
+  /**
+   * IAArchipielago._collectSabotageTargets
+   * Proposito: Recolecta y normaliza candidatos/objetivos para decisiones IA.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _collectSabotageTargets(myPlayer) {
     const enemyPlayer = this._getEnemyPlayerId(myPlayer);
     if (enemyPlayer == null) return [];
@@ -4582,6 +5637,14 @@ const IAArchipielago = {
       .sort((a, b) => (b.score || 0) - (a.score || 0));
   },
 
+  /**
+   * IAArchipielago._snapshotTurnActivity
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _snapshotTurnActivity(myPlayer) {
     const snapshot = new Map();
     const myUnits = IASentidos.getUnits(myPlayer);
@@ -4597,6 +5660,14 @@ const IAArchipielago = {
     return snapshot;
   },
 
+  /**
+   * IAArchipielago._didMakeProgressThisTurn
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer, snapshot.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _didMakeProgressThisTurn(myPlayer, snapshot) {
     const myUnits = IASentidos.getUnits(myPlayer);
     for (const unit of myUnits) {
@@ -4612,6 +5683,14 @@ const IAArchipielago = {
     return false;
   },
 
+  /**
+   * IAArchipielago._executeOpportunisticCapture
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _executeOpportunisticCapture(myPlayer) {
     const myUnits = IASentidos.getUnits(myPlayer)
       .filter(u => u && u.currentHealth > 0)
@@ -4727,6 +5806,14 @@ const IAArchipielago = {
     return captures;
   },
 
+  /**
+   * IAArchipielago._executeStrategicProtocolBundle
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: myPlayer, opts = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _executeStrategicProtocolBundle(myPlayer, opts = {}) {
     const phase = String(opts.phase || 'generic');
     const totalLand = Array.isArray(board)
@@ -4755,6 +5842,14 @@ const IAArchipielago = {
     return actions;
   },
 
+  /**
+   * IAArchipielago._getUngarrisonedCityOpportunity
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getUngarrisonedCityOpportunity(myPlayer) {
     const targets = this._collectGiftCityTargets(myPlayer);
     if (!targets.length) return null;
@@ -4777,10 +5872,26 @@ const IAArchipielago = {
     return best;
   },
 
+  /**
+   * IAArchipielago._hasUngarrisonedCityWithPath
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _hasUngarrisonedCityWithPath(myPlayer) {
     return !!this._getUngarrisonedCityOpportunity(myPlayer);
   },
 
+  /**
+   * IAArchipielago._enforceUngarrisonedCityPriority
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer, maxActions = 1.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _enforceUngarrisonedCityPriority(myPlayer, maxActions = 1) {
     let actions = 0;
     const budget = Math.max(1, Number(maxActions || 1));
@@ -4822,6 +5933,14 @@ const IAArchipielago = {
     return actions;
   },
 
+  /**
+   * IAArchipielago._executeImmediateUngarrisonedCitySnatch
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: myPlayer, opts = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _executeImmediateUngarrisonedCitySnatch(myPlayer, opts = {}) {
     const maxActions = Math.max(1, Number(opts.maxActions || 2));
     let actions = 0;
@@ -4904,6 +6023,14 @@ const IAArchipielago = {
     return actions;
   },
 
+  /**
+   * IAArchipielago._collectGiftCityTargets
+   * Proposito: Recolecta y normaliza candidatos/objetivos para decisiones IA.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _collectGiftCityTargets(myPlayer) {
     const targets = [];
     const seen = new Set();
@@ -4947,6 +6074,14 @@ const IAArchipielago = {
     return targets;
   },
 
+  /**
+   * IAArchipielago._executeGiftCityCaptureProtocol
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: myPlayer, opts = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _executeGiftCityCaptureProtocol(myPlayer, opts = {}) {
     const maxActions = Math.max(1, Number(opts.maxActions || 2));
     const targets = this._collectGiftCityTargets(myPlayer);
@@ -5000,6 +6135,14 @@ const IAArchipielago = {
     return actions;
   },
 
+  /**
+   * IAArchipielago._collectExpansionTargets
+   * Proposito: Recolecta y normaliza candidatos/objetivos para decisiones IA.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _collectExpansionTargets(myPlayer) {
     const targets = [];
     if (!Array.isArray(board)) return targets;
@@ -5021,6 +6164,14 @@ const IAArchipielago = {
     return targets;
   },
 
+  /**
+   * IAArchipielago._executeLightExpansionProtocol
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: myPlayer, opts = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _executeLightExpansionProtocol(myPlayer, opts = {}) {
     const maxActions = Math.max(1, Number(opts.maxActions || 2));
     const targets = this._collectExpansionTargets(myPlayer);
@@ -5075,6 +6226,14 @@ const IAArchipielago = {
     return actions;
   },
 
+  /**
+   * IAArchipielago._buildExplorerAdvancePlan
+   * Proposito: Construye un plan o estructura intermedia para una decision posterior.
+   * Entradas: unit, targetR, targetC.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _buildExplorerAdvancePlan(unit, targetR, targetC) {
     if (!unit || !Number.isInteger(targetR) || !Number.isInteger(targetC)) return null;
     const movementBudget = Number(unit.currentMovement || unit.movement || 0);
@@ -5116,7 +6275,21 @@ const IAArchipielago = {
     };
   },
 
+  /**
+   * IAArchipielago._executeDedicatedExplorerProtocol
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: myPlayer, opts = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: exploradores detectables via IASentidos y lock de turno inicializado.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _executeDedicatedExplorerProtocol(myPlayer, opts = {}) {
+    // Protocolo dedicado de explorador (aislado del resto de rutas).
+    // Politica:
+    // - explorador solo acepta flujo explorer_* durante el turno
+    // - prioridad absoluta: explorar ruinas
+    // - fallback: expansion ligera si no hay ruina accionable
+    // - presupuesto bajo para no monopolizar el turno completo
     const maxActions = Math.max(1, Number(opts.maxActions || 1));
     let actions = 0;
 
@@ -5172,6 +6345,7 @@ const IAArchipielago = {
       let progressed = false;
       let stallReason = 'unknown';
 
+      // Fast-path: si arranca sobre ruina, explorar antes de mover/replanear.
       const standingHex = board?.[explorer.r]?.[explorer.c] || null;
       const isStandingOnUnexploredRuin = !!standingHex && standingHex.feature === 'ruins' && !standingHex.looted;
       if (isStandingOnUnexploredRuin) {
@@ -5361,6 +6535,14 @@ const IAArchipielago = {
     return actions;
   },
 
+  /**
+   * IAArchipielago._executeFinalMovementSweep
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: myPlayer, opts = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _executeFinalMovementSweep(myPlayer, opts = {}) {
     const maxActions = Math.max(1, Number(opts.maxActions || 8));
     const attemptedUnitIds = new Set();
@@ -5468,6 +6650,14 @@ const IAArchipielago = {
     };
   },
 
+  /**
+   * IAArchipielago._classifyIdleUnitReason
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer, unit, finalSweepReport = null.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _classifyIdleUnitReason(myPlayer, unit, finalSweepReport = null) {
     const mission = (typeof AiGameplayManager !== 'undefined' && AiGameplayManager.missionAssignments?.get)
       ? AiGameplayManager.missionAssignments.get(unit.id)
@@ -5610,6 +6800,14 @@ const IAArchipielago = {
     };
   },
 
+  /**
+   * IAArchipielago._logIdleMovableUnitsReport
+   * Proposito: Emite logs estructurados para auditoria y depuracion.
+   * Entradas: myPlayer, finalSweepReport = null.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: evento/payload serializable para log JSON.
+   * Fallos comunes: supresion por filtros de ruido o payload no serializable.
+   */
   _logIdleMovableUnitsReport(myPlayer, finalSweepReport = null) {
     const idleMovables = (IASentidos.getUnits(myPlayer) || [])
       .filter(u => u && u.currentHealth > 0)
@@ -5647,6 +6845,14 @@ const IAArchipielago = {
     }
   },
 
+  /**
+   * IAArchipielago._executeIdleUnitActivationProtocol
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: myPlayer, opts = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _executeIdleUnitActivationProtocol(myPlayer, opts = {}) {
     const maxActions = Math.max(1, Number(opts.maxActions || 6));
     let actions = 0;
@@ -5698,6 +6904,14 @@ const IAArchipielago = {
     return actions;
   },
 
+  /**
+   * IAArchipielago._getAvailableMissionUnits
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: myPlayer, opts = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getAvailableMissionUnits(myPlayer, opts = {}) {
     const includeExplorers = !!opts.includeExplorers;
     return IASentidos.getUnits(myPlayer)
@@ -5710,6 +6924,14 @@ const IAArchipielago = {
       .filter(u => !u.tradeRoute);
   },
 
+  /**
+   * IAArchipielago._assignMissionIfAvailable
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: unit, mission.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _assignMissionIfAvailable(unit, mission) {
     if (!unit || !mission) return;
     if (typeof AiGameplayManager === 'undefined' || !AiGameplayManager.missionAssignments?.set) return;
@@ -5732,6 +6954,14 @@ const IAArchipielago = {
     AiGameplayManager.missionAssignments.set(unit.id, mission);
   },
 
+  /**
+   * IAArchipielago._executePostCorridorRoadVacate
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: myPlayer, maxActions = 2.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _executePostCorridorRoadVacate(myPlayer, maxActions = 2) {
     if (maxActions <= 0) return 0;
     const roadMissions = this._getPriorityRoadInfrastructureMissions(myPlayer);
@@ -5759,6 +6989,14 @@ const IAArchipielago = {
     return actions;
   },
 
+  /**
+   * IAArchipielago._collectPostCorridorCityTargets
+   * Proposito: Recolecta y normaliza candidatos/objetivos para decisiones IA.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _collectPostCorridorCityTargets(myPlayer) {
     const targets = [];
     for (const c of (gameState.cities || [])) {
@@ -5777,6 +7015,14 @@ const IAArchipielago = {
     return targets;
   },
 
+  /**
+   * IAArchipielago._collectPostCorridorHillTargets
+   * Proposito: Recolecta y normaliza candidatos/objetivos para decisiones IA.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _collectPostCorridorHillTargets(myPlayer) {
     if (!Array.isArray(board)) return [];
     const targets = [];
@@ -5811,6 +7057,14 @@ const IAArchipielago = {
     return targets;
   },
 
+  /**
+   * IAArchipielago._executePostCorridorCityPush
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: myPlayer, maxActions = 2.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _executePostCorridorCityPush(myPlayer, maxActions = 2) {
     if (maxActions <= 0) return 0;
     const targets = this._collectPostCorridorCityTargets(myPlayer);
@@ -5866,6 +7120,14 @@ const IAArchipielago = {
     return actions;
   },
 
+  /**
+   * IAArchipielago._executePostCorridorHillPush
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: myPlayer, maxActions = 2.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _executePostCorridorHillPush(myPlayer, maxActions = 2) {
     if (maxActions <= 0) return 0;
     const targets = this._collectPostCorridorHillTargets(myPlayer);
@@ -5921,6 +7183,14 @@ const IAArchipielago = {
     return actions;
   },
 
+  /**
+   * IAArchipielago._executePostCorridorMissionLayer
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: myPlayer, opts = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _executePostCorridorMissionLayer(myPlayer, opts = {}) {
     const maxActions = Math.max(1, Number(opts.maxActions || 4));
     if (maxActions <= 0) return 0;
@@ -5941,6 +7211,14 @@ const IAArchipielago = {
     return actions;
   },
 
+  /**
+   * IAArchipielago._ejecutarPlanEmergencia
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarPlanEmergencia(situacion) {
     const { myPlayer, ciudades } = situacion;
     const myUnits = IASentidos.getUnits(myPlayer).filter(u => (u.currentMovement || 0) > 0 && !u.iaExpeditionTarget);
@@ -5990,14 +7268,38 @@ const IAArchipielago = {
     console.log(`[IA_ARCHIPIELAGO] Plan emergencia ejecutado. Acciones=${acciones}`);
   },
 
+  /**
+   * IAArchipielago._getPlayerTechs
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getPlayerTechs(myPlayer) {
     return gameState.playerResources?.[myPlayer]?.researchedTechnologies || [];
   },
 
+  /**
+   * IAArchipielago._hasTech
+   * Proposito: Evalua una condicion booleana usada por reglas de decision.
+   * Entradas: myPlayer, techId.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _hasTech(myPlayer, techId) {
     return this._getPlayerTechs(myPlayer).includes(techId);
   },
 
+  /**
+   * IAArchipielago._canAffordTech
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer, techId.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _canAffordTech(myPlayer, techId) {
     const tech = TECHNOLOGY_TREE_DATA?.[techId];
     const res = gameState.playerResources?.[myPlayer];
@@ -6005,6 +7307,14 @@ const IAArchipielago = {
     return Object.keys(tech.cost || {}).every(key => (res[key] || 0) >= tech.cost[key]);
   },
 
+  /**
+   * IAArchipielago._requestResearchTech
+   * Proposito: Encapsula una accion de juego con validaciones, trazabilidad y confirmacion de aplicacion.
+   * Entradas: myPlayer, techId.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: entidades objetivo resueltas y API de accion correspondiente disponible.
+   * Fallos comunes: accion rechazada por validaciones, cooldown o ausencia de API de ejecucion.
+   */
   _requestResearchTech(myPlayer, techId) {
     if (!TECHNOLOGY_TREE_DATA?.[techId]) return false;
 
@@ -6032,6 +7342,14 @@ const IAArchipielago = {
     return false;
   },
 
+  /**
+   * IAArchipielago._ensureTech
+   * Proposito: Garantiza una precondicion estrategica; intenta corregirla si falta.
+   * Entradas: myPlayer, techId.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _ensureTech(myPlayer, techId) {
     if (this._hasTech(myPlayer, techId)) return true;
     if (this._canAffordTech(myPlayer, techId)) {
@@ -6043,6 +7361,14 @@ const IAArchipielago = {
     return false;
   },
 
+  /**
+   * IAArchipielago._investResearch
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer, preferredTechs, maxCount = 3.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _investResearch(myPlayer, preferredTechs, maxCount = 3) {
     let researched = 0;
     const techs = this._getPlayerTechs(myPlayer);
@@ -6079,11 +7405,27 @@ const IAArchipielago = {
     return researched;
   },
 
+  /**
+   * IAArchipielago._ensureActiveCommanders
+   * Proposito: Garantiza una precondicion estrategica; intenta corregirla si falta.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _ensureActiveCommanders(myPlayer) {
     if (!gameState.activeCommanders) gameState.activeCommanders = {};
     if (!gameState.activeCommanders[myPlayer]) gameState.activeCommanders[myPlayer] = [];
   },
 
+  /**
+   * IAArchipielago._selectCommanderId
+   * Proposito: Selecciona el mejor candidato segun heuristicas de prioridad/distancia.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _selectCommanderId(myPlayer) {
     this._ensureActiveCommanders(myPlayer);
     const active = gameState.activeCommanders[myPlayer];
@@ -6125,6 +7467,14 @@ const IAArchipielago = {
     return null;
   },
 
+  /**
+   * IAArchipielago._getArmyComposition
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: myPlayer, regimentsPerDivision = 3, targetCity = null.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getArmyComposition(myPlayer, regimentsPerDivision = 3, targetCity = null) {
     const techs = this._getPlayerTechs(myPlayer);
     const hasHeavy = techs.includes('DRILL_TACTICS') && REGIMENT_TYPES['Infantería Pesada'];
@@ -6140,6 +7490,14 @@ const IAArchipielago = {
     return composition;
   },
 
+  /**
+   * IAArchipielago._producirDivisiones
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer, targetDivisions = 5, regimentsPerDivision = 3, targetCity = null.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _producirDivisiones(myPlayer, targetDivisions = 5, regimentsPerDivision = 3, targetCity = null) {
     if (typeof AiGameplayManager === 'undefined' || !AiGameplayManager.produceUnit) return 0;
     let created = 0;
@@ -6154,6 +7512,14 @@ const IAArchipielago = {
     return created;
   },
 
+  /**
+   * IAArchipielago._startFortressPressure
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer, spot.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _startFortressPressure(myPlayer, spot) {
     if (!gameState.aiFortressPressure) gameState.aiFortressPressure = {};
     // Si ya hay un plan, ampliar objetivo
@@ -6175,6 +7541,14 @@ const IAArchipielago = {
     console.log(`[IA_ARCHIPIELAGO] Iniciando plan de presión por fortaleza para jugador ${myPlayer} en (${spot.r},${spot.c})`);
   },
 
+  /**
+   * IAArchipielago._pressureProduceForFortress
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _pressureProduceForFortress(myPlayer) {
     const plan = (gameState.aiFortressPressure || {})[myPlayer];
     if (!plan) return false;
@@ -6209,6 +7583,14 @@ const IAArchipielago = {
     return false;
   },
 
+  /**
+   * IAArchipielago._findClosestUnitToTarget
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer, target.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _findClosestUnitToTarget(myPlayer, target) {
     const myUnits = IASentidos.getUnits(myPlayer);
     if (!myUnits.length) return null;
@@ -6223,6 +7605,14 @@ const IAArchipielago = {
     });
   },
 
+  /**
+   * IAArchipielago._findNearestCityTarget
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _findNearestCityTarget(myPlayer) {
     const cities = gameState.cities || [];
     const neutral = cities.filter(c => c.owner === null || c.isBarbarianCity);
@@ -6232,6 +7622,14 @@ const IAArchipielago = {
     return enemyCities[0] || null;
   },
 
+  /**
+   * IAArchipielago._ejecutarRutaMasRiqueza
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarRutaMasRiqueza(situacion) {
     const { myPlayer, hexesPropios, economia, ciudades } = situacion;
     this._ejecutarRutaLarga(situacion);
@@ -6244,6 +7642,14 @@ const IAArchipielago = {
     return { action: 'economia_expandida', executed: true };
   },
 
+  /**
+   * IAArchipielago._ejecutarRutaEjercitoGrande
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarRutaEjercitoGrande(situacion) {
     const { myPlayer } = situacion;
     const created = this._producirDivisiones(myPlayer, 5, 3);
@@ -6253,6 +7659,14 @@ const IAArchipielago = {
     return { action: 'produccion_ejercito', executed: false, reason: 'sin_recursos_o_espacio' };
   },
 
+  /**
+   * IAArchipielago._ejecutarRutaMasAvances
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarRutaMasAvances(situacion) {
     const { myPlayer } = situacion;
     const preferred = ['LEADERSHIP', 'DRILL_TACTICS', 'ENGINEERING', 'RECONNAISSANCE', 'NAVIGATION', 'FORTIFICATIONS'];
@@ -6263,6 +7677,14 @@ const IAArchipielago = {
     return { action: 'investigar', executed: false, reason: 'sin_puntos_o_prerrequisitos' };
   },
 
+  /**
+   * IAArchipielago._ejecutarRutaMasCiudades
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarRutaMasCiudades(situacion) {
     const { myPlayer } = situacion;
     this.conquistarCiudadesBarbaras(myPlayer, IASentidos.getUnits(myPlayer));
@@ -6277,10 +7699,26 @@ const IAArchipielago = {
     return { action: 'expandir_ciudades', executed: false, reason: 'sin_unidades' };
   },
 
+  /**
+   * IAArchipielago._ejecutarRutaMasVictorias
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarRutaMasVictorias(situacion) {
     return this._ejecutarPresionMilitar(situacion, 'buscar_batallas');
   },
 
+  /**
+   * IAArchipielago._ejecutarRutaMasHeroes
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarRutaMasHeroes(situacion) {
     const { myPlayer } = situacion;
     const hasLeadership = this._ensureTech(myPlayer, 'LEADERSHIP');
@@ -6314,6 +7752,14 @@ const IAArchipielago = {
     return { action: 'heroes', executed: true, note: commanderId };
   },
 
+  /**
+   * IAArchipielago._buildIdealVillages
+   * Proposito: Construye un plan o estructura intermedia para una decision posterior.
+   * Entradas: myPlayer, hexesPropios = [].
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _buildIdealVillages(myPlayer, hexesPropios = []) {
     const turn = Number(gameState.turnNumber || 0);
     const minTurn = Math.max(3, Number(this.INFRA_FIX_START_TURN) || 3);
@@ -6354,6 +7800,14 @@ const IAArchipielago = {
     return built;
   },
 
+  /**
+   * IAArchipielago._ejecutarRutaMasComercios
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarRutaMasComercios(situacion) {
     const existingRouteKeys = this._getExistingTradeRouteKeys(situacion.myPlayer);
     const candidate = this._findBestTradeCityPair(this._getTradeCityCandidates(situacion.myPlayer), situacion.myPlayer, existingRouteKeys);
@@ -6364,6 +7818,14 @@ const IAArchipielago = {
     return { action: 'comercios', executed: true };
   },
 
+  /**
+   * IAArchipielago._ejecutarRutaGranArqueologo
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarRutaGranArqueologo(situacion) {
     const { myPlayer } = situacion;
     const hasRecon = this._ensureTech(myPlayer, 'RECONNAISSANCE');
@@ -6414,6 +7876,14 @@ const IAArchipielago = {
     return { action: 'explorar_ruinas', executed: false, reason: 'sin_movimiento' };
   },
 
+  /**
+   * IAArchipielago._ejecutarRutaConquistadorBarbaro
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarRutaConquistadorBarbaro(situacion) {
     const { myPlayer } = situacion;
     this.conquistarCiudadesBarbaras(myPlayer, IASentidos.getUnits(myPlayer));
@@ -6428,6 +7898,14 @@ const IAArchipielago = {
     return { action: 'conquista_barbara', executed: false, reason: 'sin_unidades' };
   },
 
+  /**
+   * IAArchipielago._forceExplorerRuinsAction
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _forceExplorerRuinsAction(myPlayer) {
     const ruins = this._getUnexploredRuins();
     if (!ruins.length) return 0;
@@ -6494,6 +7972,14 @@ const IAArchipielago = {
     return actions;
   },
 
+  /**
+   * IAArchipielago._ejecutarRutaAlmiranteSupremo
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarRutaAlmiranteSupremo(situacion) {
     const { myPlayer } = situacion;
     const hasNavigation = this._ensureTech(myPlayer, 'NAVIGATION');
@@ -6521,6 +8007,14 @@ const IAArchipielago = {
     return { action: 'naval', executed: false, reason: 'sin_objetivos' };
   },
 
+  /**
+   * IAArchipielago._executeEasyVictoryPointOpportunities
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _executeEasyVictoryPointOpportunities(situacion) {
     const myPlayer = situacion?.myPlayer;
     if (!myPlayer) return;
@@ -6546,6 +8040,14 @@ const IAArchipielago = {
     });
   },
 
+  /**
+   * IAArchipielago._forceHeroProgressWhenPossible
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _forceHeroProgressWhenPossible(situacion) {
     const myPlayer = situacion?.myPlayer;
     if (!myPlayer) return false;
@@ -6582,6 +8084,14 @@ const IAArchipielago = {
     return !!heroResult?.executed;
   },
 
+  /**
+   * IAArchipielago._ejecutarRutaCapital
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarRutaCapital(situacion) {
     const { myPlayer } = situacion;
     const enemyPlayer = this._getEnemyPlayerId(myPlayer);
@@ -6596,10 +8106,26 @@ const IAArchipielago = {
     return { action: 'evaluar_capital', executed: false, reason: 'sin_unidades' };
   },
 
+  /**
+   * IAArchipielago._ejecutarRutaAniquilacion
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarRutaAniquilacion(situacion) {
     return this._ejecutarPresionMilitar(situacion, 'aniquilacion');
   },
 
+  /**
+   * IAArchipielago._ejecutarRutaGloria
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarRutaGloria(situacion) {
     const combat = this._ejecutarPresionMilitar(situacion, 'gloria');
     const ruins = this._ejecutarRutaGranArqueologo(situacion);
@@ -6614,6 +8140,14 @@ const IAArchipielago = {
     };
   },
 
+  /**
+   * IAArchipielago._ejecutarPresionMilitar
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion, reason.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarPresionMilitar(situacion, reason) {
     const { myPlayer } = situacion;
     const enemyUnits = IASentidos.getEnemyUnits(myPlayer).slice().sort((a, b) => (a.regiments?.length || 0) - (b.regiments?.length || 0));
@@ -6637,6 +8171,14 @@ const IAArchipielago = {
     return { action: 'presion_militar', executed: true, note: reason };
   },
 
+  /**
+   * IAArchipielago._ejecutarRutaSabotaje
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarRutaSabotaje(situacion) {
     const { myPlayer } = situacion;
     const targets = this._collectSabotageTargets(myPlayer);
@@ -6664,6 +8206,14 @@ const IAArchipielago = {
       : { action: 'sabotaje', executed: false, reason: 'sin_movimiento' };
   },
 
+  /**
+   * IAArchipielago._ejecutarRutaCortarSuministro
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarRutaCortarSuministro(situacion) {
     const { myPlayer } = situacion;
     const targets = this._collectSupplyCutTargets(myPlayer, this.CUT_SUPPLY_MAX_TARGETS);
@@ -6686,6 +8236,14 @@ const IAArchipielago = {
       : { action: 'cortar_suministro', executed: false, reason: 'sin_movimiento' };
   },
 
+  /**
+   * IAArchipielago._ejecutarRutaDominarCasillas
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarRutaDominarCasillas(situacion) {
     const { myPlayer } = situacion;
     const enemyPlayers = this._getEnemyPlayerIds(myPlayer);
@@ -6719,6 +8277,14 @@ const IAArchipielago = {
       : { action: 'dominar_casillas', executed: false, reason: 'sin_movimiento' };
   },
 
+  /**
+   * IAArchipielago._ejecutarRutaFrenteHumano
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarRutaFrenteHumano(situacion) {
     const { myPlayer, ciudades } = situacion;
     const enemyUnits = IASentidos.getEnemyUnits(myPlayer);
@@ -6747,6 +8313,14 @@ const IAArchipielago = {
       : { action: 'frente_humano', executed: false, reason: 'sin_movimiento' };
   },
 
+  /**
+   * IAArchipielago._ejecutarRutaCazaEnvolvente
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarRutaCazaEnvolvente(situacion) {
     const { myPlayer } = situacion;
     const enemyUnits = IASentidos.getEnemyUnits(myPlayer)
@@ -6770,6 +8344,14 @@ const IAArchipielago = {
     return { action: 'caza_envolvente', executed: true, note: `${target.r},${target.c}` };
   },
 
+  /**
+   * IAArchipielago._crearUnidadNaval
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer, unitType.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _crearUnidadNaval(myPlayer, unitType) {
     if (!REGIMENT_TYPES?.[unitType]) return null;
     if (typeof AiGameplayManager === 'undefined' || !AiGameplayManager.createUnitObject) return null;
@@ -6807,6 +8389,14 @@ const IAArchipielago = {
     return newUnit;
   },
 
+  /**
+   * IAArchipielago._getCorridorOccupationAssignments
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getCorridorOccupationAssignments(myPlayer) {
     if (typeof IASentidos === 'undefined' || typeof IASentidos.getNearestCorridorMissionForUnit !== 'function') {
       return [];
@@ -6829,6 +8419,14 @@ const IAArchipielago = {
       .sort((a, b) => a.score - b.score);
   },
 
+  /**
+   * IAArchipielago._getCorridorOccupationPressure
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getCorridorOccupationPressure(myPlayer) {
     const assignments = this._getCorridorOccupationAssignments(myPlayer);
     if (!assignments.length) {
@@ -6845,6 +8443,14 @@ const IAArchipielago = {
     };
   },
 
+  /**
+   * IAArchipielago._executeCorridorOccupationMission
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _executeCorridorOccupationMission(myPlayer) {
     const assignments = this._getCorridorOccupationAssignments(myPlayer);
     if (!assignments.length) return 0;
@@ -6872,6 +8478,14 @@ const IAArchipielago = {
     return actions;
   },
 
+  /**
+   * IAArchipielago._canAffordRoadResources
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _canAffordRoadResources(myPlayer) {
     const res = gameState.playerResources?.[myPlayer] || {};
     const roadCost = STRUCTURE_TYPES?.Camino?.cost || {};
@@ -6880,6 +8494,14 @@ const IAArchipielago = {
     return (res.piedra || 0) >= piedraReq && (res.madera || 0) >= maderaReq;
   },
 
+  /**
+   * IAArchipielago._getPriorityRoadInfrastructureMissions
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getPriorityRoadInfrastructureMissions(myPlayer) {
     const roadPlan = this._getRoadNetworkPlan(myPlayer, this._getTradeCityCandidates(myPlayer));
     const conexiones = roadPlan?.connections || [];
@@ -6909,6 +8531,14 @@ const IAArchipielago = {
       .sort((a, b) => a.score - b.score);
   },
 
+  /**
+   * IAArchipielago._getPriorityRoadInfrastructurePressure
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getPriorityRoadInfrastructurePressure(myPlayer) {
     const missions = this._getPriorityRoadInfrastructureMissions(myPlayer);
     const canAffordNow = this._canAffordRoadResources(myPlayer) && this._canAffordStructure(myPlayer, 'Camino');
@@ -6925,6 +8555,14 @@ const IAArchipielago = {
     };
   },
 
+  /**
+   * IAArchipielago._executePriorityRoadInfrastructureMission
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _executePriorityRoadInfrastructureMission(myPlayer) {
     const missions = this._getPriorityRoadInfrastructureMissions(myPlayer);
     if (!missions.length) return 0;
@@ -6951,6 +8589,14 @@ const IAArchipielago = {
     return builds;
   },
 
+  /**
+   * IAArchipielago._getEarlyStoneHillsAssignments
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: myPlayer, maxAssignments = 1.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getEarlyStoneHillsAssignments(myPlayer, maxAssignments = 1) {
     const resources = gameState.playerResources?.[myPlayer] || {};
     const stone = resources.piedra || 0;
@@ -7004,6 +8650,14 @@ const IAArchipielago = {
     return assignments;
   },
 
+  /**
+   * IAArchipielago._getEarlyStoneHillsPressure
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getEarlyStoneHillsPressure(myPlayer) {
     const assignments = this._getEarlyStoneHillsAssignments(myPlayer, 1);
     if (!assignments.length) {
@@ -7023,6 +8677,14 @@ const IAArchipielago = {
     };
   },
 
+  /**
+   * IAArchipielago._buildPointSupremacyContext
+   * Proposito: Construye un plan o estructura intermedia para una decision posterior.
+   * Entradas: situacion, myMetrics = {}, enemyMetrics = {}, rutaLargaMeta = {}.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _buildPointSupremacyContext(situacion, myMetrics = {}, enemyMetrics = {}, rutaLargaMeta = {}) {
     const turn = Number(gameState.turnNumber || 0);
     const startTurn = Math.max(1, Number(this.POINT_SUPREMACY_RUSH_START_TURN) || 4);
@@ -7051,6 +8713,14 @@ const IAArchipielago = {
     };
   },
 
+  /**
+   * IAArchipielago._applyPointSupremacyWeights
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: rutas, context.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _applyPointSupremacyWeights(rutas, context) {
     if (!context?.active || !Array.isArray(rutas)) return rutas;
 
@@ -7110,6 +8780,14 @@ const IAArchipielago = {
     });
   },
 
+  /**
+   * IAArchipielago._executeEarlyStoneHillsMission
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: myPlayer.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _executeEarlyStoneHillsMission(myPlayer) {
     const assignments = this._getEarlyStoneHillsAssignments(myPlayer, 1);
     if (!assignments.length) return 0;
@@ -7134,6 +8812,14 @@ const IAArchipielago = {
     return actions;
   },
 
+  /**
+   * IAArchipielago._evaluarRutasDeVictoria
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _evaluarRutasDeVictoria(situacion) {
     const { myPlayer, ciudades } = situacion;
     const enemyPlayer = this._getEnemyPlayerId(myPlayer);
@@ -7326,6 +9012,14 @@ const IAArchipielago = {
     return normalizedRoutes;
   },
 
+  /**
+   * IAArchipielago._evaluarRutaLarga
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: situacion, myMetrics, enemyMetrics, holders.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _evaluarRutaLarga(situacion, myMetrics, enemyMetrics, holders) {
     const { myPlayer } = situacion;
     const enemyPlayer = this._getEnemyPlayerId(myPlayer);
@@ -7376,6 +9070,14 @@ const IAArchipielago = {
     };
   },
 
+  /**
+   * IAArchipielago._collectVictoryMetrics
+   * Proposito: Recolecta y normaliza candidatos/objetivos para decisiones IA.
+   * Entradas: playerNumber.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _collectVictoryMetrics(playerNumber) {
     const pKey = `player${playerNumber}`;
     const res = gameState.playerResources[playerNumber] || {};
@@ -7402,6 +9104,14 @@ const IAArchipielago = {
     };
   },
 
+  /**
+   * IAArchipielago._logRutasDeVictoria
+   * Proposito: Emite logs estructurados para auditoria y depuracion.
+   * Entradas: rutas.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: evento/payload serializable para log JSON.
+   * Fallos comunes: supresion por filtros de ruido o payload no serializable.
+   */
   _logRutasDeVictoria(rutas) {
     if (!rutas || rutas.length === 0) return;
 
@@ -7420,7 +9130,18 @@ const IAArchipielago = {
     console.log(`========================================\n`);
   },
 
+  /**
+   * IAArchipielago._procesarRutasDeVictoria
+   * Proposito: Procesa un conjunto de tareas/objetivos y aplica reglas de filtro.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _procesarRutasDeVictoria(situacion) {
+    // Ejecuta rutas ordenadas por peso con limites duros por turno/tiempo.
+    // Objetivo: balancear ambicion estrategica con estabilidad operativa.
+    // Si una ruta no aplica, se diagnostica y se continua con la siguiente.
     const rutas = situacion.rutas || [];
     if (!rutas.length) return;
 
@@ -7479,7 +9200,25 @@ const IAArchipielago = {
     }
   },
 
+  /**
+   * IAArchipielago._ejecutarAccionPorRuta
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: ruta, situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarAccionPorRuta(ruta, situacion) {
+    // Dispatcher central de rutas.
+    // Cada case debe devolver un objeto uniforme:
+    // { action, executed, reason?, note? }
+    // para que _procesarRutasDeVictoria pueda loguear y contabilizar sin
+    // conocer detalles internos de cada subsistema.
+    //
+    // Recomendacion al extender:
+    // - agregar nueva ruta en _evaluarRutasDeVictoria
+    // - agregar case aqui
+    // - mantener id estable para analitica/historico de logs
     const { myPlayer } = situacion;
     const blockedByCityPriority = new Set([
       'ruta_aniquilacion',
@@ -7568,6 +9307,14 @@ const IAArchipielago = {
     }
   },
 
+  /**
+   * IAArchipielago._diagnosticarRutaNoEjecutable
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: ruta, situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _diagnosticarRutaNoEjecutable(ruta, situacion) {
     const meta = ruta.meta || {};
     switch (ruta.id) {
@@ -7618,12 +9365,28 @@ const IAArchipielago = {
     }
   },
 
+  /**
+   * IAArchipielago._minUnitDistance
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer, target.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _minUnitDistance(myPlayer, target) {
     const myUnits = IASentidos.getUnits(myPlayer);
     if (!myUnits.length) return 99;
     return myUnits.reduce((min, unit) => Math.min(min, hexDistance(unit.r, unit.c, target.r, target.c)), 99);
   },
 
+  /**
+   * IAArchipielago._estimateLocalPowerRatio
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: myPlayer, target, radius = 5.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _estimateLocalPowerRatio(myPlayer, target, radius = 5) {
     const enemyPlayer = this._getEnemyPlayerId(myPlayer);
     if (enemyPlayer == null) return 1;
@@ -7634,6 +9397,14 @@ const IAArchipielago = {
     return (myRegs + 1) / (enemyRegs + 1);
   },
 
+  /**
+   * IAArchipielago._findRoadConnection
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: cityA, cityB, myPlayer, allowedOwners.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _findRoadConnection(cityA, cityB, myPlayer, allowedOwners) {
     if (!cityA || !cityB) return null;
     const roadBuildable = STRUCTURE_TYPES['Camino']?.buildableOn || [];
@@ -7666,6 +9437,14 @@ const IAArchipielago = {
     return { landPath, missingOwnedSegments, pendingCaptureSegments };
   },
 
+  /**
+   * IAArchipielago._prioritizeBuildableRoadSegments
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: connection.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _prioritizeBuildableRoadSegments(connection) {
     const landPath = Array.isArray(connection?.landPath) ? connection.landPath : [];
     const missingOwnedSegments = Array.isArray(connection?.missingOwnedSegments) ? connection.missingOwnedSegments : [];
@@ -7725,6 +9504,14 @@ const IAArchipielago = {
     return ordered;
   },
 
+  /**
+   * IAArchipielago._findRoadBuildPath
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: { myPlayer, start, goal, allowedOwners, roadBuildable }.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _findRoadBuildPath({ myPlayer, start, goal, allowedOwners, roadBuildable }) {
     if (!start || !goal) return null;
     const startKey = `${start.r},${start.c}`;
@@ -7780,6 +9567,14 @@ const IAArchipielago = {
     return path;
   },
 
+  /**
+   * IAArchipielago._roadPathStepCost
+   * Proposito: Gestiona una parte del comportamiento IA dentro del objeto IAArchipielago.
+   * Entradas: hex, myPlayer, isEndpoint = false.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado global inicializado (gameState, board, units) y dependencias opcionales verificadas.
+   * Fallos comunes: salida neutra por precondiciones incumplidas o datos faltantes.
+   */
   _roadPathStepCost(hex, myPlayer, isEndpoint = false) {
     if (!hex) return 999;
     if (isEndpoint || hex.isCity) return 0.1;
@@ -7807,6 +9602,14 @@ const IAArchipielago = {
     return Math.max(0.05, cost);
   },
 
+  /**
+   * IAArchipielago._getRoadNetworkPlan
+   * Proposito: Obtiene estado derivado o datos auxiliares sin aplicar accion directa.
+   * Entradas: myPlayer, ciudades.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: colecciones de entrada inicializadas (board, units, cities, resources).
+   * Fallos comunes: retorno vacio por falta de datos o filtros estrictos.
+   */
   _getRoadNetworkPlan(myPlayer, ciudades) {
     const ownCities = (ciudades || []).filter(c => c && c.owner === myPlayer);
     const connections = [];
@@ -7912,6 +9715,14 @@ const IAArchipielago = {
     return best;
   },
 
+  /**
+   * IAArchipielago._ejecutarRutaLarga
+   * Proposito: Ejecuta una subrutina estrategica/tactica dentro del turno IA.
+   * Entradas: situacion.
+   * Efectos: puede leer/escribir gameState, board, units, misiones y emitir logs/metricas.
+   * Precondiciones: estado de tablero consistente y datos de situacion calculados.
+   * Fallos comunes: sin candidatos/objetivos, sin unidades disponibles o guardas de seguridad activas.
+   */
   _ejecutarRutaLarga(situacion) {
     const { myPlayer } = situacion;
     this._metricLog('IA_COMMERCIAL_CONTROLLER_START', {
