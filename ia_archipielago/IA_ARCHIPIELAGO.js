@@ -478,6 +478,9 @@ const IAArchipielago = {
         return;
       }
 
+      // Lock duro de exploradores desde inicio de turno.
+      this._lockAllExplorersForTurn(myPlayer);
+
       // Antes de planificar construcciones, intentar liberar casillas que quedaron bloqueadas el turno anterior.
       this._procesarDesbloqueoConstruccionesPendientes(myPlayer);
 
@@ -631,6 +634,7 @@ const IAArchipielago = {
             .filter(u => u && u.currentHealth > 0)
             .filter(u => !u.hasMoved && (u.currentMovement || u.movement || 0) > 0)
             .filter(u => this._isLandUnit(u))
+            .filter(u => !this._isExplorerUnit(u))
             .filter(u => occupationMode === 'bootstrap' ? true : !this._isCorridorPioneer(u))
             .sort((a, b) => hexDistance(a.r, a.c, obj.r, obj.c) - hexDistance(b.r, b.c, obj.r, obj.c))
             .find(u => !!this._findPathForUnit(u, obj.r, obj.c));
@@ -1148,8 +1152,6 @@ const IAArchipielago = {
     const { amenazas, frente, recursos: recursosEnHexes } = situacion;
     const unidadesEnemigas = IASentidos.getEnemyUnits(myPlayer);
     const enemyProfile = situacion.enemyProfile;
-    const ruins = this._getUnexploredRuins();
-    const canExploreRuins = ruins.length > 0 && this._ensureTech(myPlayer, 'RECONNAISSANCE');
     const supplyCutTargets = this._collectSupplyCutTargets(myPlayer, this.CUT_SUPPLY_MAX_TARGETS);
     const sabotageTargets = this._collectSabotageTargets(myPlayer);
 
@@ -1163,22 +1165,9 @@ const IAArchipielago = {
       if (!unit.currentMovement || unit.currentMovement <= 0) continue;
       if (unit.iaExpeditionTarget) continue;
       if (huntAssignments.has(unit.id)) continue;
+      if (this._isExplorerUnit(unit)) continue;
 
       let objetivo = null;
-
-      // PRIORIDAD 0: Explorar ruinas con exploradores
-      const hasExplorer = unit.regiments?.some(reg => reg.type === 'Explorador');
-      if (hasExplorer && canExploreRuins) {
-        const ruinTarget = this._pickObjective(ruins, unit, myPlayer);
-        if (ruinTarget) {
-          if (unit.r === ruinTarget.r && unit.c === ruinTarget.c) {
-            this._requestExploreRuins(unit);
-            continue;
-          }
-          objetivo = ruinTarget;
-          console.log(`[IA_ARCHIPIELAGO] ${unit.name}: Ruina objetivo en (${objetivo.r},${objetivo.c})`);
-        }
-      }
 
       // PRIORIDAD 1: Cazar divisiones ligeras si el enemigo se expande en regimientos sueltos
       if (enemyProfile?.mode === 'spread_small' && unidadesEnemigas.length > 0) {
@@ -1948,6 +1937,15 @@ const IAArchipielago = {
     if (!unit || !this._isExplorerUnit(unit)) return;
     const st = this._getExplorerTurnLockState(unit.player);
     st.lockedExplorerIds.add(unit.id);
+  },
+
+  _lockAllExplorersForTurn(playerId) {
+    const myUnits = IASentidos.getUnits(playerId) || [];
+    for (const unit of myUnits) {
+      if (this._isExplorerUnit(unit)) {
+        this._lockExplorerForTurn(unit);
+      }
+    }
   },
 
   _isExplorerLockedForTurn(unit) {
@@ -5084,7 +5082,6 @@ const IAArchipielago = {
       return 0;
     }
 
-    const hasRecon = this._ensureTech(myPlayer, 'RECONNAISSANCE');
     for (const explorer of explorers) {
       if (actions >= maxActions) break;
       let progressed = false;
@@ -5114,7 +5111,7 @@ const IAArchipielago = {
           reason: 'DEDICATED_EXPLORER_CIRCUIT'
         });
 
-        if (explorer.r === ruinTarget.r && explorer.c === ruinTarget.c && hasRecon) {
+        if (explorer.r === ruinTarget.r && explorer.c === ruinTarget.c) {
           if (this._requestExploreRuins(explorer)) {
             actions += 1;
             progressed = true;
