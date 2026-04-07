@@ -260,47 +260,41 @@ const UIManager = {
     // En uiUpdates.js
 
     highlightPossibleActions: function(unit) {
-        // Llama al método centralizado de limpieza.
-        this.clearHighlights(); 
-
+        this.clearHighlights();
         if (!unit || !board || board.length === 0) return;
 
-        // Recorre el tablero
-        for (let r_idx = 0; r_idx < board.length; r_idx++) {
-            for (let c_idx = 0; c_idx < board[0].length; c_idx++) {
+        const movement = Math.max(0, Number(unit.currentMovement || unit.movement || 0));
+        const actionRadius = Math.max(2, Math.ceil(movement) + 2);
+        const rowStart = Math.max(0, unit.r - actionRadius);
+        const rowEnd = Math.min(board.length - 1, unit.r + actionRadius);
+        const colStart = Math.max(0, unit.c - actionRadius);
+        const colEnd = Math.min((board[0]?.length || 0) - 1, unit.c + actionRadius);
+        if (!this._highlightedHexes) this._highlightedHexes = new Set();
+
+        for (let r_idx = rowStart; r_idx <= rowEnd; r_idx++) {
+            for (let c_idx = colStart; c_idx <= colEnd; c_idx++) {
                 const hexData = board[r_idx]?.[c_idx];
                 if (!hexData || !hexData.element) continue;
+                if (typeof hexDistance === 'function' && hexDistance(unit.r, unit.c, r_idx, c_idx) > actionRadius) continue;
 
-                // Ignorar niebla de guerra
-                if (gameState.currentPhase === "play" && hexData.visibility?.[`player${gameState.currentPlayer}`] === 'hidden') {
-                    continue;
-                }
+                if (gameState.currentPhase === 'play' && hexData.visibility?.[`player${gameState.currentPlayer}`] === 'hidden') continue;
 
-                // 1. MOVIMIENTO
                 if (gameState.currentPhase === 'play' && !unit.hasMoved && unit.currentMovement > 0) {
                     if (isValidMove(unit, r_idx, c_idx)) {
-                        
-                        // --- NUEVA LÓGICA: PREDICCIÓN DE SUMINISTRO ---
-                        // Comprobamos si la casilla destino tendría suministro si nos movemos allí.
-                        // Pasamos el ID del jugador de la unidad.
                         const hasSupply = isHexSupplied(r_idx, c_idx, unit.player);
-
                         if (hasSupply) {
-                            // Movimiento seguro (Verde)
                             hexData.element.classList.add('highlight-move');
                         } else {
-                            // Movimiento peligroso (Rojo - Sin Suministro)
                             hexData.element.classList.add('highlight-danger');
-                            // Opcional: Añadir un tooltip o título para explicar por qué es rojo
-                            // hexData.element.title = "¡PELIGRO! Sin Suministro"; 
                         }
+                        this._highlightedHexes.add(hexData.element);
                     }
                 }
 
-                // 2. ATAQUE (Sin cambios)
                 const targetUnitOnHex = getUnitOnHex(r_idx, c_idx);
                 if (gameState.currentPhase === 'play' && !unit.hasAttacked && targetUnitOnHex && targetUnitOnHex.player !== unit.player && isValidAttack(unit, targetUnitOnHex)) {
                     hexData.element.classList.add('highlight-attack');
+                    this._highlightedHexes.add(hexData.element);
                 }
             }
         }
@@ -308,8 +302,16 @@ const UIManager = {
 
     // Y TAMBIÉN NECESITAMOS ACTUALIZAR `clearHighlights` PARA LIMPIAR LA NUEVA CLASE
     clearHighlights: function() {
+        if (this._highlightedHexes && this._highlightedHexes.size > 0) {
+            this._highlightedHexes.forEach(h => {
+                if (!h || !h.classList) return;
+                h.classList.remove('highlight-move', 'highlight-attack', 'highlight-build', 'highlight-place', 'highlight-danger');
+            });
+            this._highlightedHexes.clear();
+            return;
+        }
+
         if (board && board.length > 0) {
-            // Añadimos .highlight-danger a la lista de limpieza
             document.querySelectorAll('.hex.highlight-move, .hex.highlight-attack, .hex.highlight-build, .hex.highlight-place, .hex.highlight-danger').forEach(h => {
                 h.classList.remove('highlight-move', 'highlight-attack', 'highlight-build', 'highlight-place', 'highlight-danger');
             });
@@ -319,6 +321,7 @@ const UIManager = {
     showTradeRouteOverlay: function(path = []) {
         this.clearTradeRouteOverlay();
         if (!Array.isArray(path) || path.length === 0) return;
+        if (!this._tradeRouteOverlayHexes) this._tradeRouteOverlayHexes = new Set();
 
         path.forEach((step, idx) => {
             const hexEl = board?.[step.r]?.[step.c]?.element;
@@ -326,10 +329,20 @@ const UIManager = {
             hexEl.classList.add('trade-route-overlay');
             if (idx === 0) hexEl.classList.add('trade-route-start');
             if (idx === path.length - 1) hexEl.classList.add('trade-route-end');
+            this._tradeRouteOverlayHexes.add(hexEl);
         });
     },
 
     clearTradeRouteOverlay: function() {
+        if (this._tradeRouteOverlayHexes && this._tradeRouteOverlayHexes.size > 0) {
+            this._tradeRouteOverlayHexes.forEach(h => {
+                if (!h || !h.classList) return;
+                h.classList.remove('trade-route-overlay', 'trade-route-start', 'trade-route-end');
+            });
+            this._tradeRouteOverlayHexes.clear();
+            return;
+        }
+
         document.querySelectorAll('.hex.trade-route-overlay, .hex.trade-route-start, .hex.trade-route-end').forEach(h => {
             h.classList.remove('trade-route-overlay', 'trade-route-start', 'trade-route-end');
         });
@@ -344,6 +357,7 @@ const UIManager = {
         this.clearSupplyLineOverlay();
         if (!unit || unit.tradeRoute) return; // las caravanas ya tienen su propio overlay
         if (typeof getSupplyPath !== 'function') return;
+        if (!this._supplyLineOverlayHexes) this._supplyLineOverlayHexes = new Set();
 
         const path = getSupplyPath(unit.r, unit.c, unit.player);
         if (!path || path.length < 2) return;
@@ -361,10 +375,20 @@ const UIManager = {
             if (!hexEl) return;
             hexEl.classList.add('supply-line-hex');
             if (isBroken) hexEl.classList.add('danger');
+            this._supplyLineOverlayHexes.add(hexEl);
         });
     },
 
     clearSupplyLineOverlay: function() {
+        if (this._supplyLineOverlayHexes && this._supplyLineOverlayHexes.size > 0) {
+            this._supplyLineOverlayHexes.forEach(h => {
+                if (!h || !h.classList) return;
+                h.classList.remove('supply-line-hex', 'danger');
+            });
+            this._supplyLineOverlayHexes.clear();
+            return;
+        }
+
         document.querySelectorAll('.hex.supply-line-hex').forEach(h => {
             h.classList.remove('supply-line-hex', 'danger');
         });
@@ -2545,6 +2569,24 @@ const UIManager = {
         }
         
         // Limpiar el interval de actualización de posición
+        if (this._radialUpdateInterval) {
+            if (this._radialUpdateUsingManager && typeof window !== 'undefined' && window.intervalManager) {
+                window.intervalManager.clearInterval(this._radialUpdateInterval);
+            } else {
+                clearInterval(this._radialUpdateInterval);
+            }
+            this._radialUpdateInterval = null;
+            this._radialUpdateUsingManager = false;
+        }
+        
+        const container = document.getElementById('radialMenuContainer');
+        if (container) {
+            container.style.display = 'none';
+            container.innerHTML = '';
+        }
+    },
+
+};
         if (this._radialUpdateInterval) {
             if (this._radialUpdateUsingManager && typeof window !== 'undefined' && window.intervalManager) {
                 window.intervalManager.clearInterval(this._radialUpdateInterval);

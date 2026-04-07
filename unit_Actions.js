@@ -741,6 +741,20 @@ function handleActionWithSelectedUnit(r_target, c_target, clickedUnitOnTargetHex
                 _executeMoveUnit(selectedUnit, r_target, c_target);
             }
             return true;
+        } else {
+            const targetHex = board[r_target]?.[c_target] || null;
+            const occupiedBy = getUnitOnHex(r_target, c_target);
+            const moveCost = getMovementCost(selectedUnit, selectedUnit.r, selectedUnit.c, r_target, c_target, false);
+            console.warn('[handleAction] Movimiento invalido a casilla vacia.', {
+                unitId: selectedUnit.id,
+                from: { r: selectedUnit.r, c: selectedUnit.c },
+                to: { r: r_target, c: c_target },
+                hasMoved: !!selectedUnit.hasMoved,
+                currentMovement: selectedUnit.currentMovement || 0,
+                terrain: targetHex?.terrain || null,
+                occupiedBy: occupiedBy ? (occupiedBy.name || occupiedBy.id) : null,
+                moveCost
+            });
         }
     }
     
@@ -999,12 +1013,15 @@ function getMovementCost(unit, r_start, c_start, r_target, c_target, isPotential
 
     // --- ZOC Block ---
     let ignoresRule = unit.regiments.every(reg => REGIMENT_TYPES[reg.type]?.abilities?.includes("Jump"));
+    const strictZocLockEnabled = !!(
+        (typeof GAMEPLAY_SEASON_CONFIG !== 'undefined' && GAMEPLAY_SEASON_CONFIG?.strictZocLock)
+    );
 
     const lockingEnemies = getHexNeighbors(r_start, c_start)
         .map(coords => getUnitOnHex(coords.r, coords.c))
         .filter(u => u && u.player !== unit.player);
 
-    if (!ignoresRule && lockingEnemies.length > 0) {
+    if (strictZocLockEnabled && !ignoresRule && lockingEnemies.length > 0) {
         const isAttackOrMerge = isPotentialMerge || (!!getUnitOnHex(r_target, c_target) && getUnitOnHex(r_target, c_target).player !== unit.player);
             
         if (!isAttackOrMerge) {
