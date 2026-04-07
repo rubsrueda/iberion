@@ -702,6 +702,7 @@ const IAArchipielago = {
       // 1) desalojar casillas de camino pendientes, 2) empujar conquistas de ciudad, 3) capturar hills rentables.
       const postCorridorMissionBudget = Math.max(2, Math.min(6, maxOccupationObjectives));
       this._executePostCorridorMissionLayer(myPlayer, { maxActions: postCorridorMissionBudget });
+      this._executeStrategicProtocolBundle(myPlayer, { phase: 'post_worm' });
 
       // --- 3. FLUJO 2: CONSTRUCCIÓN EXHAUSTIVA ---
       if (typeof this.construirInfraestructura === 'function') {
@@ -746,6 +747,7 @@ const IAArchipielago = {
       this._procesarRutasDeVictoria(situacion);
       this._forceHeroProgressWhenPossible(situacion);
       this._ensureMinimumCommercialAction(situacion);
+      this._executeStrategicProtocolBundle(myPlayer, { phase: 'post_routes' });
 
       // Plan de emergencia si no hubo progreso
       if (!this._didMakeProgressThisTurn(myPlayer, situacion.snapshotActividad)) {
@@ -4331,6 +4333,246 @@ const IAArchipielago = {
     }
 
     return captures;
+  },
+
+  _executeStrategicProtocolBundle(myPlayer, opts = {}) {
+    const phase = String(opts.phase || 'generic');
+    const totalLand = Array.isArray(board)
+      ? board.flat().filter(h => h && h.terrain !== 'water').length
+      : 0;
+    const ownLand = Array.isArray(board)
+      ? board.flat().filter(h => h && h.terrain !== 'water' && h.owner === myPlayer).length
+      : 0;
+    const neutralRatio = totalLand > 0 ? ((totalLand - ownLand) / totalLand) : 0;
+
+    let actions = 0;
+    actions += this._executeGiftCityCaptureProtocol(myPlayer, { maxActions: phase === 'post_routes' ? 3 : 2 });
+    actions += this._executeDedicatedExplorerProtocol(myPlayer, { maxActions: phase === 'post_routes' ? 2 : 1 });
+
+    const expansionActions = neutralRatio >= 0.55
+      ? this._executeLightExpansionProtocol(myPlayer, { maxActions: phase === 'post_routes' ? 4 : 2 })
+      : this._executeLightExpansionProtocol(myPlayer, { maxActions: 1 });
+    actions += expansionActions;
+
+    if (actions > 0) {
+      console.log(`[IA_ARCHIPIELAGO][PROTOCOLOS] J${myPlayer} fase=${phase} acciones=${actions} neutralRatio=${neutralRatio.toFixed(2)}`);
+    }
+
+    return actions;
+  },
+
+  _collectGiftCityTargets(myPlayer) {
+    const targets = [];
+    for (const c of (gameState.cities || [])) {
+      if (!c || c.owner === myPlayer) continue;
+      if (this._isBankCityByCoords(c.r, c.c)) continue;
+      if (getUnitOnHex(c.r, c.c)) continue;
+      targets.push({
+        r: c.r,
+        c: c.c,
+        priority: (c.owner != null && c.owner !== 9) ? 280 : 240,
+        name: c.name || 'Ciudad'
+      });
+    }
+    return targets;
+  },
+
+  _executeGiftCityCaptureProtocol(myPlayer, opts = {}) {
+    const maxActions = Math.max(1, Number(opts.maxActions || 2));
+    const targets = this._collectGiftCityTargets(myPlayer);
+    if (!targets.length) return 0;
+
+    let actions = 0;
+    const claimed = new Set();
+
+    while (actions < maxActions) {
+      const availableUnits = this._getAvailableMissionUnits(myPlayer);
+      if (!availableUnits.length) break;
+
+      let best = null;
+      for (const unit of availableUnits) {
+        for (const target of targets) {
+          const key = `${target.r},${target.c}`;
+          if (claimed.has(key)) continue;
+          if (!this._findPathForUnit(unit, target.r, target.c)) continue;
+          const dist = hexDistance(unit.r, unit.c, target.r, target.c);
+          const score = Number(target.priority || 0) - (dist * 14);
+          if (!best || score > best.score) best = { unit, target, score };
+        }
+      }
+
+      if (!best) break;
+
+      this._assignMissionIfAvailable(best.unit, {
+        type: 'GIFT_CITY_CAPTURE',
+        objective: { r: best.target.r, c: best.target.c },
+        reason: 'CITY_UNGUARDED_HIGH_VALUE'
+      });
+
+      const moved = this._requestMoveOrAttack(best.unit, best.target.r, best.target.c, {
+        missionType: this.MISSION_TYPE_CONQUEST_CITY
+      });
+      claimed.add(`${best.target.r},${best.target.c}`);
+      if (!moved) continue;
+
+      actions += 1;
+      this._importantLog('MISSION_ACTION_EXECUTED', {
+        playerId: myPlayer,
+        unitId: best.unit.id,
+        missionType: this.MISSION_TYPE_CONQUEST_CITY,
+        action: 'gift_city_capture_protocol',
+        objective: `${best.target.r},${best.target.c}`,
+        targetName: best.target.name || null,
+        result: 'success'
+      });
+    }
+
+    return actions;
+  },
+
+  _collectExpansionTargets(myPlayer) {
+    const targets = [];
+    if (!Array.isArray(board)) return targets;
+
+    for (const row of board) {
+      if (!Array.isArray(row)) continue;
+      for (const hex of row) {
+        if (!hex || hex.terrain === 'water') continue;
+        if (hex.owner !== null && hex.owner !== undefined) continue;
+        if (hex.isCity) continue;
+        if (getUnitOnHex(hex.r, hex.c)) continue;
+
+        const nearOwn = getHexNeighbors(hex.r, hex.c).some(n => board[n.r]?.[n.c]?.owner === myPlayer);
+        if (!nearOwn) continue;
+        targets.push({ r: hex.r, c: hex.c, priority: 120 });
+      }
+    }
+
+    return targets;
+  },
+
+  _executeLightExpansionProtocol(myPlayer, opts = {}) {
+    const maxActions = Math.max(1, Number(opts.maxActions || 2));
+    const targets = this._collectExpansionTargets(myPlayer);
+    if (!targets.length) return 0;
+
+    let actions = 0;
+    const claimed = new Set();
+
+    while (actions < maxActions) {
+      const availableUnits = this._getAvailableMissionUnits(myPlayer)
+        .filter(u => (u.regiments?.length || 0) <= 2)
+        .sort((a, b) => (a.regiments?.length || 0) - (b.regiments?.length || 0));
+      if (!availableUnits.length) break;
+
+      let best = null;
+      for (const unit of availableUnits) {
+        for (const target of targets) {
+          const key = `${target.r},${target.c}`;
+          if (claimed.has(key)) continue;
+          if (!this._findPathForUnit(unit, target.r, target.c)) continue;
+          const dist = hexDistance(unit.r, unit.c, target.r, target.c);
+          const score = Number(target.priority || 0) - (dist * 10) - ((unit.regiments?.length || 0) * 6);
+          if (!best || score > best.score) best = { unit, target, score };
+        }
+      }
+
+      if (!best) break;
+
+      this._assignMissionIfAvailable(best.unit, {
+        type: 'LIGHT_MAP_EXPANSION',
+        objective: { r: best.target.r, c: best.target.c },
+        reason: 'HIGH_NEUTRAL_MAP_CONTROL'
+      });
+
+      const moved = this._requestMoveOrAttack(best.unit, best.target.r, best.target.c, {
+        missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR
+      });
+      claimed.add(`${best.target.r},${best.target.c}`);
+      if (!moved) continue;
+
+      actions += 1;
+      this._importantLog('MISSION_ACTION_EXECUTED', {
+        playerId: myPlayer,
+        unitId: best.unit.id,
+        missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR,
+        action: 'light_map_expansion_protocol',
+        objective: `${best.target.r},${best.target.c}`,
+        result: 'success'
+      });
+    }
+
+    return actions;
+  },
+
+  _executeDedicatedExplorerProtocol(myPlayer, opts = {}) {
+    const maxActions = Math.max(1, Number(opts.maxActions || 1));
+    let actions = 0;
+
+    const ruins = this._getUnexploredRuins();
+    let explorers = (IASentidos.getUnits(myPlayer) || [])
+      .filter(u => u && u.currentHealth > 0)
+      .filter(u => !u.hasMoved && (u.currentMovement || 0) > 0)
+      .filter(u => u.regiments?.some(reg => reg.type === 'Explorador'));
+
+    if (!explorers.length && typeof AiGameplayManager !== 'undefined' && AiGameplayManager.produceUnit) {
+      const createdExplorer = AiGameplayManager.produceUnit(myPlayer, ['Explorador'], 'scout', 'Explorador Protocolo');
+      if (createdExplorer) {
+        explorers = (IASentidos.getUnits(myPlayer) || [])
+          .filter(u => u && u.currentHealth > 0)
+          .filter(u => !u.hasMoved && (u.currentMovement || 0) > 0)
+          .filter(u => u.regiments?.some(reg => reg.type === 'Explorador'));
+      }
+    }
+
+    if (!explorers.length) return 0;
+
+    const hasRecon = this._ensureTech(myPlayer, 'RECONNAISSANCE');
+    for (const explorer of explorers) {
+      if (actions >= maxActions) break;
+
+      const ruinTarget = ruins.length ? this._pickObjective(ruins, explorer, myPlayer) : null;
+      if (ruinTarget) {
+        this._assignMissionIfAvailable(explorer, {
+          type: 'EXPLORER_SPECIALIST_RUINS',
+          objective: { r: ruinTarget.r, c: ruinTarget.c },
+          reason: 'DEDICATED_EXPLORER_CIRCUIT'
+        });
+
+        if (explorer.r === ruinTarget.r && explorer.c === ruinTarget.c && hasRecon) {
+          if (this._requestExploreRuins(explorer)) {
+            actions += 1;
+          }
+          continue;
+        }
+
+        const movedToRuin = this._requestMoveOrAttack(explorer, ruinTarget.r, ruinTarget.c, {
+          missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR
+        });
+        if (movedToRuin) {
+          actions += 1;
+          continue;
+        }
+      }
+
+      const fallbackExpansion = this._collectExpansionTargets(myPlayer);
+      const fallbackTarget = fallbackExpansion.length ? this._pickObjective(fallbackExpansion, explorer, myPlayer) : null;
+      if (!fallbackTarget) continue;
+
+      this._assignMissionIfAvailable(explorer, {
+        type: 'EXPLORER_SPECIALIST_EXPANSION',
+        objective: { r: fallbackTarget.r, c: fallbackTarget.c },
+        reason: 'EXPLORER_FALLBACK_EXPANSION'
+      });
+
+      if (this._requestMoveOrAttack(explorer, fallbackTarget.r, fallbackTarget.c, {
+        missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR
+      })) {
+        actions += 1;
+      }
+    }
+
+    return actions;
   },
 
   _getAvailableMissionUnits(myPlayer) {
