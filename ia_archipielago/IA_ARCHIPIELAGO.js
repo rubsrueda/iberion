@@ -5172,6 +5172,26 @@ const IAArchipielago = {
       let progressed = false;
       let stallReason = 'unknown';
 
+      const standingHex = board?.[explorer.r]?.[explorer.c] || null;
+      const isStandingOnUnexploredRuin = !!standingHex && standingHex.feature === 'ruins' && !standingHex.looted;
+      if (isStandingOnUnexploredRuin) {
+        const explored = this._requestExploreRuins(explorer);
+        this._metricLog('IA_EXPLORER_EXPLORE_ATTEMPT', {
+          turn: gameState.turnNumber,
+          playerId: myPlayer,
+          unitId: explorer.id,
+          at: `${explorer.r},${explorer.c}`,
+          objective: `${explorer.r},${explorer.c}`,
+          success: explored,
+          trigger: 'standing_on_ruin'
+        });
+        if (explored) {
+          actions += 1;
+          continue;
+        }
+        stallReason = 'ruin_explore_failed_on_tile';
+      }
+
       const ruinTarget = ruins.length ? this._pickObjective(ruins, explorer, myPlayer) : null;
       if (ruinTarget) {
         const ruinPlan = this._buildExplorerAdvancePlan(explorer, ruinTarget.r, ruinTarget.c);
