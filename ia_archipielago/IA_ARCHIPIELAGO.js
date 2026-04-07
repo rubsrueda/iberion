@@ -483,7 +483,6 @@ const IAArchipielago = {
 
       // Captura oportunista temprana: ciudades/fortalezas vacías adyacentes no deben perderse.
       this._executeOpportunisticCapture(myPlayer);
-      this._forceExplorerRuinsAction(myPlayer);
 
       // --- 1. RECOPILACIÓN DE DATOS ---
       const hexesPropios = IASentidos.getOwnedHexes(myPlayer);
@@ -4346,6 +4345,7 @@ const IAArchipielago = {
     const neutralRatio = totalLand > 0 ? ((totalLand - ownLand) / totalLand) : 0;
 
     let actions = 0;
+    actions += this._executeImmediateUngarrisonedCitySnatch(myPlayer, { maxActions: phase === 'post_routes' ? 4 : 2 });
     actions += this._executeGiftCityCaptureProtocol(myPlayer, { maxActions: phase === 'post_routes' ? 3 : 2 });
     actions += this._executeDedicatedExplorerProtocol(myPlayer, { maxActions: phase === 'post_routes' ? 2 : 1 });
 
@@ -4353,9 +4353,52 @@ const IAArchipielago = {
       ? this._executeLightExpansionProtocol(myPlayer, { maxActions: phase === 'post_routes' ? 4 : 2 })
       : this._executeLightExpansionProtocol(myPlayer, { maxActions: 1 });
     actions += expansionActions;
+    actions += this._executeIdleUnitActivationProtocol(myPlayer, { maxActions: phase === 'post_routes' ? 10 : 6 });
 
     if (actions > 0) {
       console.log(`[IA_ARCHIPIELAGO][PROTOCOLOS] J${myPlayer} fase=${phase} acciones=${actions} neutralRatio=${neutralRatio.toFixed(2)}`);
+    }
+
+    return actions;
+  },
+
+  _executeImmediateUngarrisonedCitySnatch(myPlayer, opts = {}) {
+    const maxActions = Math.max(1, Number(opts.maxActions || 2));
+    let actions = 0;
+
+    while (actions < maxActions) {
+      const targets = this._collectGiftCityTargets(myPlayer);
+      if (!targets.length) break;
+
+      const availableUnits = this._getAvailableMissionUnits(myPlayer);
+      if (!availableUnits.length) break;
+
+      // Regla dura: si hay ciudad sin guarnición y una unidad puede llegar, priorizar eso.
+      let best = null;
+      for (const target of targets) {
+        const reachable = availableUnits
+          .filter(u => !!this._findPathForUnit(u, target.r, target.c))
+          .sort((a, b) => hexDistance(a.r, a.c, target.r, target.c) - hexDistance(b.r, b.c, target.r, target.c));
+        if (!reachable.length) continue;
+        const candidate = reachable[0];
+        const dist = hexDistance(candidate.r, candidate.c, target.r, target.c);
+        const score = 300 - (dist * 20);
+        if (!best || score > best.score) best = { unit: candidate, target, score };
+      }
+
+      if (!best) break;
+
+      this._assignMissionIfAvailable(best.unit, {
+        type: 'CITY_SNATCH_IMMEDIATE',
+        objective: { r: best.target.r, c: best.target.c },
+        reason: 'UNGARRISONED_CITY_TOP_PRIORITY'
+      });
+
+      const moved = this._requestMoveOrAttack(best.unit, best.target.r, best.target.c, {
+        missionType: this.MISSION_TYPE_CONQUEST_CITY
+      });
+      if (!moved) break;
+      actions += 1;
     }
 
     return actions;
@@ -4546,9 +4589,10 @@ const IAArchipielago = {
           continue;
         }
 
-        const movedToRuin = this._requestMoveOrAttack(explorer, ruinTarget.r, ruinTarget.c, {
+        const stepToRuin = this._getMoveStepTowards(explorer, ruinTarget.r, ruinTarget.c);
+        const movedToRuin = !!(stepToRuin && this._requestMoveUnit(explorer, stepToRuin.r, stepToRuin.c, {
           missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR
-        });
+        }));
         if (movedToRuin) {
           actions += 1;
           continue;
@@ -4565,11 +4609,63 @@ const IAArchipielago = {
         reason: 'EXPLORER_FALLBACK_EXPANSION'
       });
 
-      if (this._requestMoveOrAttack(explorer, fallbackTarget.r, fallbackTarget.c, {
+      const fallbackStep = this._getMoveStepTowards(explorer, fallbackTarget.r, fallbackTarget.c);
+      if (fallbackStep && this._requestMoveUnit(explorer, fallbackStep.r, fallbackStep.c, {
         missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR
       })) {
         actions += 1;
       }
+    }
+
+    return actions;
+  },
+
+  _executeIdleUnitActivationProtocol(myPlayer, opts = {}) {
+    const maxActions = Math.max(1, Number(opts.maxActions || 6));
+    let actions = 0;
+
+    while (actions < maxActions) {
+      const idleUnits = this._getAvailableMissionUnits(myPlayer);
+      if (!idleUnits.length) break;
+
+      const giftCities = this._collectGiftCityTargets(myPlayer);
+      const expansion = this._collectExpansionTargets(myPlayer);
+      const enemyUnits = IASentidos.getEnemyUnits(myPlayer) || [];
+
+      let progressed = false;
+      for (const unit of idleUnits) {
+        let target = null;
+        let missionType = this.MISSION_TYPE_COMMERCIAL_CORRIDOR;
+
+        // Prioridad 1: ciudad sin guarnición
+        if (giftCities.length > 0) {
+          target = this._pickObjective(giftCities, unit, myPlayer);
+          missionType = this.MISSION_TYPE_CONQUEST_CITY;
+        }
+
+        // Prioridad 2: expansión neutral
+        if (!target && expansion.length > 0) {
+          target = this._pickObjective(expansion, unit, myPlayer);
+          missionType = this.MISSION_TYPE_COMMERCIAL_CORRIDOR;
+        }
+
+        // Prioridad 3: presión al frente si no hay casillas/ciudades regaladas
+        if (!target && enemyUnits.length > 0) {
+          target = this._pickObjective(enemyUnits, unit, myPlayer);
+          missionType = this.MISSION_TYPE_CONQUEST_CITY;
+        }
+
+        if (!target) continue;
+
+        const moved = this._requestMoveOrAttack(unit, target.r, target.c, { missionType });
+        if (!moved) continue;
+
+        actions += 1;
+        progressed = true;
+        break;
+      }
+
+      if (!progressed) break;
     }
 
     return actions;
