@@ -2369,6 +2369,30 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
     const actualDamage = Math.min(targetRegiment.health, damageDealt);
     targetRegiment.health -= actualDamage;
 
+    if (targetRegiment.health <= 0) {
+        const playerTechs = gameState?.playerResources?.[targetDivision.player]?.researchedTechnologies || [];
+        const hasMedicalLogistics = playerTechs.includes('INFRASTRUCTURE_LOGISTICS');
+        if (hasMedicalLogistics) {
+            let bestRecovery = 0;
+            for (let r = 0; r < board.length; r++) {
+                for (let c = 0; c < (board[r]?.length || 0); c++) {
+                    const hex = board[r]?.[c];
+                    if (!hex || hex.owner !== targetDivision.player) continue;
+                    const dist = hexDistance(targetDivision.r, targetDivision.c, r, c);
+                    if (dist > 5) continue;
+                    if (hex.isCity) bestRecovery = Math.max(bestRecovery, 0.10);
+                    else if (hex.structure === 'Fortaleza') bestRecovery = Math.max(bestRecovery, 0.05);
+                }
+            }
+
+            if (bestRecovery > 0) {
+                const recoveredHp = Math.max(1, Math.round((targetData.health || 1) * bestRecovery));
+                targetRegiment.health = recoveredHp;
+                logMessage(`${targetDivision.name} recupera ${recoveredHp} HP de bajas por Logistica de Infraestructura.`);
+            }
+        }
+    }
+
     // === RAID: NO registrar daño aquí - se hace una sola vez al final del combate ===
     // (Eliminado para evitar registro duplicado por cada duelo)
     

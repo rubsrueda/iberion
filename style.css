@@ -321,6 +321,7 @@ body {
 /* --- Niebla de Guerra --- */
 .hex.fog-hidden { background-color: #777 !important; background-image: none !important; }
 .hex.fog-hidden::before, .hex.fog-hidden::after, .hex.fog-hidden .structure-sprite { display: none; }
+.hex.fog-hidden .unit { display: none !important; }
 .hex.fog-partial { filter: grayscale(70%) brightness(0.8); }
 .hex.fog-partial .unit:not(.player-controlled-visible) { display: none !important; }
 
@@ -1519,14 +1520,15 @@ body {
 
 /* --- Modal: Árbol de Tecnología --- */
 .tech-tree-content .tech-node {
-    position: absolute; width: 100px; height: 100px; background-color: #2a9d8f;
+    position: absolute; width: 64px; height: 64px; background-color: #2a9d8f;
     color: white; border-radius: 50%; display: flex; flex-direction: column;
     align-items: center; justify-content: center; text-align: center;
     border: 3px solid #264653; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;
-    padding: 5px; box-sizing: border-box; font-size: 0.8em;
+    padding: 4px; box-sizing: border-box; font-size: 0.62em; line-height: 1.08;
 }
 .tech-tree-content .tech-node:hover { transform: scale(1.05); box-shadow: 0 0 15px #f4a261; }
-.tech-tree-content .tech-node img { width: 40px; height: 40px; margin-bottom: 5px; }
+.tech-tree-content .tech-node img { width: 24px; height: 24px; margin-bottom: 2px; }
+.tech-tree-content .tech-sprite { font-size: 1.2em; line-height: 1; margin-bottom: 2px; }
 .tech-tree-content .tech-node.researched { background-color: #e9c46a; border-color: #f4a261; }
 .tech-tree-content .tech-node.available { background-color: #2a9d8f; border-color: #264653; box-shadow: 0 0 10px 3px #aaf0d1; }
 .tech-tree-content .tech-node.locked { background-color: #6c757d; opacity: 0.7; cursor: not-allowed; }
@@ -3318,6 +3320,14 @@ body {
     font-size: 9px;
     color: #ff6b6b;
     text-shadow: 0 0 4px rgba(255, 107, 107, 0.8);
+}
+
+.gold-forecast-next-turn {
+    margin-left: 6px;
+    color: #8de1ff;
+    font-size: 0.75em;
+    font-weight: 700;
+    letter-spacing: 0.2px;
 }
 
 /* Panel de botones: Flota a la derecha */
@@ -7130,6 +7140,25 @@ input:checked + .slider:before {
     align-items: center;
     z-index: 20;
     animation: bounce 1s infinite;
+}
+
+.unit-auto-supply-icon {
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #2ecc71;
+    color: #ffffff;
+    border: 1px solid #ecfdf5;
+    font-size: 9px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 22;
+    box-shadow: 0 0 4px rgba(46, 204, 113, 0.8);
 }
 
 /* Animación de rebote para llamar la atención */

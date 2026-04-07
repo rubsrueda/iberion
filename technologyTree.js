@@ -151,7 +151,7 @@ const TECHNOLOGY_TREE_DATA = {
         cost: { researchPoints: 50 },
         unlocksUnits: ["Hospital de Campaña"],
         unlocksStructures: [],
-        prerequisites: ["FLETCHING"], // Lo ponemos en la rama de unidades a distancia como una rama de apoyo
+        prerequisites: ["DRILL_TACTICS"],
         position: { x: 0, y: -220 }, // Lo ponemos donde estaba GUNPOWDER
         tier: 2
     },
@@ -288,6 +288,71 @@ const TECHNOLOGY_TREE_DATA = {
         prerequisites: ["ORGANIZATION"],
         position: { x: 200, y: 0 },
         tier: 1
+    },
+    "STATE_CENSUS": {
+        id: "STATE_CENSUS",
+        name: "Investigación de Censo Estatal",
+        description: "Estandariza la recaudación y elimina la incertidumbre fiscal. Muestra previsión exacta del oro del próximo turno.",
+        sprite: "📊",
+        cost: { researchPoints: 65 },
+        unlocksUnits: [],
+        unlocksStructures: [],
+        prerequisites: ["ENGINEERING", "PROSPECTING"],
+        position: { x: 120, y: 290 },
+        tier: 3,
+        effects: { censusActive: true }
+    },
+    "FORGE_STANDARDIZATION": {
+        id: "FORGE_STANDARDIZATION",
+        name: "Estandarización de Forja",
+        description: "Unifica calibres, repuestos y procesos de herrería para reponer armamento en campaña.",
+        sprite: "⚒️",
+        cost: { researchPoints: 70 },
+        unlocksUnits: [],
+        unlocksStructures: [],
+        prerequisites: ["IRON_WORKING", "ENGINEERING"],
+        position: { x: 280, y: 290 },
+        tier: 3,
+        effects: { autoReinforcementForge: true }
+    },
+    "CENTRAL_EQUIPMENT_POOL": {
+        id: "CENTRAL_EQUIPMENT_POOL",
+        name: "Pool de Equipamiento Central",
+        description: "Centraliza reservas para activar refuerzo automatico de divisiones cerca de infraestructura propia.",
+        sprite: "🧰",
+        cost: { researchPoints: 90 },
+        unlocksUnits: [],
+        unlocksStructures: [],
+        prerequisites: ["FORGE_STANDARDIZATION", "FORTIFICATIONS"],
+        position: { x: 380, y: 360 },
+        tier: 4,
+        effects: { autoReinforcement: true }
+    },
+    "CONTRACT_CODIFICATION": {
+        id: "CONTRACT_CODIFICATION",
+        name: "Codificación de Contratos",
+        description: "Formaliza pagas y disciplina: reduce la corrupcion estructural y sesga eventos de lealtad a resultados positivos.",
+        sprite: "📜",
+        cost: { researchPoints: 80 },
+        unlocksUnits: [],
+        unlocksStructures: [],
+        prerequisites: ["LEADERSHIP", "STATE_CENSUS"],
+        position: { x: -380, y: -230 },
+        tier: 3,
+        effects: { contractsCodified: true }
+    },
+    "INFRASTRUCTURE_LOGISTICS": {
+        id: "INFRASTRUCTURE_LOGISTICS",
+        name: "Logística de Infraestructura",
+        description: "Protocolos de evacuación y triage militar: parte de las bajas se recuperan si hay ciudad o fortaleza aliada cercana.",
+        sprite: "🩺",
+        cost: { researchPoints: 85 },
+        unlocksUnits: [],
+        unlocksStructures: [],
+        prerequisites: ["MEDICINE", "FORTIFICATIONS"],
+        position: { x: -100, y: -340 },
+        tier: 3,
+        effects: { militaryMedicine: true }
     },
     "COLONY": {
         id: "COLONY",

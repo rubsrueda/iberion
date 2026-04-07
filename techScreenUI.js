@@ -1,151 +1,171 @@
 // techScreenUI.js
 // DEFINIR FUNCIONES GLOBALMENTE (fuera de DOMContentLoaded para que estén disponibles inmediatamente)
+const TECH_TREE_NODE_SIZE = 64;
+
+function _computeTechTreeLayout(container) {
+    const techEntries = Object.values(TECHNOLOGY_TREE_DATA || {});
+    if (techEntries.length === 0) {
+        return { scale: 1, centerX: 0, centerY: 0, width: container.clientWidth || 620, height: container.clientHeight || 260 };
+    }
+
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+
+    techEntries.forEach(tech => {
+        minX = Math.min(minX, tech.position.x);
+        maxX = Math.max(maxX, tech.position.x);
+        minY = Math.min(minY, tech.position.y);
+        maxY = Math.max(maxY, tech.position.y);
+    });
+
+    const width = container.clientWidth || 620;
+    const height = container.clientHeight || 260;
+    const margin = TECH_TREE_NODE_SIZE;
+
+    const rangeX = Math.max(1, maxX - minX);
+    const rangeY = Math.max(1, maxY - minY);
+    const scaleX = (width - margin * 2) / rangeX;
+    const scaleY = (height - margin * 2) / rangeY;
+    const scale = Math.max(0.22, Math.min(scaleX, scaleY, 1));
+
+    return {
+        scale,
+        centerX: (minX + maxX) / 2,
+        centerY: (minY + maxY) / 2,
+        width,
+        height
+    };
+}
+
+function _toScreenPosition(tech, layout) {
+    const x = (tech.position.x - layout.centerX) * layout.scale + layout.width / 2;
+    const y = (tech.position.y - layout.centerY) * layout.scale + layout.height / 2;
+    return { x, y };
+}
+
+function _drawTechTreeConnections(container, playerResearchedTechs, layout) {
+    const svgNS = "http://www.w3.org/2000/svg";
+    let svgLines = document.getElementById('techTreeLinesSVG');
+    if (!svgLines) {
+        svgLines = document.createElementNS(svgNS, "svg");
+        svgLines.setAttribute('id', 'techTreeLinesSVG');
+        svgLines.style.position = 'absolute';
+        svgLines.style.top = '0';
+        svgLines.style.left = '0';
+        svgLines.style.pointerEvents = 'none';
+        svgLines.style.zIndex = '0';
+        container.insertBefore(svgLines, container.firstChild);
+    }
+
+    svgLines.innerHTML = '';
+    svgLines.style.width = `${layout.width}px`;
+    svgLines.style.height = `${layout.height}px`;
+
+    for (const techId in TECHNOLOGY_TREE_DATA) {
+        const tech = TECHNOLOGY_TREE_DATA[techId];
+        const targetPos = _toScreenPosition(tech, layout);
+
+        (tech.prerequisites || []).forEach(prereqId => {
+            const prereqTech = TECHNOLOGY_TREE_DATA[prereqId];
+            if (!prereqTech) return;
+            const sourcePos = _toScreenPosition(prereqTech, layout);
+
+            const line = document.createElementNS(svgNS, "line");
+            line.setAttribute('x1', sourcePos.x.toString());
+            line.setAttribute('y1', sourcePos.y.toString());
+            line.setAttribute('x2', targetPos.x.toString());
+            line.setAttribute('y2', targetPos.y.toString());
+
+            let strokeColor = '#6c757d';
+            if (playerResearchedTechs.includes(tech.id) && playerResearchedTechs.includes(prereqId)) {
+                strokeColor = '#e9c46a';
+            } else if (playerResearchedTechs.includes(prereqId) && (typeof hasPrerequisites === "function" && hasPrerequisites(playerResearchedTechs, tech.id))) {
+                strokeColor = '#2a9d8f';
+            }
+
+            line.setAttribute('stroke', strokeColor);
+            line.setAttribute('stroke-width', '2');
+            svgLines.appendChild(line);
+        });
+    }
+}
+
+function _renderTechTreeNodes(container, playerResearchedTechs, layout) {
+    for (const techId in TECHNOLOGY_TREE_DATA) {
+        const tech = TECHNOLOGY_TREE_DATA[techId];
+        const nodeDiv = document.createElement('div');
+        nodeDiv.classList.add('tech-node');
+        nodeDiv.id = `tech-node-${tech.id}`;
+
+        const screenPos = _toScreenPosition(tech, layout);
+        nodeDiv.style.left = `${screenPos.x - (TECH_TREE_NODE_SIZE / 2)}px`;
+        nodeDiv.style.top = `${screenPos.y - (TECH_TREE_NODE_SIZE / 2)}px`;
+
+        const spriteSpan = document.createElement('span');
+        spriteSpan.classList.add('tech-sprite');
+        spriteSpan.textContent = tech.sprite || tech.name.substring(0, 3);
+        nodeDiv.appendChild(spriteSpan);
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = tech.name;
+        nodeDiv.appendChild(nameSpan);
+
+        const isResearched = playerResearchedTechs.includes(tech.id);
+        const canBeResearched = typeof hasPrerequisites === "function" ? hasPrerequisites(playerResearchedTechs, tech.id) : false;
+        if (isResearched) {
+            nodeDiv.classList.add('researched');
+        } else if (canBeResearched) {
+            nodeDiv.classList.add('available');
+        } else {
+            nodeDiv.classList.add('locked');
+        }
+
+        nodeDiv.setAttribute('data-tech-id', tech.id);
+        nodeDiv.style.cursor = 'pointer';
+        nodeDiv.addEventListener('click', function(event) {
+            event.stopPropagation();
+            const techIdToOpen = this.getAttribute('data-tech-id');
+            openTechDetailModal(techIdToOpen);
+        });
+
+        let tooltipText = `${tech.description || 'Sin descripcion.'}\nCosto: `;
+        if (tech.cost) {
+            if (tech.cost.researchPoints) tooltipText += `${tech.cost.researchPoints} Puntos Inv.`;
+            else if (tech.cost.oro) tooltipText += `${tech.cost.oro} Oro`;
+            else tooltipText += "N/A";
+        } else {
+            tooltipText += "N/A";
+        }
+        nodeDiv.title = tooltipText;
+        container.appendChild(nodeDiv);
+    }
+}
+
 function openTechTreeScreen() {
     const screen = document.getElementById('techTreeScreen');
-    const container = document.getElementById('techTreeContainer'); 
+    const container = document.getElementById('techTreeContainer');
 
     if (!screen || !container || !TECHNOLOGY_TREE_DATA || !gameState || !gameState.playerResources) {
         console.error("openTechTreeScreen: Faltan dependencias.");
         return;
     }
 
-    container.innerHTML = ''; 
+    container.innerHTML = '';
     const currentPlayer = gameState.currentPlayer;
     const playerResearchedTechs = gameState.playerResources[currentPlayer]?.researchedTechnologies || [];
+    const layout = _computeTechTreeLayout(container);
 
-    // 1. CREAR Y POSICIONAR TODOS LOS NODOS TECNOLÓGICOS (VUELVE A LA NORMALIDAD)
-        for (const techId in TECHNOLOGY_TREE_DATA) {
-            const tech = TECHNOLOGY_TREE_DATA[techId];
-            const nodeDiv = document.createElement('div');
-            nodeDiv.classList.add('tech-node');
-            nodeDiv.id = `tech-node-${tech.id}`; 
-            
-            const nodeWidth = 100; 
-            const nodeHeight = 100; 
-            nodeDiv.style.left = `calc(50% + ${tech.position.x}px - ${nodeWidth / 2}px)`; 
-            nodeDiv.style.top = `calc(50% + ${tech.position.y}px - ${nodeHeight / 2}px)`;  
-            
-            const spriteSpan = document.createElement('span');
-            spriteSpan.classList.add('tech-sprite');
-            spriteSpan.textContent = tech.sprite || tech.name.substring(0, 3);
-            nodeDiv.appendChild(spriteSpan);
+    _renderTechTreeNodes(container, playerResearchedTechs, layout);
+    _drawTechTreeConnections(container, playerResearchedTechs, layout);
 
-            const nameSpan = document.createElement('span');
-            nameSpan.textContent = tech.name;
-            nodeDiv.appendChild(nameSpan);
+    screen.style.display = 'flex';
 
-            const isResearched = playerResearchedTechs.includes(tech.id);
-            const canBeResearched = typeof hasPrerequisites === "function" ? hasPrerequisites(playerResearchedTechs, tech.id) : false;
-
-            // Asignar clases CSS según estado
-            if (isResearched) {
-                nodeDiv.classList.add('researched');
-            } else if (canBeResearched) {
-                nodeDiv.classList.add('available');
-            } else {
-                nodeDiv.classList.add('locked');
-            }
-            
-            // TODAS las tecnologías son clickeables y abren el modal
-            nodeDiv.setAttribute('data-tech-id', tech.id);
-            nodeDiv.style.cursor = 'pointer';
-            
-            nodeDiv.addEventListener('click', function(event) {
-                event.stopPropagation();
-                const techIdToOpen = this.getAttribute('data-tech-id');
-                openTechDetailModal(techIdToOpen);
-            });
-            
-        let tooltipText = `${tech.description || 'Sin descripción.'}\nCosto: `;
-        if (tech.cost) {
-            if (tech.cost.researchPoints) tooltipText += `${tech.cost.researchPoints} Puntos Inv.`;
-            else if (tech.cost.oro) tooltipText += `${tech.cost.oro} Oro`;
-            else tooltipText += "N/A";
-        } else { tooltipText += "N/A"; }
-            nodeDiv.title = tooltipText;
-            container.appendChild(nodeDiv);
-        }
-
-    // HACER VISIBLE LA PANTALLA ANTES DEL RAF
-        screen.style.display = 'flex';
-
-    requestAnimationFrame(() => {
-        const liveContainer = document.getElementById('techTreeContainer');
-        const modalContent = document.querySelector('#techTreeScreen .modal-content.tech-tree-content');
-
-        if (!liveContainer || !modalContent) {
-            console.error("[TechTree RAF] liveContainer o modalContent no encontrado.");
-            return;
-        }
-
-        // 2. DIBUJAR LÍNEAS DE CONEXIÓN SVG
-        const svgNS = "http://www.w3.org/2000/svg";
-        let svgLines = document.getElementById('techTreeLinesSVG');
-        if (svgLines) {
-            svgLines.innerHTML = '';
-        } else {
-            svgLines = document.createElementNS(svgNS, "svg");
-            svgLines.setAttribute('id', 'techTreeLinesSVG');
-            svgLines.style.position = 'absolute';
-            svgLines.style.top = '0';
-            svgLines.style.left = '0';
-            svgLines.style.pointerEvents = 'none'; 
-            liveContainer.insertBefore(svgLines, liveContainer.firstChild);
-        }
-        
-        // --- CAMBIO CLAVE EN Z-INDEX ---
-        svgLines.style.zIndex = '0'; // Un z-index positivo para ponerlo encima de los nodos por defecto
-        
-        svgLines.style.width = `${liveContainer.offsetWidth}px`; 
-        svgLines.style.height = `${liveContainer.offsetHeight}px`;
-
-        for (const techId_line_raf in TECHNOLOGY_TREE_DATA) {
-            const tech_line_raf = TECHNOLOGY_TREE_DATA[techId_line_raf];
-            const nodeCenterX_raf = (liveContainer.offsetWidth / 2) + tech_line_raf.position.x;
-            const nodeCenterY_raf = (liveContainer.offsetHeight / 2) + tech_line_raf.position.y;
-
-            if (tech_line_raf.prerequisites && tech_line_raf.prerequisites.length > 0) {
-                tech_line_raf.prerequisites.forEach(prereqId_raf => {
-                    const prereqTech_raf = TECHNOLOGY_TREE_DATA[prereqId_raf];
-                    if (prereqTech_raf) {
-                        const prereqCenterX_raf = (liveContainer.offsetWidth / 2) + prereqTech_raf.position.x;
-                        const prereqCenterY_raf = (liveContainer.offsetHeight / 2) + prereqTech_raf.position.y;
-                        const line = document.createElementNS(svgNS, "line");
-                        line.setAttribute('x1', prereqCenterX_raf.toString());
-                        line.setAttribute('y1', prereqCenterY_raf.toString());
-                        line.setAttribute('x2', nodeCenterX_raf.toString());
-                        line.setAttribute('y2', nodeCenterY_raf.toString());
-                        let strokeColor = '#6c757d'; 
-                        if (playerResearchedTechs.includes(tech_line_raf.id) && playerResearchedTechs.includes(prereqId_raf)) {
-                            strokeColor = '#e9c46a'; 
-                        } else if (playerResearchedTechs.includes(prereqId_raf) && (typeof hasPrerequisites === "function" && hasPrerequisites(playerResearchedTechs, tech_line_raf.id))) {
-                            strokeColor = '#2a9d8f'; 
-                        }
-                        line.setAttribute('stroke', strokeColor);
-                        line.setAttribute('stroke-width', '3');
-                        svgLines.appendChild(line);
-                    }
-                });
-            }
-        }
-        
-        // 3. CENTRAR EL ÁRBOL USANDO SCROLL
-        if (liveContainer.scrollWidth > modalContent.clientWidth || liveContainer.scrollHeight > modalContent.clientHeight) {
-            const treeLogicalCenterX = liveContainer.offsetWidth / 2; 
-            const treeLogicalCenterY = liveContainer.offsetHeight / 2;
-            modalContent.scrollLeft = treeLogicalCenterX - (modalContent.clientWidth / 2);
-            modalContent.scrollTop = treeLogicalCenterY - (modalContent.clientHeight / 2);
-        } else {
-            modalContent.scrollLeft = 0;
-            modalContent.scrollTop = 0;
-        }
-        
-        // 4. ACTUALIZAR VISUALIZACIÓN DEL PLAN DE INVESTIGACIÓN
-        if (typeof AutoResearchManager !== 'undefined') {
-            AutoResearchManager.updateTechTreeVisualization(currentPlayer);
-        }
-    }); 
+    if (typeof AutoResearchManager !== 'undefined') {
+        AutoResearchManager.updateTechTreeVisualization(currentPlayer);
     }
+}
     
 // Exportar openTechTreeScreen a window
 window.openTechTreeScreen = openTechTreeScreen;
@@ -192,6 +212,14 @@ window.openTechTreeScreen = openTechTreeScreen;
         }
         playerTechs.push(techId);
 
+        if (techId === 'STATE_CENSUS') {
+            gameState.censusActive = true;
+        }
+        if (techId === 'CONTRACT_CODIFICATION') {
+            gameState.contractsCodified = true;
+            gameState.corruptionModifier = 0.85;
+        }
+
         // Refrescar impacto visual de tecnologías en el mapa (ej: caminos avanzados).
         if (typeof renderFullBoardVisualState === 'function') {
             renderFullBoardVisualState();
@@ -219,121 +247,9 @@ window.openTechTreeScreen = openTechTreeScreen;
     const currentPlayer = gameState.currentPlayer;
     const playerResearchedTechs = gameState.playerResources[currentPlayer]?.researchedTechnologies || [];
 
-    const svgNS = "http://www.w3.org/2000/svg";
-    const svgLines = document.createElementNS(svgNS, "svg");
-    svgLines.setAttribute('id', 'techTreeLinesSVG');
-    svgLines.style.position = 'absolute';
-    svgLines.style.top = '0';
-    svgLines.style.left = '0';
-    svgLines.style.width = '100%';
-    svgLines.style.height = '100%';
-    svgLines.style.pointerEvents = 'none';
-    container.appendChild(svgLines);
-
-    // Repoblar nodos
-    for (const techId in TECHNOLOGY_TREE_DATA) { // <<< EMPIEZA A REEMPLAZAR DESDE AQUÍ
-        const tech = TECHNOLOGY_TREE_DATA[techId];
-        const nodeDiv = document.createElement('div');
-        nodeDiv.classList.add('tech-node');
-        nodeDiv.id = `tech-node-${tech.id}`; 
-        
-        // ... (todo el código que crea los elementos del nodo, sprites, texto, etc.) ...
-        const nodeWidth = 100; const nodeHeight = 100;
-        nodeDiv.style.left = `calc(50% + ${tech.position.x}px - ${nodeWidth / 2}px)`; 
-        nodeDiv.style.top = `calc(50% + ${tech.position.y}px - ${nodeHeight / 2}px)`;  
-        
-        const spriteSpan = document.createElement('span');
-        spriteSpan.classList.add('tech-sprite');
-        spriteSpan.textContent = tech.sprite || tech.name.substring(0, 3);
-        nodeDiv.appendChild(spriteSpan);
-        
-        const nameSpan = document.createElement('span');
-        nameSpan.textContent = tech.name;
-        nodeDiv.appendChild(nameSpan);
-
-        // --- Asignar clases CSS según estado ---
-        const isResearched = playerResearchedTechs.includes(tech.id);
-        const canBeResearched = hasPrerequisites(playerResearchedTechs, tech.id);
-        if (isResearched) { 
-            nodeDiv.classList.add('researched');
-        } else if (canBeResearched) { 
-            nodeDiv.classList.add('available');
-        } else { 
-            nodeDiv.classList.add('locked');
-        }
-        
-        // TODAS las tecnologías son clickeables
-        nodeDiv.setAttribute('data-tech-id', tech.id);
-        nodeDiv.style.cursor = 'pointer';
-        nodeDiv.addEventListener('click', function(event) {
-            event.stopPropagation();
-            const techIdToOpen = this.getAttribute('data-tech-id');
-            openTechDetailModal(techIdToOpen);
-        });
-        
-        let tooltipText = `${tech.name}\n${tech.description || ''}\n\nCosto: ...`; // Asume que tienes tu lógica aquí
-        nodeDiv.title = tooltipText;
-        container.appendChild(nodeDiv);
-    }
-
-    // Repoblar líneas
-    requestAnimationFrame(() => { // Usar requestAnimationFrame para asegurar que los nodos están renderizados
-        const liveContainer = document.getElementById('techTreeContainer');
-        const modalContent = document.querySelector('#techTreeScreen .modal-content.tech-tree-content');
-        if (!liveContainer || !modalContent) return;
-
-        svgLines.innerHTML = ''; // Limpiar SVG para redibujar líneas
-        svgLines.style.width = `${liveContainer.offsetWidth}px`; 
-        svgLines.style.height = `${liveContainer.offsetHeight}px`;
-
-        for (const techId_line_raf in TECHNOLOGY_TREE_DATA) {
-            const tech_line_raf = TECHNOLOGY_TREE_DATA[techId_line_raf];
-            const targetNode = document.getElementById(`tech-node-${tech_line_raf.id}`);
-            if (!targetNode) continue; // Asegurar que el nodo objetivo existe
-
-            const nodeCenterX_raf = targetNode.offsetLeft + targetNode.offsetWidth / 2;
-            const nodeCenterY_raf = targetNode.offsetTop + targetNode.offsetHeight / 2;
-
-            if (tech_line_raf.prerequisites && tech_line_raf.prerequisites.length > 0) {
-                tech_line_raf.prerequisites.forEach(prereqId_raf => {
-                    const prereqTech_raf = TECHNOLOGY_TREE_DATA[prereqId_raf];
-                    const sourceNode = document.getElementById(`tech-node-${prereqId_raf}`);
-                    if (prereqTech_raf && sourceNode) {
-                        const prereqCenterX_raf = sourceNode.offsetLeft + sourceNode.offsetWidth / 2;
-                        const prereqCenterY_raf = sourceNode.offsetTop + sourceNode.offsetHeight / 2;
-                        const line = document.createElementNS(svgNS, "line");
-                        line.setAttribute('x1', prereqCenterX_raf.toString());
-                        line.setAttribute('y1', prereqCenterY_raf.toString());
-                        line.setAttribute('x2', nodeCenterX_raf.toString());
-                        line.setAttribute('y2', nodeCenterY_raf.toString());
-                        let strokeColor = '#6c757d'; 
-                        if (playerResearchedTechs.includes(tech_line_raf.id) && playerResearchedTechs.includes(prereqId_raf)) {
-                            strokeColor = '#e9c46a'; 
-                        } else if (playerResearchedTechs.includes(prereqId_raf) && (typeof hasPrerequisites === "function" && hasPrerequisites(playerResearchedTechs, tech_line_raf.id))) {
-                            strokeColor = '#2a9d8f'; 
-                        }
-                        line.setAttribute('stroke', strokeColor);
-                        line.setAttribute('stroke-width', '3');
-                        svgLines.appendChild(line);
-                    }
-                });
-            }
-        }
-    });
-
-    // Centrar scroll del modal
-    const modalContent = document.querySelector('#techTreeScreen .modal-content.tech-tree-content');
-    if (modalContent) { // Asegurarse de que modalContent existe antes de intentar scroll
-        if (container.scrollWidth > modalContent.clientWidth || container.scrollHeight > modalContent.clientHeight) {
-            const treeLogicalCenterX = container.offsetWidth / 2; 
-            const treeLogicalCenterY = container.offsetHeight / 2;
-            modalContent.scrollLeft = treeLogicalCenterX - (modalContent.clientWidth / 2);
-            modalContent.scrollTop = treeLogicalCenterY - (modalContent.clientHeight / 2);
-        } else {
-            modalContent.scrollLeft = 0;
-            modalContent.scrollTop = 0;
-        }
-    }
+    const layout = _computeTechTreeLayout(container);
+    _renderTechTreeNodes(container, playerResearchedTechs, layout);
+    _drawTechTreeConnections(container, playerResearchedTechs, layout);
     
     // Actualizar visualización del plan de investigación si existe
     if (typeof AutoResearchManager !== 'undefined') {
@@ -430,11 +346,21 @@ function RequestResearchTech(techId) {
         document.getElementById('techDetailPrereqs').textContent = prereqs;
 
         // Rellenar Desbloqueos
+        const effectDescriptions = {
+            STATE_CENSUS: 'Elimina variabilidad fiscal y muestra oro T+1',
+            FORGE_STANDARDIZATION: 'Preparacion de refuerzo automatico cerca de infraestructura',
+            CENTRAL_EQUIPMENT_POOL: 'Activa refuerzo automatico de regimientos (20%)',
+            CONTRACT_CODIFICATION: 'Eventos de lealtad mayormente positivos y menor corrupcion',
+            INFRASTRUCTURE_LOGISTICS: 'Recuperacion parcial de bajas en combate cerca de ciudad/fortaleza'
+        };
+
         const unlocks = [
             ...(techData.unlocksUnits || []),
             ...(techData.unlocksStructures || [])
-        ].join(', ') || 'Ninguno';
-        document.getElementById('techDetailUnlocks').textContent = unlocks;
+        ];
+        if (effectDescriptions[techId]) unlocks.push(effectDescriptions[techId]);
+        const unlocksText = unlocks.join(', ') || 'Ninguno';
+        document.getElementById('techDetailUnlocks').textContent = unlocksText;
         
         // --- 2. Configurar el botón de "Investigar" o "Activar Plan" ---
         const researchBtn = document.getElementById('researchTechBtn');

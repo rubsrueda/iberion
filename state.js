@@ -69,6 +69,10 @@ function resetGameStateForIberiaMagna() {
         lastActionTimestamp: 0, 
         matchSnapshots: [], // Aquí guardaremos la "foto" de poder de cada turno
         tradeBlocks: {}, // Diplomatic trade blocking: { [playerA]: { [playerB]: true } }
+        censusActive: false,
+        contractsCodified: false,
+        corruptionModifier: 1,
+        expectedGoldIncomeByPlayer: {}
     };
 
     for (let i = 1; i <= numPlayers; i++) {
@@ -127,7 +131,11 @@ function resetGameStateVariables(playerCount = 2, turnDuration = Infinity, gameM
         selectedHexC: -1,
         preparingAction: null,
         selectedUnit: null,
-        tradeBlocks: {} // Diplomatic trade blocking: { [playerA]: { [playerB]: true } }
+        tradeBlocks: {}, // Diplomatic trade blocking: { [playerA]: { [playerB]: true } }
+        censusActive: false,
+        contractsCodified: false,
+        corruptionModifier: 1,
+        expectedGoldIncomeByPlayer: {}
     };
 
     // Este bucle ahora creará los jugadores necesarios dinámicamente
@@ -260,7 +268,11 @@ async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaign
 
         // Y añadimos la propiedad de Civilizaciones que también faltaba aquí
         playerCivilizations: { 1: 'ninguna', 2: 'ninguna' },
-        turnDurationSeconds: turnDuration
+        turnDurationSeconds: turnDuration,
+        censusActive: false,
+        contractsCodified: false,
+        corruptionModifier: 1,
+        expectedGoldIncomeByPlayer: {}
     };
 
     gameState = initialGameStateObject;

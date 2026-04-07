@@ -419,6 +419,120 @@ function checkAndProcessBrokenUnit(unit) {
     return true; 
 }
 
+function hasPlayerTechnology(playerNum, techId) {
+    const researched = gameState?.playerResources?.[playerNum]?.researchedTechnologies || [];
+    return researched.includes(techId);
+}
+
+function isNearFriendlyInfrastructure(unit, maxDistance = 5) {
+    if (!unit || !Array.isArray(board)) return false;
+    for (let r = 0; r < board.length; r++) {
+        for (let c = 0; c < (board[r]?.length || 0); c++) {
+            const hex = board[r]?.[c];
+            if (!hex || hex.owner !== unit.player) continue;
+            if (!(hex.isCity || hex.structure === 'Fortaleza')) continue;
+            if (hexDistance(unit.r, unit.c, r, c) <= maxDistance) return true;
+        }
+    }
+    return false;
+}
+
+function processAutomaticReinforcement(playerNum) {
+    const playerRes = gameState?.playerResources?.[playerNum];
+    if (!playerRes) return;
+
+    const hasForge = hasPlayerTechnology(playerNum, 'FORGE_STANDARDIZATION');
+    const hasPool = hasPlayerTechnology(playerNum, 'CENTRAL_EQUIPMENT_POOL');
+    if (!hasForge || !hasPool) return;
+
+    const reinforcementCost = 45;
+    const playerUnits = units.filter(u => u.player === playerNum && u.currentHealth > 0);
+
+    playerUnits.forEach(unit => {
+        unit.lastAutoReinforcedTurn = null;
+        if (!isNearFriendlyInfrastructure(unit, 5)) return;
+        if ((playerRes.oro || 0) < reinforcementCost) return;
+
+        const healCandidate = (unit.regiments || []).find(reg => {
+            const regMaxHp = REGIMENT_TYPES[reg.type]?.health || 0;
+            return regMaxHp > 0 && reg.health > 0 && reg.health < regMaxHp;
+        });
+        if (!healCandidate) return;
+
+        const regMaxHp = REGIMENT_TYPES[healCandidate.type]?.health || 0;
+        const healAmount = Math.max(1, Math.round(regMaxHp * 0.2));
+        const previousHealth = healCandidate.health;
+        healCandidate.health = Math.min(regMaxHp, healCandidate.health + healAmount);
+        const recovered = healCandidate.health - previousHealth;
+        if (recovered <= 0) return;
+
+        playerRes.oro -= reinforcementCost;
+        recalculateUnitHealth(unit);
+        unit.lastAutoReinforcedTurn = gameState.turnNumber;
+        if (typeof UIManager !== 'undefined' && UIManager.updateUnitStrengthDisplay) {
+            UIManager.updateUnitStrengthDisplay(unit);
+        }
+    });
+}
+
+const LOYALTY_EVENTS = {
+    positive: [
+        { id: 'veterania', text: 'Veterania', apply: (unit) => { unit.experience = (unit.experience || 0) + 12; } },
+        { id: 'lealtad_ciega', text: 'Lealtad ciega', apply: (unit) => { unit.morale = Math.min(unit.maxMorale || 125, (unit.morale || 50) + 18); } }
+    ],
+    negative: [
+        { id: 'falta_pago', text: 'Falta de pago', apply: (unit) => { unit.currentMovement = 0; unit.hasMoved = true; } },
+        { id: 'desercion_local', text: 'Desercion local', apply: (unit) => { unit.morale = 0; unit.isDisorganized = true; } }
+    ]
+};
+
+function checkLoyalty(unit) {
+    if (!unit || unit.currentHealth <= 0) return;
+    const playerNum = unit.player;
+    const hasContracts = hasPlayerTechnology(playerNum, 'CONTRACT_CODIFICATION') || !!gameState.contractsCodified;
+    const positiveProbability = hasContracts ? 0.7 : 0.3;
+
+    const bucket = Math.random() <= positiveProbability ? LOYALTY_EVENTS.positive : LOYALTY_EVENTS.negative;
+    const event = bucket[Math.floor(Math.random() * bucket.length)];
+    if (!event) return;
+    event.apply(unit);
+    logMessage(`Evento de lealtad (${unit.name}): ${event.text}.`);
+}
+
+function calculateExpectedGoldIncome(playerNum) {
+    if (!gameState?.playerResources?.[playerNum] || !Array.isArray(board)) return 0;
+    const playerTechs = gameState.playerResources[playerNum].researchedTechnologies || [];
+    let totalGold = 0;
+
+    board.forEach(row => {
+        row.forEach(hex => {
+            if (!hex || hex.owner !== playerNum) return;
+
+            let stabilityMultiplier = 0;
+            switch (hex.estabilidad) {
+                case 1: stabilityMultiplier = 0.25; break;
+                case 2: stabilityMultiplier = 0.70; break;
+                case 3: stabilityMultiplier = 1.0; break;
+                case 4: stabilityMultiplier = 1.25; break;
+                case 5: stabilityMultiplier = 1.50; break;
+                default: stabilityMultiplier = 0;
+            }
+
+            const nationalityMultiplier = (hex.nacionalidad?.[playerNum] || 0) / MAX_NACIONALIDAD;
+            let gold = 0;
+            if (hex.isCity) gold = hex.isCapital ? GOLD_INCOME.PER_CAPITAL : GOLD_INCOME.PER_CITY;
+            else if (hex.structure === 'Fortaleza') gold = GOLD_INCOME.PER_FORT;
+            else if (hex.structure === 'Camino') gold = GOLD_INCOME.PER_ROAD;
+            else gold = GOLD_INCOME.PER_HEX;
+
+            if (gold > 0 && playerTechs.includes('PROSPECTING')) gold += 1;
+            totalGold += gold * stabilityMultiplier * nationalityMultiplier;
+        });
+    });
+
+    return Math.max(0, Math.round(totalGold));
+}
+
 function handleUnitUpkeep(playerNum) {
     if (!gameState.playerResources?.[playerNum] || !units) return;
 
@@ -429,12 +543,18 @@ function handleUnitUpkeep(playerNum) {
 
     const playerRes = gameState.playerResources[playerNum];
     let totalGoldUpkeep = 0;
+    const hasContracts = hasPlayerTechnology(playerNum, 'CONTRACT_CODIFICATION') || !!gameState.contractsCodified;
+    const corruptionModifier = hasContracts ? 0.85 : (Number(gameState.corruptionModifier) || 1);
     
     const seasonEffects = getCurrentSeasonState();
     const seasonalAttritionMultiplier = Math.max(0.5, Number(seasonEffects?.attritionMultiplier) || 1);
 
     playerUnits.forEach(unit => {
         console.groupCollapsed(`-> Procesando unidad: ${unit.name}`);
+        unit.turnsActive = Number(unit.turnsActive || 0);
+        if (unit.turnsActive > 0 && unit.turnsActive % 10 === 0) {
+            checkLoyalty(unit);
+        }
         let maxMoraleBonus = 0;
         let upkeepReductionPercent = 0;
 
@@ -558,6 +678,7 @@ function handleUnitUpkeep(playerNum) {
             const reductionAmount = unitUpkeep * (upkeepReductionPercent / 100);
             unitUpkeep -= reductionAmount;
         }
+        unitUpkeep *= corruptionModifier;
         const finalUnitUpkeep = Math.round(Math.max(0, unitUpkeep));
         totalGoldUpkeep += finalUnitUpkeep;
         console.groupEnd();
@@ -668,6 +789,7 @@ function resetUnitsForNewTurn(playerNumber) {
         // Si la unidad pertenece al jugador cuyo turno está COMENZANDO...
         if (unit.player === playerNumber) {
             unit.hasMoved = false; unit.hasAttacked = false; unit.currentMovement = unit.movement || 2;
+            unit.turnsActive = Number(unit.turnsActive || 0) + 1;
             // Se resetean sus acciones y su movimiento
             calculateRegimentStats(unit); // Le pasamos la unidad completa. La función actualiza sus stats directamente.
             unit.currentMovement = unit.movement;
@@ -810,6 +932,8 @@ function collectPlayerResources(playerNum) {
     }
 
     const playerTechs = playerRes.researchedTechnologies || [];
+    const censusActive = !!gameState.censusActive || playerTechs.includes('STATE_CENSUS');
+    gameState.censusActive = censusActive;
     let totalIncome = { oro: 0, hierro: 0, piedra: 0, madera: 0, comida: 0, researchPoints: 0, puntosReclutamiento: 0 };
     let logItems = [];
 
@@ -854,6 +978,9 @@ function collectPlayerResources(playerNum) {
             
             if (hex.isCity) {
                 incomeFromHex.oro = hex.isCapital ? GOLD_INCOME.PER_CAPITAL : GOLD_INCOME.PER_CITY;
+                if (!censusActive) {
+                    incomeFromHex.oro *= (Math.random() * 0.5 + 0.5);
+                }
             } else if (hex.structure === "Fortaleza") {
                 incomeFromHex.oro = GOLD_INCOME.PER_FORT;
             } else if (hex.structure === "Camino") {
@@ -904,6 +1031,9 @@ function collectPlayerResources(playerNum) {
         logMessage(`Jugador ${playerNum} no generó ingresos este turno.`);
     }
 
+    if (!gameState.expectedGoldIncomeByPlayer) gameState.expectedGoldIncomeByPlayer = {};
+    gameState.expectedGoldIncomeByPlayer[playerNum] = censusActive ? calculateExpectedGoldIncome(playerNum) : null;
+
     console.groupEnd();
 }
 
@@ -917,9 +1047,16 @@ function updateFogOfWar() {
     
     const playerKey = `player${gameState.currentPlayer}`;
     const currentTurn = Number(gameState.turnNumber || 1);
+    const currentPlayer = gameState.currentPlayer;
+    const cityVisionRange = Math.max(
+        1,
+        ...units
+            .filter(unit => unit.player === currentPlayer && unit.currentHealth > 0 && unit.r !== -1)
+            .map(unit => Number(unit.visionRange) || 1)
+    );
 
-    // 0. TURNO 1: mapa completamente visible para desplegar/planificar.
-    if (currentTurn <= 1) {
+    // 0. DESPLIEGUE: mapa completamente visible para planificar colocación inicial.
+    if (gameState.currentPhase === 'deployment' || (currentTurn <= 1 && gameState.currentPhase !== 'play')) {
         for (let r = 0; r < currentRows; r++) {
             for (let c = 0; c < currentCols; c++) {
                 const hexData = board[r]?.[c];
@@ -934,6 +1071,11 @@ function updateFogOfWar() {
         }
         return;
     }
+
+    // Limpiar marcas de unidades del jugador anterior antes de recalcular visibilidad.
+    units.forEach(unit => {
+        if (unit?.element) unit.element.classList.remove('player-controlled-visible');
+    });
 
     // 1. SI EL MAPA ESTÁ REVELADO (TRUCO), SALIR
     if (gameState.isMapRevealed) {
@@ -961,14 +1103,22 @@ function updateFogOfWar() {
             if (!hexData.visibility) hexData.visibility = {};
 
             const unitOnThisHex = getUnitOnHex(r, c);
+            const playerNationality = Number(hexData.nacionalidad?.[currentPlayer] || 0);
 
             // Si estaba visible, pasa a partial (memoria de mapa). Si estaba hidden, se queda hidden.
             if (hexData.visibility[playerKey] === 'visible') {
                 hexData.visibility[playerKey] = 'partial';
+            } else if (!hexData.visibility[playerKey]) {
+                hexData.visibility[playerKey] = 'hidden';
             }
 
             // Regla de persistencia: lo propio nunca queda totalmente oculto.
-            if (hexData.owner === gameState.currentPlayer && (!hexData.visibility[playerKey] || hexData.visibility[playerKey] === 'hidden')) {
+            if (hexData.owner === currentPlayer && (!hexData.visibility[playerKey] || hexData.visibility[playerKey] === 'hidden')) {
+                hexData.visibility[playerKey] = 'partial';
+            }
+
+            // Persistencia suave por nacionalidad: si hay presencia cultural del jugador, queda en penumbra.
+            if (playerNationality > 0 && hexData.visibility[playerKey] === 'hidden') {
                 hexData.visibility[playerKey] = 'partial';
             }
             
@@ -984,7 +1134,7 @@ function updateFogOfWar() {
 
     // A) UNIDADES PROPIAS
     units.forEach(unit => {
-        if (unit.player === gameState.currentPlayer && unit.currentHealth > 0 && unit.r !== -1) {
+        if (unit.player === currentPlayer && unit.currentHealth > 0 && unit.r !== -1) {
             visionSources.push({r: unit.r, c: unit.c, range: unit.visionRange || 1});
         }
     });
@@ -993,9 +1143,8 @@ function updateFogOfWar() {
     for (let r = 0; r < currentRows; r++) {
         for (let c = 0; c < currentCols; c++) {
             const hex = board[r][c];
-            if (hex && hex.owner === gameState.currentPlayer && (hex.isCity || hex.isCapital)) {
-                let range = hex.isCapital ? 3 : 2;
-                visionSources.push({r: r, c: c, range: range});
+            if (hex && hex.owner === currentPlayer && (hex.isCity || hex.isCapital)) {
+                visionSources.push({r: r, c: c, range: cityVisionRange});
             }
         }
     }
@@ -1028,7 +1177,7 @@ function updateFogOfWar() {
                         const unitThere = getUnitOnHex(r, c);
                         if (unitThere && unitThere.element) {
                             unitThere.element.style.display = 'flex';
-                            if (unitThere.player === gameState.currentPlayer) {
+                            if (unitThere.player === currentPlayer) {
                                 unitThere.element.classList.add('player-controlled-visible');
                             }
                         }
@@ -2328,6 +2477,7 @@ async function handleEndTurn(isHostProcessing = false) {
         updateTerritoryMetrics(playerEndingTurn);
         collectPlayerResources(playerEndingTurn);
         handleUnitUpkeep(playerEndingTurn);
+        processAutomaticReinforcement(playerEndingTurn);
         handleHealingPhase(playerEndingTurn);
         const tradeGold = calculateTradeIncome(playerEndingTurn);
         if (tradeGold > 0) gameState.playerResources[playerEndingTurn].oro += tradeGold;
@@ -2425,6 +2575,7 @@ async function handleEndTurn(isHostProcessing = false) {
         updateTerritoryMetrics(playerEndingTurn);
         collectPlayerResources(playerEndingTurn); 
         handleUnitUpkeep(playerEndingTurn);
+        processAutomaticReinforcement(playerEndingTurn);
         handleHealingPhase(playerEndingTurn);
         updateTradeRoutes(playerEndingTurn);
         const tradeGold = calculateTradeIncome(playerEndingTurn);

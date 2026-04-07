@@ -949,6 +949,25 @@ const UIManager = {
             s.textContent = unit.currentHealth;
             s.style.color = unit.currentHealth <= 0 ? 'red' : unit.currentHealth < unit.maxHealth / 2 ? 'orange' : '';
         }
+        this.updateAutoSupplyIndicator(unit);
+    },
+
+    updateAutoSupplyIndicator: function(unit) {
+        if (!unit?.element) return;
+        const existing = unit.element.querySelector('.unit-auto-supply-icon');
+        const hasSupplyPulse = Number(unit.lastAutoReinforcedTurn || 0) === Number(gameState.turnNumber || 0);
+
+        if (!hasSupplyPulse) {
+            if (existing) existing.remove();
+            return;
+        }
+
+        if (existing) return;
+        const icon = document.createElement('div');
+        icon.className = 'unit-auto-supply-icon';
+        icon.textContent = '+';
+        icon.title = 'Suministro automatico activo';
+        unit.element.appendChild(icon);
     },
 
     updateTurnIndicatorAndBlocker: function() {
@@ -1086,6 +1105,8 @@ const UIManager = {
                         unitElement.classList.remove('unit-no-supply');
                     }
             }
+
+                    this.updateAutoSupplyIndicator(unit);
 
             // Añadir el indicador de salud
             const strengthDisplay = document.createElement('div');
@@ -1878,6 +1899,8 @@ const UIManager = {
         const goldEl = document.querySelector('strong[data-resource="oro"]');
         const foodEl = document.querySelector('strong[data-resource="comida"]');
         const goldItemEl = goldEl?.parentElement;
+        const playerTechs = gameState.playerResources?.[gameState.currentPlayer]?.researchedTechnologies || [];
+        const censusActive = !!gameState.censusActive || playerTechs.includes('STATE_CENSUS');
 
         // Comprobación Oro
         if (goldEl) {
@@ -1900,6 +1923,24 @@ const UIManager = {
             if (warnRivalWealth) {
                 const baseTitle = goldItemEl.title ? `${goldItemEl.title} · ` : '';
                 goldItemEl.title = `${baseTitle}J2 tiene más riqueza. Mejora comercio o conquista ciudades.`;
+            }
+
+            let forecastEl = goldItemEl.querySelector('.gold-forecast-next-turn');
+            if (censusActive) {
+                const expectedGold = Number(gameState.expectedGoldIncomeByPlayer?.[gameState.currentPlayer]);
+                const projected = Number.isFinite(expectedGold)
+                    ? expectedGold
+                    : (typeof calculateExpectedGoldIncome === 'function' ? calculateExpectedGoldIncome(gameState.currentPlayer) : 0);
+
+                if (!forecastEl) {
+                    forecastEl = document.createElement('small');
+                    forecastEl.className = 'gold-forecast-next-turn';
+                    goldItemEl.appendChild(forecastEl);
+                }
+                forecastEl.textContent = `T+1: +${projected}`;
+                forecastEl.title = 'Prevision exacta de oro del proximo turno';
+            } else if (forecastEl) {
+                forecastEl.remove();
             }
         }
 
@@ -2569,24 +2610,6 @@ const UIManager = {
         }
         
         // Limpiar el interval de actualización de posición
-        if (this._radialUpdateInterval) {
-            if (this._radialUpdateUsingManager && typeof window !== 'undefined' && window.intervalManager) {
-                window.intervalManager.clearInterval(this._radialUpdateInterval);
-            } else {
-                clearInterval(this._radialUpdateInterval);
-            }
-            this._radialUpdateInterval = null;
-            this._radialUpdateUsingManager = false;
-        }
-        
-        const container = document.getElementById('radialMenuContainer');
-        if (container) {
-            container.style.display = 'none';
-            container.innerHTML = '';
-        }
-    },
-
-};
         if (this._radialUpdateInterval) {
             if (this._radialUpdateUsingManager && typeof window !== 'undefined' && window.intervalManager) {
                 window.intervalManager.clearInterval(this._radialUpdateInterval);
