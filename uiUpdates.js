@@ -453,7 +453,8 @@ const UIManager = {
             // 1. Está vacío (no hay otra unidad).
             // 2. Para naval: debe ser agua.
             // 3. Para tierra/mixto: no debe ser un terreno intransitable para tierra.
-            if (hexData.unit) continue;
+            const occupied = (typeof getUnitOnHex === 'function') ? getUnitOnHex(n.r, n.c) : hexData.unit;
+            if (occupied) continue;
 
             if (isPureNaval) {
                 if (hexData.terrain === 'water') {
@@ -1499,7 +1500,11 @@ const UIManager = {
         if (hexData.owner !== null) {
             const stability = hexData.estabilidad || 0;
             const nationality = hexData.nacionalidad?.[hexData.owner] || 0;
-            tooltip += `<br><span style="font-size: 0.9em; color: #aaa;">Est: ${stability}/${MAX_STABILITY} • Nac: ${nationality}/${MAX_NACIONALIDAD}</span>`;
+            const isCriticalHex = hexData.isCity || hexData.structure === 'Fortaleza' || hexData.structure === 'Fortaleza con Muralla';
+            const loyaltyText = isCriticalHex
+                ? ` • Leal: ${Math.max(0, Number(hexData.lealtad ?? stability))}/${MAX_STABILITY}`
+                : '';
+            tooltip += `<br><span style="font-size: 0.9em; color: #aaa;">Est: ${stability}/${MAX_STABILITY} • Nac: ${nationality}/${MAX_NACIONALIDAD}${loyaltyText}</span>`;
         }
         tooltip += '</p>';
         

@@ -422,11 +422,51 @@ function getNavalTransportCapacity(unit) {
     }, 0);
 }
 
+function validateSplitTargetHex(originalUnit, targetR, targetC) {
+    const targetHexData = board[targetR]?.[targetC];
+    if (!targetHexData) {
+        return { valid: false, reason: `Hex (${targetR},${targetC}) fuera del tablero.` };
+    }
+
+    const isAdjacent = getHexNeighbors(originalUnit.r, originalUnit.c)
+        .some(n => n.r === targetR && n.c === targetC);
+    if (!isAdjacent) {
+        return { valid: false, reason: 'La nueva división debe colocarse en un hex adyacente.' };
+    }
+
+    const unitOnTarget = (typeof getUnitOnHex === 'function')
+        ? getUnitOnHex(targetR, targetC)
+        : targetHexData.unit;
+    if (unitOnTarget) {
+        return { valid: false, reason: `El hex objetivo está ocupado por ${unitOnTarget.name || unitOnTarget.id}.` };
+    }
+
+    const hasNavalRegiments = originalUnit.regiments?.some(reg => REGIMENT_TYPES[reg.type]?.is_naval);
+    const hasLandRegiments = originalUnit.regiments?.some(reg => !REGIMENT_TYPES[reg.type]?.is_naval);
+    const isPureNaval = hasNavalRegiments && !hasLandRegiments;
+
+    if (isPureNaval) {
+        if (targetHexData.terrain !== 'water') {
+            return { valid: false, reason: 'Una flota solo puede dividirse en agua.' };
+        }
+    } else if (TERRAIN_TYPES[targetHexData.terrain]?.isImpassableForLand) {
+        return { valid: false, reason: 'La división terrestre no puede colocarse en terreno intransitable.' };
+    }
+
+    return { valid: true };
+}
+
 function splitUnit(originalUnit, targetR, targetC) {
     if (!originalUnit || !originalUnit.regiments || !gameState.preparingAction) return false;
     const actionData = gameState.preparingAction;
-    const targetHexData = board[targetR]?.[targetC];
-    if (!targetHexData || targetHexData.unit) return false;
+    const validation = validateSplitTargetHex(originalUnit, targetR, targetC);
+    if (!validation.valid) {
+        console.warn(`[splitUnit] División rechazada hacia (${targetR},${targetC}): ${validation.reason}`);
+        if (typeof logMessage === 'function') {
+            logMessage(validation.reason, 'warning');
+        }
+        return false;
+    }
 
     const newUnitRegiments = actionData.newUnitRegiments;
     const remainingOriginalRegiments = actionData.remainingOriginalRegiments;

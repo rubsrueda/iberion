@@ -2898,7 +2898,9 @@ async function processActionRequest(action) {
 
         
         // Actualizar visualmente al Anfitrión
-        if (typeof renderFullBoardVisualState === 'function') {
+        if (typeof scheduleFullBoardRender === 'function') {
+            scheduleFullBoardRender();
+        } else if (typeof renderFullBoardVisualState === 'function') {
             renderFullBoardVisualState();
         }
         if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {

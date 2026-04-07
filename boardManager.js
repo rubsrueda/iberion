@@ -1650,6 +1650,15 @@ units.forEach(unit => {
 });
 }
 
+let _fullBoardRenderRafId = null;
+function scheduleFullBoardRender() {
+    if (_fullBoardRenderRafId !== null) return;
+    _fullBoardRenderRafId = requestAnimationFrame(() => {
+        _fullBoardRenderRafId = null;
+        renderFullBoardVisualState();
+    });
+}
+
 function renderSingleHexVisuals(r, c) {
     const hexData = board[r]?.[c];
     if (!hexData || !hexData.element) { return; }
@@ -1700,14 +1709,16 @@ function renderSingleHexVisuals(r, c) {
         hexEl.classList.add('road-stone-tech');
     }
 
-    // Alerta de estabilidad baja en ciudades/fortalezas: vibrar cuando estabilidad <= 1
+    // Alerta de estabilidad/lealtad baja en ciudades/fortalezas.
     const isCriticalStructure = hexData.isCity || hexData.structure === 'Fortaleza' || hexData.structure === 'Fortaleza con Muralla';
     if (isCriticalStructure && hexData.owner !== null && hexData.owner !== 0
         && typeof BARBARIAN_PLAYER_ID !== 'undefined' && hexData.owner !== BARBARIAN_PLAYER_ID) {
-        const stability = Number(hexData.estabilidad ?? 5);
-        if (stability <= 1) {
+        const loyalty = Number.isFinite(Number(hexData.lealtad))
+            ? Number(hexData.lealtad)
+            : Number(hexData.estabilidad ?? 5);
+        if (loyalty <= 1) {
             hexEl.classList.add('low-stability-danger');
-        } else if (stability === 2) {
+        } else if (loyalty === 2) {
             hexEl.classList.add('low-stability-warning');
         }
     }

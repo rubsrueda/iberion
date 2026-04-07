@@ -30,6 +30,10 @@ const SaveGameDebounce = {
         const key = `${isAutoSave}_${saveName}`;
         
         if (this.isProcessing) {
+            // Los autosaves son best-effort: no encolar infinitamente evita bloqueos por serialización acumulada.
+            if (isAutoSave) {
+                return false;
+            }
             this.pendingRequests.set(key, { saveName, isAutoSave });
             return false;
         }
@@ -110,7 +114,8 @@ function _prepareGameDataForSave() {
         resourceNode: hex.resourceNode,
         visibility: hex.visibility,
         nacionalidad: hex.nacionalidad,
-        estabilidad: hex.estabilidad
+        estabilidad: hex.estabilidad,
+        lealtad: hex.lealtad
     })));
 
     const unitsState = units.map(unit => {

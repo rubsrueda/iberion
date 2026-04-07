@@ -5,6 +5,7 @@ let currentTutorialStepIndex = -1; // -1 significa que el tutorial no ha comenza
 let tutorialScenarioData = null; // Almacena los datos del escenario de tutorial activo
 const MAX_STABILITY = 5; // Definimos la constante aquí para que la función la reconozca.
 const MAX_NACIONALIDAD = 5; // Valor máximo para la lealtad de un hexágono.
+const MAX_CITY_LOYALTY = 5; // Lealtad interna para ciudades/fortalezas (0 => rebelión).
 
 function getGameplaySeasonConfigSafe() {
     if (typeof GAMEPLAY_SEASON_CONFIG !== 'undefined' && GAMEPLAY_SEASON_CONFIG) {
@@ -1728,6 +1729,71 @@ function moveToNextTutorialStep() {
 }
 
 function updateTerritoryMetrics(playerEndingTurn) {
+    const barbarianPlayerId = (typeof BARBARIAN_PLAYER_ID !== 'undefined') ? BARBARIAN_PLAYER_ID : 9;
+    const ownerCorruptionPressure = new Map();
+    const caravanSupportByOwner = new Map();
+
+    // Cache: ciudades conectadas por caravanas activas para evitar recorrer unidades por cada hex.
+    (units || []).forEach(unit => {
+        if (!unit || unit.isDefeated || (unit.currentHealth || 0) <= 0) return;
+        if (!unit.tradeRoute || !unit.tradeRoute.origin || !unit.tradeRoute.destination) return;
+
+        const owner = Number(unit.player);
+        if (!Number.isFinite(owner) || owner <= 0) return;
+
+        if (!caravanSupportByOwner.has(owner)) {
+            caravanSupportByOwner.set(owner, new Set());
+        }
+
+        const ownerSet = caravanSupportByOwner.get(owner);
+        const addEndpoint = (point) => {
+            if (!point) return;
+            const rr = Number(point.r);
+            const cc = Number(point.c);
+            if (Number.isFinite(rr) && Number.isFinite(cc)) ownerSet.add(`${rr},${cc}`);
+        };
+
+        addEndpoint(unit.tradeRoute.origin);
+        addEndpoint(unit.tradeRoute.destination);
+    });
+
+    const getOwnerCorruptionPenalty = (owner) => {
+        if (!Number.isFinite(owner) || owner <= 0) return 0;
+        if (ownerCorruptionPressure.has(owner)) return ownerCorruptionPressure.get(owner);
+
+        let totalHexes = 0;
+        let hexesWithoutInfra = 0;
+        for (let rr = 0; rr < board.length; rr++) {
+            for (let cc = 0; cc < board[rr].length; cc++) {
+                const h = board[rr][cc];
+                if (!h || h.owner !== owner) continue;
+                totalHexes++;
+
+                const hasInfrastructure = !!(
+                    h.hasRoad ||
+                    h.structure === 'Camino' ||
+                    h.isCity ||
+                    h.isCapital ||
+                    h.structure === 'Fortaleza' ||
+                    h.structure === 'Fortaleza con Muralla'
+                );
+                if (!hasInfrastructure) hexesWithoutInfra++;
+            }
+        }
+
+        const corruptionPct = totalHexes > 0 ? (hexesWithoutInfra / totalHexes) * 100 : 0;
+        let penalty = 0;
+        if (corruptionPct >= 55) penalty = 2;
+        else if (corruptionPct >= 35) penalty = 1;
+
+        ownerCorruptionPressure.set(owner, penalty);
+        return penalty;
+    };
+
+    const hasCaravanSupportAt = (owner, r, c) => {
+        const ownerSet = caravanSupportByOwner.get(owner);
+        return !!ownerSet && ownerSet.has(`${r},${c}`);
+    };
 
     for (let r = 0; r < board.length; r++) {
         for (let c = 0; c < board[r].length; c++) {
@@ -1743,7 +1809,6 @@ function updateTerritoryMetrics(playerEndingTurn) {
             // Si hay una unidad, y NO es del dueño del hexágono.
             if (unitOnHex && !isBankUnit && hex.owner !== null && unitOnHex.player !== hex.owner) {
                 const originalOwner = hex.owner;
-                const barbarianPlayerId = (typeof BARBARIAN_PLAYER_ID !== 'undefined') ? BARBARIAN_PLAYER_ID : 9;
 
                 // Las casillas bárbaras deben poder conquistarse siempre al estar ocupadas,
                 // incluso si su estabilidad quedó por debajo del umbral normal.
@@ -1756,6 +1821,9 @@ function updateTerritoryMetrics(playerEndingTurn) {
                     const transferOwnershipToOccupier = () => {
                         hex.owner = unitOnHex.player;
                         hex.nacionalidad[unitOnHex.player] = Math.max(1, Number(hex.nacionalidad[unitOnHex.player] || 0));
+                        if (hex.isCity || hex.structure === 'Fortaleza' || hex.structure === 'Fortaleza con Muralla') {
+                            hex.lealtad = Math.max(2, Number(hex.lealtad || 2));
+                        }
 
                         // Sincronizar ciudad si aplica (evita desajustes en comercio)
                         if (hex.isCity) {
@@ -1822,6 +1890,10 @@ function updateTerritoryMetrics(playerEndingTurn) {
                 const isCriticalHex = hex.isCity || hex.structure === 'Fortaleza' || hex.structure === 'Fortaleza con Muralla';
                 if (isCriticalHex) {
                     const owner = hex.owner;
+                    const currentLoyalty = Number.isFinite(Number(hex.lealtad))
+                        ? Number(hex.lealtad)
+                        : Number(hex.nacionalidad?.[owner] || MAX_CITY_LOYALTY);
+                    hex.lealtad = Math.max(0, Math.min(MAX_CITY_LOYALTY, currentLoyalty));
 
                     // Condición A: ¿hay una unidad amiga en la casilla o adyacente?
                     const hasGarrison = (() => {
@@ -1838,35 +1910,69 @@ function updateTerritoryMetrics(playerEndingTurn) {
                     // Condición C: ¿está conectada por suministro (camino → capital/fortaleza)?
                     const isSupplied = (typeof isHexSupplied === 'function') ? isHexSupplied(r, c, owner) : true;
 
-                    // Si faltan 2 o más condiciones → decaer
-                    const failCount = [!hasGarrison, !hasFood, !isSupplied].filter(Boolean).length;
-                    if (failCount >= 2) {
+                    // Condición D: ¿hay camino en la casilla o en anillo 1 para sostener administración local?
+                    const hasRoadAccess = !!(
+                        hex.hasRoad ||
+                        hex.structure === 'Camino' ||
+                        (getHexNeighbors(r, c) || []).some(n => {
+                            const nh = board[n.r]?.[n.c];
+                            return nh && (nh.hasRoad || nh.structure === 'Camino');
+                        })
+                    );
+
+                    // Condición E: ¿recibe/entrega caravana actualmente?
+                    const hasCaravanSupport = hasCaravanSupportAt(owner, r, c);
+
+                    const corruptionPenalty = getOwnerCorruptionPenalty(owner);
+
+                    // Lealtad: sube lentamente en paz interna y cae rápido con mala gestión.
+                    let loyaltyDelta = 0;
+                    if (hasGarrison) loyaltyDelta += 1;
+                    else loyaltyDelta -= 1;
+
+                    if (hasFood) loyaltyDelta += 1;
+                    else loyaltyDelta -= 1;
+
+                    if (isSupplied) loyaltyDelta += 1;
+                    else loyaltyDelta -= 1;
+
+                    if (!hasRoadAccess) loyaltyDelta -= 1;
+                    if (!hasCaravanSupport) loyaltyDelta -= 1;
+                    loyaltyDelta -= corruptionPenalty;
+
+                    // Evita saltos excesivos por turno: la decadencia existe, pero con inercia.
+                    loyaltyDelta = Math.max(-2, Math.min(1, loyaltyDelta));
+                    hex.lealtad = Math.max(0, Math.min(MAX_CITY_LOYALTY, hex.lealtad + loyaltyDelta));
+
+                    // Si la lealtad está baja, la estabilidad entra en modo "pulmón" y cae.
+                    if (hex.lealtad <= 2) {
                         hex.estabilidad = Math.max(0, hex.estabilidad - 1);
+                    }
 
-                        // Rebelión: si llega a 0 en una ciudad/fortaleza → se vuelve bárbara/independiente
-                        if (hex.estabilidad === 0) {
-                            const prevOwner = owner;
-                            hex.owner = BARBARIAN_PLAYER_ID;
-                            hex.nacionalidad = { [BARBARIAN_PLAYER_ID]: 3 };
-                            hex.estabilidad = 2; // Recién conquistada, semi-estable
+                    // Rebelión: al colapsar la lealtad (o estabilidad), vuelve a bárbaros.
+                    if (hex.lealtad === 0 || hex.estabilidad === 0) {
+                        const prevOwner = owner;
+                        hex.owner = barbarianPlayerId;
+                        hex.nacionalidad = { [barbarianPlayerId]: 3 };
+                        hex.estabilidad = 2;
+                        hex.lealtad = 3;
 
-                            const cityEntry = gameState.cities?.find(ci => ci.r === r && ci.c === c);
-                            if (cityEntry) cityEntry.owner = BARBARIAN_PLAYER_ID;
+                        const cityEntry = gameState.cities?.find(ci => ci.r === r && ci.c === c);
+                        if (cityEntry) cityEntry.owner = barbarianPlayerId;
 
-                            renderSingleHexVisuals(r, c);
-                            if (typeof UIManager !== 'undefined' && UIManager.showMessageTemporarily) {
-                                UIManager.showMessageTemporarily(
-                                    `⚠️ ¡Rebelión! ${cityEntry?.name || `Ciudad (${r},${c})`} se ha vuelto independiente (J${prevOwner} pierde control).`,
-                                    5000, true
-                                );
-                            }
-                            if (typeof window !== 'undefined' && window.GameFeelFX) {
-                                window.GameFeelFX.conquest(r, c, null, 'REBELIÓN');
-                            }
-                        } else {
-                            // Solo re-render visual para actualizar el indicador de vibración
-                            renderSingleHexVisuals(r, c);
+                        renderSingleHexVisuals(r, c);
+                        if (typeof UIManager !== 'undefined' && UIManager.showMessageTemporarily) {
+                            UIManager.showMessageTemporarily(
+                                `⚠️ ¡Rebelión! ${cityEntry?.name || `Ciudad (${r},${c})`} se ha vuelto independiente (J${prevOwner} pierde control).`,
+                                5000, true
+                            );
                         }
+                        if (typeof window !== 'undefined' && window.GameFeelFX) {
+                            window.GameFeelFX.conquest(r, c, null, 'REBELIÓN');
+                        }
+                    } else {
+                        // Re-render para refrescar aviso visual de baja lealtad/estabilidad.
+                        renderSingleHexVisuals(r, c);
                     }
                 }
             }
@@ -2516,15 +2622,17 @@ async function handleEndTurn(isHostProcessing = false) {
     
     const isNetworkMatch = (typeof NetworkManager !== 'undefined' && NetworkManager.miId);
 
-    // --- AUTOSAVE AUTOMÁTICO: Cada turno para partidas locales y en red ---
+    // --- AUTOSAVE AUTOMÁTICO (optimizado): reducir carga de serialización por turno ---
     if (typeof saveGameUnified === 'function' && gameState.currentPhase !== "gameOver") {
-        // Partidas locales: Guardar cada turno
+        // Partidas locales: guardar cada 3 turnos
         if (!isNetworkMatch) {
-            saveGameUnified("AUTOSAVE_RECENT", true)
-                .catch(err => console.warn("[AutoSave] Error (local):", err));
+            if (gameState.turnNumber % 3 === 0) {
+                saveGameUnified("AUTOSAVE_RECENT", true)
+                    .catch(err => console.warn("[AutoSave] Error (local):", err));
+            }
         }
-        // Partidas en red: Guardar cada 5 turnos
-        else if (gameState.turnNumber % 5 === 0) {
+        // Partidas en red: guardar cada 8 turnos
+        else if (gameState.turnNumber % 8 === 0) {
             saveGameUnified(`AUTOSAVE_TURN_${gameState.turnNumber}`, true)
                 .catch(err => console.warn("[AutoSave] Error (red):", err));
         }
