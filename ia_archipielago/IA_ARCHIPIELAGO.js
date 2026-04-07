@@ -41,6 +41,10 @@ const IAArchipielago = {
   INFRA_FIX_START_TURN: 3,
   IDEAL_VILLAGES_TARGET: 2,
   EXPLORER_RUINS_STRICT_START_TURN: 3,
+  AGGRESSIVE_CONQUEST_START_TURN: 5,
+  AGGRESSIVE_CONQUEST_GOLD_RESERVE: 300,
+  AGGRESSIVE_CONQUEST_MAX_NEW_DIVISIONS_PER_TURN: 8,
+  AGGRESSIVE_CONQUEST_TARGET_SCAN_LIMIT: 140,
   POINT_SUPREMACY_RUSH_START_TURN: 4,
   POINT_SUPREMACY_RUSH_END_TURN: 7,
   POINT_SUPREMACY_MIN_READY_ROUTES: 1,
@@ -5833,6 +5837,10 @@ const IAArchipielago = {
       ? this._executeLightExpansionProtocol(myPlayer, { maxActions: phase === 'post_routes' ? 4 : 2 })
       : this._executeLightExpansionProtocol(myPlayer, { maxActions: 1 });
     actions += expansionActions;
+    actions += this._executeAggressiveMapConquestProtocol(myPlayer, {
+      phase,
+      maxActions: phase === 'post_routes' ? 8 : 3
+    });
     actions += this._executeIdleUnitActivationProtocol(myPlayer, { maxActions: phase === 'post_routes' ? 10 : 6 });
 
     if (actions > 0) {
@@ -6222,6 +6230,237 @@ const IAArchipielago = {
         result: 'success'
       });
     }
+
+    return actions;
+  },
+
+  /**
+   * IAArchipielago._collectAggressiveConquestTargets
+   * Proposito: Recolecta casillas neutrales para una expansion agresiva orientada a control de mapa.
+   * Entradas: myPlayer.
+   * Efectos: no ejecuta acciones; devuelve objetivos priorizados por valor y cercania.
+   * Precondiciones: board inicializado y coordenadas de hex consistentes.
+   * Fallos comunes: retorno vacio cuando no hay casillas neutrales o el mapa no esta cargado.
+   */
+  _collectAggressiveConquestTargets(myPlayer) {
+    if (!Array.isArray(board)) return [];
+
+    const targets = [];
+    const ownHexes = board.flat().filter(h => h && h.owner === myPlayer && h.terrain !== 'water');
+    const scanLimit = Math.max(20, Number(this.AGGRESSIVE_CONQUEST_TARGET_SCAN_LIMIT || 140));
+
+    for (const row of board) {
+      if (!Array.isArray(row)) continue;
+      for (const hex of row) {
+        if (!hex || hex.terrain === 'water') continue;
+        if (hex.owner !== null && hex.owner !== undefined) continue;
+        if (getUnitOnHex(hex.r, hex.c)) continue;
+
+        const nearOwn = getHexNeighbors(hex.r, hex.c).some(n => board[n.r]?.[n.c]?.owner === myPlayer);
+        let minOwnDist = 99;
+        for (const own of ownHexes) {
+          const d = hexDistance(own.r, own.c, hex.r, hex.c);
+          if (d < minOwnDist) minOwnDist = d;
+          if (minOwnDist <= 1) break;
+        }
+
+        let priority = 100;
+        if (nearOwn) priority += 80;
+        if (hex.resourceNode) priority += 35;
+        if (hex.structure === 'Aldea') priority += 25;
+        if (hex.isCity || ['Ciudad', 'Metrópoli'].includes(hex.structure)) priority += 60;
+        priority -= Math.min(40, minOwnDist * 6);
+
+        targets.push({ r: hex.r, c: hex.c, priority, nearOwn, minOwnDist });
+      }
+    }
+
+    return targets
+      .sort((a, b) => b.priority - a.priority)
+      .slice(0, scanLimit);
+  },
+
+  /**
+   * IAArchipielago._getConquestSpawnCenters
+   * Proposito: Obtiene centros propios aptos para producir divisiones de conquista.
+   * Entradas: myPlayer.
+   * Efectos: no modifica estado; devuelve lista deduplicada de coordenadas de spawn.
+   * Precondiciones: gameState.cities y board disponibles.
+   * Fallos comunes: retorno vacio cuando no hay centros urbanos/fortificados propios.
+   */
+  _getConquestSpawnCenters(myPlayer) {
+    const centers = [];
+    const seen = new Set();
+
+    const pushCenter = (r, c, kind = 'city') => {
+      if (!Number.isInteger(r) || !Number.isInteger(c)) return;
+      const key = `${r},${c}`;
+      if (seen.has(key)) return;
+      const hex = board[r]?.[c];
+      if (!hex || hex.owner !== myPlayer) return;
+      seen.add(key);
+      centers.push({ r, c, kind });
+    };
+
+    for (const c of (gameState.cities || [])) {
+      if (!c || c.owner !== myPlayer) continue;
+      pushCenter(c.r, c.c, 'city');
+    }
+
+    if (Array.isArray(board)) {
+      for (const row of board) {
+        if (!Array.isArray(row)) continue;
+        for (const hex of row) {
+          if (!hex || hex.owner !== myPlayer) continue;
+          if (!['Aldea', 'Ciudad', 'Metrópoli', 'Fortaleza', 'Fortaleza con Muralla'].includes(hex.structure)) continue;
+          pushCenter(hex.r, hex.c, 'structure');
+        }
+      }
+    }
+
+    return centers;
+  },
+
+  /**
+   * IAArchipielago._estimateSingleRegimentGoldCost
+   * Proposito: Estima costo en oro de una division minima (1 regimiento) para protocolo de conquista.
+   * Entradas: sin parametros explicitos.
+   * Efectos: lectura de constants de regimientos.
+   * Precondiciones: REGIMENT_TYPES disponible.
+   * Fallos comunes: fallback a costo por defecto cuando no existe definicion de costo.
+   */
+  _estimateSingleRegimentGoldCost() {
+    return Math.max(1, Number(REGIMENT_TYPES?.['Infantería Ligera']?.cost?.oro || 200));
+  },
+
+  /**
+   * IAArchipielago._executeAggressiveMapConquestProtocol
+   * Proposito: Ejecuta expansion agresiva desde turno 5 para maximizar propiedad territorial.
+   * Entradas: myPlayer, opts = {}.
+   * Efectos: mueve unidades ligeras a casillas neutrales y produce divisiones de 1 regimiento segun oro.
+   * Precondiciones: fase play, objetivos neutrales disponibles, capacidad de produccion.
+   * Fallos comunes: oro insuficiente, falta de centros de spawn, sin path o sin unidades libres.
+   */
+  _executeAggressiveMapConquestProtocol(myPlayer, opts = {}) {
+    const currentTurn = Number(gameState.turnNumber || 0);
+    const startTurn = Math.max(1, Number(this.AGGRESSIVE_CONQUEST_START_TURN || 5));
+    if (currentTurn < startTurn) return 0;
+
+    const maxActions = Math.max(1, Number(opts.maxActions || 6));
+    const phase = String(opts.phase || 'generic');
+    const targets = this._collectAggressiveConquestTargets(myPlayer);
+    if (!targets.length) return 0;
+
+    const claimed = new Set();
+    let actions = 0;
+    let produced = 0;
+
+    const isLogisticsUnit = (u) => {
+      if (!u?.regiments?.length) return false;
+      return u.regiments.some(reg => {
+        const rt = REGIMENT_TYPES?.[reg.type];
+        if (!rt) return false;
+        if (reg.type === 'Columna de Suministro') return true;
+        return Array.isArray(rt.abilities) && rt.abilities.includes('provide_supply');
+      });
+    };
+
+    // Paso 1: usar unidades ligeras disponibles para tomar casillas neutrales ya alcanzables.
+    while (actions < maxActions) {
+      const availableUnits = this._getAvailableMissionUnits(myPlayer)
+        .filter(u => !this._isExplorerUnit(u))
+        .filter(u => !isLogisticsUnit(u))
+        .sort((a, b) => (a.regiments?.length || 0) - (b.regiments?.length || 0));
+
+      if (!availableUnits.length) break;
+
+      let best = null;
+      for (const unit of availableUnits) {
+        for (const target of targets) {
+          const key = `${target.r},${target.c}`;
+          if (claimed.has(key)) continue;
+          if (!this._findPathForUnit(unit, target.r, target.c)) continue;
+          const dist = hexDistance(unit.r, unit.c, target.r, target.c);
+          const score = Number(target.priority || 0) - (dist * 8) - ((unit.regiments?.length || 0) * 8);
+          if (!best || score > best.score) best = { unit, target, score };
+        }
+      }
+
+      if (!best) break;
+
+      this._assignMissionIfAvailable(best.unit, {
+        type: 'AGGRESSIVE_MAP_CONQUEST',
+        objective: { r: best.target.r, c: best.target.c },
+        reason: 'TURN5_NEUTRAL_RUSH'
+      });
+
+      const moved = this._requestMoveOrAttack(best.unit, best.target.r, best.target.c, {
+        missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR
+      });
+      claimed.add(`${best.target.r},${best.target.c}`);
+      if (!moved) continue;
+      actions += 1;
+    }
+
+    // Paso 2: producir divisiones de 1 regimiento cuando hay oro para ampliar ocupacion.
+    const playerRes = gameState.playerResources?.[myPlayer] || {};
+    const singleRegGold = this._estimateSingleRegimentGoldCost();
+    const goldReserve = Math.max(0, Number(this.AGGRESSIVE_CONQUEST_GOLD_RESERVE || 300));
+    const spendableGold = Math.max(0, Number(playerRes.oro || 0) - goldReserve);
+    const maxByGold = Math.floor(spendableGold / singleRegGold);
+    const maxByTurn = Math.max(0, Number(this.AGGRESSIVE_CONQUEST_MAX_NEW_DIVISIONS_PER_TURN || 8));
+    const remainingActionBudget = Math.max(0, maxActions - actions);
+    const remainingTargets = targets.filter(t => !claimed.has(`${t.r},${t.c}`));
+    const spawnCenters = this._getConquestSpawnCenters(myPlayer);
+
+    let toProduce = Math.min(maxByGold, maxByTurn, remainingActionBudget, remainingTargets.length);
+    if (!spawnCenters.length || typeof AiGameplayManager === 'undefined' || typeof AiGameplayManager.produceUnit !== 'function') {
+      toProduce = 0;
+    }
+
+    for (let i = 0; i < toProduce && actions < maxActions; i++) {
+      const freeTargets = remainingTargets.filter(t => !claimed.has(`${t.r},${t.c}`));
+      if (!freeTargets.length) break;
+
+      const target = freeTargets[0];
+      const center = spawnCenters
+        .slice()
+        .sort((a, b) => hexDistance(a.r, a.c, target.r, target.c) - hexDistance(b.r, b.c, target.r, target.c))[0];
+      if (!center) break;
+
+      const newUnit = AiGameplayManager.produceUnit(
+        myPlayer,
+        ['Infantería Ligera'],
+        'map_conqueror',
+        `Conquistador Casillas T${currentTurn}`,
+        center
+      );
+      if (!newUnit) break;
+      produced += 1;
+
+      this._assignMissionIfAvailable(newUnit, {
+        type: 'AGGRESSIVE_MAP_CONQUEST',
+        objective: { r: target.r, c: target.c },
+        reason: 'TURN5_NEW_DIVISION_RUSH'
+      });
+
+      const moved = this._requestMoveOrAttack(newUnit, target.r, target.c, {
+        missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR
+      });
+      claimed.add(`${target.r},${target.c}`);
+      if (moved) actions += 1;
+    }
+
+    this._importantLog('AGGRESSIVE_CONQUEST_RESULT', {
+      playerId: myPlayer,
+      phase,
+      turn: currentTurn,
+      neutralTargets: targets.length,
+      actions,
+      produced,
+      singleRegGold,
+      oroActual: Number(gameState.playerResources?.[myPlayer]?.oro || 0)
+    });
 
     return actions;
   },
