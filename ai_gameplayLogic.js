@@ -3587,7 +3587,7 @@ const AiGameplayManager = {
     },
 
     produceUnit: function(playerNumber, compositionTypes, role, name, specificSpot = null) {
-        // El 'spot' es el CENTRO de producción (capital/ciudad/fortaleza), y tambien el lugar final.
+        // El centro de producción habilita el reclutamiento; el spawn final prioriza casilla adyacente válida.
         const isValidProductionCenter = (spot) => {
             if (!spot) return false;
             const hex = board[spot.r]?.[spot.c];
@@ -3601,6 +3601,92 @@ const AiGameplayManager = {
             return !getUnitOnHex(spot.r, spot.c);
         };
 
+        const isValidSpawnHex = (r, c) => {
+            const hex = board[r]?.[c];
+            if (!hex) return false;
+            if (getUnitOnHex(r, c)) return false;
+            const terrain = TERRAIN_TYPES?.[hex.terrain];
+            if (terrain?.isImpassableForLand) return false;
+            return true;
+        };
+
+        const pickSpawnSpot = (center, preferredSpot = null) => {
+            if (!center) return null;
+
+            const adjacent = getHexNeighbors(center.r, center.c)
+                .filter(n => isValidSpawnHex(n.r, n.c));
+
+            if (preferredSpot && adjacent.some(n => n.r === preferredSpot.r && n.c === preferredSpot.c)) {
+                return preferredSpot;
+            }
+
+            if (adjacent.length > 0) return adjacent[0];
+
+            if (isValidSpawnHex(center.r, center.c)) return { r: center.r, c: center.c };
+            return null;
+        };
+
+        const tryVacateCenter = (center) => {
+            if (!center) return false;
+            const blocker = getUnitOnHex(center.r, center.c);
+            if (!blocker || blocker.player !== playerNumber) return false;
+            if (blocker.hasMoved || (blocker.currentMovement || 0) <= 0) {
+                console.log(`[IA Produce][AUTO_VACATE] No se puede despejar (${center.r},${center.c}): ${blocker.name || blocker.id} sin movimiento.`);
+                return false;
+            }
+
+            const mission = AiGameplayManager.missionAssignments?.get?.(blocker.id) || null;
+            const objective = mission?.objective && Number.isInteger(mission.objective.r) && Number.isInteger(mission.objective.c)
+                ? { r: mission.objective.r, c: mission.objective.c }
+                : null;
+
+            const neighborOptions = getHexNeighbors(center.r, center.c)
+                .filter(n => board[n.r]?.[n.c])
+                .filter(n => !getUnitOnHex(n.r, n.c))
+                .filter(n => {
+                    if (typeof isValidMove === 'function') {
+                        try {
+                            return isValidMove(blocker, n.r, n.c);
+                        } catch (_) {
+                            return false;
+                        }
+                    }
+                    return true;
+                })
+                .sort((a, b) => {
+                    if (!objective) return 0;
+                    return hexDistance(a.r, a.c, objective.r, objective.c) - hexDistance(b.r, b.c, objective.r, objective.c);
+                });
+
+            const destination = neighborOptions[0] || null;
+            if (!destination) {
+                console.log(`[IA Produce][AUTO_VACATE] Sin casilla válida para despejar (${center.r},${center.c}) con ${blocker.name || blocker.id}.`);
+                return false;
+            }
+
+            try {
+                if (typeof RequestMoveUnit === 'function') {
+                    RequestMoveUnit(blocker, destination.r, destination.c);
+                    console.log(`[IA Produce][AUTO_VACATE] ${blocker.name || blocker.id} despeja (${center.r},${center.c}) -> (${destination.r},${destination.c}).`);
+                    return true;
+                }
+
+                if (typeof processActionRequest === 'function') {
+                    processActionRequest({
+                        type: 'moveUnit',
+                        actionId: `auto_vacate_${blocker.id}_${Date.now()}`,
+                        payload: { playerId: blocker.player, unitId: blocker.id, toR: destination.r, toC: destination.c }
+                    });
+                    console.log(`[IA Produce][AUTO_VACATE] ${blocker.name || blocker.id} despeja (${center.r},${center.c}) -> (${destination.r},${destination.c}) [fallback].`);
+                    return true;
+                }
+            } catch (e) {
+                console.warn(`[IA Produce][AUTO_VACATE] Error despejando centro (${center.r},${center.c}): ${e.message}`);
+            }
+
+            return false;
+        };
+
         let productionCenter = (isValidProductionCenter(specificSpot) && isEmptyCenter(specificSpot)) ? specificSpot : null;
 
         // Si no hay centro valido y vacio, usar cualquier ciudad/fortaleza propia vacia.
@@ -3609,13 +3695,30 @@ const AiGameplayManager = {
             const structureCenters = board.flat().filter(h => h && h.owner === playerNumber && ['Aldea', 'Ciudad', 'Metrópoli', 'Fortaleza', 'Fortaleza con Muralla'].includes(h.structure));
             const candidates = [...cityCenters, ...structureCenters];
             productionCenter = candidates.find(c => isValidProductionCenter(c) && isEmptyCenter(c));
+
+            // Si todos los centros están ocupados, intentar despejar uno con unidad propia móvil.
+            if (!productionCenter) {
+                const blockedCenters = candidates.filter(c => isValidProductionCenter(c) && !isEmptyCenter(c));
+                for (const blockedCenter of blockedCenters) {
+                    if (!tryVacateCenter(blockedCenter)) continue;
+                    if (isEmptyCenter(blockedCenter)) {
+                        productionCenter = blockedCenter;
+                        break;
+                    }
+                }
+            }
+
             if (!productionCenter) {
                 console.warn("[IA Produce] BLOQUEADO: No hay ciudad/fortaleza propia vacia para reclutar.");
                 return null;
             }
         }
 
-        const placementSpot = productionCenter;
+        const placementSpot = pickSpawnSpot(productionCenter, specificSpot);
+        if (!placementSpot) {
+            console.warn(`[IA Produce] BLOQUEADO: centro sin casilla de spawn válida en (${productionCenter.r},${productionCenter.c}).`);
+            return null;
+        }
 
         // El resto de la funcion original se mantiene, pero ahora usa 'placementSpot' en lugar de 'spot'.
         const playerRes = gameState.playerResources[playerNumber];
@@ -3638,7 +3741,7 @@ const AiGameplayManager = {
         placeFinalizedDivision(newUnit, placementSpot.r, placementSpot.c);
         AiGameplayManager.unitRoles.set(newUnit.id, role);
         
-        console.log(`%c[IA Produce] Unidad ${newUnit.name} creada en la casilla válida (${placementSpot.r}, ${placementSpot.c}).`, "color: #28a745;");
+        console.log(`%c[IA Produce] Unidad ${newUnit.name} creada en (${placementSpot.r}, ${placementSpot.c}) desde centro (${productionCenter.r}, ${productionCenter.c}).`, "color: #28a745;");
         return newUnit;
     },
 

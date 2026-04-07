@@ -4697,6 +4697,47 @@ const IAArchipielago = {
     return actions;
   },
 
+  _buildExplorerAdvancePlan(unit, targetR, targetC) {
+    if (!unit || !Number.isInteger(targetR) || !Number.isInteger(targetC)) return null;
+    const movementBudget = Number(unit.currentMovement || unit.movement || 0);
+    if (movementBudget <= 0) return null;
+
+    const path = this._findPathForUnit(unit, targetR, targetC);
+    if (!Array.isArray(path) || path.length <= 1) return null;
+
+    let accumulatedCost = 0;
+    let destination = null;
+    let steps = 0;
+
+    for (let i = 1; i < path.length; i++) {
+      const prev = path[i - 1];
+      const step = path[i];
+      const stepCost = getMovementCost(unit, prev.r, prev.c, step.r, step.c);
+      if (!Number.isFinite(stepCost) || stepCost === Infinity) break;
+
+      const nextCost = accumulatedCost + stepCost;
+      if (nextCost > movementBudget) break;
+
+      const occupied = getUnitOnHex(step.r, step.c);
+      const isTarget = step.r === targetR && step.c === targetC;
+      if (occupied && !isTarget) break;
+
+      destination = step;
+      accumulatedCost = nextCost;
+      steps = i;
+    }
+
+    if (!destination) return null;
+    return {
+      destination,
+      steps,
+      cost: accumulatedCost,
+      budget: movementBudget,
+      target: { r: targetR, c: targetC },
+      pathLength: path.length
+    };
+  },
+
   _executeDedicatedExplorerProtocol(myPlayer, opts = {}) {
     const maxActions = Math.max(1, Number(opts.maxActions || 1));
     let actions = 0;
@@ -4752,6 +4793,22 @@ const IAArchipielago = {
 
       const ruinTarget = ruins.length ? this._pickObjective(ruins, explorer, myPlayer) : null;
       if (ruinTarget) {
+        const ruinPlan = this._buildExplorerAdvancePlan(explorer, ruinTarget.r, ruinTarget.c);
+        this._metricLog('IA_EXPLORER_PLAN', {
+          turn: gameState.turnNumber,
+          playerId: myPlayer,
+          unitId: explorer.id,
+          at: `${explorer.r},${explorer.c}`,
+          objectiveType: 'ruin',
+          objective: `${ruinTarget.r},${ruinTarget.c}`,
+          budget: Number(explorer.currentMovement || explorer.movement || 0),
+          plannedDestination: ruinPlan ? `${ruinPlan.destination.r},${ruinPlan.destination.c}` : null,
+          plannedSteps: ruinPlan ? ruinPlan.steps : 0,
+          plannedCost: ruinPlan ? ruinPlan.cost : 0
+        });
+
+        console.log(`[IA_EXPLORER_PLAN] J${myPlayer} unit=${explorer.id} at=(${explorer.r},${explorer.c}) objetivo=ruina(${ruinTarget.r},${ruinTarget.c}) mov=${Number(explorer.currentMovement || explorer.movement || 0)} destino=${ruinPlan ? `(${ruinPlan.destination.r},${ruinPlan.destination.c})` : 'none'} pasos=${ruinPlan ? ruinPlan.steps : 0}`);
+
         this._assignMissionIfAvailable(explorer, {
           type: 'EXPLORER_SPECIALIST_RUINS',
           objective: { r: ruinTarget.r, c: ruinTarget.c },
@@ -4768,10 +4825,22 @@ const IAArchipielago = {
           continue;
         }
 
-        const stepToRuin = this._getMoveStepTowards(explorer, ruinTarget.r, ruinTarget.c);
+        const stepToRuin = ruinPlan?.destination || null;
         const movedToRuin = !!(stepToRuin && this._requestMoveUnit(explorer, stepToRuin.r, stepToRuin.c, {
           missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR
         }));
+
+        this._metricLog('IA_EXPLORER_MOVE_RESULT', {
+          turn: gameState.turnNumber,
+          playerId: myPlayer,
+          unitId: explorer.id,
+          objectiveType: 'ruin',
+          objective: `${ruinTarget.r},${ruinTarget.c}`,
+          attemptDestination: stepToRuin ? `${stepToRuin.r},${stepToRuin.c}` : null,
+          moved: movedToRuin,
+          plannedSteps: ruinPlan ? ruinPlan.steps : 0
+        });
+
         if (movedToRuin) {
           actions += 1;
           progressed = true;
@@ -4804,15 +4873,51 @@ const IAArchipielago = {
         reason: 'EXPLORER_FALLBACK_EXPANSION'
       });
 
-      const fallbackStep = this._getMoveStepTowards(explorer, fallbackTarget.r, fallbackTarget.c);
+      const fallbackPlan = this._buildExplorerAdvancePlan(explorer, fallbackTarget.r, fallbackTarget.c);
+      this._metricLog('IA_EXPLORER_PLAN', {
+        turn: gameState.turnNumber,
+        playerId: myPlayer,
+        unitId: explorer.id,
+        at: `${explorer.r},${explorer.c}`,
+        objectiveType: 'fallback_expansion',
+        objective: `${fallbackTarget.r},${fallbackTarget.c}`,
+        budget: Number(explorer.currentMovement || explorer.movement || 0),
+        plannedDestination: fallbackPlan ? `${fallbackPlan.destination.r},${fallbackPlan.destination.c}` : null,
+        plannedSteps: fallbackPlan ? fallbackPlan.steps : 0,
+        plannedCost: fallbackPlan ? fallbackPlan.cost : 0
+      });
+
+      console.log(`[IA_EXPLORER_PLAN] J${myPlayer} unit=${explorer.id} at=(${explorer.r},${explorer.c}) objetivo=fallback(${fallbackTarget.r},${fallbackTarget.c}) mov=${Number(explorer.currentMovement || explorer.movement || 0)} destino=${fallbackPlan ? `(${fallbackPlan.destination.r},${fallbackPlan.destination.c})` : 'none'} pasos=${fallbackPlan ? fallbackPlan.steps : 0}`);
+
+      const fallbackStep = fallbackPlan?.destination || null;
       if (fallbackStep && this._requestMoveUnit(explorer, fallbackStep.r, fallbackStep.c, {
         missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR
       })) {
         actions += 1;
         progressed = true;
         stallReason = 'moved_fallback';
+        this._metricLog('IA_EXPLORER_MOVE_RESULT', {
+          turn: gameState.turnNumber,
+          playerId: myPlayer,
+          unitId: explorer.id,
+          objectiveType: 'fallback_expansion',
+          objective: `${fallbackTarget.r},${fallbackTarget.c}`,
+          attemptDestination: `${fallbackStep.r},${fallbackStep.c}`,
+          moved: true,
+          plannedSteps: fallbackPlan ? fallbackPlan.steps : 0
+        });
       } else {
         stallReason = fallbackStep ? 'fallback_move_failed' : 'fallback_no_step';
+        this._metricLog('IA_EXPLORER_MOVE_RESULT', {
+          turn: gameState.turnNumber,
+          playerId: myPlayer,
+          unitId: explorer.id,
+          objectiveType: 'fallback_expansion',
+          objective: `${fallbackTarget.r},${fallbackTarget.c}`,
+          attemptDestination: fallbackStep ? `${fallbackStep.r},${fallbackStep.c}` : null,
+          moved: false,
+          plannedSteps: fallbackPlan ? fallbackPlan.steps : 0
+        });
       }
 
       if (!progressed) {
