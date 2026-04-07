@@ -2949,13 +2949,32 @@ const IAArchipielago = {
       actionId: `explore_${unit.id}_${Date.now()}`,
       payload: { playerId: unit.player, unitId: unit.id, r: unit.r, c: unit.c }
     };
+    const targetR = unit.r;
+    const targetC = unit.c;
+
+    const snapshotBefore = {
+      feature: ruinHex?.feature ?? null,
+      looted: !!ruinHex?.looted,
+      hasMoved: !!unit.hasMoved,
+      hasAttacked: !!unit.hasAttacked
+    };
+
+    const didExploreApply = () => {
+      const refreshedUnit = (typeof getUnitById === 'function' ? getUnitById(unit.id) : null) || unit;
+      const refreshedHex = board?.[targetR]?.[targetC] || board?.[unit.r]?.[unit.c] || null;
+
+      const featureCleared = snapshotBefore.feature === 'ruins' && refreshedHex?.feature !== 'ruins';
+      const lootedChanged = !snapshotBefore.looted && !!refreshedHex?.looted;
+      const unitConsumedAction = (!snapshotBefore.hasMoved && !!refreshedUnit?.hasMoved)
+        || (!snapshotBefore.hasAttacked && !!refreshedUnit?.hasAttacked);
+
+      return !!(featureCleared || lootedChanged || unitConsumedAction);
+    };
 
     if (typeof isNetworkGame === 'function' && isNetworkGame()) {
       if (typeof NetworkManager !== 'undefined' && NetworkManager.esAnfitrion && typeof processActionRequest === 'function') {
-        const wasLooted = !!(board?.[unit.r]?.[unit.c]?.looted);
         processActionRequest(action);
-        const isLootedNow = !!(board?.[unit.r]?.[unit.c]?.looted);
-        const applied = !wasLooted && isLootedNow;
+        const applied = didExploreApply();
         this._logMandatoryUnitExecution(unit, {
           action: 'explore_ruins',
           from: `${unit.r},${unit.c}`,
@@ -2995,10 +3014,8 @@ const IAArchipielago = {
     }
 
     if (typeof _executeExploreRuins === 'function') {
-      const wasLooted = !!(board?.[unit.r]?.[unit.c]?.looted);
       _executeExploreRuins(action.payload);
-      const isLootedNow = !!(board?.[unit.r]?.[unit.c]?.looted);
-      const applied = !wasLooted && isLootedNow;
+      const applied = didExploreApply();
       this._logMandatoryUnitExecution(unit, {
         action: 'explore_ruins',
         from: `${unit.r},${unit.c}`,
