@@ -2930,6 +2930,20 @@ const IAArchipielago = {
 
   _requestExploreRuins(unit) {
     if (!unit) return false;
+    const ruinHex = board?.[unit.r]?.[unit.c] || null;
+    if (!ruinHex || ruinHex.feature !== 'ruins' || ruinHex.looted) {
+      this._logMandatoryUnitExecution(unit, {
+        action: 'explore_ruins',
+        from: `${unit.r},${unit.c}`,
+        to: `${unit.r},${unit.c}`,
+        success: false,
+        reason: 'not_on_unexplored_ruin',
+        source: 'explorer_protocol',
+        missionType: 'EXPLORER_SPECIALIST_RUINS'
+      });
+      return false;
+    }
+
     const action = {
       type: 'exploreRuins',
       actionId: `explore_${unit.id}_${Date.now()}`,
@@ -2938,21 +2952,75 @@ const IAArchipielago = {
 
     if (typeof isNetworkGame === 'function' && isNetworkGame()) {
       if (typeof NetworkManager !== 'undefined' && NetworkManager.esAnfitrion && typeof processActionRequest === 'function') {
+        const wasLooted = !!(board?.[unit.r]?.[unit.c]?.looted);
         processActionRequest(action);
-        return true;
+        const isLootedNow = !!(board?.[unit.r]?.[unit.c]?.looted);
+        const applied = !wasLooted && isLootedNow;
+        this._logMandatoryUnitExecution(unit, {
+          action: 'explore_ruins',
+          from: `${unit.r},${unit.c}`,
+          to: `${unit.r},${unit.c}`,
+          success: applied,
+          reason: applied ? 'ok' : 'request_not_applied',
+          mode: 'network_host',
+          source: 'explorer_protocol',
+          missionType: 'EXPLORER_SPECIALIST_RUINS'
+        });
+        return applied;
       }
       if (typeof NetworkManager !== 'undefined' && NetworkManager.enviarDatos) {
         NetworkManager.enviarDatos({ type: 'actionRequest', action });
-        return true;
+        this._logMandatoryUnitExecution(unit, {
+          action: 'explore_ruins',
+          from: `${unit.r},${unit.c}`,
+          to: `${unit.r},${unit.c}`,
+          success: false,
+          reason: 'network_dispatch_pending',
+          mode: 'network_client',
+          source: 'explorer_protocol',
+          missionType: 'EXPLORER_SPECIALIST_RUINS'
+        });
+        return false;
       }
+      this._logMandatoryUnitExecution(unit, {
+        action: 'explore_ruins',
+        from: `${unit.r},${unit.c}`,
+        to: `${unit.r},${unit.c}`,
+        success: false,
+        reason: 'network_send_unavailable',
+        source: 'explorer_protocol',
+        missionType: 'EXPLORER_SPECIALIST_RUINS'
+      });
       return false;
     }
 
     if (typeof _executeExploreRuins === 'function') {
+      const wasLooted = !!(board?.[unit.r]?.[unit.c]?.looted);
       _executeExploreRuins(action.payload);
-      return true;
+      const isLootedNow = !!(board?.[unit.r]?.[unit.c]?.looted);
+      const applied = !wasLooted && isLootedNow;
+      this._logMandatoryUnitExecution(unit, {
+        action: 'explore_ruins',
+        from: `${unit.r},${unit.c}`,
+        to: `${unit.r},${unit.c}`,
+        success: applied,
+        reason: applied ? 'ok' : 'request_not_applied',
+        mode: '_executeExploreRuins',
+        source: 'explorer_protocol',
+        missionType: 'EXPLORER_SPECIALIST_RUINS'
+      });
+      return applied;
     }
 
+    this._logMandatoryUnitExecution(unit, {
+      action: 'explore_ruins',
+      from: `${unit.r},${unit.c}`,
+      to: `${unit.r},${unit.c}`,
+      success: false,
+      reason: 'explore_api_unavailable',
+      source: 'explorer_protocol',
+      missionType: 'EXPLORER_SPECIALIST_RUINS'
+    });
     return false;
   },
 
@@ -5112,7 +5180,16 @@ const IAArchipielago = {
         });
 
         if (explorer.r === ruinTarget.r && explorer.c === ruinTarget.c) {
-          if (this._requestExploreRuins(explorer)) {
+          const explored = this._requestExploreRuins(explorer);
+          this._metricLog('IA_EXPLORER_EXPLORE_ATTEMPT', {
+            turn: gameState.turnNumber,
+            playerId: myPlayer,
+            unitId: explorer.id,
+            at: `${explorer.r},${explorer.c}`,
+            objective: `${ruinTarget.r},${ruinTarget.c}`,
+            success: explored
+          });
+          if (explored) {
             actions += 1;
             progressed = true;
             stallReason = 'explored_ruin';
@@ -5241,8 +5318,7 @@ const IAArchipielago = {
       playerId: myPlayer,
       actions,
       ruins: ruins.length,
-      explorerCandidates: explorers.length,
-      hasRecon
+      explorerCandidates: explorers.length
     });
 
     return actions;
