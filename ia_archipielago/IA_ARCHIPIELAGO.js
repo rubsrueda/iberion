@@ -4423,7 +4423,21 @@ const IAArchipielago = {
         missionType: this.MISSION_TYPE_CONQUEST_CITY
       }));
 
-      if (!moved) break;
+      if (!moved) {
+        this._metricLog('IA_CITY_SNATCH_PRIORITY_BLOCKED', {
+          turn: gameState.turnNumber,
+          playerId: myPlayer,
+          unitId: unit.id,
+          from: `${unit.r},${unit.c}`,
+          target: `${target.r},${target.c}`,
+          distance: hexDistance(unit.r, unit.c, target.r, target.c),
+          hasMoved: !!unit.hasMoved,
+          movement: Number(unit.currentMovement || 0),
+          hasStep: !!step,
+          hasPath: !!this._findPathForUnit(unit, target.r, target.c)
+        });
+        break;
+      }
       actions += 1;
     }
 
@@ -4440,6 +4454,46 @@ const IAArchipielago = {
 
       const availableUnits = this._getAvailableMissionUnits(myPlayer);
       if (!availableUnits.length) break;
+
+      // Caso crítico trazable: si una división está adyacente a ciudad libre, se intenta primero.
+      let adjacentExecuted = false;
+      for (const unit of availableUnits) {
+        for (const target of targets) {
+          const dist = hexDistance(unit.r, unit.c, target.r, target.c);
+          if (dist !== 1) continue;
+
+          this._assignMissionIfAvailable(unit, {
+            type: 'CITY_SNATCH_IMMEDIATE',
+            objective: { r: target.r, c: target.c },
+            reason: 'UNGARRISONED_CITY_ADJACENT_PRIORITY'
+          });
+
+          const moved = this._requestMoveOrAttack(unit, target.r, target.c, {
+            missionType: this.MISSION_TYPE_CONQUEST_CITY
+          });
+
+          this._metricLog('IA_CITY_SNATCH_ADJACENT_ATTEMPT', {
+            turn: gameState.turnNumber,
+            playerId: myPlayer,
+            unitId: unit.id,
+            from: `${unit.r},${unit.c}`,
+            target: `${target.r},${target.c}`,
+            targetName: target.name || null,
+            moved: !!moved,
+            hasMoved: !!unit.hasMoved,
+            movement: Number(unit.currentMovement || 0),
+            hasPath: !!this._findPathForUnit(unit, target.r, target.c)
+          });
+
+          if (moved) {
+            actions += 1;
+            adjacentExecuted = true;
+            break;
+          }
+        }
+        if (adjacentExecuted || actions >= maxActions) break;
+      }
+      if (adjacentExecuted) continue;
 
       // Regla dura: si hay ciudad sin guarnición y una unidad puede llegar, priorizar eso.
       let best = null;
@@ -4648,6 +4702,10 @@ const IAArchipielago = {
     let actions = 0;
 
     const ruins = this._getUnexploredRuins();
+    const allAliveExplorers = (IASentidos.getUnits(myPlayer) || [])
+      .filter(u => u && u.currentHealth > 0)
+      .filter(u => u.regiments?.some(reg => reg.type === 'Explorador'));
+
     let explorers = (IASentidos.getUnits(myPlayer) || [])
       .filter(u => u && u.currentHealth > 0)
       .filter(u => !u.hasMoved && (u.currentMovement || 0) > 0)
@@ -4672,7 +4730,16 @@ const IAArchipielago = {
         playerId: myPlayer,
         actions: 0,
         reason: 'no_explorer_with_movement',
-        ruins: ruins.length
+        ruins: ruins.length,
+        aliveExplorers: allAliveExplorers.length,
+        blockedExplorers: allAliveExplorers
+          .filter(u => u.hasMoved || (u.currentMovement || 0) <= 0)
+          .map(u => ({
+            unitId: u.id,
+            at: `${u.r},${u.c}`,
+            hasMoved: !!u.hasMoved,
+            movement: Number(u.currentMovement || 0)
+          }))
       });
       return 0;
     }
@@ -4680,6 +4747,8 @@ const IAArchipielago = {
     const hasRecon = this._ensureTech(myPlayer, 'RECONNAISSANCE');
     for (const explorer of explorers) {
       if (actions >= maxActions) break;
+      let progressed = false;
+      let stallReason = 'unknown';
 
       const ruinTarget = ruins.length ? this._pickObjective(ruins, explorer, myPlayer) : null;
       if (ruinTarget) {
@@ -4692,7 +4761,10 @@ const IAArchipielago = {
         if (explorer.r === ruinTarget.r && explorer.c === ruinTarget.c && hasRecon) {
           if (this._requestExploreRuins(explorer)) {
             actions += 1;
+            progressed = true;
+            stallReason = 'explored_ruin';
           }
+          if (!progressed) stallReason = 'ruin_explore_failed';
           continue;
         }
 
@@ -4702,13 +4774,29 @@ const IAArchipielago = {
         }));
         if (movedToRuin) {
           actions += 1;
+          progressed = true;
+          stallReason = 'moved_to_ruin';
           continue;
         }
+        stallReason = stepToRuin ? 'ruin_move_failed' : 'ruin_no_step';
+      } else {
+        stallReason = 'no_ruins_target';
       }
 
       const fallbackExpansion = this._collectExpansionTargets(myPlayer);
       const fallbackTarget = fallbackExpansion.length ? this._pickObjective(fallbackExpansion, explorer, myPlayer) : null;
-      if (!fallbackTarget) continue;
+      if (!fallbackTarget) {
+        this._metricLog('IA_EXPLORER_UNIT_STALLED', {
+          turn: gameState.turnNumber,
+          playerId: myPlayer,
+          unitId: explorer.id,
+          at: `${explorer.r},${explorer.c}`,
+          reason: stallReason === 'no_ruins_target' ? 'no_ruins_no_fallback' : `${stallReason}_no_fallback`,
+          ruins: ruins.length,
+          movement: Number(explorer.currentMovement || 0)
+        });
+        continue;
+      }
 
       this._assignMissionIfAvailable(explorer, {
         type: 'EXPLORER_SPECIALIST_EXPANSION',
@@ -4721,6 +4809,23 @@ const IAArchipielago = {
         missionType: this.MISSION_TYPE_COMMERCIAL_CORRIDOR
       })) {
         actions += 1;
+        progressed = true;
+        stallReason = 'moved_fallback';
+      } else {
+        stallReason = fallbackStep ? 'fallback_move_failed' : 'fallback_no_step';
+      }
+
+      if (!progressed) {
+        this._metricLog('IA_EXPLORER_UNIT_STALLED', {
+          turn: gameState.turnNumber,
+          playerId: myPlayer,
+          unitId: explorer.id,
+          at: `${explorer.r},${explorer.c}`,
+          reason: stallReason,
+          ruinTarget: ruinTarget ? `${ruinTarget.r},${ruinTarget.c}` : null,
+          fallbackTarget: fallbackTarget ? `${fallbackTarget.r},${fallbackTarget.c}` : null,
+          movement: Number(explorer.currentMovement || 0)
+        });
       }
     }
 
