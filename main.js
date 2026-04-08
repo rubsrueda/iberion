@@ -2119,6 +2119,7 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
 
             const requiresLoginActions = new Set([
                 'openProfile',
+                'openCampaignHub',
                 'openAltar',
                 'openBarracks',
                 'openForge'
@@ -2143,6 +2144,16 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
                 case 'openProfile':
                     if (typeof openProfileModal === 'function') {
                         openProfileModal();
+                    }
+                    break;
+
+                case 'openCampaignHub':
+                    if (typeof CampaignHub !== 'undefined' && typeof CampaignHub.open === 'function') {
+                        CampaignHub.open();
+                    } else if (typeof initializeCampaignMode === 'function') {
+                        initializeCampaignMode();
+                    } else {
+                        console.error('CampaignHub/initializeCampaignMode no disponible.');
                     }
                     break;
                         

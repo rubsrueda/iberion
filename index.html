@@ -432,7 +432,7 @@
         <!-- Altar de los Deseos: Estatua a la derecha -->
             <div id="hotspotAltar" class="main-menu-hotspot" data-action="openAltar"></div>
         <!-- Campaña: Edificio grande arriba -->
-            <div id="hotspotCampaign" class="main-menu-hotspot" data-action="openProfile"></div>
+            <div id="hotspotCampaign" class="main-menu-hotspot" data-action="openCampaignHub"></div>
         <!-- NUEVO HOTSPOT: ALIANZA (Abajo a la derecha) -->
         <!--<div id="hotspotAlliance" class="main-menu-hotspot" data-action="openAlliance"></div>-->
         <!-- Tronos de Iberia: Ruinas a la derecha -->
@@ -1906,6 +1906,8 @@
         <!-- Menú Superior -->
         <div class="editor-top-bar">
             <button onclick="CampaignUI.saveCampaign()">💾 Guardar Campaña</button>
+            <button onclick="CampaignUI.publishCampaign()">🌍 Publicar</button>
+            <button onclick="CampaignUI.unpublishCampaign()">🔒 Despublicar</button>
             <button onclick="CampaignUI.exportCampaign()">📤 Exportar</button>
             
             <span id="campaignTitleDisplay" style="flex: 1; text-align: center; color: #00f3ff; font-size: 1.2em; font-weight: bold;">Sin título</span>

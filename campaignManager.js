@@ -12,6 +12,382 @@ let campaignState = {
     currentMapTacticalDataForBattle: null,
 };
 
+const CampaignHub = {
+    _modalId: 'campaignHubModal',
+    _selectedTab: 'official',
+    _campaigns: {
+        official: [],
+        own: [],
+        public: []
+    },
+    _selectedCampaign: null,
+    _progressStorageKey: 'hexEvolvedCampaignProgressV2',
+
+    _loadProgress() {
+        try {
+            const raw = localStorage.getItem(this._progressStorageKey);
+            return raw ? JSON.parse(raw) : {};
+        } catch (error) {
+            console.warn('[CampaignHub] Progreso invalido, reiniciando.', error);
+            return {};
+        }
+    },
+
+    _saveProgress(progress) {
+        try {
+            localStorage.setItem(this._progressStorageKey, JSON.stringify(progress));
+        } catch (error) {
+            console.error('[CampaignHub] No se pudo guardar progreso:', error);
+        }
+    },
+
+    markScenarioCompleted(campaignId, scenarioOrder) {
+        if (!campaignId || !Number.isInteger(scenarioOrder)) return;
+        const progress = this._loadProgress();
+        if (!progress[campaignId]) {
+            progress[campaignId] = { completedOrders: [], lastPlayedOrder: null, modified_at: Date.now() };
+        }
+        const completed = new Set(progress[campaignId].completedOrders || []);
+        completed.add(scenarioOrder);
+        progress[campaignId].completedOrders = Array.from(completed).sort((a, b) => a - b);
+        progress[campaignId].lastPlayedOrder = scenarioOrder;
+        progress[campaignId].modified_at = Date.now();
+        this._saveProgress(progress);
+    },
+
+    _getCampaignProgress(campaignId) {
+        const progress = this._loadProgress();
+        return progress[campaignId] || { completedOrders: [], lastPlayedOrder: null };
+    },
+
+    _closeModal() {
+        const modal = document.getElementById(this._modalId);
+        if (modal) modal.remove();
+    },
+
+    _normalizeCampaignFromSupabase(row, sourceType) {
+        const payload = row?.campaign_data;
+        if (!payload || !Array.isArray(payload.scenarios)) return null;
+        return {
+            id: `${sourceType}:${row.id}`,
+            sourceType,
+            title: payload.meta?.title || row.title || 'Campaña sin titulo',
+            description: payload.meta?.description || row.description || '',
+            scenarios: payload.scenarios,
+            raw: payload
+        };
+    },
+
+    _buildOfficialCampaignFromWorldMap() {
+        if (typeof WORLD_MAP_DATA === 'undefined' || !WORLD_MAP_DATA?.territories) return null;
+
+        const scenarios = Object.entries(WORLD_MAP_DATA.territories)
+            .map(([territoryId, territory], index) => ({
+                order: index + 1,
+                scenarioId: territory.displayName || territory.name || territoryId,
+                registryScenarioKey: territory.scenarioFile,
+                sourceTerritoryId: territoryId
+            }))
+            .filter(s => !!s.registryScenarioKey);
+
+        if (scenarios.length === 0) return null;
+
+        return {
+            id: 'official:world_map_default',
+            sourceType: 'official',
+            title: WORLD_MAP_DATA.displayName || 'Campaña Oficial',
+            description: WORLD_MAP_DATA.description || 'Campaña oficial basada en el mapa mundial.',
+            scenarios,
+            raw: null
+        };
+    },
+
+    async _loadCampaignGroups() {
+        this._campaigns = { official: [], own: [], public: [] };
+
+        const officialFromWorldMap = this._buildOfficialCampaignFromWorldMap();
+        if (officialFromWorldMap) this._campaigns.official.push(officialFromWorldMap);
+
+        if (typeof GAME_DATA_REGISTRY !== 'undefined' && GAME_DATA_REGISTRY.campaigns) {
+            Object.entries(GAME_DATA_REGISTRY.campaigns).forEach(([key, campaign]) => {
+                if (!Array.isArray(campaign?.scenarios)) return;
+                this._campaigns.official.push({
+                    id: `official:${key}`,
+                    sourceType: 'official',
+                    title: campaign.meta?.title || campaign.title || key,
+                    description: campaign.meta?.description || campaign.description || '',
+                    scenarios: campaign.scenarios,
+                    raw: campaign
+                });
+            });
+        }
+
+        if (typeof CampaignStorage !== 'undefined' && CampaignStorage.listLocalCampaigns && CampaignStorage.loadFromLocalStorage) {
+            (CampaignStorage.listLocalCampaigns() || []).forEach(item => {
+                const payload = CampaignStorage.loadFromLocalStorage(item.id);
+                if (!payload || !Array.isArray(payload.scenarios)) return;
+                this._campaigns.own.push({
+                    id: `own-local:${item.id}`,
+                    sourceType: 'own-local',
+                    title: payload.meta?.title || item.title || 'Campaña local',
+                    description: payload.meta?.description || '',
+                    scenarios: payload.scenarios,
+                    raw: payload
+                });
+            });
+        }
+
+        if (typeof CampaignStorage !== 'undefined' && CampaignStorage.loadUserCampaigns) {
+            try {
+                const rows = await CampaignStorage.loadUserCampaigns();
+                (rows || []).forEach(row => {
+                    const normalized = this._normalizeCampaignFromSupabase(row, 'own-cloud');
+                    if (normalized) this._campaigns.own.push(normalized);
+                });
+            } catch (error) {
+                console.warn('[CampaignHub] No se pudieron cargar campañas propias en nube:', error);
+            }
+        }
+
+        if (typeof CampaignStorage !== 'undefined' && CampaignStorage.searchPublicCampaigns) {
+            try {
+                const rows = await CampaignStorage.searchPublicCampaigns('');
+                (rows || []).forEach(row => {
+                    const normalized = this._normalizeCampaignFromSupabase(row, 'public');
+                    if (normalized) this._campaigns.public.push(normalized);
+                });
+            } catch (error) {
+                console.warn('[CampaignHub] No se pudieron cargar campañas publicas:', error);
+            }
+        }
+    },
+
+    _getTabLabel(tab) {
+        if (tab === 'official') return 'Oficiales';
+        if (tab === 'own') return 'Propias';
+        return 'Publicas';
+    },
+
+    _renderCampaignList(container) {
+        container.innerHTML = '';
+        const campaigns = this._campaigns[this._selectedTab] || [];
+        if (!campaigns.length) {
+            const empty = document.createElement('div');
+            empty.style.cssText = 'padding: 14px; border: 1px dashed rgba(157,194,212,0.5); border-radius: 8px; color: #9dc2d4;';
+            empty.textContent = 'No hay campañas en esta categoria.';
+            container.appendChild(empty);
+            return;
+        }
+
+        campaigns.forEach(campaign => {
+            const progress = this._getCampaignProgress(campaign.id);
+            const completedCount = (progress.completedOrders || []).length;
+            const total = campaign.scenarios.length;
+
+            const card = document.createElement('div');
+            card.style.cssText = 'border: 1px solid rgba(0,243,255,0.25); border-radius: 10px; padding: 12px; background: rgba(8,18,26,0.75);';
+            card.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                    <div style="min-width:0;">
+                        <div style="color:#dff9ff; font-weight:700;">${campaign.title}</div>
+                        <div style="color:#9dc2d4; font-size:0.88em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${campaign.description || 'Sin descripcion'}</div>
+                    </div>
+                    <div style="color:#6ed8ff; font-size:0.86em;">${completedCount}/${total}</div>
+                </div>
+                <div style="display:flex; gap:8px; margin-top:10px;">
+                    <button data-act="continue" style="flex:1; padding:8px; border:none; border-radius:6px; background:#198754; color:white; cursor:pointer;">Continuar</button>
+                    <button data-act="choose" style="flex:1; padding:8px; border:none; border-radius:6px; background:#0d6efd; color:white; cursor:pointer;">Elegir escenario</button>
+                </div>
+            `;
+
+            const continueBtn = card.querySelector('button[data-act="continue"]');
+            const chooseBtn = card.querySelector('button[data-act="choose"]');
+
+            continueBtn.addEventListener('click', () => this._continueCampaign(campaign));
+            chooseBtn.addEventListener('click', () => this._openScenarioSelector(campaign));
+
+            container.appendChild(card);
+        });
+    },
+
+    _getScenarioOrder(entry, index) {
+        return Number.isInteger(entry?.order) ? entry.order : (index + 1);
+    },
+
+    _continueCampaign(campaign) {
+        const progress = this._getCampaignProgress(campaign.id);
+        const completed = new Set(progress.completedOrders || []);
+        const sorted = [...campaign.scenarios].sort((a, b) => this._getScenarioOrder(a, 0) - this._getScenarioOrder(b, 0));
+        const next = sorted.find((s, idx) => !completed.has(this._getScenarioOrder(s, idx))) || sorted[0];
+        this._launchScenario(campaign, next, sorted.indexOf(next));
+    },
+
+    _openScenarioSelector(campaign) {
+        this._selectedCampaign = campaign;
+        const existing = document.getElementById('campaignHubScenarioPicker');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'campaignHubScenarioPicker';
+        overlay.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 10645; display:flex; align-items:center; justify-content:center; padding:16px;';
+
+        const panel = document.createElement('div');
+        panel.style.cssText = 'width:min(760px,96vw); max-height:84vh; overflow:auto; background:#112433; border:2px solid #00f3ff; border-radius:10px; padding:14px;';
+
+        const progress = this._getCampaignProgress(campaign.id);
+        const completed = new Set(progress.completedOrders || []);
+        const maxUnlockedOrder = Math.max(1, completed.size + 1);
+
+        const title = document.createElement('div');
+        title.style.cssText = 'color:#00f3ff; font-weight:700; margin-bottom:10px;';
+        title.textContent = `Escenarios: ${campaign.title}`;
+        panel.appendChild(title);
+
+        (campaign.scenarios || []).forEach((entry, idx) => {
+            const order = this._getScenarioOrder(entry, idx);
+            const isCompleted = completed.has(order);
+            const isUnlocked = isCompleted || order <= maxUnlockedOrder;
+            const label = entry?.scenarioData?.meta?.name || entry?.scenarioId || `Escenario ${order}`;
+
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; gap:10px; border:1px solid rgba(0,243,255,0.25); border-radius:8px; padding:10px; margin-bottom:8px; background:rgba(8,18,26,0.8);';
+
+            const status = isCompleted ? 'Completado' : (isUnlocked ? 'Disponible' : 'Bloqueado');
+            row.innerHTML = `<div><div style="color:#dff9ff;font-weight:600;">${order}. ${label}</div><div style="color:#9dc2d4;font-size:0.86em;">${status}</div></div>`;
+
+            const playBtn = document.createElement('button');
+            playBtn.textContent = isCompleted ? 'Jugar de nuevo' : 'Jugar';
+            playBtn.disabled = !isUnlocked;
+            playBtn.style.cssText = `padding:8px 12px; border:none; border-radius:6px; color:#fff; font-weight:600; cursor:${isUnlocked ? 'pointer' : 'not-allowed'}; background:${isUnlocked ? '#0d6efd' : '#5a6b78'};`;
+            playBtn.addEventListener('click', () => this._launchScenario(campaign, entry, idx));
+
+            row.appendChild(playBtn);
+            panel.appendChild(row);
+        });
+
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = 'Cerrar';
+        closeBtn.style.cssText = 'margin-top:8px; padding:9px 12px; border:none; border-radius:6px; background:#6c757d; color:white; cursor:pointer;';
+        closeBtn.addEventListener('click', () => overlay.remove());
+        panel.appendChild(closeBtn);
+
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) overlay.remove();
+        });
+
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+    },
+
+    async _launchScenario(campaign, entry, idx) {
+        const scenarioOrder = this._getScenarioOrder(entry, idx);
+        const territoryId = `hub:${campaign.id}:${scenarioOrder}`;
+
+        let scenarioData = null;
+        let mapData = null;
+
+        if (entry?.registryScenarioKey && typeof GAME_DATA_REGISTRY !== 'undefined') {
+            scenarioData = GAME_DATA_REGISTRY.scenarios?.[entry.registryScenarioKey] || null;
+            mapData = scenarioData?.mapFile ? GAME_DATA_REGISTRY.maps?.[scenarioData.mapFile] : null;
+        }
+
+        if (!scenarioData && entry?.scenarioData?.mapFile && typeof GAME_DATA_REGISTRY !== 'undefined') {
+            scenarioData = entry.scenarioData;
+            mapData = GAME_DATA_REGISTRY.maps?.[entry.scenarioData.mapFile] || null;
+        }
+
+        try {
+            this._closeModal();
+            const scenarioPicker = document.getElementById('campaignHubScenarioPicker');
+            if (scenarioPicker) scenarioPicker.remove();
+
+            if (scenarioData && mapData && typeof resetAndSetupTacticalGame === 'function') {
+                showScreen(domElements.gameContainer);
+                if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
+                await resetAndSetupTacticalGame(scenarioData, mapData, territoryId);
+                gameState.currentCampaignId = campaign.id;
+                gameState.currentCampaignScenarioOrder = scenarioOrder;
+                return;
+            }
+
+            if (entry?.scenarioData?.settings && entry?.scenarioData?.boardData && typeof EditorSerializer !== 'undefined') {
+                showScreen(domElements.gameContainer);
+                if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
+                EditorSerializer.importScenario(entry.scenarioData);
+                EditorSerializer.prepareScenarioForPlay(entry.scenarioData);
+                gameState.isCampaignBattle = true;
+                gameState.currentCampaignTerritoryId = territoryId;
+                gameState.currentCampaignId = campaign.id;
+                gameState.currentCampaignScenarioOrder = scenarioOrder;
+                gameState.currentScenarioData = {
+                    displayName: entry?.scenarioData?.meta?.name || entry?.scenarioId || `Escenario ${scenarioOrder}`
+                };
+                if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
+                    UIManager.updateAllUIDisplays();
+                }
+                return;
+            }
+
+            alert('No se pudo iniciar este escenario. Formato no compatible o faltan datos.');
+        } catch (error) {
+            console.error('[CampaignHub] Error iniciando escenario:', error);
+            alert('Error al iniciar escenario de campaña. Revisa la consola para mas detalles.');
+        }
+    },
+
+    async open() {
+        this._closeModal();
+        await this._loadCampaignGroups();
+
+        const modal = document.createElement('div');
+        modal.id = this._modalId;
+        modal.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.72); z-index: 10640; display:flex; align-items:center; justify-content:center; padding:16px;';
+
+        const panel = document.createElement('div');
+        panel.style.cssText = 'width:min(920px,96vw); max-height:88vh; background:#112433; border:2px solid #00f3ff; border-radius:10px; display:flex; flex-direction:column; overflow:hidden;';
+
+        const header = document.createElement('div');
+        header.style.cssText = 'padding:12px 14px; border-bottom:1px solid rgba(0,243,255,0.35); color:#00f3ff; font-weight:700; display:flex; justify-content:space-between; align-items:center;';
+        header.innerHTML = '<span>Campañas</span>';
+
+        const close = document.createElement('button');
+        close.textContent = 'Cerrar';
+        close.style.cssText = 'padding:7px 10px; border:none; border-radius:6px; background:#6c757d; color:#fff; cursor:pointer;';
+        close.addEventListener('click', () => this._closeModal());
+        header.appendChild(close);
+
+        const tabs = document.createElement('div');
+        tabs.style.cssText = 'display:flex; gap:8px; padding:10px 12px; border-bottom:1px solid rgba(0,243,255,0.2);';
+        ['official', 'own', 'public'].forEach(tab => {
+            const btn = document.createElement('button');
+            btn.textContent = this._getTabLabel(tab);
+            btn.style.cssText = `padding:8px 12px; border:none; border-radius:6px; cursor:pointer; color:#fff; background:${this._selectedTab === tab ? '#0d6efd' : '#44515d'};`;
+            btn.addEventListener('click', () => {
+                this._selectedTab = tab;
+                this.open();
+            });
+            tabs.appendChild(btn);
+        });
+
+        const body = document.createElement('div');
+        body.style.cssText = 'padding:12px; overflow-y:auto; display:grid; gap:10px;';
+        this._renderCampaignList(body);
+
+        panel.appendChild(header);
+        panel.appendChild(tabs);
+        panel.appendChild(body);
+        modal.appendChild(panel);
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) this._closeModal();
+        });
+
+        document.body.appendChild(modal);
+    }
+};
+
+window.CampaignHub = CampaignHub;
+
 /**
  * Selecciona el tutorial appropriado según el gameMode
  * Delegado a TutorialManager.selectTutorialByGameMode()
@@ -322,6 +698,25 @@ function handleStartScenarioBattle() {
 
 // --- INICIO DE FUNCIÓN: handleTacticalBattleResult ---
 function handleTacticalBattleResult(playerWon, battleTerritoryId) {
+    if (typeof battleTerritoryId === 'string' && battleTerritoryId.startsWith('hub:')) {
+        const campaignId = gameState.currentCampaignId;
+        const scenarioOrder = Number(gameState.currentCampaignScenarioOrder);
+
+        showScreen(domElements.mainMenuScreenEl);
+
+        if (playerWon && campaignId && Number.isInteger(scenarioOrder) && typeof CampaignHub !== 'undefined') {
+            CampaignHub.markScenarioCompleted(campaignId, scenarioOrder);
+            if (typeof showToast === 'function') {
+                showToast('Escenario completado. Progreso de campaña actualizado.', 'success');
+            }
+        }
+
+        campaignState.currentTerritoryIdForBattle = null;
+        campaignState.currentScenarioDataForBattle = null;
+        campaignState.currentMapTacticalDataForBattle = null;
+        return;
+    }
+
     showScreen(domElements.worldMapScreenEl); // Usar domElements
     if (!worldData || !worldData.territories[battleTerritoryId]) {
         console.error("CampaignManager - handleTacticalBattleResult: Datos de territorio no encontrados:", battleTerritoryId);

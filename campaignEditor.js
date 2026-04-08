@@ -17,6 +17,8 @@ const CampaignState = {
         title: 'Sin título',
         description: '',
         author: null,
+        supabaseId: null,
+        isPublic: false,
         created_at: null,
         modified_at: null,
         version: '1.0'
@@ -53,6 +55,8 @@ const CampaignEditor = {
             author: (typeof PlayerDataManager !== 'undefined' && PlayerDataManager.currentPlayer?.displayName) 
                 ? PlayerDataManager.currentPlayer.displayName 
                 : 'Anónimo',
+            supabaseId: null,
+            isPublic: false,
             created_at: Date.now(),
             modified_at: Date.now(),
             version: '1.0'
@@ -217,6 +221,12 @@ const CampaignEditor = {
             carryOverCommanders: true,
             difficulty: 'normal'
         };
+        if (typeof CampaignState.campaignMeta.isPublic !== 'boolean') {
+            CampaignState.campaignMeta.isPublic = false;
+        }
+        if (!Object.prototype.hasOwnProperty.call(CampaignState.campaignMeta, 'supabaseId')) {
+            CampaignState.campaignMeta.supabaseId = null;
+        }
         CampaignState.scenarios = campaignJSON.scenarios;
         CampaignState.isEditingCampaign = true;
         
@@ -727,6 +737,27 @@ const CampaignUI = {
     async addScenario() {
         this._openScenarioPickerModal();
     },
+
+    async _saveToSupabaseWithVisibility(isPublic) {
+        if (typeof CampaignStorage === 'undefined' || !CampaignStorage.saveToSupabase) {
+            alert('⚠️ CampaignStorage no disponible para publicar en nube.');
+            return null;
+        }
+
+        const campaignData = CampaignEditor.exportCampaign();
+        campaignData.meta.isPublic = !!isPublic;
+        campaignData.meta.supabaseId = CampaignState.campaignMeta.supabaseId || null;
+
+        const savedCloud = await CampaignStorage.saveToSupabase(campaignData, !!isPublic);
+        if (!savedCloud) return null;
+
+        CampaignState.campaignMeta.supabaseId = savedCloud.id || CampaignState.campaignMeta.supabaseId;
+        CampaignState.campaignMeta.isPublic = !!savedCloud.is_public;
+        CampaignState.campaignMeta.modified_at = Date.now();
+        this.updateCampaignTitle();
+
+        return savedCloud;
+    },
     
     /**
      * Guarda la campaña
@@ -758,7 +789,16 @@ const CampaignUI = {
                 console.log('[CampaignUI] Campaña guardada:', campaignId);
                 
                 // Guardar también en Supabase si está disponible
-                await CampaignStorage.saveToSupabase(campaignData, false);
+                if (typeof CampaignStorage !== 'undefined' && CampaignStorage.saveToSupabase) {
+                    campaignData.meta.isPublic = !!CampaignState.campaignMeta.isPublic;
+                    campaignData.meta.supabaseId = CampaignState.campaignMeta.supabaseId || null;
+
+                    const savedCloud = await CampaignStorage.saveToSupabase(campaignData, !!CampaignState.campaignMeta.isPublic);
+                    if (savedCloud) {
+                        CampaignState.campaignMeta.supabaseId = savedCloud.id || CampaignState.campaignMeta.supabaseId;
+                        CampaignState.campaignMeta.isPublic = !!savedCloud.is_public;
+                    }
+                }
                 
                 alert('✅ Campaña guardada correctamente');
                 this.updateCampaignTitle();
@@ -766,6 +806,41 @@ const CampaignUI = {
                 alert('❌ Error al guardar la campaña');
             }
         }
+    },
+
+    async publishCampaign() {
+        const validation = CampaignEditor.validateCampaign();
+        if (!validation.valid) {
+            alert('❌ La campaña no es válida para publicar:\n\n' + validation.errors.join('\n'));
+            return;
+        }
+
+        if (!confirm('¿Publicar esta campaña para que otros jugadores la vean?')) return;
+
+        const savedCloud = await this._saveToSupabaseWithVisibility(true);
+        if (!savedCloud) {
+            alert('❌ No se pudo publicar la campaña en Supabase.');
+            return;
+        }
+
+        alert('✅ Campaña publicada correctamente.');
+    },
+
+    async unpublishCampaign() {
+        if (!CampaignState.campaignMeta.supabaseId) {
+            alert('ℹ️ Esta campaña no está en Supabase todavía.');
+            return;
+        }
+
+        if (!confirm('¿Despublicar campaña? Dejará de aparecer en campañas públicas.')) return;
+
+        const savedCloud = await this._saveToSupabaseWithVisibility(false);
+        if (!savedCloud) {
+            alert('❌ No se pudo despublicar la campaña.');
+            return;
+        }
+
+        alert('✅ Campaña despublicada correctamente.');
     },
     
     /**

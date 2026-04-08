@@ -173,16 +173,22 @@ const CampaignStorage = {
         }
         
         try {
+            const payload = {
+                author_id: PlayerDataManager.currentPlayer.auth_id,
+                title: campaignData.meta.title,
+                description: campaignData.meta.description || '',
+                campaign_data: campaignData,
+                is_public: isPublic,
+                updated_at: new Date().toISOString()
+            };
+
+            if (campaignData?.meta?.supabaseId) {
+                payload.id = campaignData.meta.supabaseId;
+            }
+
             const { data, error } = await supabase
                 .from('campaigns')
-                .upsert({
-                    author_id: PlayerDataManager.currentPlayer.auth_id,
-                    title: campaignData.meta.title,
-                    description: campaignData.meta.description || '',
-                    campaign_data: campaignData,
-                    is_public: isPublic,
-                    updated_at: new Date().toISOString()
-                })
+                .upsert(payload)
                 .select();
             
             if (error) {
