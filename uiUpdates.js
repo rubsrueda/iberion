@@ -324,6 +324,11 @@ const UIManager = {
             return;
         }
 
+        // Si el mensaje ya fue leído, no mostrar el icono
+        if (this._activeHexComicMessage && this._activeHexComicMessage.r === r && this._activeHexComicMessage.c === c) {
+            return;
+        }
+
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = `hex-comic-indicator ${message.severity}`;
@@ -463,6 +468,16 @@ const UIManager = {
     hideHexComicMessagePanel: function() {
         if (this._hexComicPanel) {
             this._hexComicPanel.classList.remove('visible');
+        }
+        // Eliminar el icono de la casilla activa si existe
+        if (this._activeHexComicMessage) {
+            const { r, c } = this._activeHexComicMessage;
+            const hexData = board?.[r]?.[c];
+            const hexEl = hexData?.element;
+            if (hexEl) {
+                const icon = hexEl.querySelector('.hex-comic-indicator');
+                if (icon) icon.remove();
+            }
         }
         this._activeHexComicMessage = null;
     },

@@ -10,18 +10,32 @@ console.log("campaignStorage.js CARGADO");
  * CampaignStorage: Maneja guardar/cargar campañas en localStorage y Supabase
  */
 const CampaignStorage = {
+    _isValidSupabaseClient(candidate) {
+        return !!candidate && typeof candidate.from === 'function';
+    },
+
     /**
      * Resuelve el cliente de Supabase inicializado en la app.
      * @returns {Object|null}
      */
     _getSupabaseClient() {
-        if (typeof supabaseClient !== 'undefined' && supabaseClient?.from) {
+        if (typeof window !== 'undefined' && this._isValidSupabaseClient(window.supabaseClient)) {
+            return window.supabaseClient;
+        }
+
+        if (typeof supabaseClient !== 'undefined' && this._isValidSupabaseClient(supabaseClient)) {
             return supabaseClient;
         }
 
-        // Fallback para entornos donde el cliente global se llame distinto.
-        if (typeof supabase !== 'undefined' && supabase?.from) {
-            return supabase;
+        // Fallback para entornos donde sólo esté cargado el SDK global.
+        if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+            if (typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_KEY !== 'undefined') {
+                const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                if (typeof window !== 'undefined') {
+                    window.supabaseClient = client;
+                }
+                return client;
+            }
         }
 
         return null;

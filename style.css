@@ -381,10 +381,14 @@ body {
 
 .hex-comic-panel {
     position: fixed;
+    left: 50%;
+    bottom: 0;
+    transform: translateX(-50%) translateY(0);
     min-width: 260px;
-    max-width: 330px;
-    padding: 10px 12px;
-    border-radius: 10px;
+    max-width: 95vw;
+    max-height: 60vh;
+    padding: 10px 12px 18px 12px;
+    border-radius: 10px 10px 0 0;
     border: 1px solid rgba(126, 145, 167, 0.45);
     background: linear-gradient(150deg, rgba(13, 21, 30, 0.97), rgba(20, 30, 40, 0.95));
     color: #e8edf2;
@@ -392,7 +396,7 @@ body {
     z-index: 10030;
     opacity: 0;
     pointer-events: none;
-    transform: translateY(6px);
+    overflow-y: auto;
     transition: opacity 0.18s ease, transform 0.18s ease;
 }
 
