@@ -24,26 +24,32 @@
  * 12. ESTILOS ANTIGUOS O DESHABILITADOS
  */
 
-/* --- PARCHE: Forzar visibilidad y prioridad de los botones flotantes derechos --- */
+/* --- PARCHE MEJORADO: Visibilidad, posición y depuración de botones flotantes derechos --- */
 .floating-action-group.right {
-    z-index: 2002 !important;
+    z-index: 30000 !important;
     pointer-events: all !important;
     position: fixed !important;
-    top: 0;
-    right: 0;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    align-items: flex-end;
-    gap: 8px;
-    padding: 12px 10px 18px 0;
+    top: 0 !important;
+    right: 0 !important;
+    height: 100vh !important;
+    width: auto !important;
+    min-width: 48px;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-end !important;
+    align-items: flex-end !important;
+    gap: 8px !important;
+    padding: 12px 10px 18px 0 !important;
+    background: rgba(255,0,0,0.08) !important; /* Fondo de depuración, quitar tras test */
+    border: 2px solid #ff3333 !important; /* Borde de depuración, quitar tras test */
+    box-sizing: border-box !important;
 }
 
 .floating-action-group.right button {
-    z-index: 2003 !important;
+    z-index: 30001 !important;
     pointer-events: all !important;
 }
+
 
 /* ========================================================================== */
 /* 1. ESTILOS GENERALES Y GLOBALES
