@@ -30,6 +30,7 @@ function isEnemyScouted(enemyUnit) {
 
 const UIManager = {
     domElements: null,
+    _hexComicReadMap: {},
     _tutorialMessagePanel: null, 
     _originalEndTurnButtonListener: null, 
     _lastTutorialHighlightElementId: null, 

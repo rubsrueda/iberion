@@ -5630,11 +5630,11 @@ input[type="range"] {
     color: rgba(240, 230, 210, 0.4);
     pointer-events: none;
     z-index: 1000;
-    display: none; /* Oculto por defecto (móvil) */
     background: none;
     font-family: monospace;
     letter-spacing: 1px;
     text-shadow: 1px 1px 2px #000, 0 0 8px #222;
+    display: block !important;
 }
 
 .name-watermark {
@@ -5648,35 +5648,9 @@ input[type="range"] {
     display: none; /* Oculto por defecto (móvil) */
 }
 
-/* Mostrar marca de agua solo en pantallas grandes */
-@media (min-width: 1024px) {
-    .version-watermark {
-        display: block;
-    }
-    .name-watermark {
-        display: block;
-    }
-}
+/* Eliminar restricción de visibilidad por media query para la versión */
 
-/* Mostrar solo el número de versión en móvil */
-@media (max-width: 600px) {
-    .version-watermark {
-        display: block;
-        font-size: 1.2em;
-        right: 10px;
-        bottom: 6px;
-        background: none;
-        color: #ffd700;
-        text-shadow: 1px 1px 2px #000;
-        letter-spacing: 0.5px;
-    }
-    .version-watermark::before {
-        content: '';
-    }
-    .version-watermark {
-        /* Solo mostrar el número, ocultar la V si existe */
-    }
-}
+
 
 /* Ajuste de legibilidad para la lista de construcción en tema oscuro */
 #availableStructuresList li {
