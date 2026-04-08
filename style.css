@@ -2405,9 +2405,10 @@ body {
 
 .toast-notification {
     position: fixed; /* Se pega a la pantalla, no al juego */
-    top: 50%;
+    top: auto;
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
     left: 50%;
-    transform: translate(-50%, -50%); /* Lo centra perfectamente */
+    transform: translate(-50%, 0); /* Centrado horizontal en la franja inferior */
     padding: 12px 25px;
     background-color: rgba(20, 20, 20, 0.9);
     color: #f0f0f0;
@@ -2444,19 +2445,19 @@ body {
 @keyframes toast-fade-in-out {
     0% {
         opacity: 0;
-        transform: translate(-50%, -50%) scale(0.8);
+        transform: translate(-50%, 16px) scale(0.92);
     }
     15% {
         opacity: 1;
-        transform: translate(-50%, -50%) scale(1);
+        transform: translate(-50%, 0) scale(1);
     }
     85% {
         opacity: 1;
-        transform: translate(-50%, -50%) scale(1);
+        transform: translate(-50%, 0) scale(1);
     }
     100% {
         opacity: 0;
-        transform: translate(-50%, -70px) scale(0.8);
+        transform: translate(-50%, 14px) scale(0.92);
 }
 
 }
@@ -2471,11 +2472,11 @@ body {
     animation-name: toast-destacado;
 }
 @keyframes toast-destacado {
-    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
-    12%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
-    18%  { transform: translate(-50%, -50%) scale(1); }
-    85%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-    100% { opacity: 0; transform: translate(-50%, -80px) scale(0.85); }
+    0%   { opacity: 0; transform: translate(-50%, 20px) scale(0.75); }
+    12%  { opacity: 1; transform: translate(-50%, 0) scale(1.05); }
+    18%  { transform: translate(-50%, 0) scale(1); }
+    85%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, 18px) scale(0.85); }
 }
 
 /* --- Nivel ÉPICO --- */
@@ -2492,13 +2493,13 @@ body {
     animation-name: toast-epico;
 }
 @keyframes toast-epico {
-    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(-3deg); }
-    8%   { opacity: 1; transform: translate(-50%, -50%) scale(1.15) rotate(1deg); }
-    14%  { transform: translate(-50%, -50%) scale(0.97) rotate(0deg); }
-    18%  { transform: translate(-50%, -50%) scale(1.03); }
-    22%  { transform: translate(-50%, -50%) scale(1); }
-    80%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-    100% { opacity: 0; transform: translate(-50%, -100px) scale(0.8); }
+    0%   { opacity: 0; transform: translate(-50%, 22px) scale(0.55) rotate(-3deg); }
+    8%   { opacity: 1; transform: translate(-50%, 0) scale(1.15) rotate(1deg); }
+    14%  { transform: translate(-50%, 0) scale(0.97) rotate(0deg); }
+    18%  { transform: translate(-50%, 0) scale(1.03); }
+    22%  { transform: translate(-50%, 0) scale(1); }
+    80%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, 20px) scale(0.8); }
 }
 
 /* ========================================================================== */
@@ -8651,6 +8652,66 @@ body.graphics-form-desktop #profileModal .modal-content {
         display: inline-block;
         vertical-align: middle;
         margin-right: 3px;
+    }
+}
+
+/* ========================================================================== */
+/* ==   ESTABILIZACION DE MODALES EN MOVIL VERTICAL                        == */
+/* ========================================================================== */
+@media (max-width: 620px) and (orientation: portrait) {
+    .modal,
+    .modal-overlay {
+        align-items: flex-start !important;
+        padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
+        padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+        box-sizing: border-box;
+    }
+
+    .modal .modal-content,
+    .modal-themed .modal-content,
+    #gameModesModal .modal-content,
+    #profileModal .modal-content {
+        width: min(96vw, 360px) !important;
+        max-width: 96vw !important;
+        max-height: min(82svh, 560px) !important;
+        margin: 0 auto !important;
+        overflow-y: auto !important;
+    }
+
+    .modal .modal-body,
+    .modal-themed .modal-body,
+    .modal-container .modal-body,
+    #unitManagementModal .unit-management-body {
+        min-height: 0 !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .modal .modal-footer,
+    .modal .modal-footer-actions,
+    .modal-themed .modal-footer,
+    .modal-themed .modal-footer-actions {
+        flex-shrink: 0 !important;
+    }
+
+    #unitManagementModal .modal-content {
+        max-height: min(80svh, 540px) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+    }
+
+    #unitManagementModal .modal-footer-actions {
+        margin-top: 0 !important;
+        padding: 8px 10px !important;
+        border-top: 1px solid rgba(127, 140, 141, 0.45);
+        background: #2c3e50;
+    }
+
+    #unitManagementModal .modal-footer-actions button,
+    #advancedSplitUnitModal .modal-footer-actions button,
+    #buildStructureModal .modal-footer button {
+        min-height: 36px !important;
     }
 }
 .rdc-title {

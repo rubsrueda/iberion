@@ -2,7 +2,7 @@
 
 const VERSION_CONFIG = {
     // Versión actual del juego
-    current: "1.188",
+    current: "1.189",
     // Hito estable para restauración rápida en regresiones de IA
     milestone: "corridor-capture-stable-v1.154",
     

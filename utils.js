@@ -494,7 +494,7 @@ function calculateTalentBonuses(unit, opposingUnit = null, isFirstHit = false) {
 }
 
 /**
- * Muestra una notificación temporal (toast) en el centro de la pantalla.
+ * Muestra una notificación temporal (toast) en la zona inferior central.
  * @param {string} message - El mensaje a mostrar.
  * @param {string} [type='info'] - El tipo de notificación ('info', 'success', 'warning', 'error').
  * @param {number} [duration=3000] - La duración en milisegundos.

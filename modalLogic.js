@@ -1835,9 +1835,9 @@ function RequestReinforceRegiment(division, regiment) {
         
         // 2. <<== CORRECCIÓN: Ahora que heroData existe, creamos el spriteHTML ==>>
         let spriteHTML = '';
-        if (heroData.sprite.includes('.png') || heroData.sprite.includes('.jpg')) {
+        if (_isImagePathIcon(heroData.sprite)) {
             // Usamos una clase para que el CSS la controle
-            spriteHTML = `<img src="${heroData.sprite}" alt="${heroData.name}" class="hero-card-image hero-card-image-${heroData.id}">`;
+            spriteHTML = `<img src="${heroData.sprite}" alt="${heroData.name}" class="hero-card-image hero-card-image-${heroData.id}" onerror="this.style.display='none'">`;
         } else {
             // Mantenemos la lógica para los emojis como fallback
             spriteHTML = `<div class="hero-sprite">${heroData.sprite}</div>`;
@@ -1904,8 +1904,8 @@ function refreshBarracksView() {
         if (!heroData) return;
         
         let spriteHTML = '';
-        if (heroData.sprite.includes('.png') || heroData.sprite.includes('.jpg')) {
-            spriteHTML = `<img src="${heroData.sprite}" alt="${heroData.name}" class="hero-card-image hero-card-image-${heroData.id}">`;
+        if (_isImagePathIcon(heroData.sprite)) {
+            spriteHTML = `<img src="${heroData.sprite}" alt="${heroData.name}" class="hero-card-image hero-card-image-${heroData.id}" onerror="this.style.display='none'">`;
         } else {
             spriteHTML = `<div class="hero-sprite">${heroData.sprite}</div>`;
         }
@@ -1974,7 +1974,7 @@ function openHeroDetailModal(heroInstance) {
             if (itemInstance) {
                 const itemDef = EQUIPMENT_DEFINITIONS[itemInstance.item_id];
                 if (itemDef) {
-                    slotElement.innerHTML = `<span style="font-size: 2.5em;">${itemDef.icon}</span>`;
+                    slotElement.innerHTML = _getEquipmentIconHTML(itemDef, 'item-icon-large-img');
                     slotElement.title = itemDef.name;
                 }
             }
@@ -2561,14 +2561,10 @@ function startGachaAnimation(results) {
         let iconHTML = '';
         const iconSource = data.sprite || data.icon || '❔';
 
-        if (iconSource.includes('.png') || iconSource.includes('.jpg')) {
-            // =======================================================================
-            // ==                 ¡AQUÍ ESTÁ LA SOLUCIÓN FINAL!                     ==
-            // == Forzamos el tamaño directamente aquí. Es imposible que falle.     ==
-            // =======================================================================
-            iconHTML = `<img src="${iconSource}" alt="${data.name}" style="width: 180px; height: 180px; border-radius: 10px;">`;
+        if (_isImagePathIcon(iconSource)) {
+            iconHTML = `<img src="${iconSource}" alt="${data.name}" style="width: 180px; height: 180px; border-radius: 10px;" onerror="this.onerror=null;this.style.display='none';this.insertAdjacentHTML('afterend','<span style=\\'font-size:80px;line-height:180px;display:block;text-align:center;\\'>⚔️</span>');">`;
         } else {
-            iconHTML = iconSource;
+            iconHTML = `<span style="font-size: 80px; line-height: 180px; display: block; text-align: center;">${iconSource}</span>`;
         }
         
         const card = document.createElement('div');
@@ -2590,9 +2586,11 @@ function startGachaAnimation(results) {
         if (res.isCrit) historyItem.classList.add('crit');
         
         let historyIconHTML = iconHTML;
-        if (iconSource.includes('.png') || iconSource.includes('.jpg')) {
-             historyIconHTML = `<img src="${iconSource}" alt="${data.name}" style="width: 20px; height: 20px; vertical-align: middle; margin-right: 5px;">`;
-        }
+           if (_isImagePathIcon(iconSource)) {
+               historyIconHTML = `<img src="${iconSource}" alt="${data.name}" style="width: 20px; height: 20px; vertical-align: middle; margin-right: 5px;" onerror="this.style.display='none'">`;
+           } else {
+               historyIconHTML = `<span>${iconSource}</span>`;
+           }
         
         historyItem.innerHTML = `${historyIconHTML} ${res.isCrit ? 'CRIT! ' : ''}${data.name} +${res.fragments}`;
         historyList.prepend(historyItem);

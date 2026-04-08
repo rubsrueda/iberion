@@ -120,7 +120,7 @@ const COMMANDERS = {
         ]
     },
     "g_escipion_africano": {
-        id: "g_escipion_africano", name: "Escipión el Africano", rarity: "Legendario", sprite: "images/comandantes/g_escipion_africano.png", description: "Genio táctico que se adapta a cualquier enemigo.",
+        id: "g_escipion_africano", name: "Escipión el Africano", rarity: "Legendario", sprite: "images/comandantes/g_fabius.png", description: "Genio táctico que se adapta a cualquier enemigo.",
         talent_trees: ["Liderazgo", "Habilidad", "Infantería"],
         skills: [
             { skill_id: "attack_flat_all", scaling_override: [35, 45, 55, 65, 75]}, // <-- DIVIDIDO
@@ -130,7 +130,7 @@ const COMMANDERS = {
         ]
     },
     "g_Lucio_Hirtuleyo": {
-        id: "g_Lucio_Hirtuleyo", name: "Lucio Hirtuleyo", rarity: "Épico", sprite: "images/comandantes/g_Lucio_Hirtuleyo.png", description: "General romano proscrito leal a Sertorio, maestro de la guerra irregular.",
+        id: "g_Lucio_Hirtuleyo", name: "Lucio Hirtuleyo", rarity: "Épico", sprite: "images/comandantes/g_lucio_hirtuleyo.png", description: "General romano proscrito leal a Sertorio, maestro de la guerra irregular.",
         talent_trees: ["Caballería", "Liderazgo", "Habilidad"],
         skills: [
             { skill_id: "health_flat_all", scaling_override: [20, 25, 30, 35, 40]}, // <-- DIVIDIDO
@@ -400,7 +400,7 @@ const COMMANDERS = {
         ]
     },
     "g_duque_de_alba": {
-        id: "g_duque_de_alba", name: "Duque de Alba", rarity: "Legendario", sprite: "images/comandantes/g_duque_de_alba.png", description: "El Duque de Hierro. Su disciplina es legendaria, y sus ejércitos, un muro infranqueable.",
+        id: "g_duque_de_alba", name: "Duque de Alba", rarity: "Legendario", sprite: "images/comandantes/g_fernando_iii.png", description: "El Duque de Hierro. Su disciplina es legendaria, y sus ejércitos, un muro infranqueable.",
         talent_trees: ["Infantería", "Guarnición", "Habilidad"],
         skills: [
             { skill_id: "defense_flat_all", scaling_override: [35, 42, 50, 60, 70]}, // <-- DIVIDIDO
@@ -420,7 +420,7 @@ const COMMANDERS = {
         ]
     },
     "g_alvaro_de_bazan": {
-        id: "g_alvaro_de_bazan", name: "Álvaro de Bazán", rarity: "Legendario", sprite: "images/comandantes/g_alvaro_de_bazan.png", description: "El marino nunca derrotado, un almirante legendario.",
+        id: "g_alvaro_de_bazan", name: "Álvaro de Bazán", rarity: "Legendario", sprite: "images/comandantes/g_alejandro_farnesio.png", description: "El marino nunca derrotado, un almirante legendario.",
         talent_trees: ["Habilidad", "Guarnición", "Liderazgo"],
         skills: [
             { skill_id: "attack_flat_all", scaling_override: [38, 45, 53, 62, 72]}, // <-- DIVIDIDO
