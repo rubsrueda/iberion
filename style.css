@@ -32,7 +32,7 @@ body {
     margin: 0;
     overflow: hidden;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-image: url('images/IIBERION.png');
+    background-image: url('images/Ingreso.png');
     background-size: cover;
     background-position: center center;
     background-repeat: no-repeat;
@@ -316,6 +316,186 @@ body {
     bottom: 3px;
     left: 3px;
     right: auto;
+}
+
+.hex .hex-comic-indicator {
+    position: absolute;
+    top: 4px;
+    right: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid rgba(230, 230, 230, 0.86);
+    background: rgba(14, 22, 32, 0.86);
+    color: #f5f6f7;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    margin: 0;
+    z-index: 25;
+    cursor: pointer;
+    transition: transform 0.16s ease, box-shadow 0.2s ease;
+    pointer-events: auto;
+}
+
+.hex .hex-comic-indicator .dots {
+    font-size: 10px;
+    line-height: 1;
+    letter-spacing: -0.5px;
+    transform: translateY(-1px);
+}
+
+.hex .hex-comic-indicator:hover {
+    transform: scale(1.08);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.56);
+}
+
+.hex .hex-comic-indicator.critical {
+    background: rgba(110, 20, 20, 0.95);
+    border-color: rgba(255, 208, 182, 0.95);
+    animation: hexComicPulse 2.4s ease-in-out infinite;
+}
+
+.hex .hex-comic-indicator.warning {
+    background: rgba(132, 89, 18, 0.95);
+    border-color: rgba(255, 228, 173, 0.95);
+}
+
+.hex .hex-comic-indicator.opportunity {
+    background: rgba(20, 66, 110, 0.95);
+    border-color: rgba(178, 213, 241, 0.95);
+}
+
+.hex .hex-comic-indicator.narrative {
+    background: rgba(128, 98, 36, 0.95);
+    border-color: rgba(255, 233, 173, 0.95);
+}
+
+@keyframes hexComicPulse {
+    0%,
+    100% { transform: scale(1); }
+    45% { transform: scale(1.12); }
+}
+
+.hex-comic-panel {
+    position: fixed;
+    min-width: 260px;
+    max-width: 330px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(126, 145, 167, 0.45);
+    background: linear-gradient(150deg, rgba(13, 21, 30, 0.97), rgba(20, 30, 40, 0.95));
+    color: #e8edf2;
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.48);
+    z-index: 10030;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(6px);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.hex-comic-panel.visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+.hex-comic-panel .hex-comic-close {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid rgba(192, 202, 214, 0.5);
+    background: rgba(20, 30, 41, 0.88);
+    color: #dbe5ee;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.hex-comic-panel .hex-comic-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.94;
+}
+
+.hex-comic-panel .hex-comic-emitter {
+    font-weight: 700;
+}
+
+.hex-comic-panel .hex-comic-severity {
+    border: 1px solid rgba(172, 190, 210, 0.4);
+    border-radius: 999px;
+    padding: 1px 7px;
+    font-weight: 700;
+    font-size: 10px;
+}
+
+.hex-comic-panel .hex-comic-title {
+    margin-top: 7px;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: #f3f7fc;
+}
+
+.hex-comic-panel .hex-comic-detail {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.35;
+    color: rgba(226, 236, 245, 0.94);
+}
+
+.hex-comic-panel .hex-comic-suggestion {
+    margin-top: 8px;
+    font-size: 11px;
+    line-height: 1.32;
+    color: #c3d8ea;
+    border-top: 1px solid rgba(161, 184, 205, 0.3);
+    padding-top: 7px;
+}
+
+.hex-comic-panel.critical {
+    border-color: rgba(233, 96, 88, 0.5);
+}
+
+.hex-comic-panel.critical .hex-comic-severity {
+    color: #ffb0aa;
+    border-color: rgba(250, 144, 128, 0.56);
+}
+
+.hex-comic-panel.warning {
+    border-color: rgba(223, 174, 66, 0.54);
+}
+
+.hex-comic-panel.warning .hex-comic-severity {
+    color: #ffdf96;
+    border-color: rgba(243, 200, 95, 0.56);
+}
+
+.hex-comic-panel.opportunity {
+    border-color: rgba(87, 161, 224, 0.52);
+}
+
+.hex-comic-panel.opportunity .hex-comic-severity {
+    color: #bfe2ff;
+    border-color: rgba(122, 191, 248, 0.55);
+}
+
+.hex-comic-panel.narrative {
+    border-color: rgba(211, 177, 102, 0.5);
+}
+
+.hex-comic-panel.narrative .hex-comic-severity {
+    color: #f0ddaa;
+    border-color: rgba(229, 195, 129, 0.5);
 }
 
 /* --- Niebla de Guerra --- */
@@ -931,205 +1111,117 @@ body {
 /* ========================================================================== */
 /* 6. BOTONES FLOTANTES
 /* ========================================================================== */
+/* REGLA UNICA: max-height + scroll en el propio contenedor, sin tocar layout */
+@media (max-width: 620px) and (orientation: portrait) {
+    .modal .modal-content,
+    .modal-themed .modal-content,
+    #gameModesModal .modal-content,
+    #profileModal .modal-content,
+    #settingsModal .modal-content,
+    #scenarioBriefingModal .modal-content,
+    #barracksModal .modal-content,
+    #heroDetailModal .modal-content,
+    #unitDetailModal .modal-content,
+    #talentTreeModal .modal-content,
+    #buildStructureModal .modal-content,
+    #unitManagementModal .modal-content,
+    #advancedSplitUnitModal .modal-content,
+    #deseosModal .modal-content,
+    #forgeModal .modal-content,
+    #equipmentSelectorModal .modal-content,
+    #inventoryModal .modal-content,
+    #storeModal .modal-content,
+    #inboxModal .modal-content,
+    #wikiModal .modal-content,
+    #fullCodexModal .modal-content,
+    #myGamesModal .modal-content,
+    #postMatchModal .modal-content,
+    #gameHistoryModal .modal-content,
+    #legacyModal .legacy-modal-panel,
+    #rankingModal .modal-content,
+    #bankModal .modal-content,
+    #techDetailModal .modal-content,
+    #ledgerModal .ledger-shell {
+        max-height: 78svh !important;
+        height: auto !important;
+        min-height: 0 !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
 
-.floating-btn {
-    position: fixed; z-index: 100;
-    background-color: rgba(0, 0, 0, 0.6); color: white;
-    border: none; border-radius: 50%; width: 35px; height: 35px;
-    font-size: 24px; display: flex; justify-content: center; align-items: center;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3); cursor: pointer;
-    transition: background-color 0.2s, transform 0.1s ease;
+    #battlePassModal .bp-main-container {
+        max-height: 78svh !important;
+        height: auto !important;
+        overflow-y: auto !important;
+    }
+
+    body.graphics-form-phone .bp-main-container,
+    body.graphics-form-phone .modal-themed .modal-content,
+    body.graphics-form-phone #gameModesModal .modal-content,
+    body.graphics-form-phone #profileModal .modal-content {
+        max-height: 78svh !important;
+        height: auto !important;
+    }
+
+    #unitManagementModal .modal-content {
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+    }
+
+    #unitManagementModal .unit-management-body {
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #unitManagementModal .modal-footer-actions {
+        flex: 0 0 auto !important;
+        margin-top: 0 !important;
+        padding: 8px 10px !important;
+        border-top: 1px solid rgba(127,140,141,0.45);
+        background: #2c3e50;
+    }
+
+    #advancedSplitUnitModal .modal-content {
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+    }
+
+    #advancedSplitUnitModal .split-regiment-container {
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
+        height: auto !important;
+        overflow-y: auto !important;
+    }
+
+    #originalUnitRegimentsList,
+    #newUnitRegimentsList {
+        max-height: 30svh !important;
+    }
+
+    #barracksModal .hero-collection-grid {
+        max-height: 55svh !important;
+        overflow-y: auto !important;
+    }
+
+    #heroDetailModal .hero-main-layout {
+        grid-template-columns: 1fr !important;
+    }
+
+    #ledgerModal .ledger-shell {
+        width: min(96vw, 380px) !important;
+        height: auto !important;
+        border-radius: 8px !important;
+    }
+
+    .modal-footer button,
+    .modal-footer-actions button {
+        min-height: 40px !important;
+    }
 }
-.floating-btn:hover { background-color: rgba(0, 0, 0, 0.8); transform: scale(1.05); }
-.floating-btn.top-left { top: 15px; left: 15px; }
-.floating-btn.top-right { top: 15px; right: 15px; }
-.floating-btn.bottom-right { bottom: 20px; right: 20px; }
-
-#floatingUndoMoveBtn, #floatingReinforceBtn, #floatingSplitBtn, #floatingBuildBtn {
-    width: 35px; height: 35px; border-radius: 50%; padding: 0;
-    display: flex; justify-content: center; align-items: center;
-    font-size: 1.5em; display: none;
-}
-#floatingMenuBtn:hover, #floatingTechTreeBtn:hover, #floatingEndTurnBtn:hover,
-#floatingCreateDivisionBtn:hover, #floatingConsoleBtn:hover, #floatingUndoMoveBtn:hover,
-#floatingReinforceBtn:hover, #floatingSplitBtn:hover, #floatingBuildBtn:hover {
-    background-color: #555; transform: scale(1.05);
-}
-
-#floatingEndTurnBtn:hover { background-color: transparent !important; transform: scale(1.1); }
-#floatingEndTurnBtn:active { background-color: transparent !important; transform: translateY(1px) scale(1.05); box-shadow: none !important; }
-
-/* --- Posicionamiento específico --- */
-/*#floatingEndTurnBtn        { bottom: 20px;  right: 20px; }
-/*#floatingCreateDivisionBtn { bottom: 100px;  right: 20px; }
-/*#floatingTechTreeBtn       { bottom: 160px; right: 20px; }
-/*#floatingMenuBtn           { bottom: 220px; right: 20px; }
-/*#floatingConsoleBtn        { bottom: 280px; right: 20px; font-size: 1.1em; padding: 10px 12px; }
-/*#floatingWikiBtn           { bottom: 340px; right: 20px; width: 50px; height: 50px; border-radius: 50%; font-size: 28px; font-weight: bold; font-style: italic; padding: 0; display: flex; justify-content: center; align-items: center; }
-/*#floatingPillageBtn        { bottom: 40px;  left: 20px; } 
-/*#floatingBuildBtn          { bottom: 100px;  left: 20px; }
-/*#floatingSplitBtn          { bottom: 160px;  left: 20px; }
-/*#floatingReinforceBtn      { bottom: 220px; left: 20px; }
-/*#floatingUndoMoveBtn       { bottom: 280px; left: 20px; }
-/*#floatingConsolidateBtn    { bottom: 320px; left: 20px; display: none; } 
-/*#floatingAssignGeneralBtn  { bottom: 380px; left: 20px; display: none;}
-/*#floatingNextUnitBtn       { bottom: 440px; left: 20px; display: none; }
-/*#floatingManageBtn         { bottom: 320px; left: 20px; display: none; }
-/*#floatingInboxBtn          { bottom: 400px; right: 20px; width: 50px; height: 50px; border-radius: 50%; font-size: 28px; padding: 0; display: flex; justify-content: center; align-items: center; }
-
-/* --- Estados Deshabilitados --- */
-.floating-btn:disabled, #floatingUndoMoveBtn:disabled, #floatingReinforceBtn:disabled, #floatingSplitBtn:disabled, #floatingBuildBtn:disabled {
-    background-color: #6c757d !important; opacity: 0.5;
-    cursor: not-allowed; transform: scale(1) !important;
-}
-#floatingEndTurnBtn:disabled {
-    background-color: #6c757d !important; opacity: 0.5;
-    cursor: not-allowed; transform: scale(1) !important;
-}
-
-/* ========================================================================== */
-/* 6.1 BOTONES FLOTANTES (ESTRUCTURA SEPARADA: FIJOS Y MENÚ)                */
-/* ========================================================================== */
-
-/* --- 1. CONTENEDOR MAESTRO DE LA UI TÁCTICA --- */
-#tactical-ui-container {
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    pointer-events: none; /* No intercepta clics */
-    z-index: 1001;
-}
-
-/* --- 2. BASE COMÚN PARA TODOS LOS GRUPOS (IZQUIERDA Y DERECHA) --- */
-.floating-action-group {
-    position: fixed;
-    display: flex;
-    gap: 8px;
-    pointer-events: all; /* Permite clics en el área del grupo */
-}
-
-/* --- 3. ESTILOS PARA TODOS LOS BOTONES --- */
-.floating-action-group button {
-    position: relative;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    border: 1px solid #7f8c8d;
-    background-color: rgba(44, 62, 80, 0.9);
-    color: #ecf0f1;
-    font-size: 24px;
-    cursor: pointer;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    flex-shrink: 0;
-}
-.floating-action-group button:hover:not(:disabled) {
-    background-color: #34495e;
-    transform: scale(1.1);
-}
-.floating-action-group button:disabled {
-    background-color: #6c757d !important;
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none !important;
-}
-
-/* --- 4. POSICIONAMIENTO Y DIRECCIÓN DE CADA GRUPO --- */
-
-/* Grupo Izquierda */
-.floating-action-group.left {
-    bottom: 20px;
-    left: 15px;
-    flex-direction: column-reverse; /* Apila de abajo a arriba */
-    align-items: flex-start;
-}
-
-/* Grupo Derecha (Contenedor maestro) */
-.floating-action-group.right {
-    bottom: 20px;
-    right: 15px;
-    flex-direction: column; /* Apila sus hijos (menú, », ►) de arriba a abajo */
-    align-items: flex-end;
-}
-
-/* --- 5. LÓGICA DEL SUBMENÚ ⚙️ DE LA DERECHA --- */
-
-.right-menu-group {
-    position: relative; /* Contexto para el submenú */
-    display: flex;
-    flex-direction: column-reverse; /* El submenú sale hacia ARRIBA del botón ⚙️ */
-    align-items: flex-end;
-    gap: 15px;
-}
-
-.submenu {
-    display: flex;
-    flex-direction: row-reverse; /* Botones se despliegan de derecha a izquierda */
-    gap: 15px;
-    max-width: 0;
-    overflow: hidden;
-    opacity: 0;
-    transition: all 0.3s ease-out;
-    pointer-events: none;
-}
-
-/* Lógica de apertura (ahora con el padre correcto) */
-.right-menu-group.is-open .submenu {
-    max-width: 500px;
-    opacity: 1;
-    pointer-events: all;
-}
-
-/* --- 6. ESTILOS FINALES PARA LOS BOTONES DE LA DERECHA --- */
-#floatingEndTurnBtn {
-    width: 30px;
-    height: 30px;
-    font-size: 28px;
-    background-color: rgba(40, 167, 69, 0.9);
-}
-
-#floatingNextUnitBtn {
-    display: none;
-}
-
-/* ========================================================================== */
-/* 5. PANELES DE UI y DISEÑO ADAPTABLE (REVISIÓN MÓVIL)
-/* ========================================================================== */
-
-/* --- Panel de Predicción de Combate --- */
-#combatPredictionPanel {
-    position: fixed;
-    background-color: rgba(20, 20, 20, 0.9);
-    color: #f0f0f0;
-    padding: 10px 15px;
-    border: 1px solid #555;
-    border-radius: 8px;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    font-size: 0.9em;
-    z-index: 10001;
-    pointer-events: none;
-    white-space: nowrap;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.4);
-    transition: opacity 0.1s linear;
-    opacity: 0;
-}
-#combatPredictionPanel.visible { opacity: 1; }
-#combatPredictionPanel h4 {
-    margin: 0 0 8px 0;
-    color: #f39c12;
-    font-size: 1.1em;
-    text-align: center;
-    border-bottom: 1px solid #444;
-    padding-bottom: 5px;
-}
-#combatPredictionPanel p { margin: 5px 0; line-height: 1.4; }
-#combatPredictionPanel span.attacker-damage { color: #e74c3c; font-weight: bold; }
-#combatPredictionPanel span.defender-damage { color: #3498db; font-weight: bold; }
-#combatPredictionPanel span.critical-info { color: #f1c40f; font-weight: bold; display: block; text-align: center; margin-top: 8px; }
 
 /* --- Panel de Menú Flotante --- */
 #floatingMenuPanel {
@@ -1196,6 +1288,25 @@ body {
     
     opacity: 0;
     transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+@media (max-width: 768px) {
+    .hex .hex-comic-indicator {
+        width: 23px;
+        height: 23px;
+        top: 3px;
+        right: 2px;
+    }
+
+    .hex .hex-comic-indicator .dots {
+        font-size: 11px;
+    }
+
+    .hex-comic-panel {
+        min-width: 240px;
+        max-width: min(92vw, 320px);
+        padding: 9px 10px;
+    }
 }
 
 #contextualInfoPanel.hex-tooltip-compact {
@@ -2130,7 +2241,6 @@ body {
 
 #blueprintItemStats {
     text-align: center;
-    font-style: italic;
     color: #495057;
     min-height: 40px;
 }
@@ -2270,55 +2380,55 @@ body {
 
 /* Partida Rápida: Tablero hexagonal central */
 #hotspotMap {
-    top: 45%;
-    left: 32%;
-    width: 36%;
-    height: 50%;
+    top: 73%;
+    left: 38%;
+    width: 24%;
+    height: 22%;
     border-radius: 50%;
     animation-delay: 0s;
 }
 
 /* Cuartel: Libro arriba a la izquierda */
 #hotspotBarracks {
-    top: 20%;
-    left: 20%;
-    width: 13%;
-    height: 28%;
+    top: 43%;
+    left: 4%;
+    width: 28%;
+    height: 24%;
     animation-delay: -0.5s;
 }
 
 /* Forja: Manuscrito de Soldado a la izquierda */
 #hotspotForge {
-    top: 60%;
-    left: 12%;
-    width: 18%;
-    height: 28%;
+    top: 72%;
+    left: 6%;
+    width: 24%;
+    height: 22%;
     animation-delay: -1s;
 }
 
 /* Altar de los Deseos: Manuscrito a la derecha arriba de soldado*/
 #hotspotAltar {
-    top: 20%;
-    left: 72%;
-    width: 13%;
-    height: 28%;
+    top: 55%;
+    left: 24%;
+    width: 10%;
+    height: 12%;
     animation-delay: -1.5s;
 }
 
 /* Bloque superior dividido en dos cuadros: Perfil (izq) y Campañas (der) */
 #hotspotCampaignProfile {
-    top: 10%;
-    left: 35%;
-    width: 17.2%;
-    height: 25%;
+    top: 14%;
+    left: 38%;
+    width: 24%;
+    height: 22%;
     animation-delay: -2s;
 }
 
 #hotspotCampaignHub {
-    top: 10%;
-    left: 52.8%;
-    width: 17.2%;
-    height: 25%;
+    top: 21%;
+    left: 17%;
+    width: 20%;
+    height: 22%;
     animation-delay: -2.2s;
 }
 
@@ -2335,15 +2445,98 @@ body {
 
 /* Tronos de Iberia: Ruinas a la derecha */
 #hotspotThrones {
-    top: 60%;
-    left: 72%;
-    width: 18%;
-    height: 28%;
+    top: 44%;
+    left: 69%;
+    width: 24%;
+    height: 23%;
     animation-delay: -2.5s;
+}
+
+/* Mercado: abajo a la derecha */
+#hotspotStore {
+    top: 72%;
+    left: 69%;
+    width: 25%;
+    height: 24%;
+    animation-delay: -2.7s;
 }
 
 
 /* --- Efectos Visuales y Animaciones --- */
+/* Biblioteca: Creador de escenarios (arriba a la izquierda) */
+#hotspotLibrary {
+    top: 17%;
+    left: 63%;
+    width: 24%;
+    height: 22%;
+    animation-delay: -3s;
+}
+
+/* Ajuste fino para móviles: áreas táctiles más amplias y mejor centradas */
+@media (max-width: 900px) {
+    #hotspotCampaignProfile {
+        top: 16%;
+        left: 35%;
+        width: 30%;
+        height: 20%;
+    }
+
+    #hotspotCampaignHub {
+        top: 24%;
+        left: 12%;
+        width: 28%;
+        height: 20%;
+    }
+
+    #hotspotLibrary {
+        top: 18%;
+        left: 60%;
+        width: 30%;
+        height: 21%;
+    }
+
+    #hotspotBarracks {
+        top: 45%;
+        left: 2%;
+        width: 34%;
+        height: 22%;
+    }
+
+    #hotspotThrones {
+        top: 46%;
+        left: 65%;
+        width: 32%;
+        height: 22%;
+    }
+
+    #hotspotForge {
+        top: 73%;
+        left: 3%;
+        width: 30%;
+        height: 22%;
+    }
+
+    #hotspotMap {
+        top: 74%;
+        left: 35%;
+        width: 30%;
+        height: 21%;
+    }
+
+    #hotspotStore {
+        top: 73%;
+        left: 66%;
+        width: 31%;
+        height: 22%;
+    }
+
+    #hotspotAltar {
+        top: 56%;
+        left: 21%;
+        width: 14%;
+        height: 13%;
+    }
+}
 
 @keyframes pulse-glow {
     0% { box-shadow: 0 0 8px 3px rgba(255, 220, 100, 0); }
@@ -2607,7 +2800,7 @@ body {
 }
 #event-feed-header {
     flex-shrink: 0;
-    padding: 5px 9px;
+        background-image: url('images/Ingreso.png');
     font-size: 0.7em;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -3822,13 +4015,12 @@ body {
 
     /* 2. Reducimos el tamaño del lienzo, PERO NO TANTO. */
     #talentTreeModal .talent-tree-canvas {
-        /* Tamaño reducido a la mitad (1500px -> 750px). Es un buen punto intermedio. */
-        width: 750px;
-        height: 750px;
+        /* Mantener el lienzo lógico completo para que no queden nodos fuera de rango. */
+        width: 1500px;
+        height: 1500px;
 
-        /* ESCALAMOS EL CONTENIDO a la mitad, no a 1/3. Así sigue siendo legible. */
+        /* Escala visual para móvil, conservando coordenadas internas. */
         transform: scale(0.5);
-        
         transform-origin: top left;
     }
 
@@ -6072,7 +6264,7 @@ body {
     min-height: 100dvh;
     
     /* Imagen de fondo fija */
-    background-image: url('images/IIBERION.png');
+    background-image: url('images/Ingreso.png');
     background-size: cover;
     background-position: center;
     background-attachment: fixed;

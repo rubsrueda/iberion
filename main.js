@@ -2120,9 +2120,12 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
             const requiresLoginActions = new Set([
                 'openProfile',
                 'openCampaignHub',
-                'openAltar',
+                'openDeseosModal',
                 'openBarracks',
-                'openForge'
+                'openForge',
+                'openCreatorMode',
+                'openAlliance',
+                'openStore'
             ]);
 
             if (requiresLoginActions.has(action) && !PlayerDataManager.currentPlayer) {
@@ -2157,7 +2160,7 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
                     }
                     break;
                         
-                case 'openAltar':
+                case 'openDeseosModal':
                     if (typeof openDeseosModal === 'function') {
                         openDeseosModal();
                     }
@@ -2170,6 +2173,17 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
                 case 'openForge':
                     if (typeof openForgeModal === 'function') {
                         openForgeModal();
+                    }
+                    break;
+
+                case 'openCreatorMode':
+                    // Abre el modo creador con los botones de editor de escenarios y campañas
+                    if (typeof EditorUI !== 'undefined' && typeof CampaignUI !== 'undefined') {
+                        // Mostrar modal de modos de juego como contenedor
+                        document.getElementById('gameModesModal').style.display = 'flex';
+                        showToast('Abriendo Modo Creador...', 'info');
+                    } else {
+                        showToast('El Modo Creador aún no está disponible.', 'warning');
                     }
                     break;
 

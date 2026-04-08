@@ -1831,6 +1831,10 @@ function renderSingleHexVisuals(r, c) {
             hexEl.classList.add('feature-ruins-looted');
         }
     }
+
+    if (typeof UIManager !== 'undefined' && typeof UIManager.renderHexComicIndicator === 'function') {
+        UIManager.renderHexComicIndicator(hexEl, r, c, hexData);
+    }
 }
 
 /**

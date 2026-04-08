@@ -45,12 +45,411 @@ const UIManager = {
     _lastShownInfo: { type: null, data: null }, // Para recordar qué se mostró por última vez
     _reopenBtn: null, // Guardará la referencia al botón ▲
     _ghostTurnArrowsTimeout: null,
+    _hexComicPanel: null,
+    _activeHexComicMessage: null,
+    _isHexComicOutsideHandlerBound: false,
     
     setDomElements: function(domElementsRef) {
         this._domElements = domElementsRef; 
         this._combatPredictionPanel = document.getElementById('combatPredictionPanel');
         if (!this._combatPredictionPanel) console.error("UIManager Error: No se encontró el #combatPredictionPanel en el DOM.");
+        this._ensureHexComicPanel();
         this.hideAllActionButtons();
+    },
+
+    _getViewerPlayerId: function() {
+        if (!gameState) return null;
+        if (typeof isNetworkGame === 'function' && isNetworkGame()) {
+            return gameState.myPlayerNumber || gameState.currentPlayer || null;
+        }
+        return gameState.currentPlayer || null;
+    },
+
+    _isOwnUnit: function(unit, viewerPlayerId) {
+        return !!unit && unit.player === viewerPlayerId;
+    },
+
+    _hasRoadAccessOnHex: function(r, c, hexData) {
+        if (!hexData) return false;
+        if (hexData.hasRoad || hexData.structure === 'Camino') return true;
+        if (typeof getHexNeighbors !== 'function') return false;
+        return (getHexNeighbors(r, c) || []).some(n => {
+            const nh = board?.[n.r]?.[n.c];
+            return !!nh && (nh.hasRoad || nh.structure === 'Camino');
+        });
+    },
+
+    _countAdjacentEnemies: function(r, c, viewerPlayerId) {
+        if (typeof getHexNeighbors !== 'function' || typeof getUnitOnHex !== 'function') return 0;
+        let count = 0;
+        for (const n of (getHexNeighbors(r, c) || [])) {
+            const u = getUnitOnHex(n.r, n.c);
+            if (u && u.player !== viewerPlayerId) count += 1;
+        }
+        return count;
+    },
+
+    _countAdjacentAllies: function(r, c, viewerPlayerId) {
+        if (typeof getHexNeighbors !== 'function' || typeof getUnitOnHex !== 'function') return 0;
+        let count = 0;
+        for (const n of (getHexNeighbors(r, c) || [])) {
+            const u = getUnitOnHex(n.r, n.c);
+            if (u && u.player === viewerPlayerId) count += 1;
+        }
+        return count;
+    },
+
+    _cityHasTradeConnection: function(r, c, viewerPlayerId) {
+        if (!Array.isArray(units)) return false;
+        return units.some(u => {
+            if (u.player !== viewerPlayerId || !u.tradeRoute) return false;
+            const o = u.tradeRoute.origin;
+            const d = u.tradeRoute.destination;
+            return !!((o && o.r === r && o.c === c) || (d && d.r === r && d.c === c));
+        });
+    },
+
+    _buildHexComicMessages: function(r, c, hexData) {
+        const messages = [];
+        const viewerPlayerId = this._getViewerPlayerId();
+        if (!hexData || !viewerPlayerId) return messages;
+
+        const unitOnHex = (typeof getUnitOnHex === 'function') ? getUnitOnHex(r, c) : null;
+        const isOwnUnitHere = this._isOwnUnit(unitOnHex, viewerPlayerId);
+        const isOwnCriticalHex = (hexData.owner === viewerPlayerId) && (
+            hexData.isCity || hexData.structure === 'Fortaleza' || hexData.structure === 'Fortaleza con Muralla'
+        );
+        const currentTurn = Number(gameState?.turnNumber || 1);
+
+        if (isOwnUnitHere && typeof isHexSupplied === 'function' && currentTurn > 1 && !isHexSupplied(r, c, viewerPlayerId)) {
+            messages.push({
+                id: 'unit_no_supply',
+                emitter: 'Division',
+                severity: 'critical',
+                priority: 100,
+                shortText: 'Oye Rey, no tenemos suministros.',
+                detailText: 'Esta division esta fuera de red logistica. Si no se restablece el suministro, perdera capacidad para maniobrar y sostener combate.',
+                suggestion: 'Reabre un corredor seguro o repliega hacia una ciudad/fortaleza conectada.'
+            });
+        }
+
+        if (isOwnUnitHere) {
+            const enemyNear = this._countAdjacentEnemies(r, c, viewerPlayerId);
+            const allyNear = this._countAdjacentAllies(r, c, viewerPlayerId);
+            if (enemyNear > 0) {
+                messages.push({
+                    id: 'unit_enemy_near',
+                    emitter: 'Division',
+                    severity: 'warning',
+                    priority: 85,
+                    shortText: 'Oye Rey, tengo un enemigo cerca. ¿Nos movemos o aguantamos?',
+                    detailText: 'La division tiene contacto enemigo cercano. Una mala entrada puede dejarla vendida, una buena posicion puede fijar al rival.',
+                    suggestion: 'Si no hay apoyo, prioriza cobertura o refuerzo antes de atacar.'
+                });
+            }
+            if (enemyNear > 0 && allyNear === 0) {
+                messages.push({
+                    id: 'unit_exposed',
+                    emitter: 'Division',
+                    severity: 'warning',
+                    priority: 78,
+                    shortText: 'Oye Rey, aqui estamos muy vendidos.',
+                    detailText: 'La division esta adelantada y sin apoyo cercano. Mantenerla ahi puede abrir una brecha si recibe presion enemiga.',
+                    suggestion: 'Acerca una division aliada o repliega un hex para cerrar el frente.'
+                });
+            }
+            if (enemyNear > 0 && allyNear > 0) {
+                messages.push({
+                    id: 'unit_flank_opportunity',
+                    emitter: 'Division',
+                    severity: 'opportunity',
+                    priority: 70,
+                    shortText: 'Oye Rey, creo que podria flanquearlos por aqui.',
+                    detailText: 'Hay una ventana tactica para golpear con apoyo y mejorar el intercambio de daño o la posicion final del frente.',
+                    suggestion: 'Coordina ataque y apoyo en este turno antes de que cierre la oportunidad.'
+                });
+            }
+        }
+
+        if (isOwnCriticalHex) {
+            const loyalty = Number.isFinite(Number(hexData.lealtad)) ? Number(hexData.lealtad) : Number(hexData.estabilidad ?? 5);
+            const hasRoadAccess = this._hasRoadAccessOnHex(r, c, hexData);
+            const adjacentEnemies = this._countAdjacentEnemies(r, c, viewerPlayerId);
+            const hasFriendlyGuard = (() => {
+                if (typeof getUnitOnHex !== 'function') return false;
+                const onHex = getUnitOnHex(r, c);
+                if (onHex && onHex.player === viewerPlayerId) return true;
+                return this._countAdjacentAllies(r, c, viewerPlayerId) > 0;
+            })();
+
+            if (loyalty <= 1) {
+                messages.push({
+                    id: 'city_at_risk',
+                    emitter: hexData.isCity ? 'Ciudad' : 'Fortaleza',
+                    severity: 'critical',
+                    priority: 98,
+                    shortText: hexData.isCity
+                        ? 'Esta ciudad puede perderse si no actuas.'
+                        : 'Mi señor, esta fortaleza no aguantara mucho.',
+                    detailText: 'La estabilidad de esta plaza esta en zona critica. Sin reaccion rapida, puede quebrarse por presion politica o militar.',
+                    suggestion: 'Sube control local con caminos, comercio y presencia militar.'
+                });
+            }
+
+            if (hexData.isCity && !hasRoadAccess) {
+                messages.push({
+                    id: 'city_no_roads',
+                    emitter: 'Ciudad',
+                    severity: 'critical',
+                    priority: 95,
+                    shortText: 'La ciudad esta conspirando. No tiene caminos.',
+                    detailText: 'La ciudad ha quedado aislada de la red terrestre. Eso acelera desorden y baja la capacidad de respuesta del reino.',
+                    suggestion: 'Conecta esta casilla por camino propio o por vecinos con infraestructura.'
+                });
+            }
+
+            if (hexData.isCity && !hasFriendlyGuard) {
+                messages.push({
+                    id: 'city_no_troops',
+                    emitter: 'Ciudad',
+                    severity: 'critical',
+                    priority: 92,
+                    shortText: 'La ciudad esta conspirando. No tiene tropas.',
+                    detailText: 'La plaza se percibe indefensa. Sin guarnicion ni apoyo cercano, aumenta el riesgo de perdida de control.',
+                    suggestion: 'Mueve una division para guarnicion o cobertura inmediata.'
+                });
+            }
+
+            if (hexData.isCity && !this._cityHasTradeConnection(r, c, viewerPlayerId)) {
+                messages.push({
+                    id: 'city_no_trade',
+                    emitter: 'Ciudad',
+                    severity: 'warning',
+                    priority: 76,
+                    shortText: 'La ciudad esta conspirando. No tiene comercio.',
+                    detailText: 'Sin rutas activas, la ciudad pierde integracion economica y capacidad de sostener su estabilidad a medio plazo.',
+                    suggestion: 'Abre una ruta comercial o asegura un nodo cercano para conectarla.'
+                });
+            }
+
+            if ((hexData.structure === 'Fortaleza' || hexData.structure === 'Fortaleza con Muralla') && !hasFriendlyGuard) {
+                messages.push({
+                    id: 'fort_no_support',
+                    emitter: 'Fortaleza',
+                    severity: 'warning',
+                    priority: 71,
+                    shortText: 'Mi señor, sostenemos piedra, pero no linea.',
+                    detailText: 'La fortaleza existe, pero sin fuerza de apoyo se vuelve vulnerable a desgaste o rodeo enemigo.',
+                    suggestion: 'Asigna una unidad de apoyo y asegura suministro cercano.'
+                });
+            }
+
+            if (adjacentEnemies > 0) {
+                messages.push({
+                    id: 'city_enemy_pressure',
+                    emitter: hexData.isCity ? 'Ciudad' : 'Fortaleza',
+                    severity: 'warning',
+                    priority: 82,
+                    shortText: 'Se oyen tambores al otro lado de las murallas.',
+                    detailText: 'Hay presencia enemiga inmediata alrededor de este punto critico, lo que reduce margen para reaccion diferida.',
+                    suggestion: 'Consolida defensa local y evita quedar sin rutas de apoyo.'
+                });
+            }
+        }
+
+        if (hexData.owner === viewerPlayerId && !hexData.isCity && hexData.structure !== 'Fortaleza' && hexData.structure !== 'Fortaleza con Muralla') {
+            const currentTurnSafe = Number(gameState?.turnNumber || 1);
+            if (Number(hexData.supplyDisruptedUntil || 0) >= currentTurnSafe) {
+                messages.push({
+                    id: 'critical_path_broken',
+                    emitter: 'Casilla',
+                    severity: 'warning',
+                    priority: 88,
+                    shortText: 'Aqui se rompe el reino.',
+                    detailText: 'Esta casilla marca una disrupcion de suministro activa. Mantenerla rota puede aislar posiciones propias cercanas.',
+                    suggestion: 'Recupera este tramo para restablecer continuidad logistica.'
+                });
+            }
+
+            if (this._countAdjacentEnemies(r, c, viewerPlayerId) > 0) {
+                messages.push({
+                    id: 'weak_border',
+                    emitter: 'Frontera',
+                    severity: 'warning',
+                    priority: 66,
+                    shortText: 'Aqui la frontera esta floja.',
+                    detailText: 'Esta casilla esta en contacto con presion rival y sin suficiente amortiguacion territorial.',
+                    suggestion: 'Refuerza esta linea para evitar una penetracion rapida.'
+                });
+            }
+
+            if (typeof getHexNeighbors === 'function') {
+                const passableNeighbors = (getHexNeighbors(r, c) || []).filter(n => {
+                    const h = board?.[n.r]?.[n.c];
+                    return h && h.terrain !== 'water';
+                }).length;
+                if (passableNeighbors <= 2) {
+                    messages.push({
+                        id: 'bottleneck',
+                        emitter: 'Casilla',
+                        severity: 'opportunity',
+                        priority: 58,
+                        shortText: 'Este paso controla la zona.',
+                        detailText: 'La geometria de este hex reduce rutas alternativas y lo convierte en punto natural de control.',
+                        suggestion: 'Si puedes, fortifica o coloca una division para negar paso.'
+                    });
+                }
+            }
+        }
+
+        messages.sort((a, b) => b.priority - a.priority);
+        return messages;
+    },
+
+    getHexComicMessage: function(r, c, hexData) {
+        const messages = this._buildHexComicMessages(r, c, hexData);
+        return messages.length > 0 ? messages[0] : null;
+    },
+
+    renderHexComicIndicator: function(hexEl, r, c, hexData) {
+        if (!hexEl) return;
+        const existing = hexEl.querySelector('.hex-comic-indicator');
+        if (existing) existing.remove();
+
+        const message = this.getHexComicMessage(r, c, hexData);
+        if (!message) {
+            if (this._activeHexComicMessage && this._activeHexComicMessage.r === r && this._activeHexComicMessage.c === c) {
+                this.hideHexComicMessagePanel();
+            }
+            return;
+        }
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `hex-comic-indicator ${message.severity}`;
+        btn.setAttribute('aria-label', `Mensaje de ${message.emitter}`);
+        btn.dataset.r = String(r);
+        btn.dataset.c = String(c);
+        btn.innerHTML = '<span class="dots">...</span>';
+        hexEl.appendChild(btn);
+    },
+
+    _ensureHexComicPanel: function() {
+        let panel = document.getElementById('hexComicMessagePanel');
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = 'hexComicMessagePanel';
+            panel.className = 'hex-comic-panel';
+            panel.innerHTML = [
+                '<button class="hex-comic-close" type="button" aria-label="Cerrar">x</button>',
+                '<div class="hex-comic-head">',
+                '  <span class="hex-comic-emitter"></span>',
+                '  <span class="hex-comic-severity"></span>',
+                '</div>',
+                '<div class="hex-comic-title"></div>',
+                '<div class="hex-comic-detail"></div>',
+                '<div class="hex-comic-suggestion"></div>'
+            ].join('');
+            document.body.appendChild(panel);
+        }
+
+        this._hexComicPanel = panel;
+
+        const closeBtn = panel.querySelector('.hex-comic-close');
+        if (closeBtn && !closeBtn.dataset.bound) {
+            closeBtn.addEventListener('click', () => this.hideHexComicMessagePanel());
+            closeBtn.dataset.bound = '1';
+        }
+
+        if (!this._isHexComicOutsideHandlerBound) {
+            const outsideHandler = (evt) => {
+                const target = evt.target;
+                if (!this._hexComicPanel || !this._hexComicPanel.classList.contains('visible')) return;
+                if (target.closest('#hexComicMessagePanel')) return;
+                if (target.closest('.hex-comic-indicator')) return;
+                this.hideHexComicMessagePanel();
+            };
+            document.addEventListener('mousedown', outsideHandler);
+            document.addEventListener('touchstart', outsideHandler, { passive: true });
+            this._isHexComicOutsideHandlerBound = true;
+        }
+    },
+
+    _positionHexComicPanel: function(anchorHexEl) {
+        if (!this._hexComicPanel || !anchorHexEl) return;
+        const panel = this._hexComicPanel;
+        const hexRect = anchorHexEl.getBoundingClientRect();
+        const panelRect = panel.getBoundingClientRect();
+        const margin = 10;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+
+        const candidates = [
+            { left: hexRect.right + margin, top: hexRect.top - 4 },
+            { left: hexRect.left - panelRect.width - margin, top: hexRect.top - 4 },
+            { left: hexRect.left + (hexRect.width - panelRect.width) / 2, top: hexRect.top - panelRect.height - margin },
+            { left: hexRect.left + (hexRect.width - panelRect.width) / 2, top: hexRect.bottom + margin }
+        ];
+
+        let chosen = candidates.find(pos => (
+            pos.left >= margin &&
+            pos.top >= margin &&
+            pos.left + panelRect.width <= vw - margin &&
+            pos.top + panelRect.height <= vh - margin
+        ));
+
+        if (!chosen) chosen = candidates[0];
+
+        const clampedLeft = Math.min(Math.max(chosen.left, margin), Math.max(margin, vw - panelRect.width - margin));
+        const clampedTop = Math.min(Math.max(chosen.top, margin), Math.max(margin, vh - panelRect.height - margin));
+        panel.style.left = `${Math.round(clampedLeft)}px`;
+        panel.style.top = `${Math.round(clampedTop)}px`;
+    },
+
+    toggleHexComicMessagePanel: function(r, c) {
+        const hexData = board?.[r]?.[c];
+        const hexEl = hexData?.element;
+        if (!hexData || !hexEl) return;
+
+        const msg = this.getHexComicMessage(r, c, hexData);
+        if (!msg) {
+            this.hideHexComicMessagePanel();
+            return;
+        }
+
+        if (this._activeHexComicMessage && this._activeHexComicMessage.r === r && this._activeHexComicMessage.c === c && this._hexComicPanel?.classList.contains('visible')) {
+            this.hideHexComicMessagePanel();
+            return;
+        }
+
+        this._ensureHexComicPanel();
+        if (!this._hexComicPanel) return;
+
+        const panel = this._hexComicPanel;
+        panel.classList.remove('critical', 'warning', 'opportunity', 'narrative');
+        panel.classList.add(msg.severity);
+        panel.querySelector('.hex-comic-emitter').textContent = msg.emitter;
+        panel.querySelector('.hex-comic-severity').textContent = msg.severity === 'critical'
+            ? 'Critico'
+            : msg.severity === 'warning'
+                ? 'Alerta'
+                : msg.severity === 'opportunity'
+                    ? 'Oportunidad'
+                    : 'Info';
+        panel.querySelector('.hex-comic-title').textContent = msg.shortText;
+        panel.querySelector('.hex-comic-detail').textContent = msg.detailText;
+        panel.querySelector('.hex-comic-suggestion').textContent = msg.suggestion || '';
+
+        panel.classList.add('visible');
+        this._positionHexComicPanel(hexEl);
+        this._activeHexComicMessage = { r, c, id: msg.id };
+    },
+
+    hideHexComicMessagePanel: function() {
+        if (this._hexComicPanel) {
+            this._hexComicPanel.classList.remove('visible');
+        }
+        this._activeHexComicMessage = null;
     },
     
     setEndTurnButtonToFinalizeTutorial: function() {
@@ -1495,6 +1894,7 @@ const UIManager = {
         if (this._domElements.contextualInfoPanel) {
             this._domElements.contextualInfoPanel.classList.remove('visible');
         }
+        this.hideHexComicMessagePanel();
         this._clearHexSelectionProgressVisual();
         this.removeAttackPredictionListener();
         if (!gameState.isTutorialActive) {
