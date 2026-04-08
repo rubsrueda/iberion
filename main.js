@@ -2955,8 +2955,13 @@ function reconstruirJuegoDesdeDatos(datos) {
             gameState.playerResources = datos.gameState.playerResources || {};
             gameState.unitsPlacedByPlayer = datos.gameState.unitsPlacedByPlayer || {};
             gameState.playerTypes = datos.gameState.playerTypes || {};
-            
+
             Object.assign(gameState, datos.gameState);
+
+            const allowedPhases = ['deployment', 'play', 'gameOver', 'redeployment'];
+            if (!allowedPhases.includes(gameState.currentPhase)) {
+                gameState.currentPhase = 'play';
+            }
 
             // Restaurar para que el reloj funcione
             if (gameState.turnDurationSeconds === null || gameState.turnDurationSeconds === undefined) {
@@ -2967,9 +2972,34 @@ function reconstruirJuegoDesdeDatos(datos) {
         }
         unitIdCounter = datos.unitIdCounter;
 
-        // 4. RESTAURAR IDENTIDAD
-        if (miIdentidadLocal) {
-            gameState.myPlayerNumber = miIdentidadLocal;
+        // 4. Normalizar identidad local tras cargar
+        const loadedMyPlayer = Number(gameState.myPlayerNumber);
+        const hasLocalIdentity = Number.isFinite(Number(miIdentidadLocal));
+        const isConnectedNetworkMatch = isNetworkGame();
+
+        if (isConnectedNetworkMatch && hasLocalIdentity) {
+            gameState.myPlayerNumber = Number(miIdentidadLocal);
+        } else {
+            const playerTypes = gameState.playerTypes || {};
+            const currentPlayerType = playerTypes[`player${gameState.currentPlayer}`] || playerTypes[gameState.currentPlayer];
+            const currentTurnIsHuman = currentPlayerType === 'human';
+
+            if (currentTurnIsHuman) {
+                gameState.myPlayerNumber = Number(gameState.currentPlayer) || 1;
+            } else if (Number.isFinite(loadedMyPlayer) && loadedMyPlayer > 0) {
+                gameState.myPlayerNumber = loadedMyPlayer;
+            } else {
+                const maxPlayers = Number(gameState.numPlayers) || 8;
+                let firstHumanPlayer = null;
+                for (let p = 1; p <= maxPlayers; p++) {
+                    const pType = playerTypes[`player${p}`] || playerTypes[p];
+                    if (pType === 'human') {
+                        firstHumanPlayer = p;
+                        break;
+                    }
+                }
+                gameState.myPlayerNumber = firstHumanPlayer || 1;
+            }
         }
 
         // 5. Reconstruir Tablero
@@ -3005,11 +3035,14 @@ function reconstruirJuegoDesdeDatos(datos) {
         if (typeof initializeBoardPanning === "function") initializeBoardPanning();
         if (typeof updateFogOfWar === "function") updateFogOfWar();
         if (UIManager) {
-            UIManager.updatePlayerAndPhaseInfo(); 
+            UIManager.updatePlayerAndPhaseInfo();
             UIManager.updateAllUIDisplays();
+            if (typeof UIManager.restoreEndTurnButton === 'function') {
+                UIManager.restoreEndTurnButton();
+            }
             UIManager.refreshActionButtons();
             // Eliminamos la llamada a updateTurnIndicatorAndBlocker aquí para no bloquear por error
-            // UIManager.updateTurnIndicatorAndBlocker(); 
+            // UIManager.updateTurnIndicatorAndBlocker();
         }
 
         if (typeof TurnTimerManager !== 'undefined') {

@@ -8656,51 +8656,134 @@ body.graphics-form-desktop #profileModal .modal-content {
 }
 
 /* ========================================================================== */
-/* ==   ESTABILIZACION DE MODALES EN MOVIL VERTICAL                        == */
+/* ==   MODALES COMPACTOS EN MOVIL VERTICAL — OVERRIDE DEFINITIVO          == */
 /* ========================================================================== */
+/*
+ * PRINCIPIO: en portrait móvil los modales NO deben superar el 62% de la
+ * pantalla. El cuerpo hace scroll. El footer (botones) siempre visible.
+ * Estos overrides deben ser los últimos para ganar a cualquier regla previa.
+ */
 @media (max-width: 620px) and (orientation: portrait) {
+
+    /* --- 1. CONTENEDOR FLOTANTE: empieza arriba, no en el centro --- */
     .modal,
     .modal-overlay {
         align-items: flex-start !important;
-        padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
-        padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+        padding: calc(env(safe-area-inset-top, 0px) + 6px) 4px
+                 calc(env(safe-area-inset-bottom, 0px) + 4px) !important;
         box-sizing: border-box;
     }
 
+    /* --- 2. TODOS LOS MODAL-CONTENT: altura máxima estricta + flex columna --- */
     .modal .modal-content,
     .modal-themed .modal-content,
+    .modal-container,
     #gameModesModal .modal-content,
-    #profileModal .modal-content {
-        width: min(96vw, 360px) !important;
+    #profileModal .modal-content,
+    #settingsModal .modal-content,
+    #scenarioBriefingModal .modal-content,
+    #barracksModal .modal-content,
+    #heroDetailModal .modal-content,
+    #unitDetailModal .modal-content,
+    #talentTreeModal .modal-content,
+    #buildStructureModal .modal-content,
+    #unitManagementModal .modal-content,
+    #advancedSplitUnitModal .modal-content,
+    #deseosModal .modal-content,
+    #forgeModal .modal-content,
+    #equipmentSelectorModal .modal-content,
+    #inventoryModal .modal-content,
+    #storeModal .modal-content,
+    #inboxModal .modal-content,
+    #ledgerModal .ledger-shell,
+    #battlePassModal .bp-main-container,
+    #wikiModal .modal-content,
+    #fullCodexModal .modal-content,
+    #myGamesModal .modal-content,
+    #postMatchModal .modal-content,
+    #replayModal .modal-content,
+    #gameHistoryModal .modal-content,
+    #legacyModal .legacy-modal-panel,
+    #rankingModal .modal-content,
+    #bankModal .modal-content,
+    #techDetailModal .modal-content {
+        width: min(96vw, 380px) !important;
         max-width: 96vw !important;
-        max-height: min(82svh, 560px) !important;
+        /* 62svh: deja ~38% fuera => botones táctiles y chrome visibles */
+        max-height: 62svh !important;
+        min-height: 0 !important;
+        height: auto !important;
         margin: 0 auto !important;
-        overflow-y: auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
     }
 
-    .modal .modal-body,
+    /* --- 3. CUERPO SCROLLEABLE: crece lo que puede y tiene scroll --- */
+    .modal-body,
     .modal-themed .modal-body,
     .modal-container .modal-body,
-    #unitManagementModal .unit-management-body {
+    .modal-content > *:not(.modal-header):not(.modal-footer):not(.modal-footer-actions):not(h2):not(h3):not(h4):not(.close-button):not(#unitManagementTitle):not(.category-tabs),
+    .unit-management-body,
+    .hero-main-layout,
+    .split-regiment-container,
+    .hero-collection-grid,
+    .talent-tree-area,
+    .bp-tiers-container,
+    .available-units-list,
+    #divisionCompositionList {
+        flex: 1 1 auto !important;
         min-height: 0 !important;
         overflow-y: auto !important;
         -webkit-overflow-scrolling: touch;
     }
 
-    .modal .modal-footer,
-    .modal .modal-footer-actions,
+    /* --- 4. CABECERA Y PIE: tamaño fijo, nunca encogibles ni ocultos --- */
+    .modal-header,
+    .modal-themed .modal-header,
+    .modal-footer,
+    .modal-footer-actions,
     .modal-themed .modal-footer,
-    .modal-themed .modal-footer-actions {
-        flex-shrink: 0 !important;
+    .modal .modal-footer,
+    .modal-themed .modal-footer-actions,
+    .modal .modal-footer-actions {
+        flex: 0 0 auto !important;
+        min-height: 0 !important;
+        overflow: visible !important;
     }
 
-    #unitManagementModal .modal-content {
-        max-height: min(80svh, 540px) !important;
-        display: flex !important;
-        flex-direction: column !important;
-        overflow: hidden !important;
+    /* --- 5. SOBREESCRITURAS DE min-height QUE FUERZAN CRECIMIENTO --- */
+    /* Este es EL mayor culpable: fuerza el cuerpo del modal a ≥400px */
+    .unit-management-body {
+        min-height: 0 !important;
+        gap: 8px !important;
+    }
+    /* Árbol de talentos y otras áreas con altura fija */
+    .talent-tree-area,
+    #talent-tree-canvas,
+    #techTreeContainer,
+    .bp-tiers-container,
+    .hero-collection-grid,
+    .detailed-regiments-list,
+    .split-regiment-container {
+        min-height: 0 !important;
+        height: auto !important;
+        max-height: 38svh !important;
+    }
+    /* Grillas de héroes: compactar */
+    .hero-main-layout {
+        grid-template-columns: 1fr !important;
     }
 
+    /* --- 6. LISTA DE COMPOSICIÓN Y UNIDADES: scroll interno corto --- */
+    #unitManagementModal .available-units-list,
+    #unitManagementModal #divisionCompositionList {
+        max-height: 24svh !important;
+        min-height: 0 !important;
+    }
+
+    /* --- 7. FOOTER MODAL CREAR DIVISIÓN: fondo y separador visibles --- */
     #unitManagementModal .modal-footer-actions {
         margin-top: 0 !important;
         padding: 8px 10px !important;
@@ -8708,10 +8791,61 @@ body.graphics-form-desktop #profileModal .modal-content {
         background: #2c3e50;
     }
 
-    #unitManagementModal .modal-footer-actions button,
-    #advancedSplitUnitModal .modal-footer-actions button,
-    #buildStructureModal .modal-footer button {
-        min-height: 36px !important;
+    /* --- 8. MODAL DIVIDIR UNIDAD: anular el height:100vh del 768px --- */
+    #advancedSplitUnitModal .modal-content {
+        height: auto !important;
+    }
+    #advancedSplitUnitModal .split-regiment-container {
+        height: auto !important;
+        max-height: 32svh !important;
+    }
+    #originalUnitRegimentsList,
+    #newUnitRegimentsList {
+        max-height: 28svh !important;
+    }
+
+    /* --- 9. LEDGER: shell pantalla completa → misma caja compacta --- */
+    #ledgerModal .ledger-shell {
+        width: min(96vw, 380px) !important;
+        height: auto !important;
+        border-radius: 8px !important;
+    }
+
+    /* --- 10. ÁRBOL TECNOLÓGICO --- */
+    #talentTreeModal .modal-content,
+    #techDetailModal .modal-content {
+        height: auto !important;
+    }
+
+    /* --- 11. TAMAÑO MÍNIMO DE BOTONES TÁCTILES (44px = Apple HIG) --- */
+    .modal-footer button,
+    .modal-footer-actions button,
+    .modal-content > footer button,
+    #cancelUnitManagementBtn,
+    #finalizeUnitManagementBtn,
+    #cancelAdvancedSplitBtn,
+    #finalizeAdvancedSplitBtn,
+    #cancelSplitBtn_simple,
+    #confirmSplitBtn_simple,
+    #confirmBuildBtn,
+    .button-primary,
+    .button-secondary,
+    .button-danger,
+    .close-button {
+        min-height: 40px !important;
+        min-width: 44px !important;
+    }
+
+    /* --- 12. BATTLE PASS: anular altura fija --- */
+    body.graphics-form-phone .bp-main-container {
+        height: auto !important;
+        max-height: 62svh !important;
+    }
+    body.graphics-form-phone .modal-themed .modal-content,
+    body.graphics-form-phone #gameModesModal .modal-content,
+    body.graphics-form-phone #profileModal .modal-content {
+        max-height: 62svh !important;
+        height: auto !important;
     }
 }
 .rdc-title {
