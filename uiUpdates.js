@@ -1134,6 +1134,7 @@ const UIManager = {
                     if (this._domElements.floatingCreateDivisionBtn) {
                         this._domElements.floatingCreateDivisionBtn.style.display = 'flex';
                         this._domElements.floatingCreateDivisionBtn.disabled = false; // Asegurar que está activo
+                        console.log('[UI] Botón CREAR DIVISIÓN visible (despliegue)');
                     }
                 }
             }
@@ -1142,6 +1143,7 @@ const UIManager = {
             if (this._domElements.floatingEndTurnBtn) {
                 this._domElements.floatingEndTurnBtn.style.display = 'flex';
                 this._domElements.floatingEndTurnBtn.disabled = false;
+                console.log('[UI] Botón FINALIZAR TURNO visible');
             }
 
             // 4. ¡IMPORTANTE! Salimos de la función aquí. 
@@ -1156,6 +1158,7 @@ const UIManager = {
             // 1. Botón de Tecnologías (Siempre visible en juego)
             if (this._domElements.floatingTechTreeBtn) {
                 this._domElements.floatingTechTreeBtn.style.display = 'flex';
+                console.log('[UI] Botón OPCIONES/ÁRBOL TEC visible');
             }
 
             // 2. Botón Fin de Turno (Siempre visible en juego)
@@ -1177,6 +1180,7 @@ const UIManager = {
             // El botón de Crear División NO debe verse en fase de juego normal (se gestiona vía hexágonos)
             if (this._domElements.floatingCreateDivisionBtn) {
                 this._domElements.floatingCreateDivisionBtn.style.display = 'none';
+                console.log('[UI] Botón CREAR DIVISIÓN oculto (fase juego)');
             }
             
             return;
