@@ -966,10 +966,19 @@ const UIManager = {
                 if (rightGroup) {
                     rightGroup.style.display = 'flex';
                     // Forzar visibilidad de todos los botones hijos
+                    let visibles = [];
                     rightGroup.querySelectorAll('button').forEach(btn => {
                         btn.style.display = 'flex';
                         btn.disabled = false;
+                        if (btn.offsetParent !== null) visibles.push(btn.id || btn.className || btn.innerText);
                     });
+                    if (visibles.length > 0) {
+                        console.log('[UI][CHECK] Botones flotantes visibles:', visibles);
+                    } else {
+                        console.warn('[UI][CHECK] Ningún botón flotante visible en .floating-action-group.right');
+                    }
+                } else {
+                    console.error('[UI][CHECK] No se encontró .floating-action-group.right en el DOM');
                 }
             } catch (e) {
                 console.error('Error forzando visibilidad de botones flotantes:', e);
