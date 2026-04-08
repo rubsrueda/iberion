@@ -14,6 +14,7 @@ const EditorUI = {
         returnToCampaignEditor: false,
         onScenarioSaved: null
     },
+    _scenarioPickerModalId: 'editorScenarioPickerModal',
     
     /**
      * Abre el editor de escenarios
@@ -689,6 +690,358 @@ const EditorUI = {
         
         input.click();
     },
+
+    _expandUnitRegiments(unitDef) {
+        if (Array.isArray(unitDef.regiments) && unitDef.regiments.length > 0) {
+            return unitDef.regiments.map(reg => {
+                if (typeof reg === 'string') {
+                    return { type: reg, health: REGIMENT_TYPES[reg]?.health || 200 };
+                }
+                const type = reg.type;
+                return { type, health: reg.health || REGIMENT_TYPES[type]?.health || 200 };
+            });
+        }
+
+        if (unitDef.regimentComposition && typeof unitDef.regimentComposition === 'object') {
+            const expanded = [];
+            Object.entries(unitDef.regimentComposition).forEach(([type, count]) => {
+                const safeCount = Math.max(0, parseInt(count, 10) || 0);
+                for (let i = 0; i < safeCount; i++) {
+                    expanded.push({ type, health: REGIMENT_TYPES[type]?.health || 200 });
+                }
+            });
+            if (expanded.length) return expanded;
+        }
+
+        if (Number.isInteger(unitDef.regimentCount) && unitDef.regimentCount > 1 && unitDef.type) {
+            return Array(unitDef.regimentCount)
+                .fill(null)
+                .map(() => ({ type: unitDef.type, health: REGIMENT_TYPES[unitDef.type]?.health || 200 }));
+        }
+
+        const fallbackType = unitDef.type || 'Infantería Ligera';
+        return [{ type: fallbackType, health: REGIMENT_TYPES[fallbackType]?.health || 200 }];
+    },
+
+    _convertRegistryScenarioToEditorScenario(registryKey, scenario) {
+        const map = (typeof GAME_DATA_REGISTRY !== 'undefined' && GAME_DATA_REGISTRY.maps)
+            ? GAME_DATA_REGISTRY.maps[scenario.mapFile]
+            : null;
+
+        const rows = map?.rows || 12;
+        const cols = map?.cols || 15;
+        const defaultTerrain = map?.hexesConfig?.defaultTerrain || 'plains';
+        const boardData = [];
+
+        (map?.hexesConfig?.specificHexes || []).forEach(hex => {
+            boardData.push({
+                r: hex.r,
+                c: hex.c,
+                terrain: hex.terrain || defaultTerrain,
+                owner: null,
+                structure: hex.structure || null,
+                resourceNode: null,
+                isCity: false,
+                isCapital: false,
+                hasRoad: hex.structure === 'Camino'
+            });
+        });
+
+        const citiesData = [];
+        if (map?.playerCapital) {
+            citiesData.push({ r: map.playerCapital.r, c: map.playerCapital.c, name: map.playerCapital.name || 'Capital P1', owner: 1, type: 'Ciudad', isCapital: true });
+        }
+        if (map?.enemyCapital) {
+            citiesData.push({ r: map.enemyCapital.r, c: map.enemyCapital.c, name: map.enemyCapital.name || 'Capital P2', owner: 2, type: 'Ciudad', isCapital: true });
+        }
+
+        (map?.cities || []).forEach(city => {
+            let owner = null;
+            if (city.owner === 'player') owner = 1;
+            else if (city.owner === 'enemy') owner = 2;
+            else if (city.owner === 'bank' || city.owner === 0 || city.owner === '0') owner = BankManager?.PLAYER_ID ?? 0;
+            else if (city.owner === 'barbarian') owner = (typeof BARBARIAN_PLAYER_ID !== 'undefined') ? BARBARIAN_PLAYER_ID : null;
+            else if (Number.isInteger(Number(city.owner))) owner = Number(city.owner);
+
+            citiesData.push({
+                r: city.r,
+                c: city.c,
+                name: city.name || 'Ciudad',
+                owner,
+                type: 'Ciudad',
+                isCapital: false
+            });
+        });
+
+        (map?.resourceNodes || []).forEach(node => {
+            boardData.push({
+                r: node.r,
+                c: node.c,
+                terrain: defaultTerrain,
+                owner: null,
+                structure: null,
+                resourceNode: node.type,
+                isCity: false,
+                isCapital: false,
+                hasRoad: false
+            });
+        });
+
+        const unitsData = [];
+        (scenario?.playerSetup?.initialUnits || []).forEach(unit => {
+            const regiments = this._expandUnitRegiments(unit);
+            unitsData.push({
+                type: regiments[0]?.type || unit.type,
+                player: 1,
+                r: unit.r,
+                c: unit.c,
+                regiments,
+                customName: unit.name || null,
+                isVeteran: false,
+                isNaval: regiments.some(r => REGIMENT_TYPES[r.type]?.is_naval)
+            });
+        });
+
+        (scenario?.enemySetup?.initialUnits || []).forEach(unit => {
+            const regiments = this._expandUnitRegiments(unit);
+            unitsData.push({
+                type: regiments[0]?.type || unit.type,
+                player: 2,
+                r: unit.r,
+                c: unit.c,
+                regiments,
+                customName: unit.name || null,
+                isVeteran: false,
+                isNaval: regiments.some(r => REGIMENT_TYPES[r.type]?.is_naval)
+            });
+        });
+
+        return {
+            meta: {
+                name: scenario.displayName || scenario.scenarioId || registryKey,
+                author: 'GAME_DATA_REGISTRY',
+                description: scenario.description || '',
+                historicalTitle: scenario.meta?.historicalTitle || '',
+                historicalPeriod: scenario.meta?.historicalPeriod || '',
+                historicalDate: scenario.meta?.historicalDate || '',
+                historicalLocation: scenario.meta?.historicalLocation || '',
+                historicalSides: scenario.meta?.historicalSides || '',
+                historicalContext: scenario.meta?.historicalContext || '',
+                historicalObjectives: scenario.meta?.historicalObjectives || '',
+                historicalSources: scenario.meta?.historicalSources || '',
+                created_at: Date.now(),
+                modified_at: Date.now(),
+                version: '1.0'
+            },
+            settings: {
+                dimensions: { rows, cols },
+                maxPlayers: 2,
+                startingPhase: 'play',
+                turnLimit: null,
+                victoryConditions: scenario.victoryConditions || ['eliminate_enemy'],
+                mapType: 'custom'
+            },
+            boardData,
+            unitsData,
+            citiesData,
+            playerConfig: {
+                1: {
+                    civilization: null,
+                    controllerType: 'human',
+                    aiDifficulty: 'medium',
+                    resources: scenario?.playerSetup?.initialResources || { oro: 1000, comida: 500, madera: 200, piedra: 0, hierro: 0, puntosInvestigacion: 0, puntosReclutamiento: 300 }
+                },
+                2: {
+                    civilization: null,
+                    controllerType: 'ai',
+                    aiDifficulty: 'medium',
+                    resources: scenario?.enemySetup?.initialResources || { oro: 1000, comida: 500, madera: 200, piedra: 0, hierro: 0, puntosInvestigacion: 0, puntosReclutamiento: 300 }
+                }
+            }
+        };
+    },
+
+    _closeScenarioPickerModal() {
+        const modal = document.getElementById(this._scenarioPickerModalId);
+        if (modal) modal.remove();
+    },
+
+    _normalizeCloudScenario(row, fallbackName = 'Escenario en nube') {
+        const scenarioData = row?.scenario_data;
+        if (!scenarioData || typeof scenarioData !== 'object') return null;
+
+        if (!scenarioData.meta) scenarioData.meta = {};
+        scenarioData.meta.name = scenarioData.meta.name || row.name || fallbackName;
+        scenarioData.meta.description = scenarioData.meta.description || row.description || '';
+        scenarioData.meta.author = scenarioData.meta.author || row.author_id || 'Supabase';
+
+        return scenarioData;
+    },
+
+    async openScenarioPicker() {
+        if (!confirm('¿Abrir otro escenario? Se perderán los cambios no guardados del actual.')) return;
+
+        this._closeScenarioPickerModal();
+
+        const gameOptions = [];
+        const playerOptions = [];
+        const publicOptions = [];
+
+        if (typeof GAME_DATA_REGISTRY !== 'undefined' && GAME_DATA_REGISTRY.scenarios) {
+            Object.entries(GAME_DATA_REGISTRY.scenarios).forEach(([key, scenario]) => {
+                gameOptions.push({
+                    label: scenario.displayName || scenario.scenarioId || key,
+                    description: scenario.description || 'Escenario del juego base',
+                    source: `Juego: ${key}`,
+                    scenarioData: this._convertRegistryScenarioToEditorScenario(key, scenario)
+                });
+            });
+        }
+
+        if (typeof ScenarioStorage !== 'undefined' && ScenarioStorage.listLocalScenarios && ScenarioStorage.loadFromLocalStorage) {
+            (ScenarioStorage.listLocalScenarios() || []).forEach(item => {
+                const loaded = ScenarioStorage.loadFromLocalStorage(item.id);
+                if (!loaded?.meta) return;
+
+                playerOptions.push({
+                    label: loaded.meta.name || item.name || item.id,
+                    description: loaded.meta.description || 'Escenario guardado localmente',
+                    source: `Jugador (local): ${item.id}`,
+                    scenarioData: loaded
+                });
+            });
+        }
+
+        if (typeof ScenarioStorage !== 'undefined' && ScenarioStorage.loadUserScenarios) {
+            try {
+                const userRows = await ScenarioStorage.loadUserScenarios();
+                (userRows || []).forEach(row => {
+                    const normalized = this._normalizeCloudScenario(row, 'Escenario del jugador');
+                    if (!normalized) return;
+                    playerOptions.push({
+                        label: normalized.meta?.name || row.name || 'Escenario del jugador',
+                        description: normalized.meta?.description || row.description || 'Escenario del jugador en la nube',
+                        source: `Jugador (nube): ${row.id || 'sin-id'}`,
+                        scenarioData: normalized
+                    });
+                });
+            } catch (error) {
+                console.warn('[EditorUI] No se pudieron cargar escenarios del jugador en la nube:', error);
+            }
+        }
+
+        if (typeof ScenarioStorage !== 'undefined' && ScenarioStorage.searchPublicScenarios) {
+            try {
+                const publicRows = await ScenarioStorage.searchPublicScenarios('');
+                (publicRows || []).forEach(row => {
+                    const normalized = this._normalizeCloudScenario(row, 'Escenario publico');
+                    if (!normalized) return;
+                    publicOptions.push({
+                        label: normalized.meta?.name || row.name || 'Escenario publico',
+                        description: normalized.meta?.description || row.description || 'Escenario publicado por la comunidad',
+                        source: `Publico: ${row.id || 'sin-id'}`,
+                        scenarioData: normalized
+                    });
+                });
+            } catch (error) {
+                console.warn('[EditorUI] No se pudieron cargar escenarios publicos:', error);
+            }
+        }
+
+        const totalOptions = gameOptions.length + playerOptions.length + publicOptions.length;
+        if (totalOptions === 0) {
+            alert('No hay escenarios disponibles para abrir.');
+            return;
+        }
+
+        const modal = document.createElement('div');
+        modal.id = this._scenarioPickerModalId;
+        modal.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.72); z-index: 10620; display: flex; align-items: center; justify-content: center; padding: 16px; pointer-events: auto;';
+
+        const panel = document.createElement('div');
+        panel.style.cssText = 'width: min(900px, 96vw); max-height: 86vh; overflow: hidden; background: #112433; border: 2px solid #00f3ff; border-radius: 10px; display: flex; flex-direction: column;';
+
+        const header = document.createElement('div');
+        header.style.cssText = 'padding: 14px 16px; border-bottom: 1px solid rgba(0,243,255,0.35); color: #00f3ff; font-weight: bold;';
+        header.textContent = 'Abrir escenario existente (Juego / Jugador / Publico)';
+
+        const list = document.createElement('div');
+        list.style.cssText = 'padding: 12px 14px; overflow-y: auto; display: grid; gap: 8px;';
+
+        const buildSection = (titleText, items, emptyText) => {
+            const sectionTitle = document.createElement('div');
+            sectionTitle.style.cssText = 'margin-top: 6px; margin-bottom: 4px; color: #6ed8ff; font-weight: 700; letter-spacing: 0.02em;';
+            sectionTitle.textContent = titleText;
+            list.appendChild(sectionTitle);
+
+            if (!items.length) {
+                const empty = document.createElement('div');
+                empty.style.cssText = 'padding: 8px 10px; border: 1px dashed rgba(157,194,212,0.4); border-radius: 8px; color: #9dc2d4; font-size: 0.9em;';
+                empty.textContent = emptyText;
+                list.appendChild(empty);
+                return;
+            }
+
+            items.forEach(opt => {
+            const row = document.createElement('div');
+            row.style.cssText = 'display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid rgba(0,243,255,0.25); border-radius: 8px; padding: 10px; background: rgba(8,18,26,0.8);';
+
+            const info = document.createElement('div');
+            info.style.cssText = 'min-width: 0;';
+
+            const title = document.createElement('div');
+            title.style.cssText = 'color:#dff9ff;font-weight:600;';
+            title.textContent = opt.label;
+
+            const description = document.createElement('div');
+            description.style.cssText = 'color:#9dc2d4;font-size:0.86em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+            description.textContent = `${opt.description || 'Sin descripción'} • ${opt.source}`;
+
+            info.appendChild(title);
+            info.appendChild(description);
+
+            const openBtn = document.createElement('button');
+            openBtn.textContent = 'Abrir';
+            openBtn.style.cssText = 'padding: 8px 12px; background: #0d6efd; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;';
+            openBtn.onclick = () => {
+                EditorSerializer.importScenario(opt.scenarioData);
+                this.populateSelectors();
+                this.updateScenarioName();
+                this.selectTool('terrain');
+                this._closeScenarioPickerModal();
+                alert(`✅ Escenario cargado: ${opt.label}`);
+            };
+
+            row.appendChild(info);
+            row.appendChild(openBtn);
+            list.appendChild(row);
+            });
+        };
+
+        buildSection('Escenarios del juego', gameOptions, 'No hay escenarios base disponibles.');
+        buildSection('Escenarios del jugador', playerOptions, 'No hay escenarios tuyos disponibles (local o nube).');
+        buildSection('Escenarios publicos', publicOptions, 'No hay escenarios publicos disponibles.');
+
+        const footer = document.createElement('div');
+        footer.style.cssText = 'padding: 10px 14px; border-top: 1px solid rgba(0,243,255,0.25); display: flex; justify-content: flex-end;';
+
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = 'Cancelar';
+        closeBtn.style.cssText = 'padding: 10px 12px; background: #444; color: #fff; border: none; border-radius: 6px; cursor: pointer;';
+        closeBtn.onclick = () => this._closeScenarioPickerModal();
+
+        footer.appendChild(closeBtn);
+        panel.appendChild(header);
+        panel.appendChild(list);
+        panel.appendChild(footer);
+        modal.appendChild(panel);
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) this._closeScenarioPickerModal();
+        });
+
+        document.body.appendChild(modal);
+    },
     
     /**
      * Cierra el editor y vuelve al menú principal
@@ -779,6 +1132,7 @@ const EditorUI = {
      */
     openEditorMenu() {
         const options = [
+            '📂 Abrir escenario',
             '📤 Exportar JSON',
             '📥 Importar JSON',
             '📜 Exportar Script IA',
@@ -808,16 +1162,17 @@ const EditorUI = {
             btn.onclick = () => {
                 document.body.removeChild(menu);
                 switch(index) {
-                    case 0: this.exportScenario(); break;
-                    case 1: this.importScenario(); break;
-                    case 2: this.exportScenarioAsScript(); break;
-                    case 3: this.openHistoricalMetadata(); break;
-                    case 4: this.undo(); break;
-                    case 5: this.redo(); break;
-                    case 6: this.openMapSettings(); break;
-                    case 7: this.openPlayerSettings(); break;
-                    case 8: this.openVictoryConditions(); break;
-                    case 9: this.generateProcedural(); break;
+                    case 0: this.openScenarioPicker(); break;
+                    case 1: this.exportScenario(); break;
+                    case 2: this.importScenario(); break;
+                    case 3: this.exportScenarioAsScript(); break;
+                    case 4: this.openHistoricalMetadata(); break;
+                    case 5: this.undo(); break;
+                    case 6: this.redo(); break;
+                    case 7: this.openMapSettings(); break;
+                    case 8: this.openPlayerSettings(); break;
+                    case 9: this.openVictoryConditions(); break;
+                    case 10: this.generateProcedural(); break;
                 }
             };
             

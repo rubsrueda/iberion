@@ -42,10 +42,10 @@ console.log("scenarioScriptFactory.js CARGADO");
     }
 
     function getValidStructures() {
-        if (typeof STRUCTURE_DEFINITIONS !== 'undefined' && STRUCTURE_DEFINITIONS && typeof STRUCTURE_DEFINITIONS === 'object') {
-            return new Set(Object.keys(STRUCTURE_DEFINITIONS));
+        if (typeof STRUCTURE_TYPES !== 'undefined' && STRUCTURE_TYPES && typeof STRUCTURE_TYPES === 'object') {
+            return new Set(Object.keys(STRUCTURE_TYPES));
         }
-        return new Set(['Camino', 'Fortaleza', 'Aldea', 'Ciudad', 'Metrópoli', 'Atalaya']);
+        return new Set(['Camino', 'Fortaleza', 'Fortaleza con Muralla', 'Aldea', 'Ciudad', 'Metrópoli', 'Atalaya']);
     }
 
     function isValidCityOwner(owner) {
