@@ -431,8 +431,9 @@
             <div id="hotspotForge" class="main-menu-hotspot" data-action="openForge"></div>
         <!-- Altar de los Deseos: Estatua a la derecha -->
             <div id="hotspotAltar" class="main-menu-hotspot" data-action="openAltar"></div>
-        <!-- Campaña: Edificio grande arriba -->
-            <div id="hotspotCampaign" class="main-menu-hotspot" data-action="openCampaignHub"></div>
+        <!-- Bloque superior dividido: Perfil + Campañas -->
+            <div id="hotspotCampaignProfile" class="main-menu-hotspot" data-action="openProfile" title="Perfil"></div>
+            <div id="hotspotCampaignHub" class="main-menu-hotspot" data-action="openCampaignHub" title="Campañas"></div>
         <!-- NUEVO HOTSPOT: ALIANZA (Abajo a la derecha) -->
         <!--<div id="hotspotAlliance" class="main-menu-hotspot" data-action="openAlliance"></div>-->
         <!-- Tronos de Iberia: Ruinas a la derecha -->
@@ -457,6 +458,7 @@
                 <button id="resumeGameBtn" style="display: block; width: 90%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #2980b9; color: white; font-weight:bold; border: 2px solid #3498db; box-shadow: 0 0 10px rgba(41, 128, 185, 0.5);"> ▶️ Cargar Partida</button>
                 <button id="startSkirmishBtn_new" style="display: block; width: 90%; margin: 20px auto; padding: 15px; font-size: 1.1em;">Partida Rápida (Escaramuza)</button>
                 <button id="startTutorialBtn_new" style="display: block; width: 90%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #28a745;">Iniciar Tutorial (5 min)</button>
+                <button onclick="document.getElementById('gameModesModal').style.display = 'none'; if (typeof CampaignHub !== 'undefined' && CampaignHub.open) CampaignHub.open();" style="display: block; width: 90%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #0d6efd; color: white;">🗺️ Campañas</button>
                 <button id="joinNetworkGameBtn_new" style="display: block; width: 90%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #ffc107; color: black;">Unirse a Partida en Red</button>
                 
                 <!-- BOTONES DEL EDITOR -->

@@ -2305,13 +2305,32 @@ body {
     animation-delay: -1.5s;
 }
 
-/* Campaña: Ventana con el Arbol y el rio */
-#hotspotCampaign {
+/* Bloque superior dividido en dos cuadros: Perfil (izq) y Campañas (der) */
+#hotspotCampaignProfile {
     top: 10%;
     left: 35%;
-    width: 35%;
+    width: 17.2%;
     height: 25%;
     animation-delay: -2s;
+}
+
+#hotspotCampaignHub {
+    top: 10%;
+    left: 52.8%;
+    width: 17.2%;
+    height: 25%;
+    animation-delay: -2.2s;
+}
+
+/* Señal visual discreta para distinguir ambos cuadros sin romper estética */
+#hotspotCampaignProfile:hover,
+#hotspotCampaignProfile:focus-visible {
+    box-shadow: 0 0 16px 6px rgba(88, 179, 255, 0.45);
+}
+
+#hotspotCampaignHub:hover,
+#hotspotCampaignHub:focus-visible {
+    box-shadow: 0 0 16px 6px rgba(88, 255, 196, 0.45);
 }
 
 /* Tronos de Iberia: Ruinas a la derecha */
