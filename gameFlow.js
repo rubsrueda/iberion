@@ -668,7 +668,43 @@ function handleUnitUpkeep(playerNum) {
             unit.turnsSurrounded = 0;
         }
         
-        // --- 3. LÓGICA DE MANTENIMIENTO---
+        // --- 3. LOGÍSTICA DE INFRAESTRUCTURA (FIN DE TURNO) ---
+        const playerTechs = playerRes.researchedTechnologies || [];
+        const hasInfrastructureLogistics = playerTechs.includes('INFRASTRUCTURE_LOGISTICS');
+        if (hasInfrastructureLogistics && Array.isArray(unit.regiments) && unit.regiments.length > 0) {
+            let bestRecovery = 0;
+            for (let rr = 0; rr < board.length; rr++) {
+                for (let cc = 0; cc < (board[rr]?.length || 0); cc++) {
+                    const hex = board[rr]?.[cc];
+                    if (!hex || hex.owner !== unit.player) continue;
+                    const dist = hexDistance(unit.r, unit.c, rr, cc);
+                    if (dist > 5) continue;
+                    if (hex.isCity) bestRecovery = Math.max(bestRecovery, 0.10);
+                    else if (hex.structure === 'Fortaleza') bestRecovery = Math.max(bestRecovery, 0.05);
+                }
+            }
+
+            if (bestRecovery > 0) {
+                let recoveredRegiments = 0;
+                let recoveredHpTotal = 0;
+                unit.regiments.forEach(regiment => {
+                    if ((regiment.health || 0) > 0) return;
+                    const regimentMaxHealth = REGIMENT_TYPES[regiment.type]?.health || 0;
+                    if (regimentMaxHealth <= 0) return;
+                    const recoveredHp = Math.max(1, Math.round(regimentMaxHealth * bestRecovery));
+                    regiment.health = recoveredHp;
+                    recoveredRegiments++;
+                    recoveredHpTotal += recoveredHp;
+                });
+
+                if (recoveredRegiments > 0) {
+                    unit.currentHealth = unit.regiments.reduce((sum, reg) => sum + (reg.health || 0), 0);
+                    logMessage(`${unit.name} recupera ${recoveredRegiments} bajas (${recoveredHpTotal} HP) por Logistica de Infraestructura.`, 'success');
+                }
+            }
+        }
+
+        // --- 4. LÓGICA DE MANTENIMIENTO---
         let unitUpkeep = 0;
         (unit.regiments || []).forEach(regiment => { unitUpkeep += REGIMENT_TYPES[regiment.type]?.cost?.upkeep || 0; });
          // Aplicar la reducción de consumo

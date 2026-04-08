@@ -1640,8 +1640,14 @@ async function attackUnit(attackerDivision, defenderDivision) {
         const distance = hexDistance(attackerDivision.r, attackerDivision.c, defenderDivision.r, defenderDivision.c);
         
         // Asignar IDs de log temporales para esta batalla
-        attackerDivision.regiments.forEach((r, i) => r.logId = `A-${i}`);
-        defenderDivision.regiments.forEach((r, i) => r.logId = `D-${i}`);
+        attackerDivision.regiments.forEach((r, i) => {
+            r.logId = `A-${i}`;
+            r.hitsTakenThisRound = 0;
+        });
+        defenderDivision.regiments.forEach((r, i) => {
+            r.logId = `D-${i}`;
+            r.hitsTakenThisRound = 0;
+        });
 
         console.log("Regimientos Atacantes:", attackerDivision.regiments.map(r => `${r.type}[${r.logId}](${r.health} HP)`));
         console.log("Regimientos Defensores:", defenderDivision.regiments.map(r => `${r.type}[${r.logId}](${r.health} HP)`));
@@ -2369,29 +2375,8 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
     const actualDamage = Math.min(targetRegiment.health, damageDealt);
     targetRegiment.health -= actualDamage;
 
-    if (targetRegiment.health <= 0) {
-        const playerTechs = gameState?.playerResources?.[targetDivision.player]?.researchedTechnologies || [];
-        const hasMedicalLogistics = playerTechs.includes('INFRASTRUCTURE_LOGISTICS');
-        if (hasMedicalLogistics) {
-            let bestRecovery = 0;
-            for (let r = 0; r < board.length; r++) {
-                for (let c = 0; c < (board[r]?.length || 0); c++) {
-                    const hex = board[r]?.[c];
-                    if (!hex || hex.owner !== targetDivision.player) continue;
-                    const dist = hexDistance(targetDivision.r, targetDivision.c, r, c);
-                    if (dist > 5) continue;
-                    if (hex.isCity) bestRecovery = Math.max(bestRecovery, 0.10);
-                    else if (hex.structure === 'Fortaleza') bestRecovery = Math.max(bestRecovery, 0.05);
-                }
-            }
-
-            if (bestRecovery > 0) {
-                const recoveredHp = Math.max(1, Math.round((targetData.health || 1) * bestRecovery));
-                targetRegiment.health = recoveredHp;
-                logMessage(`${targetDivision.name} recupera ${recoveredHp} HP de bajas por Logistica de Infraestructura.`);
-            }
-        }
-    }
+    // La tecnologia INFRASTRUCTURE_LOGISTICS ya no actua en combate.
+    // Su efecto se procesa al final del turno en handleUnitUpkeep().
 
     // === RAID: NO registrar daño aquí - se hace una sola vez al final del combate ===
     // (Eliminado para evitar registro duplicado por cada duelo)

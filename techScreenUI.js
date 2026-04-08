@@ -470,7 +470,7 @@ function RequestResearchTech(techId) {
             FORGE_STANDARDIZATION: 'Preparacion de refuerzo automatico cerca de infraestructura',
             CENTRAL_EQUIPMENT_POOL: 'Activa refuerzo automatico de regimientos (20%)',
             CONTRACT_CODIFICATION: 'Eventos de lealtad mayormente positivos y menor corrupcion',
-            INFRASTRUCTURE_LOGISTICS: 'Recuperacion parcial de bajas en combate cerca de ciudad/fortaleza'
+            INFRASTRUCTURE_LOGISTICS: 'Recuperacion parcial de bajas al final del turno cerca de ciudad/fortaleza'
         };
 
         const unlocks = [
