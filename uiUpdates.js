@@ -316,16 +316,14 @@ const UIManager = {
         const existing = hexEl.querySelector('.hex-comic-indicator');
         if (existing) existing.remove();
 
+        const key = `${r},${c}`;
+        if (this._hexComicReadMap[key]) return; // No mostrar icono si ya fue leído
+
         const message = this.getHexComicMessage(r, c, hexData);
         if (!message) {
             if (this._activeHexComicMessage && this._activeHexComicMessage.r === r && this._activeHexComicMessage.c === c) {
                 this.hideHexComicMessagePanel();
             }
-            return;
-        }
-
-        // Si el mensaje ya fue leído, no mostrar el icono
-        if (this._activeHexComicMessage && this._activeHexComicMessage.r === r && this._activeHexComicMessage.c === c) {
             return;
         }
 
@@ -422,7 +420,12 @@ const UIManager = {
         const hexEl = hexData?.element;
         if (!hexData || !hexEl) return;
 
-        const msg = this.getHexComicMessage(r, c, hexData);
+        // Priorizar mensaje informativo si existe
+        const messages = this._buildHexComicMessages(r, c, hexData);
+        let msg = null;
+        if (messages.length > 0) {
+            msg = messages.find(m => m.severity === 'info' || m.id === 'info') || messages[0];
+        }
         if (!msg) {
             this.hideHexComicMessagePanel();
             return;
@@ -463,6 +466,10 @@ const UIManager = {
         panel.classList.add('visible');
         this._positionHexComicPanel(hexEl);
         this._activeHexComicMessage = { r, c, id: msg.id };
+
+        // Marcar como leído
+        const key = `${r},${c}`;
+        this._hexComicReadMap[key] = true;
     },
 
     hideHexComicMessagePanel: function() {
@@ -952,6 +959,20 @@ const UIManager = {
         const runUpdate = () => {
             this._updateAllScheduled = false;
             this._doUpdateAllUIDisplays();
+            // --- PARCHE: Forzar visibilidad de botones flotantes principales (grupo derecho) ---
+            try {
+                const rightGroup = document.querySelector('.floating-action-group.right');
+                if (rightGroup) {
+                    rightGroup.style.display = 'flex';
+                    // Forzar visibilidad de todos los botones hijos
+                    rightGroup.querySelectorAll('button').forEach(btn => {
+                        btn.style.display = 'flex';
+                        btn.disabled = false;
+                    });
+                }
+            } catch (e) {
+                console.error('Error forzando visibilidad de botones flotantes:', e);
+            }
         };
 
         if (typeof requestAnimationFrame === 'function') {

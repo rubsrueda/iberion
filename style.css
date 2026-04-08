@@ -2573,6 +2573,23 @@ body {
     gap: 15px;
 }
 
+.profile-btn {
+    background: none;
+    border: none;
+    color: #ffd700;
+    font-weight: bold;
+    font-size: 1em;
+    cursor: pointer;
+    padding: 0 6px;
+    text-decoration: underline dotted #ffd700 1.5px;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+.profile-btn:hover, .profile-btn:focus {
+    background: rgba(255,255,255,0.08);
+    outline: none;
+}
+
 #logoutBtn_main {
     background: none;
     border: none;
@@ -5614,6 +5631,10 @@ input[type="range"] {
     pointer-events: none;
     z-index: 1000;
     display: none; /* Oculto por defecto (móvil) */
+    background: none;
+    font-family: monospace;
+    letter-spacing: 1px;
+    text-shadow: 1px 1px 2px #000, 0 0 8px #222;
 }
 
 .name-watermark {
@@ -5634,6 +5655,26 @@ input[type="range"] {
     }
     .name-watermark {
         display: block;
+    }
+}
+
+/* Mostrar solo el número de versión en móvil */
+@media (max-width: 600px) {
+    .version-watermark {
+        display: block;
+        font-size: 1.2em;
+        right: 10px;
+        bottom: 6px;
+        background: none;
+        color: #ffd700;
+        text-shadow: 1px 1px 2px #000;
+        letter-spacing: 0.5px;
+    }
+    .version-watermark::before {
+        content: '';
+    }
+    .version-watermark {
+        /* Solo mostrar el número, ocultar la V si existe */
     }
 }
 

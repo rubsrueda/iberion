@@ -312,6 +312,11 @@ async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaign
     }
 
     console.log("state.js: Finalizado resetAndSetupTacticalGame.", JSON.parse(JSON.stringify(gameState)));
+
+    // Refrescar la UI tras cargar el escenario para asegurar botones y paneles
+    if (typeof UIManager !== 'undefined' && typeof UIManager.updateAllUIDisplays === 'function') {
+        UIManager.updateAllUIDisplays();
+    }
 }
 
 function resetGameStateForIberiaMagna() {

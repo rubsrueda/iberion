@@ -271,6 +271,22 @@ const showLoginScreen = () => {
 
 function initApp() {
 
+    // Listener para el botón de perfil en el menú principal
+    const profileBtn = document.getElementById('currentGeneralName_main');
+    if (profileBtn) {
+        profileBtn.addEventListener('click', () => {
+            // Si el usuario está logueado, abrir el modal de perfil; si no, mostrar login
+            if (PlayerDataManager.currentPlayer) {
+                const profileModal = document.getElementById('profileModal');
+                if (profileModal) {
+                    profileModal.style.display = 'flex';
+                }
+            } else {
+                showLoginScreen();
+            }
+        });
+    }
+
     // <<== DETECCIÓN DE DEEP LINK PARA REPLAYS ==>>
     // Si hay parámetro ?replay=TOKEN, cargar ese replay sin necesidad de ser el dueño
     const urlParams = new URLSearchParams(window.location.search);

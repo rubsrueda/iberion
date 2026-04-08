@@ -305,6 +305,10 @@ const CampaignHub = {
                 showScreen(domElements.gameContainer);
                 if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
                 await resetAndSetupTacticalGame(scenarioData, mapData, territoryId);
+                // Refrescar UI tras cargar escenario de campaña
+                if (typeof UIManager !== 'undefined' && typeof UIManager.updateAllUIDisplays === 'function') {
+                    UIManager.updateAllUIDisplays();
+                }
                 gameState.currentCampaignId = campaign.id;
                 gameState.currentCampaignScenarioOrder = scenarioOrder;
                 return;
