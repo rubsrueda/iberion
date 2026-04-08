@@ -4903,6 +4903,154 @@ input[type="range"] {
 
 }
 
+/* ========================================================================== */
+/* ==   SETUP SCREENS: LANDSCAPE 320px DE ALTO (teléfono horizontal)       == */
+/* ========================================================================== */
+@media (max-height: 360px) {
+
+    /* Overlay: sin padding para aprovechar cada pixel */
+    #setupScreen.modal-overlay,
+    #setupScreen2.modal-overlay {
+        padding: 2px !important;
+        align-items: flex-start;
+    }
+
+    /* Contenedor: ocupa el alto disponible y hace scroll si el contenido no cabe */
+    #setupScreen .modal-container,
+    #setupScreen2 .modal-container {
+        max-height: 98svh !important;
+        height: auto !important;
+        width: 99vw !important;
+        max-width: 99vw !important;
+        border-radius: 4px !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    /* Cabecera: altura mínima */
+    #setupScreen .modal-header,
+    #setupScreen2 .modal-header {
+        padding: 3px 10px !important;
+        flex-shrink: 0 !important;
+    }
+    #setupScreen .modal-header h2,
+    #setupScreen2 .modal-header h2 {
+        font-size: 0.82em !important;
+        letter-spacing: 0;
+    }
+
+    /* Cuerpo: HABILITAR scroll (el overflow:hidden los rompía en landscape) */
+    #setupScreen .modal-body.setup-screen-themed,
+    #setupScreen2 .modal-body {
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
+        padding: 4px 8px !important;
+        gap: 4px !important;
+    }
+
+    /* Columnas de opciones: horizontal side-by-side muy compactas */
+    #setupScreen .setup-grid {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 4px !important;
+    }
+    #setupScreen .setup-column {
+        flex: 1 1 0 !important;
+        padding: 3px !important;
+    }
+    #setupScreen .setup-column h4 {
+        font-size: 0.72em !important;
+        margin: 0 0 3px !important;
+    }
+    #setupScreen .setup-option {
+        margin-bottom: 3px !important;
+    }
+    #setupScreen .setup-option label {
+        font-size: 0.72em !important;
+        margin-bottom: 1px !important;
+    }
+    #setupScreen .setup-option select,
+    #setupScreen2 .player-card select {
+        padding: 2px 4px !important;
+        font-size: 0.78em !important;
+    }
+
+    /* Opciones globales debajo del grid: inline para ahorrar alto */
+    #setupScreen .setup-option:not(.setup-column .setup-option) {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 6px !important;
+        margin-bottom: 2px !important;
+    }
+    #setupScreen .setup-option:not(.setup-column .setup-option) label {
+        flex-shrink: 0;
+        min-width: 80px;
+        font-size: 0.72em !important;
+    }
+    #setupScreen .setup-option:not(.setup-column .setup-option) select {
+        flex: 1 1 auto !important;
+    }
+
+    /* Slider de jugadores: horizontal compacto */
+    #setupScreen .players-row {
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        gap: 6px !important;
+        margin-top: 0 !important;
+    }
+    #setupScreen .players-row label {
+        font-size: 0.78em !important;
+        flex-shrink: 0;
+    }
+    #setupScreen .players-row input[type="range"] {
+        flex: 1 1 auto !important;
+        width: auto !important;
+    }
+
+    /* Texto de ayuda de unitSplitMode: ocultar en landscape (ocupa mucho alto) */
+    #unitSplitModeHelp {
+        display: none !important;
+    }
+
+    /* Pie de página: altura mínima, botones táctiles */
+    #setupScreen .modal-footer,
+    #setupScreen2 .modal-footer {
+        padding: 4px 10px !important;
+        flex-shrink: 0 !important;
+        gap: 8px !important;
+    }
+    #setupScreen .modal-footer button,
+    #setupScreen2 .modal-footer button {
+        padding: 5px 12px !important;
+        font-size: 0.82em !important;
+        min-height: 32px !important;
+    }
+
+    /* setupScreen2: rejilla de jugadores en scroll horizontal */
+    #player-setup-grid.player-grid-container {
+        display: flex !important;
+        flex-direction: row !important;
+        overflow-x: auto !important;
+        gap: 6px !important;
+        padding-bottom: 4px !important;
+    }
+    #setupScreen2 .player-card {
+        min-width: 100px !important;
+        flex-shrink: 0 !important;
+        padding: 4px !important;
+    }
+    #setupScreen2 .player-card .player-icon {
+        font-size: 1.2em !important;
+        width: 28px !important;
+        height: 28px !important;
+    }
+}
+
 /* === ESTILO PARA LAS RUINAS === */
 
 /* Crea un icono de ruina usando el pseudo-elemento ::after */

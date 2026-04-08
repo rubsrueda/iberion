@@ -10,6 +10,22 @@ console.log("campaignStorage.js CARGADO");
  * CampaignStorage: Maneja guardar/cargar campañas en localStorage y Supabase
  */
 const CampaignStorage = {
+    /**
+     * Resuelve el cliente de Supabase inicializado en la app.
+     * @returns {Object|null}
+     */
+    _getSupabaseClient() {
+        if (typeof supabaseClient !== 'undefined' && supabaseClient?.from) {
+            return supabaseClient;
+        }
+
+        // Fallback para entornos donde el cliente global se llame distinto.
+        if (typeof supabase !== 'undefined' && supabase?.from) {
+            return supabase;
+        }
+
+        return null;
+    },
     
     /**
      * Guarda campaña en localStorage
@@ -162,7 +178,8 @@ const CampaignStorage = {
      * @returns {Object|null} Datos de la campaña guardada o null si falla
      */
     async saveToSupabase(campaignData, isPublic = false) {
-        if (typeof supabase === 'undefined') {
+        const client = this._getSupabaseClient();
+        if (!client) {
             console.warn('[CampaignStorage] Supabase no está disponible');
             return null;
         }
@@ -186,7 +203,7 @@ const CampaignStorage = {
                 payload.id = campaignData.meta.supabaseId;
             }
 
-            const { data, error } = await supabase
+            const { data, error } = await client
                 .from('campaigns')
                 .upsert(payload)
                 .select();
@@ -209,7 +226,8 @@ const CampaignStorage = {
      * @returns {Array} Array de campañas del usuario
      */
     async loadUserCampaigns() {
-        if (typeof supabase === 'undefined') {
+        const client = this._getSupabaseClient();
+        if (!client) {
             console.warn('[CampaignStorage] Supabase no está disponible');
             return [];
         }
@@ -220,7 +238,7 @@ const CampaignStorage = {
         }
         
         try {
-            const { data, error } = await supabase
+            const { data, error } = await client
                 .from('campaigns')
                 .select('*')
                 .eq('author_id', PlayerDataManager.currentPlayer.auth_id)
@@ -245,13 +263,14 @@ const CampaignStorage = {
      * @returns {Array} Array de campañas públicas
      */
     async searchPublicCampaigns(query = '') {
-        if (typeof supabase === 'undefined') {
+        const client = this._getSupabaseClient();
+        if (!client) {
             console.warn('[CampaignStorage] Supabase no está disponible');
             return [];
         }
         
         try {
-            let queryBuilder = supabase
+            let queryBuilder = client
                 .from('campaigns')
                 .select('*')
                 .eq('is_public', true);
@@ -283,13 +302,14 @@ const CampaignStorage = {
      * @returns {Object|null} Campaña o null si no existe
      */
     async loadFromSupabase(campaignId) {
-        if (typeof supabase === 'undefined') {
+        const client = this._getSupabaseClient();
+        if (!client) {
             console.warn('[CampaignStorage] Supabase no está disponible');
             return null;
         }
         
         try {
-            const { data, error } = await supabase
+            const { data, error } = await client
                 .from('campaigns')
                 .select('*')
                 .eq('id', campaignId)
@@ -314,7 +334,8 @@ const CampaignStorage = {
      * @returns {boolean} true si se eliminó correctamente
      */
     async deleteFromSupabase(campaignId) {
-        if (typeof supabase === 'undefined') {
+        const client = this._getSupabaseClient();
+        if (!client) {
             console.warn('[CampaignStorage] Supabase no está disponible');
             return false;
         }
@@ -325,7 +346,7 @@ const CampaignStorage = {
         }
         
         try {
-            const { error } = await supabase
+            const { error } = await client
                 .from('campaigns')
                 .delete()
                 .eq('id', campaignId)

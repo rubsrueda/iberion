@@ -340,6 +340,19 @@ const UIManager = {
             panel = document.createElement('div');
             panel.id = 'hexComicMessagePanel';
             panel.className = 'hex-comic-panel';
+            document.body.appendChild(panel);
+        }
+
+        const requiredSelectors = [
+            '.hex-comic-close',
+            '.hex-comic-emitter',
+            '.hex-comic-severity',
+            '.hex-comic-title',
+            '.hex-comic-detail',
+            '.hex-comic-suggestion'
+        ];
+        const needsMarkupRefresh = requiredSelectors.some(sel => !panel.querySelector(sel));
+        if (needsMarkupRefresh) {
             panel.innerHTML = [
                 '<button class="hex-comic-close" type="button" aria-label="Cerrar">x</button>',
                 '<div class="hex-comic-head">',
@@ -350,7 +363,6 @@ const UIManager = {
                 '<div class="hex-comic-detail"></div>',
                 '<div class="hex-comic-suggestion"></div>'
             ].join('');
-            document.body.appendChild(panel);
         }
 
         this._hexComicPanel = panel;
@@ -376,34 +388,28 @@ const UIManager = {
     },
 
     _positionHexComicPanel: function(anchorHexEl) {
-        if (!this._hexComicPanel || !anchorHexEl) return;
+        if (!this._hexComicPanel) return;
         const panel = this._hexComicPanel;
-        const hexRect = anchorHexEl.getBoundingClientRect();
         const panelRect = panel.getBoundingClientRect();
-        const margin = 10;
         const vw = window.innerWidth;
         const vh = window.innerHeight;
+        const margin = 10;
+        const tacticalVisible = !!(this._domElements?.tacticalUiContainer && this._domElements.tacticalUiContainer.style.display !== 'none');
+        const bottomOffset = tacticalVisible ? 140 : 34;
 
-        const candidates = [
-            { left: hexRect.right + margin, top: hexRect.top - 4 },
-            { left: hexRect.left - panelRect.width - margin, top: hexRect.top - 4 },
-            { left: hexRect.left + (hexRect.width - panelRect.width) / 2, top: hexRect.top - panelRect.height - margin },
-            { left: hexRect.left + (hexRect.width - panelRect.width) / 2, top: hexRect.bottom + margin }
-        ];
+        let left = (vw - panelRect.width) / 2;
+        let top = vh - panelRect.height - bottomOffset;
 
-        let chosen = candidates.find(pos => (
-            pos.left >= margin &&
-            pos.top >= margin &&
-            pos.left + panelRect.width <= vw - margin &&
-            pos.top + panelRect.height <= vh - margin
-        ));
+        left = Math.min(Math.max(left, margin), Math.max(margin, vw - panelRect.width - margin));
+        top = Math.min(Math.max(top, margin), Math.max(margin, vh - panelRect.height - margin));
 
-        if (!chosen) chosen = candidates[0];
+        panel.style.left = `${Math.round(left)}px`;
+        panel.style.top = `${Math.round(top)}px`;
 
-        const clampedLeft = Math.min(Math.max(chosen.left, margin), Math.max(margin, vw - panelRect.width - margin));
-        const clampedTop = Math.min(Math.max(chosen.top, margin), Math.max(margin, vh - panelRect.height - margin));
-        panel.style.left = `${Math.round(clampedLeft)}px`;
-        panel.style.top = `${Math.round(clampedTop)}px`;
+        if (anchorHexEl) {
+            panel.dataset.anchorR = anchorHexEl.dataset?.r || '';
+            panel.dataset.anchorC = anchorHexEl.dataset?.c || '';
+        }
     },
 
     toggleHexComicMessagePanel: function(r, c) {
@@ -426,9 +432,18 @@ const UIManager = {
         if (!this._hexComicPanel) return;
 
         const panel = this._hexComicPanel;
+        const emitterEl = panel.querySelector('.hex-comic-emitter');
+        const severityEl = panel.querySelector('.hex-comic-severity');
+        const titleEl = panel.querySelector('.hex-comic-title');
+        const detailEl = panel.querySelector('.hex-comic-detail');
+        const suggestionEl = panel.querySelector('.hex-comic-suggestion');
+        if (!emitterEl || !severityEl || !titleEl || !detailEl || !suggestionEl) {
+            this._ensureHexComicPanel();
+        }
+
         panel.classList.remove('critical', 'warning', 'opportunity', 'narrative');
         panel.classList.add(msg.severity);
-        panel.querySelector('.hex-comic-emitter').textContent = msg.emitter;
+        panel.querySelector('.hex-comic-emitter').textContent = msg.emitter || 'Mensaje';
         panel.querySelector('.hex-comic-severity').textContent = msg.severity === 'critical'
             ? 'Critico'
             : msg.severity === 'warning'
@@ -436,8 +451,8 @@ const UIManager = {
                 : msg.severity === 'opportunity'
                     ? 'Oportunidad'
                     : 'Info';
-        panel.querySelector('.hex-comic-title').textContent = msg.shortText;
-        panel.querySelector('.hex-comic-detail').textContent = msg.detailText;
+        panel.querySelector('.hex-comic-title').textContent = msg.shortText || 'Sin mensaje';
+        panel.querySelector('.hex-comic-detail').textContent = msg.detailText || 'No hay detalles disponibles para esta casilla.';
         panel.querySelector('.hex-comic-suggestion').textContent = msg.suggestion || '';
 
         panel.classList.add('visible');
