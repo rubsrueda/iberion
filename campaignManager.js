@@ -442,14 +442,22 @@ function showScreen(screenToShow) {
     }
     
     // CRÍTICO: También ocultar explícitamente el mainMenuScreen si se está mostrando gameContainer
-    // Esto previene que el menú quede visible debajo del mapa (z-index issues)
-    if (screenToShow && (screenToShow.id === 'gameContainer' || screenToShow.classList.contains('game-container'))) {
+    // Y mostrar/ocultar la UI táctica SOLO en partida
+    const isGameScreen = !!(screenToShow && (screenToShow === domElements.gameContainer || screenToShow.id === 'gameContainer' || screenToShow.classList.contains('game-container')));
+    if (isGameScreen) {
         const mainMenu = document.getElementById('mainMenuScreen');
         if (mainMenu) {
             mainMenu.style.setProperty('display', 'none', 'important');
             mainMenu.style.setProperty('visibility', 'hidden', 'important');
             mainMenu.style.setProperty('pointer-events', 'none', 'important');
             mainMenu.style.setProperty('z-index', '0', 'important');
+        }
+        if (domElements.tacticalUiContainer) {
+            domElements.tacticalUiContainer.style.setProperty('display', 'block', 'important');
+        }
+    } else {
+        if (domElements.tacticalUiContainer) {
+            domElements.tacticalUiContainer.style.setProperty('display', 'none', 'important');
         }
     }
     
