@@ -45,10 +45,12 @@
     box-sizing: border-box;
 }
 
+
 .floating-action-group.right button {
     z-index: 2003;
     pointer-events: all;
     background: #fff;
+}
 .button-danger:hover {
     background-color: #c82333;
 }
@@ -57,11 +59,34 @@
     color: #a3a3a3;
     cursor: not-allowed;
 }
-
 .button-secondary {
     background-color: #6c757d;
     color: white;
     appearance: button;
+}
+
+/* --- PARCHE CRÍTICO: Forzar visibilidad y stacking de los contenedores principales --- */
+#mainMenuScreen {
+    display: flex !important;
+    z-index: 1000 !important;
+    position: fixed !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    top: 0;
+    left: 0;
+    background: #1a1a1a !important;
+    overflow: hidden;
+}
+.game-container {
+    display: flex !important;
+    z-index: 1200 !important;
+    position: fixed !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    top: 0;
+    left: 0;
+    background: #222 !important;
+    overflow: hidden;
 }
 
 /* ========================================================================== */
@@ -9274,4 +9299,3 @@ body.graphics-form-desktop #profileModal .modal-content {
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 .rdc-btn-accept:hover { background: rgba(255,255,255,0.1); color: #bbb; }
-}
