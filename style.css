@@ -4,18 +4,25 @@
     pointer-events: none;
     z-index: 9999;
 }
-.floating-action-group.left {
-    display: flex !important;
-    flex-direction: column;
+/* Por defecto, la barra derecha NO se muestra */
+.floating-action-group.right {
+    display: none !important;
     position: fixed;
-    top: 0;
-    left: 0;
-    height: 100vh;
-    min-width: 48px;
-    justify-content: flex-end;
-    align-items: flex-start;
+    right: 0;
+    bottom: 0;
+    z-index: 2003;
+    flex-direction: column;
+    align-items: flex-end;
     gap: 8px;
-    padding: 12px 0 18px 10px;
+    padding: 16px 8px 16px 16px;
+    pointer-events: none;
+}
+
+/* Solo mostrar la barra derecha cuando el body tiene la clase in-game */
+body.in-game .floating-action-group.right {
+    display: flex !important;
+    pointer-events: auto;
+}
     background: none;
     border: none;
     box-sizing: border-box;
