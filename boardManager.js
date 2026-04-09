@@ -371,6 +371,12 @@ function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel, gameMode = '
     console.log("Generando mapa naval de archipiélagos...");
     const totalHexes = B_ROWS * B_COLS;
     const isInvasionMode = gameMode === 'invasion';
+}
+
+// Asegurar que la función esté disponible globalmente
+if (typeof window !== 'undefined') {
+    window.initializeNewGameBoardDOMAndData = initializeNewGameBoardDOMAndData;
+}
     
     // 1. LLENAR TODO EL MAPA DE AGUA
     for (let r = 0; r < B_ROWS; r++) {
