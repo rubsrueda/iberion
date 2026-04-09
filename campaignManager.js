@@ -443,6 +443,7 @@ function showScreen(screenToShow) {
     
     // CRÍTICO: También ocultar explícitamente el mainMenuScreen si se está mostrando gameContainer
     // Y mostrar/ocultar la UI táctica SOLO en partida
+    const isGameScreen = !!(screenToShow && (screenToShow === domElements.gameContainer || screenToShow.id === 'gameContainer' || screenToShow.classList.contains('game-container')));
     if (isGameScreen) {
         const mainMenu = document.getElementById('mainMenuScreen');
         if (mainMenu) {
