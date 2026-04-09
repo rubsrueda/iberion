@@ -61,6 +61,7 @@
 .button-secondary {
     background-color: #6c757d;
     color: white;
+    appearance: button;
 }
 
 /* ========================================================================== */
@@ -783,7 +784,7 @@
 }
 .skill-item-rok .skill-info h5 { margin: 0 0 5px 0; color: #f1c40f;}
 .skill-item-rok .skill-info p { margin: 0; font-size: 0.85em; color: #bdc3c7;  }
-.skill-item-rok .skill-upgrade-btn { /* Tu botón '+' se mantiene igual */ }
+
 
 /* --- Columna Central: Retrato y Progresión --- */
 .hero-center-column {
@@ -809,9 +810,7 @@
 .hero-name-title p { margin: 3px 0 0 0; color: #bdc3c7; font-style: italic; }
 
 #hero-progression-bars { width: 100%; }
-#hero-progression-bars .progress-item { /* Tus estilos de progress-item se mantienen */ }
-#hero-progression-bars .xp-bar-container { /* Tus estilos de xp-bar-container se mantienen */ }
-#hero-progression-bars .xp-bar { /* Tus estilos de xp-bar se mantienen */ }
+
 
 .hero-action-buttons {
     display: flex;
@@ -2090,7 +2089,7 @@
 .unit-entry span { font-weight: 500; }
 .quantity-controls { display: flex; align-items: center; }
 .quantity-controls .quantity-btn { width: 28px; height: 28px; border: 1px solid #ccc; background-color: #f8f9fa; font-size: 1.2em; cursor: pointer; line-height: 1; }
-.quantity-controls .quantity-input { width: 40px; text-align: center; border: 1px solid #ccc; border-left: none; border-right: none; height: 26px; -moz-appearance: textfield; }
+.quantity-controls .quantity-input { width: 40px; text-align: center; border: 1px solid #ccc; border-left: none; border-right: none; height: 26px; -moz-appearance: textfield; appearance: textfield; }
 .quantity-controls .quantity-input::-webkit-outer-spin-button, .quantity-controls .quantity-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .division-summary-panel { flex: 1; padding: 15px; background-color: #ffffff; border: 1px solid #ddd; border-radius: 5px; display: flex; flex-direction: column; }
 .division-summary-panel h4 { margin-top: 0; text-align: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
@@ -6452,9 +6451,7 @@ body {
     }
 }
 
-#loginScreen {
-    /* z-index management now handled by showScreen() function - DO NOT override here */
-}
+
 #loginScreen button {
     pointer-events: all !important; /* Forzar interactividad */
     cursor: pointer !important;
@@ -9277,3 +9274,4 @@ body.graphics-form-desktop #profileModal .modal-content {
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 .rdc-btn-accept:hover { background: rgba(255,255,255,0.1); color: #bbb; }
+}
