@@ -960,19 +960,24 @@ const UIManager = {
         const runUpdate = () => {
             this._updateAllScheduled = false;
             this._doUpdateAllUIDisplays();
-            // --- PARCHE: Forzar visibilidad de botones flotantes principales (grupo derecho) ---
+            // Restaurar visibilidad solo de los 3 botones principales a la derecha
             try {
                 const rightGroup = document.querySelector('.floating-action-group.right');
                 if (rightGroup) {
-                    rightGroup.style.display = 'flex';
-                    // Forzar visibilidad de todos los botones hijos
+                    // Ocultar todos los botones primero
                     rightGroup.querySelectorAll('button').forEach(btn => {
-                        btn.style.display = 'flex';
-                        btn.disabled = false;
+                        btn.style.display = 'none';
                     });
+                    // Mostrar ruedita (toggle), siguiente unidad y fin de turno si existen
+                    const btnRuedita = document.getElementById('toggle-right-menu-btn');
+                    const btnNextUnit = document.getElementById('floatingNextUnitBtn');
+                    const btnEndTurn = document.getElementById('floatingEndTurnBtn');
+                    if (btnRuedita) btnRuedita.style.display = 'flex';
+                    if (btnNextUnit) btnNextUnit.style.display = btnNextUnit.disabled ? 'none' : 'flex';
+                    if (btnEndTurn) btnEndTurn.style.display = 'flex';
                 }
             } catch (e) {
-                console.error('Error forzando visibilidad de botones flotantes:', e);
+                console.error('Error restaurando visibilidad de botones flotantes:', e);
             }
         };
 
