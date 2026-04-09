@@ -959,10 +959,21 @@ const UIManager = {
 
         const runUpdate = () => {
             this._updateAllScheduled = false;
+
+            // --- NUEVO: Si no hay partida activa, ocultar todos los botones de la barra derecha ---
+            const rightGroup = document.querySelector('.floating-action-group.right');
+            if (!gameState || !gameState.currentPlayer || !["deployment","play"].includes(gameState.currentPhase)) {
+                if (rightGroup) {
+                    rightGroup.querySelectorAll('button').forEach(btn => {
+                        btn.style.display = 'none';
+                    });
+                }
+                return;
+            }
+
             this._doUpdateAllUIDisplays();
             // Restaurar visibilidad solo de los 3 botones principales a la derecha
             try {
-                const rightGroup = document.querySelector('.floating-action-group.right');
                 if (rightGroup) {
                     // Ocultar todos los botones primero
                     rightGroup.querySelectorAll('button').forEach(btn => {
