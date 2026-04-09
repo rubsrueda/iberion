@@ -40,9 +40,9 @@
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 .right-menu-group .submenu {
-    display: block !important;
-    opacity: 1 !important;
-    pointer-events: all !important;
+    display: none;
+    opacity: 0.5;
+    pointer-events: none;
     max-height: 50vh !important;
     overflow-y: auto !important;
     z-index: 2004;
