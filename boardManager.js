@@ -64,7 +64,12 @@ let hasMovedEnoughForPan = false;
 const PAN_MOVE_THRESHOLD = 5;
 
 // --- INICIALIZACIÓN PARA PARTIDAS DE ESCARAMUZA ---
+
 function initializeNewGameBoardDOMAndData(selectedResourceLevel = 'min', selectedBoardSize = 'small', isNavalMap = false, gameMode = 'development') {
+    // Añadir clase 'in-game' al body para mostrar la barra derecha
+    if (document && document.body) {
+        document.body.classList.add('in-game');
+    }
 
 console.log(`boardManager.js: initializeNewGameBoardDOMAndData ha sido llamada. Naval: ${isNavalMap}, Modo: ${gameMode}`);
 
@@ -225,6 +230,21 @@ if (typeof Chronicle !== 'undefined') {
 }
 
 console.log("boardManager.js: initializeNewGameBoardDOMAndData completada.");
+}
+
+// Quitar la clase 'in-game' al volver al menú principal
+if (typeof showScreen === 'function') {
+    const originalShowScreen = showScreen;
+    window.showScreen = function(el) {
+        // Si se muestra el menú principal, quitar la clase
+        if (el && (el.id === 'mainMenuScreen' || el === domElements.mainMenuScreenEl)) {
+            if (document && document.body) {
+                document.body.classList.remove('in-game');
+            }
+        }
+        return originalShowScreen.apply(this, arguments);
+    };
+}
 }
 
 /**
