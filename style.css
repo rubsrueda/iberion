@@ -23,12 +23,7 @@ body.in-game .floating-action-group.right {
     display: flex !important;
     pointer-events: auto;
 }
-    background: none;
-    border: none;
-    box-sizing: border-box;
-    z-index: 2002;
-    pointer-events: all;
-}
+
 .floating-action-group.left button {
     background: #fff;
     border: 1px solid #bbb;
