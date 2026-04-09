@@ -199,6 +199,11 @@ function showScreen(screenElement) {
         }
     }
 
+    // Si se muestra el menú principal, quitar la clase 'in-game' del body
+    if (screenElement && screenElement.id === 'mainMenuScreen' && document && document.body) {
+        document.body.classList.remove('in-game');
+    }
+
     // Muestra la pantalla solicitada
     if (screenElement) {
         if (screenElement.classList.contains('modal-overlay')) {

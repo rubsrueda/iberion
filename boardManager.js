@@ -232,19 +232,6 @@ if (typeof Chronicle !== 'undefined') {
 console.log("boardManager.js: initializeNewGameBoardDOMAndData completada.");
 }
 
-// Quitar la clase 'in-game' al volver al menú principal
-if (typeof showScreen === 'function') {
-    const originalShowScreen = showScreen;
-    window.showScreen = function(el) {
-        // Si se muestra el menú principal, quitar la clase
-        if (el && (el.id === 'mainMenuScreen' || el === domElements.mainMenuScreenEl)) {
-            if (document && document.body) {
-                document.body.classList.remove('in-game');
-            }
-        }
-        return originalShowScreen.apply(this, arguments);
-    };
-}
 }
 
 /**
