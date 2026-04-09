@@ -960,16 +960,28 @@ const UIManager = {
         const runUpdate = () => {
             this._updateAllScheduled = false;
 
-            // --- NUEVO: Si no hay partida activa, ocultar todos los botones de la barra derecha ---
+            // --- REFUERZO ABSOLUTO: NUNCA mostrar barra derecha fuera de partida activa ---
             const rightGroup = document.querySelector('.floating-action-group.right');
             if (!gameState || !gameState.currentPlayer || !["deployment","play"].includes(gameState.currentPhase)) {
                 if (rightGroup) {
+                    // Oculta toda la barra y todos sus botones
+                    rightGroup.style.display = 'none';
                     rightGroup.querySelectorAll('button').forEach(btn => {
                         btn.style.display = 'none';
                     });
                 }
+                // Seguridad: también oculta cualquier botón flotante suelto
+                [
+                    'barracksBtn','openInventoryBtn','openForgeBtn','floatingWikiBtn','floatingInboxBtn','floatingTechTreeBtn','floatingConsoleBtn','floatingMenuBtn','floatingNextUnitBtn','floatingEndTurnBtn','toggle-right-menu-btn'
+                ].forEach(id => {
+                    const btn = document.getElementById(id);
+                    if (btn) btn.style.display = 'none';
+                });
                 return;
             }
+
+            // Si hay partida activa, aseguramos que la barra esté visible
+            if (rightGroup) rightGroup.style.display = '';
 
             this._doUpdateAllUIDisplays();
             // Restaurar visibilidad solo de los 3 botones principales a la derecha
