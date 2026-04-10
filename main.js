@@ -1354,10 +1354,10 @@ function initApp() {
             gameState.turnDurationSeconds = turnDuration;
             
             // 6. Inicializar el tablero de juego.
-            if (typeof initializeNewGameBoardDOMAndData === "function") { 
-                initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize, settings.navalMap || false, gameMode); 
+            if (typeof window.initializeNewGameBoardDOMAndData === "function") { 
+                window.initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize, settings.navalMap || false, gameMode); 
             } else { 
-                console.error("CRÍTICO: initializeNewGameBoardDOMAndData NO es una función."); 
+                console.error("CRÍTICO: initializeNewGameBoardDOMAndData NO es una función (ni en window). Revise boardManager.js y el orden de los scripts."); 
                 return;
             }
 
