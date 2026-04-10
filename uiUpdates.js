@@ -1156,7 +1156,8 @@ const UIManager = {
                 if (limit === undefined || limit === null) {
                     limit = (deploymentUnitLimit === undefined || deploymentUnitLimit === null) ? 5 : deploymentUnitLimit;
                 }
-                
+                // LOG de depuración para saber por qué no aparece el botón
+                console.log('[DEBUG UI] Fase:', currentPhase, '| Mi turno:', isMyTurn, '| Unidades colocadas:', unitsPlaced, '| Límite:', limit, '| Botón existe:', !!this._domElements.floatingCreateDivisionBtn);
                 // Si no hemos llegado al límite, MOSTRAR botón de crear
                 if (unitsPlaced < limit) {
                     if (this._domElements.floatingCreateDivisionBtn) {
@@ -1164,7 +1165,14 @@ const UIManager = {
                         this._domElements.floatingCreateDivisionBtn.disabled = false; // Asegurar que está activo
                         console.log('[UI] Botón CREAR DIVISIÓN visible (despliegue)');
                     }
+                } else {
+                    if (this._domElements.floatingCreateDivisionBtn) {
+                        this._domElements.floatingCreateDivisionBtn.style.display = 'none';
+                        console.log('[UI] Botón CREAR DIVISIÓN oculto (límite alcanzado)');
+                    }
                 }
+            } else {
+                console.log('[DEBUG UI] No es mi turno, el botón no se muestra.');
             }
 
             // 3. El botón de Fin de Turno SIEMPRE debe verse en despliegue
