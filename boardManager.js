@@ -370,15 +370,15 @@ function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel, gameMode = '
     console.log("Generando mapa naval de archipiélagos...");
     const totalHexes = B_ROWS * B_COLS;
     const isInvasionMode = gameMode === 'invasion';
-}
 
+    // === ELIMINAR LA LLAVE QUE ESTABA AQUÍ (Línea 340) ===
 
-    // === ASIGNACIÓN GLOBAL DE LA FUNCIÓN PRINCIPAL DE INICIALIZACIÓN ===
+    // Nota: El bloque try/catch de abajo suele ir fuera de las funciones, 
+    // pero si estaba dentro, asegúrate de que no rompa la lógica.
     try {
         window.initializeNewGameBoardDOMAndData = initializeNewGameBoardDOMAndData;
-        console.log('[boardManager.js] initializeNewGameBoardDOMAndData asignada a window con éxito');
     } catch (e) {
-        console.error('[boardManager.js] Error al asignar initializeNewGameBoardDOMAndData a window:', e);
+        console.error('[boardManager.js] Error al asignar...', e);
     }
     
     // 1. LLENAR TODO EL MAPA DE AGUA
@@ -390,7 +390,7 @@ function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel, gameMode = '
             }
         }
     }
-    
+        
     // 2. DEFINIR CENTROS DE LOS DOS ARCHIPIÉLAGOS
     // Archipiélago 1 (izquierda): Para Jugador 1
     const arch1CenterR = Math.floor(B_ROWS / 2);
@@ -527,7 +527,7 @@ function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel, gameMode = '
     placeResourcesOnGeneratedMap(B_ROWS, B_COLS, resourceLevel);
 
     console.log("Generación de mapa naval completada.");
-} // <--- Esta llave cierra correctamente la función
+} // Cierra correctamente generateNavalArchipelagoMap
 
 /**
  * Genera un cluster de islas alrededor de un punto central.
