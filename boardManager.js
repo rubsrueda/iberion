@@ -373,13 +373,14 @@ function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel, gameMode = '
     const isInvasionMode = gameMode === 'invasion';
 }
 
-// Asegurar que la función esté disponible globalmente
-try {
-    window.initializeNewGameBoardDOMAndData = initializeNewGameBoardDOMAndData;
-    console.log('[boardManager.js] initializeNewGameBoardDOMAndData asignada a window con éxito');
-} catch (e) {
-    console.error('[boardManager.js] Error al asignar initializeNewGameBoardDOMAndData a window:', e);
-}
+
+    // === ASIGNACIÓN GLOBAL DE LA FUNCIÓN PRINCIPAL DE INICIALIZACIÓN ===
+    try {
+        window.initializeNewGameBoardDOMAndData = initializeNewGameBoardDOMAndData;
+        console.log('[boardManager.js] initializeNewGameBoardDOMAndData asignada a window con éxito');
+    } catch (e) {
+        console.error('[boardManager.js] Error al asignar initializeNewGameBoardDOMAndData a window:', e);
+    }
     
     // 1. LLENAR TODO EL MAPA DE AGUA
     for (let r = 0; r < B_ROWS; r++) {
