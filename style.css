@@ -1,3 +1,33 @@
+/* --- FIX CRÍTICO: Forzar visibilidad y prioridad de los botones del engranaje (submenu) --- */
+#right-submenu button {
+    z-index: 10050 !important;
+    position: relative !important;
+    opacity: 1 !important;
+    pointer-events: all !important;
+}
+
+#right-submenu {
+    z-index: 10040 !important;
+    opacity: 1 !important;
+    pointer-events: all !important;
+}
+/* --- FIX CRÍTICO: Forzar visibilidad y prioridad del botón Crear División en despliegue --- */
+#floatingCreateDivisionBtn {
+    display: flex !important;
+    z-index: 10050 !important;
+    position: fixed !important;
+    right: 24px;
+    bottom: 120px;
+    background: #fff;
+    border: 2px solid #007bff;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    opacity: 1 !important;
+    pointer-events: all !important;
+}
+
+body:not(.in-game) #floatingCreateDivisionBtn {
+    display: none !important;
+}
 /* --- FIX: Visibilidad forzada de botones contextuales y submenu --- */
 #tactical-ui-container {
     display: block !important;
