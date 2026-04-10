@@ -229,9 +229,8 @@ if (typeof Chronicle !== 'undefined') {
     });
 }
 
-console.log("boardManager.js: initializeNewGameBoardDOMAndData completada.");
-}
 
+console.log("boardManager.js: initializeNewGameBoardDOMAndData completada.");
 }
 
 /**
