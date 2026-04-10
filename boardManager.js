@@ -525,9 +525,9 @@ function generateNavalArchipelagoMap(B_ROWS, B_COLS, resourceLevel, gameMode = '
     
     // 9. COLOCAR RECURSOS
     placeResourcesOnGeneratedMap(B_ROWS, B_COLS, resourceLevel);
-    
+
     console.log("Generación de mapa naval completada.");
-}
+} // <--- Esta llave cierra correctamente la función
 
 /**
  * Genera un cluster de islas alrededor de un punto central.
