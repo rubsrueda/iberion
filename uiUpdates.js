@@ -1,3 +1,36 @@
+// --- LOG DE DEPURACIÓN PARA BOTONES DEL SUBMENU DEL ENGRANAJE ---
+function logRightSubmenuButtonsZIndex() {
+    const submenu = document.getElementById('right-submenu');
+    if (!submenu) {
+        console.warn('[DEBUG][ENGRANAJE] No se encontró el submenu (#right-submenu)');
+        return;
+    }
+    const btns = submenu.querySelectorAll('button');
+    btns.forEach(btn => {
+        const rect = btn.getBoundingClientRect();
+        const z = window.getComputedStyle(btn).zIndex;
+        console.log(`[Z-INDEX][submenu][${btn.id}] z-index:`, z, '| Posición:', rect);
+    });
+    // Log del mapa
+    const gameBoardEl = document.getElementById('gameBoard');
+    if (gameBoardEl) {
+        const rect = gameBoardEl.getBoundingClientRect();
+        const z = window.getComputedStyle(gameBoardEl).zIndex;
+        console.log(`[Z-INDEX][gameBoard] z-index:`, z, '| Posición:', rect);
+    }
+}
+// Hook para el botón de engranaje
+window.addEventListener('DOMContentLoaded', function() {
+    const engranaje = document.getElementById('toggle-right-menu-btn');
+    if (engranaje) {
+        engranaje.addEventListener('click', function() {
+            setTimeout(() => {
+                console.log('[DEBUG][ENGRANAJE] Click en engranaje, mostrando submenu...');
+                logRightSubmenuButtonsZIndex();
+            }, 200);
+        });
+    }
+});
 // uiUpdates.js
 
 /**
