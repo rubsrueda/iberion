@@ -991,29 +991,35 @@ const UIManager = {
                     rightGroup.querySelectorAll('button').forEach(btn => {
                         btn.style.display = 'none';
                     });
-                    // Mostrar ruedita (toggle), siguiente unidad y fin de turno si existen
+                    // Mostrar los botones según la fase y reglas
                     const btnRuedita = document.getElementById('toggle-right-menu-btn');
                     const btnNextUnit = document.getElementById('floatingNextUnitBtn');
                     const btnEndTurn = document.getElementById('floatingEndTurnBtn');
+                    const btnCrearDivision = document.getElementById('floatingCreateDivisionBtn');
                     if (btnRuedita) btnRuedita.style.display = 'flex';
                     if (btnNextUnit) btnNextUnit.style.display = btnNextUnit.disabled ? 'none' : 'flex';
                     if (btnEndTurn) btnEndTurn.style.display = 'flex';
+                    // Mostrar botón Crear División solo en fase de despliegue y si corresponde
+                    if (gameState && gameState.currentPhase === 'deployment' && btnCrearDivision) {
+                        btnCrearDivision.style.display = 'flex';
+                    }
+                    // Mostrar botones contextuales activos (si su display fue activado por refreshActionButtons)
+                    const contextBtns = [
+                        'floatingUndoMoveBtn','floatingReinforceBtn','floatingSplitBtn','floatingBuildBtn','floatingPillageBtn','setAsCapitalBtn','floatingConsolidateBtn','floatingAssignGeneralBtn','floatingRazeBtn','floatingExploreRuinBtn','floatingTradeBtn','floatingStopTradeBtn'
+                    ];
+                    contextBtns.forEach(id => {
+                        const btn = document.getElementById(id);
+                        if (btn && btn.style.display !== 'none') {
+                            btn.style.display = 'flex';
+                        }
+                    });
                     // --- LOG DE DEPURACIÓN DE Z-INDEX Y POSICIÓN DE BOTONES FLOTANTES ---
                     const btns = [
                         btnRuedita,
                         btnNextUnit,
                         btnEndTurn,
-                        document.getElementById('floatingCreateDivisionBtn'),
-                        document.getElementById('floatingReinforceBtn'),
-                        document.getElementById('floatingSplitBtn'),
-                        document.getElementById('floatingBuildBtn'),
-                        document.getElementById('floatingPillageBtn'),
-                        document.getElementById('floatingConsolidateBtn'),
-                        document.getElementById('floatingAssignGeneralBtn'),
-                        document.getElementById('floatingRazeBtn'),
-                        document.getElementById('floatingExploreRuinBtn'),
-                        document.getElementById('floatingTradeBtn'),
-                        document.getElementById('floatingStopTradeBtn'),
+                        btnCrearDivision,
+                        ...contextBtns.map(id => document.getElementById(id)),
                         document.getElementById('openInventoryBtn'),
                         document.getElementById('openForgeBtn'),
                         document.getElementById('floatingWikiBtn'),
