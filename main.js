@@ -704,21 +704,33 @@ function initApp() {
     if (domElements.toggleRightMenuBtn) {
         domElements.toggleRightMenuBtn.addEventListener('click', (event) => {
             event.stopPropagation();
-            // Buscamos el contenedor padre que tiene toda la lógica
             const menuGroup = domElements.toggleRightMenuBtn.closest('.right-menu-group');
             if (menuGroup) {
                 const isOpen = menuGroup.classList.toggle('is-open');
                 domElements.toggleRightMenuBtn.textContent = isOpen ? '✕' : '⚙️';
+                // Forzar foco para evitar perder el estado por tab o blur
+                if (isOpen) {
+                    setTimeout(() => {
+                        domElements.toggleRightMenuBtn.focus();
+                    }, 0);
+                }
             }
         });
 
-        // Cierra el submenú si haces clic fuera (esta parte es importante)
+        // Cierra el submenú si haces clic fuera o si el botón pierde el foco
         document.addEventListener('click', (event) => {
             const menuGroup = document.querySelector('.right-menu-group.is-open');
-            // Si el menú está abierto y el clic fue fuera de él
             if (menuGroup && !menuGroup.contains(event.target)) {
                 menuGroup.classList.remove('is-open');
                 if (domElements.toggleRightMenuBtn) domElements.toggleRightMenuBtn.textContent = '⚙️';
+            }
+        });
+        // Extra: cerrar si el botón pierde el foco (por tabulación)
+        domElements.toggleRightMenuBtn.addEventListener('blur', () => {
+            const menuGroup = domElements.toggleRightMenuBtn.closest('.right-menu-group');
+            if (menuGroup && menuGroup.classList.contains('is-open')) {
+                menuGroup.classList.remove('is-open');
+                domElements.toggleRightMenuBtn.textContent = '⚙️';
             }
         });
     }

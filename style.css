@@ -6,6 +6,12 @@
 }
 
 /* Mostrar siempre ambos grupos de botones cuando el juego está activo */
+
+/* Solo mostrar los grupos de botones cuando el body tiene la clase in-game */
+.floating-action-group.left,
+.floating-action-group.right {
+    display: none !important;
+}
 body.in-game .floating-action-group.left,
 body.in-game .floating-action-group.right {
     display: flex !important;
