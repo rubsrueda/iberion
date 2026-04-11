@@ -702,17 +702,20 @@ function initApp() {
 
     // Listener de botones expandibles
     if (domElements.toggleRightMenuBtn) {
-        // Eliminar listeners previos para evitar duplicados
+        // Limpieza de listeners previos
         domElements.toggleRightMenuBtn.onclick = null;
         domElements.toggleRightMenuBtn.onblur = null;
-        document.removeEventListener('mousedown', window.__closeSubmenuHandler, true);
+        if (window.__closeSubmenuHandler) document.removeEventListener('mousedown', window.__closeSubmenuHandler, true);
 
-        // Función para actualizar el icono según el estado
-        function updateSubmenuIcon() {
+        // Función para alternar el menú y el icono
+        function setSubmenuState(open) {
             const menuGroup = domElements.toggleRightMenuBtn.closest('.right-menu-group');
-            if (menuGroup && menuGroup.classList.contains('is-open')) {
+            if (!menuGroup) return;
+            if (open) {
+                menuGroup.classList.add('is-open');
                 domElements.toggleRightMenuBtn.textContent = '✕';
             } else {
+                menuGroup.classList.remove('is-open');
                 domElements.toggleRightMenuBtn.textContent = '⚙️';
             }
         }
@@ -722,31 +725,29 @@ function initApp() {
             event.stopPropagation();
             const menuGroup = domElements.toggleRightMenuBtn.closest('.right-menu-group');
             if (!menuGroup) return;
-            if (menuGroup.classList.contains('is-open')) {
-                menuGroup.classList.remove('is-open');
-            } else {
-                menuGroup.classList.add('is-open');
-            }
-            updateSubmenuIcon();
+            const isOpen = menuGroup.classList.contains('is-open');
+            setSubmenuState(!isOpen);
         });
 
         // Cerrar al hacer clic fuera
         window.__closeSubmenuHandler = function(event) {
             const menuGroup = document.querySelector('.right-menu-group.is-open');
             if (menuGroup && !menuGroup.contains(event.target)) {
-                menuGroup.classList.remove('is-open');
-                updateSubmenuIcon();
+                setSubmenuState(false);
             }
         };
         document.addEventListener('mousedown', window.__closeSubmenuHandler, true);
 
         // Cerrar al perder el foco
         domElements.toggleRightMenuBtn.addEventListener('blur', () => {
-            const menuGroup = domElements.toggleRightMenuBtn.closest('.right-menu-group');
-            if (menuGroup && menuGroup.classList.contains('is-open')) {
-                menuGroup.classList.remove('is-open');
-                updateSubmenuIcon();
-            }
+            setTimeout(() => {
+                // Si ningún elemento dentro del menú tiene el foco, cerrar
+                const menuGroup = domElements.toggleRightMenuBtn.closest('.right-menu-group');
+                if (!menuGroup) return;
+                if (!menuGroup.contains(document.activeElement)) {
+                    setSubmenuState(false);
+                }
+            }, 0);
         });
     }
 
