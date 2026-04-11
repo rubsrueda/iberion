@@ -189,27 +189,13 @@ function showScreen(screenElement) {
     }
 
     // CRÍTICO: Si se muestra el gameContainer (que no es un .modal), ocultar explícitamente el mainMenuScreen
-    // Y mostrar/ocultar la UI táctica SOLO en partida
-    const isGameScreen = !!(screenElement && (screenElement.id === 'gameContainer' || screenElement.classList.contains('game-container')));
-    if (isGameScreen) {
+    // Esto es ESENCIAL para evitar que el menú quede visible debajo del mapa después de inactividad o refresh
+    if (screenElement && (screenElement.id === 'gameContainer' || screenElement.classList.contains('game-container'))) {
         const mainMenu = document.getElementById('mainMenuScreen');
         if (mainMenu) {
             mainMenu.style.setProperty('display', 'none', 'important');
             mainMenu.style.setProperty('visibility', 'hidden', 'important');
             mainMenu.style.setProperty('pointer-events', 'none', 'important');
-        }
-        if (window.domElements && window.domElements.tacticalUiContainer) {
-            window.domElements.tacticalUiContainer.style.setProperty('display', 'block', 'important');
-        } else {
-            const tacticalUI = document.getElementById('tactical-ui-container');
-            if (tacticalUI) tacticalUI.style.setProperty('display', 'block', 'important');
-        }
-    } else {
-        if (window.domElements && window.domElements.tacticalUiContainer) {
-            window.domElements.tacticalUiContainer.style.setProperty('display', 'none', 'important');
-        } else {
-            const tacticalUI = document.getElementById('tactical-ui-container');
-            if (tacticalUI) tacticalUI.style.setProperty('display', 'none', 'important');
         }
     }
 
@@ -714,15 +700,11 @@ function initApp() {
         });
     }
 
-    // Listener robusto para el menú expandible ⚙️
+    // Listener de botones expandibles
     if (domElements.toggleRightMenuBtn) {
-        // Eliminar listeners antiguos para evitar duplicados
-        const newBtn = domElements.toggleRightMenuBtn.cloneNode(true);
-        domElements.toggleRightMenuBtn.parentNode.replaceChild(newBtn, domElements.toggleRightMenuBtn);
-        domElements.toggleRightMenuBtn = newBtn;
-
         domElements.toggleRightMenuBtn.addEventListener('click', (event) => {
             event.stopPropagation();
+            // Buscamos el contenedor padre que tiene toda la lógica
             const menuGroup = domElements.toggleRightMenuBtn.closest('.right-menu-group');
             if (menuGroup) {
                 const isOpen = menuGroup.classList.toggle('is-open');
@@ -730,9 +712,10 @@ function initApp() {
             }
         });
 
-        // Cierra el submenú si haces clic fuera
+        // Cierra el submenú si haces clic fuera (esta parte es importante)
         document.addEventListener('click', (event) => {
             const menuGroup = document.querySelector('.right-menu-group.is-open');
+            // Si el menú está abierto y el clic fue fuera de él
             if (menuGroup && !menuGroup.contains(event.target)) {
                 menuGroup.classList.remove('is-open');
                 if (domElements.toggleRightMenuBtn) domElements.toggleRightMenuBtn.textContent = '⚙️';
