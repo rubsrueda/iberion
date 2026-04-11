@@ -22,28 +22,7 @@ function logRightSubmenuButtonsZIndex() {
 }
 // Hook para el botón de engranaje
 window.addEventListener('DOMContentLoaded', function() {
-    const engranaje = document.getElementById('toggle-right-menu-btn');
-    const submenu = document.getElementById('right-submenu');
-    const group = engranaje ? engranaje.closest('.right-menu-group') : null;
-    const closeBtn = submenu ? submenu.querySelector('.close-button') : null;
-
-    if (engranaje && submenu && group) {
-        engranaje.addEventListener('click', function() {
-            group.classList.add('is-open');
-            // No tocar display, solo usar la clase
-            // Restaurar icono del engranaje si cambia
-            engranaje.classList.add('active');
-            logRightSubmenuButtonsZIndex();
-        });
-    }
-    if (closeBtn && submenu && group && engranaje) {
-        closeBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            group.classList.remove('is-open');
-            // No tocar display, solo usar la clase
-            engranaje.classList.remove('active');
-        });
-    }
+    // Eliminado: listeners de apertura forzada del engranaje que interferían con la lógica principal
 });
 // uiUpdates.js
 
