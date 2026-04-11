@@ -57,6 +57,15 @@ window.addEventListener('DOMContentLoaded', function() {
                         opacity: cs.opacity,
                         visibility: cs.visibility
                     });
+                    // Listener para cerrar el submenú en el botón X original
+                    const closeBtn = submenu.querySelector('.close-button');
+                    if (closeBtn) {
+                        closeBtn.onclick = function(e) {
+                            e.stopPropagation();
+                            group.classList.remove('is-open');
+                            submenu.style.display = 'none';
+                        };
+                    }
                 }
                 console.log('[DEBUG][ENGRANAJE] Click en engranaje, mostrando submenu...');
                 logRightSubmenuButtonsZIndex();
