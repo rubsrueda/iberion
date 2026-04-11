@@ -702,37 +702,40 @@ function initApp() {
 
     // Listener de botones expandibles
     if (domElements.toggleRightMenuBtn) {
+        // Estado local para evitar desincronización
+        let submenuIsOpen = false;
+
         domElements.toggleRightMenuBtn.addEventListener('click', (event) => {
             event.stopPropagation();
             const menuGroup = domElements.toggleRightMenuBtn.closest('.right-menu-group');
-            if (menuGroup) {
-                const isOpen = menuGroup.classList.contains('is-open');
-                if (!isOpen) {
-                    menuGroup.classList.add('is-open');
-                    domElements.toggleRightMenuBtn.textContent = '✕';
-                } else {
-                    menuGroup.classList.remove('is-open');
-                    domElements.toggleRightMenuBtn.textContent = '⚙️';
-                }
+            if (!menuGroup) return;
+            submenuIsOpen = !menuGroup.classList.contains('is-open');
+            if (submenuIsOpen) {
+                menuGroup.classList.add('is-open');
+                domElements.toggleRightMenuBtn.textContent = '✕';
+            } else {
+                menuGroup.classList.remove('is-open');
+                domElements.toggleRightMenuBtn.textContent = '⚙️';
             }
         });
 
         // Cierra el submenú si haces clic fuera
-        document.addEventListener('click', (event) => {
+        document.addEventListener('mousedown', (event) => {
             const menuGroup = document.querySelector('.right-menu-group.is-open');
             if (menuGroup && !menuGroup.contains(event.target)) {
                 menuGroup.classList.remove('is-open');
                 if (domElements.toggleRightMenuBtn) domElements.toggleRightMenuBtn.textContent = '⚙️';
-                submenuOpen = false;
+                submenuIsOpen = false;
             }
         });
-        // Cierra el submenú si el botón pierde el foco
+
+        // Cierra el submenú si el botón pierde el foco (accesibilidad)
         domElements.toggleRightMenuBtn.addEventListener('blur', () => {
             const menuGroup = domElements.toggleRightMenuBtn.closest('.right-menu-group');
             if (menuGroup && menuGroup.classList.contains('is-open')) {
                 menuGroup.classList.remove('is-open');
                 domElements.toggleRightMenuBtn.textContent = '⚙️';
-                submenuOpen = false;
+                submenuIsOpen = false;
             }
         });
     }
