@@ -23,53 +23,25 @@ function logRightSubmenuButtonsZIndex() {
 // Hook para el botón de engranaje
 window.addEventListener('DOMContentLoaded', function() {
     const engranaje = document.getElementById('toggle-right-menu-btn');
-    if (engranaje) {
+    const submenu = document.getElementById('right-submenu');
+    const group = engranaje ? engranaje.closest('.right-menu-group') : null;
+    const closeBtn = submenu ? submenu.querySelector('.close-button') : null;
+
+    if (engranaje && submenu && group) {
         engranaje.addEventListener('click', function() {
-            setTimeout(() => {
-                const submenu = document.getElementById('right-submenu');
-                const group = engranaje.closest('.right-menu-group');
-                if (submenu && group) {
-                    // Forzar clase y estilos
-                    group.classList.add('is-open');
-                    submenu.style.display = 'block';
-                    submenu.style.pointerEvents = 'auto';
-                    submenu.style.opacity = '1';
-                    submenu.style.width = '220px';
-                    submenu.style.height = 'auto';
-                    submenu.style.minHeight = '200px';
-                    submenu.style.visibility = 'visible';
-                    // Forzar estilos en los botones
-                    const submenuBtns = submenu.querySelectorAll('button');
-                    submenuBtns.forEach(btn => {
-                        btn.style.display = 'block';
-                        btn.style.width = '100%';
-                        btn.style.height = '36px';
-                        btn.style.opacity = '1';
-                        btn.style.visibility = 'visible';
-                    });
-                    // Log de estilos del contenedor
-                    const cs = window.getComputedStyle(submenu);
-                    console.log('[DEBUG][submenu][computedStyle]', {
-                        display: cs.display,
-                        width: cs.width,
-                        height: cs.height,
-                        minHeight: cs.minHeight,
-                        opacity: cs.opacity,
-                        visibility: cs.visibility
-                    });
-                    // Listener para cerrar el submenú en el botón X original
-                    const closeBtn = submenu.querySelector('.close-button');
-                    if (closeBtn) {
-                        closeBtn.onclick = function(e) {
-                            e.stopPropagation();
-                            group.classList.remove('is-open');
-                            submenu.style.display = 'none';
-                        };
-                    }
-                }
-                console.log('[DEBUG][ENGRANAJE] Click en engranaje, mostrando submenu...');
-                logRightSubmenuButtonsZIndex();
-            }, 200);
+            group.classList.add('is-open');
+            // No tocar display, solo usar la clase
+            // Restaurar icono del engranaje si cambia
+            engranaje.classList.add('active');
+            logRightSubmenuButtonsZIndex();
+        });
+    }
+    if (closeBtn && submenu && group && engranaje) {
+        closeBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            group.classList.remove('is-open');
+            // No tocar display, solo usar la clase
+            engranaje.classList.remove('active');
         });
     }
 });
