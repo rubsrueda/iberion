@@ -998,6 +998,38 @@ const UIManager = {
                     if (btnRuedita) btnRuedita.style.display = 'flex';
                     if (btnNextUnit) btnNextUnit.style.display = btnNextUnit.disabled ? 'none' : 'flex';
                     if (btnEndTurn) btnEndTurn.style.display = 'flex';
+                    // --- LOG DE DEPURACIÓN DE Z-INDEX Y POSICIÓN DE BOTONES FLOTANTES ---
+                    const btns = [
+                        btnRuedita,
+                        btnNextUnit,
+                        btnEndTurn,
+                        document.getElementById('floatingCreateDivisionBtn'),
+                        document.getElementById('floatingReinforceBtn'),
+                        document.getElementById('floatingSplitBtn'),
+                        document.getElementById('floatingBuildBtn'),
+                        document.getElementById('floatingPillageBtn'),
+                        document.getElementById('floatingConsolidateBtn'),
+                        document.getElementById('floatingAssignGeneralBtn'),
+                        document.getElementById('floatingRazeBtn'),
+                        document.getElementById('floatingExploreRuinBtn'),
+                        document.getElementById('floatingTradeBtn'),
+                        document.getElementById('floatingStopTradeBtn'),
+                        document.getElementById('openInventoryBtn'),
+                        document.getElementById('openForgeBtn'),
+                        document.getElementById('floatingWikiBtn'),
+                        document.getElementById('floatingInboxBtn'),
+                        document.getElementById('floatingTechTreeBtn'),
+                        document.getElementById('floatingConsoleBtn'),
+                        document.getElementById('floatingMenuBtn'),
+                        document.getElementById('barracksBtn'),
+                    ];
+                    btns.forEach(btn => {
+                        if (btn) {
+                            const rect = btn.getBoundingClientRect();
+                            const z = window.getComputedStyle(btn).zIndex;
+                            console.log(`[Z-INDEX][${btn.id}] z-index:`, z, '| Posición:', rect);
+                        }
+                    });
                 }
             } catch (e) {
                 console.error('Error restaurando visibilidad de botones flotantes:', e);
@@ -1051,6 +1083,10 @@ const UIManager = {
                 }
                 seenUnitIds.add(unitId);
             });
+            // --- LOG DE DEPURACIÓN DE Z-INDEX Y POSICIÓN DEL MAPA ---
+            const rect = gameBoardEl.getBoundingClientRect();
+            const z = window.getComputedStyle(gameBoardEl).zIndex;
+            console.log(`[Z-INDEX][gameBoard] z-index:`, z, '| Posición:', rect);
         }
 
         // --- 1. Actualizar la Barra Superior (Menú ☰) ---
