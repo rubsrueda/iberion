@@ -702,13 +702,12 @@ function initApp() {
 
     // Listener de botones expandibles
     if (domElements.toggleRightMenuBtn) {
-        let submenuOpen = false;
         domElements.toggleRightMenuBtn.addEventListener('click', (event) => {
             event.stopPropagation();
             const menuGroup = domElements.toggleRightMenuBtn.closest('.right-menu-group');
             if (menuGroup) {
-                submenuOpen = !menuGroup.classList.contains('is-open');
-                if (submenuOpen) {
+                const isOpen = menuGroup.classList.contains('is-open');
+                if (!isOpen) {
                     menuGroup.classList.add('is-open');
                     domElements.toggleRightMenuBtn.textContent = '✕';
                 } else {

@@ -100,10 +100,14 @@ body.in-game .floating-action-group.right {
     display: none !important;
 }
 .right-menu-group.is-open .submenu {
-    display: block !important;
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 8px !important;
     opacity: 1 !important;
     pointer-events: auto !important;
     visibility: visible !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
 }
 .right-menu-group.is-open .submenu button {
     display: block !important;
