@@ -31,11 +31,8 @@ body.in-game .floating-action-group.right {
     pointer-events: auto !important;
     opacity: 1 !important;
     visibility: visible !important;
-    z-index: 999999 !important;
+    z-index: 9999 !important;
     position: fixed !important;
-    background: #ff0 !important;
-    border: 4px solid #f00 !important;
-    box-shadow: 0 0 32px 8px #f00 !important;
 }
 
 /* Asegurar que los botones del grupo izquierdo sean visibles y clicables */
@@ -53,19 +50,18 @@ body.in-game .floating-action-group.right {
 }
 
 .floating-action-group.left button {
-    background: #ff0 !important;
-    color: #000 !important;
-    border: 4px solid #f00 !important;
-    border-radius: 50% !important;
-    width: 54px !important;
-    height: 54px !important;
-    margin-bottom: 8px !important;
-    font-size: 2em !important;
-    box-shadow: 0 0 32px 8px #f00 !important;
-    transition: none !important;
-    pointer-events: all !important;
-    z-index: 999999 !important;
-    opacity: 1 !important;
+    background: #fff;
+    border: 1px solid #bbb;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    margin-bottom: 6px;
+    font-size: 1.5em;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: background 0.2s, box-shadow 0.2s;
+    pointer-events: all;
+    z-index: 2003;
+    opacity: 1;
 }
 .floating-action-group.left button:hover {
     background: #f0f0f0;
@@ -145,19 +141,18 @@ body.in-game .floating-action-group.right {
 }
 
 .floating-action-group.right button {
-    background: #ff0 !important;
-    color: #000 !important;
-    border: 4px solid #f00 !important;
-    border-radius: 50% !important;
-    width: 54px !important;
-    height: 54px !important;
-    margin-bottom: 8px !important;
-    font-size: 2em !important;
-    box-shadow: 0 0 32px 8px #f00 !important;
-    transition: none !important;
-    pointer-events: all !important;
-    z-index: 999999 !important;
-    opacity: 1 !important;
+    z-index: 2003;
+    pointer-events: all;
+    background: #fff;
+    border: 1px solid #bbb;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    margin-bottom: 6px;
+    font-size: 1.5em;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: background 0.2s, box-shadow 0.2s;
+    opacity: 1;
 }
 .floating-action-group.right button:hover {
     background: #f0f0f0;
