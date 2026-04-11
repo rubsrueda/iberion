@@ -1,3 +1,9 @@
+button, button:focus, button:active, button:hover {
+    background: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
 .right-menu-group .submenu button {
     display: none !important;
 }
@@ -58,9 +64,9 @@ body.in-game .floating-action-group.right {
 }
 
 .floating-action-group.left button {
-    background: #fff;
-    border: 1px solid #bbb;
-    border-radius: 50%;
+    background: none;
+    border: none;
+    border-radius: 0;
     width: 44px;
     height: 44px;
     margin-bottom: 6px;
@@ -164,9 +170,9 @@ body.in-game .floating-action-group.right {
 .floating-action-group.right button {
     z-index: 2003;
     pointer-events: all;
-    background: #fff;
-    border: 1px solid #bbb;
-    border-radius: 50%;
+    background: none;
+    border: none;
+    border-radius: 0;
     width: 44px;
     height: 44px;
     margin-bottom: 6px;
