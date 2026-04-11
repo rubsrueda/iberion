@@ -25,6 +25,17 @@ window.addEventListener('DOMContentLoaded', function() {
     if (engranaje) {
         engranaje.addEventListener('click', function() {
             setTimeout(() => {
+                const submenu = document.getElementById('right-submenu');
+                const group = engranaje.closest('.right-menu-group');
+                if (submenu && group) {
+                    // Forzar clase y estilos
+                    group.classList.add('is-open');
+                    submenu.style.display = 'block';
+                    submenu.style.pointerEvents = 'auto';
+                    submenu.style.opacity = '1';
+                    // Log estado
+                    console.log('[DEBUG][ENGRANAJE] is-open:', group.classList.contains('is-open'), '| display:', submenu.style.display, '| pointerEvents:', submenu.style.pointerEvents);
+                }
                 console.log('[DEBUG][ENGRANAJE] Click en engranaje, mostrando submenu...');
                 logRightSubmenuButtonsZIndex();
             }, 200);
