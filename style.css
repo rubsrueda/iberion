@@ -1,6 +1,6 @@
 /* --- FIX: Visibilidad forzada de botones contextuales y submenu --- */
 #tactical-ui-container {
-    display: block !important;
+    display: none;
     pointer-events: none;
     z-index: 9999;
 }
