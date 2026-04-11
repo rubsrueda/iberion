@@ -1,3 +1,11 @@
+.right-menu-group .submenu button {
+    display: none !important;
+}
+.right-menu-group.is-open .submenu button {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
 /* --- FIX: Visibilidad forzada de botones contextuales y submenu --- */
 /* Por defecto, oculto y desactivado */
 #tactical-ui-container {
