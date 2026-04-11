@@ -700,11 +700,15 @@ function initApp() {
         });
     }
 
-    // Listener de botones expandibles
+    // Listener robusto para el menú expandible ⚙️
     if (domElements.toggleRightMenuBtn) {
+        // Eliminar listeners antiguos para evitar duplicados
+        const newBtn = domElements.toggleRightMenuBtn.cloneNode(true);
+        domElements.toggleRightMenuBtn.parentNode.replaceChild(newBtn, domElements.toggleRightMenuBtn);
+        domElements.toggleRightMenuBtn = newBtn;
+
         domElements.toggleRightMenuBtn.addEventListener('click', (event) => {
             event.stopPropagation();
-            // Buscamos el contenedor padre que tiene toda la lógica
             const menuGroup = domElements.toggleRightMenuBtn.closest('.right-menu-group');
             if (menuGroup) {
                 const isOpen = menuGroup.classList.toggle('is-open');
@@ -712,10 +716,9 @@ function initApp() {
             }
         });
 
-        // Cierra el submenú si haces clic fuera (esta parte es importante)
+        // Cierra el submenú si haces clic fuera
         document.addEventListener('click', (event) => {
             const menuGroup = document.querySelector('.right-menu-group.is-open');
-            // Si el menú está abierto y el clic fue fuera de él
             if (menuGroup && !menuGroup.contains(event.target)) {
                 menuGroup.classList.remove('is-open');
                 if (domElements.toggleRightMenuBtn) domElements.toggleRightMenuBtn.textContent = '⚙️';
