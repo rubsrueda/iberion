@@ -702,40 +702,50 @@ function initApp() {
 
     // Listener de botones expandibles
     if (domElements.toggleRightMenuBtn) {
-        // Estado local para evitar desincronización
-        let submenuIsOpen = false;
+        // Eliminar listeners previos para evitar duplicados
+        domElements.toggleRightMenuBtn.onclick = null;
+        domElements.toggleRightMenuBtn.onblur = null;
+        document.removeEventListener('mousedown', window.__closeSubmenuHandler, true);
 
+        // Función para actualizar el icono según el estado
+        function updateSubmenuIcon() {
+            const menuGroup = domElements.toggleRightMenuBtn.closest('.right-menu-group');
+            if (menuGroup && menuGroup.classList.contains('is-open')) {
+                domElements.toggleRightMenuBtn.textContent = '✕';
+            } else {
+                domElements.toggleRightMenuBtn.textContent = '⚙️';
+            }
+        }
+
+        // Toggle explícito
         domElements.toggleRightMenuBtn.addEventListener('click', (event) => {
             event.stopPropagation();
             const menuGroup = domElements.toggleRightMenuBtn.closest('.right-menu-group');
             if (!menuGroup) return;
-            submenuIsOpen = !menuGroup.classList.contains('is-open');
-            if (submenuIsOpen) {
-                menuGroup.classList.add('is-open');
-                domElements.toggleRightMenuBtn.textContent = '✕';
-            } else {
+            if (menuGroup.classList.contains('is-open')) {
                 menuGroup.classList.remove('is-open');
-                domElements.toggleRightMenuBtn.textContent = '⚙️';
+            } else {
+                menuGroup.classList.add('is-open');
             }
+            updateSubmenuIcon();
         });
 
-        // Cierra el submenú si haces clic fuera
-        document.addEventListener('mousedown', (event) => {
+        // Cerrar al hacer clic fuera
+        window.__closeSubmenuHandler = function(event) {
             const menuGroup = document.querySelector('.right-menu-group.is-open');
             if (menuGroup && !menuGroup.contains(event.target)) {
                 menuGroup.classList.remove('is-open');
-                if (domElements.toggleRightMenuBtn) domElements.toggleRightMenuBtn.textContent = '⚙️';
-                submenuIsOpen = false;
+                updateSubmenuIcon();
             }
-        });
+        };
+        document.addEventListener('mousedown', window.__closeSubmenuHandler, true);
 
-        // Cierra el submenú si el botón pierde el foco (accesibilidad)
+        // Cerrar al perder el foco
         domElements.toggleRightMenuBtn.addEventListener('blur', () => {
             const menuGroup = domElements.toggleRightMenuBtn.closest('.right-menu-group');
             if (menuGroup && menuGroup.classList.contains('is-open')) {
                 menuGroup.classList.remove('is-open');
-                domElements.toggleRightMenuBtn.textContent = '⚙️';
-                submenuIsOpen = false;
+                updateSubmenuIcon();
             }
         });
     }
