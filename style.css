@@ -1,7 +1,8 @@
 /* --- FIX: Visibilidad forzada de botones contextuales y submenu --- */
+/* Por defecto, oculto y desactivado */
 #tactical-ui-container {
-    display: none;
-    pointer-events: none;
+    display: none !important;
+    pointer-events: none !important;
     z-index: 9999;
 }
 
@@ -10,13 +11,16 @@
 /* Solo mostrar los grupos de botones cuando el body tiene la clase in-game */
 
 /* Por defecto, ocultos */
+/* Por defecto, ocultos */
 .floating-action-group.left,
 .floating-action-group.right {
-    display: none;
+    display: none !important;
+    pointer-events: none !important;
 }
 /* En partida activa, visibles y funcionales */
 body.in-game #tactical-ui-container {
     display: block !important;
+    pointer-events: auto !important;
     opacity: 1 !important;
     visibility: visible !important;
     z-index: 9998 !important;
@@ -27,8 +31,11 @@ body.in-game .floating-action-group.right {
     pointer-events: auto !important;
     opacity: 1 !important;
     visibility: visible !important;
-    z-index: 9999 !important;
+    z-index: 999999 !important;
     position: fixed !important;
+    background: #ff0 !important;
+    border: 4px solid #f00 !important;
+    box-shadow: 0 0 32px 8px #f00 !important;
 }
 
 /* Asegurar que los botones del grupo izquierdo sean visibles y clicables */
@@ -46,17 +53,19 @@ body.in-game .floating-action-group.right {
 }
 
 .floating-action-group.left button {
-    background: #fff;
-    border: 1px solid #bbb;
-    border-radius: 50%;
-    width: 44px;
-    height: 44px;
-    margin-bottom: 6px;
-    font-size: 1.5em;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    transition: background 0.2s, box-shadow 0.2s;
-    pointer-events: all;
-    z-index: 2003;
+    background: #ff0 !important;
+    color: #000 !important;
+    border: 4px solid #f00 !important;
+    border-radius: 50% !important;
+    width: 54px !important;
+    height: 54px !important;
+    margin-bottom: 8px !important;
+    font-size: 2em !important;
+    box-shadow: 0 0 32px 8px #f00 !important;
+    transition: none !important;
+    pointer-events: all !important;
+    z-index: 999999 !important;
+    opacity: 1 !important;
 }
 .floating-action-group.left button:hover {
     background: #f0f0f0;
@@ -74,13 +83,13 @@ body.in-game .floating-action-group.right {
     position: absolute;
     right: 60px;
     top: 0;
-    background: rgba(30, 42, 56, 0.92);
-    border: none;
-    border-radius: 12px;
-    box-shadow: 0 6px 24px rgba(0,0,0,0.22);
-    padding: 10px 8px;
-    min-width: 54px;
-    min-height: 54px;
+    background: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
 }
 .right-menu-group.is-open .submenu {
     display: block !important;
@@ -136,17 +145,19 @@ body.in-game .floating-action-group.right {
 }
 
 .floating-action-group.right button {
-    z-index: 2003;
-    pointer-events: all;
-    background: #fff;
-    border: 1px solid #bbb;
-    border-radius: 50%;
-    width: 44px;
-    height: 44px;
-    margin-bottom: 6px;
-    font-size: 1.5em;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    transition: background 0.2s, box-shadow 0.2s;
+    background: #ff0 !important;
+    color: #000 !important;
+    border: 4px solid #f00 !important;
+    border-radius: 50% !important;
+    width: 54px !important;
+    height: 54px !important;
+    margin-bottom: 8px !important;
+    font-size: 2em !important;
+    box-shadow: 0 0 32px 8px #f00 !important;
+    transition: none !important;
+    pointer-events: all !important;
+    z-index: 999999 !important;
+    opacity: 1 !important;
 }
 .floating-action-group.right button:hover {
     background: #f0f0f0;
