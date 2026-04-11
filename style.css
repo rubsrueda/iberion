@@ -18,9 +18,11 @@
 body.in-game .floating-action-group.left,
 body.in-game .floating-action-group.right {
     display: flex !important;
-    pointer-events: auto;
+    pointer-events: auto !important;
     opacity: 1 !important;
     visibility: visible !important;
+    z-index: 9999 !important;
+    position: fixed !important;
 }
 
 /* Asegurar que los botones del grupo izquierdo sean visibles y clicables */
