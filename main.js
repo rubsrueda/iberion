@@ -189,13 +189,27 @@ function showScreen(screenElement) {
     }
 
     // CRÍTICO: Si se muestra el gameContainer (que no es un .modal), ocultar explícitamente el mainMenuScreen
-    // Esto es ESENCIAL para evitar que el menú quede visible debajo del mapa después de inactividad o refresh
-    if (screenElement && (screenElement.id === 'gameContainer' || screenElement.classList.contains('game-container'))) {
+    // Y mostrar/ocultar la UI táctica SOLO en partida
+    const isGameScreen = !!(screenElement && (screenElement.id === 'gameContainer' || screenElement.classList.contains('game-container')));
+    if (isGameScreen) {
         const mainMenu = document.getElementById('mainMenuScreen');
         if (mainMenu) {
             mainMenu.style.setProperty('display', 'none', 'important');
             mainMenu.style.setProperty('visibility', 'hidden', 'important');
             mainMenu.style.setProperty('pointer-events', 'none', 'important');
+        }
+        if (window.domElements && window.domElements.tacticalUiContainer) {
+            window.domElements.tacticalUiContainer.style.setProperty('display', 'block', 'important');
+        } else {
+            const tacticalUI = document.getElementById('tactical-ui-container');
+            if (tacticalUI) tacticalUI.style.setProperty('display', 'block', 'important');
+        }
+    } else {
+        if (window.domElements && window.domElements.tacticalUiContainer) {
+            window.domElements.tacticalUiContainer.style.setProperty('display', 'none', 'important');
+        } else {
+            const tacticalUI = document.getElementById('tactical-ui-container');
+            if (tacticalUI) tacticalUI.style.setProperty('display', 'none', 'important');
         }
     }
 
