@@ -47,13 +47,45 @@ body.in-game .floating-action-group.right {
     display: none;
     opacity: 0.5;
     pointer-events: none;
-    max-height: 50vh !important;
-    overflow-y: auto !important;
-    z-index: 2004;
+    max-height: none;
+    overflow-y: visible;
+    z-index: 20050;
+    position: absolute;
+    top: 0;
+    right: 54px;
+    min-width: 180px;
+    background: rgba(30,34,40,0.98);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.28);
+    padding: 12px 10px 12px 10px;
+    border: 1.5px solid #222a33;
+    transition: opacity 0.18s;
 }
 .right-menu-group.is-open .submenu {
     display: block !important;
     opacity: 1 !important;
+    pointer-events: auto;
+}
+/* Alinear los botones del submenu en columna y con separación */
+.right-menu-group .submenu button {
+    display: block;
+    width: 100%;
+    margin: 6px 0;
+    background: none;
+    border: none;
+    color: #f3f3f3;
+    font-size: 1.1em;
+    text-align: left;
+    border-radius: 7px;
+    padding: 7px 12px;
+    transition: background 0.18s, color 0.18s;
+    box-shadow: none;
+    outline: none;
+    cursor: pointer;
+}
+.right-menu-group .submenu button:hover {
+    background: #2a3442;
+    color: #ffe082;
 }
 /**
  * style.css - 100% Fiel al Original, Reorganizado Semánticamente
