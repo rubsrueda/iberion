@@ -8,8 +8,9 @@ function logRightSubmenuButtonsZIndex() {
     const btns = submenu.querySelectorAll('button');
     btns.forEach(btn => {
         const rect = btn.getBoundingClientRect();
-        const z = window.getComputedStyle(btn).zIndex;
-        console.log(`[Z-INDEX][submenu][${btn.id}] z-index:`, z, '| Posición:', rect);
+        const cs = window.getComputedStyle(btn);
+        const z = cs.zIndex;
+        console.log(`[Z-INDEX][submenu][${btn.id}] z-index:`, z, '| Posición:', rect, '| display:', cs.display, '| width:', cs.width, '| height:', cs.height, '| visibility:', cs.visibility, '| opacity:', cs.opacity);
     });
     // Log del mapa
     const gameBoardEl = document.getElementById('gameBoard');
@@ -33,8 +34,29 @@ window.addEventListener('DOMContentLoaded', function() {
                     submenu.style.display = 'block';
                     submenu.style.pointerEvents = 'auto';
                     submenu.style.opacity = '1';
-                    // Log estado
-                    console.log('[DEBUG][ENGRANAJE] is-open:', group.classList.contains('is-open'), '| display:', submenu.style.display, '| pointerEvents:', submenu.style.pointerEvents);
+                    submenu.style.width = '220px';
+                    submenu.style.height = 'auto';
+                    submenu.style.minHeight = '200px';
+                    submenu.style.visibility = 'visible';
+                    // Forzar estilos en los botones
+                    const submenuBtns = submenu.querySelectorAll('button');
+                    submenuBtns.forEach(btn => {
+                        btn.style.display = 'block';
+                        btn.style.width = '100%';
+                        btn.style.height = '36px';
+                        btn.style.opacity = '1';
+                        btn.style.visibility = 'visible';
+                    });
+                    // Log de estilos del contenedor
+                    const cs = window.getComputedStyle(submenu);
+                    console.log('[DEBUG][submenu][computedStyle]', {
+                        display: cs.display,
+                        width: cs.width,
+                        height: cs.height,
+                        minHeight: cs.minHeight,
+                        opacity: cs.opacity,
+                        visibility: cs.visibility
+                    });
                 }
                 console.log('[DEBUG][ENGRANAJE] Click en engranaje, mostrando submenu...');
                 logRightSubmenuButtonsZIndex();
