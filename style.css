@@ -8,14 +8,19 @@
 /* Mostrar siempre ambos grupos de botones cuando el juego está activo */
 
 /* Solo mostrar los grupos de botones cuando el body tiene la clase in-game */
+
+/* Por defecto, ocultos */
 .floating-action-group.left,
 .floating-action-group.right {
-    display: none !important;
+    display: none;
 }
+/* En partida activa, visibles y funcionales */
 body.in-game .floating-action-group.left,
 body.in-game .floating-action-group.right {
     display: flex !important;
     pointer-events: auto;
+    opacity: 1 !important;
+    visibility: visible !important;
 }
 
 /* Asegurar que los botones del grupo izquierdo sean visibles y clicables */
