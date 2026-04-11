@@ -1934,6 +1934,8 @@ const contextualPanel = document.getElementById('contextualInfoPanel');
                         if (domElements && domElements.floatingCreateDivisionBtn) {
                             if (gameState && gameState.currentPhase !== "deployment") {
                                 domElements.floatingCreateDivisionBtn.style.display = 'none';
+                            } else if (gameState && gameState.currentPhase === "deployment") {
+                                domElements.floatingCreateDivisionBtn.style.display = '';
                             }
                         }
                     }

@@ -4,24 +4,26 @@
     pointer-events: none;
     z-index: 9999;
 }
-/* Por defecto, la barra derecha NO se muestra */
-.floating-action-group.right {
-    display: none !important;
-    position: fixed;
-    right: 0;
-    bottom: 0;
-    z-index: 2003;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 8px;
-    padding: 16px 8px 16px 16px;
-    pointer-events: none;
-}
 
-/* Solo mostrar la barra derecha cuando el body tiene la clase in-game */
+/* Mostrar siempre ambos grupos de botones cuando el juego está activo */
+body.in-game .floating-action-group.left,
 body.in-game .floating-action-group.right {
     display: flex !important;
     pointer-events: auto;
+}
+
+/* Asegurar que los botones del grupo izquierdo sean visibles y clicables */
+.floating-action-group.left {
+    display: flex !important;
+    pointer-events: auto;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 16px 16px 16px 8px;
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    z-index: 2003;
 }
 
 .floating-action-group.left button {
