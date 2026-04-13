@@ -3769,8 +3769,59 @@ async function loadCodexData(authId) {
 /**
  * Edición de Nombre
  */
+function askCommanderName(currentName = "") {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:12000;';
+
+        const modal = document.createElement('div');
+        modal.style.cssText = 'width:min(92vw,420px);background:#1f1f1f;border:1px solid #5d4037;border-radius:10px;padding:16px;color:#f5e6d3;font-family:inherit;box-shadow:0 12px 30px rgba(0,0,0,0.5);';
+        modal.innerHTML = `
+            <h3 style="margin:0 0 10px 0;font-size:16px;color:#f1c40f;">Nuevo nombre de comandante</h3>
+            <p style="margin:0 0 10px 0;font-size:12px;opacity:0.85;">Elige el nombre que quieras mostrar.</p>
+            <input id="commanderNameInputModal" type="text" maxlength="24" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #7b5e57;border-radius:8px;background:#2b2b2b;color:#fff;outline:none;">
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+                <button id="cancelCommanderNameBtn" style="padding:8px 12px;border:1px solid #777;background:#3a3a3a;color:#fff;border-radius:6px;cursor:pointer;">Cancelar</button>
+                <button id="saveCommanderNameBtn" style="padding:8px 12px;border:none;background:#f1c40f;color:#1a1a1a;border-radius:6px;font-weight:700;cursor:pointer;">Guardar</button>
+            </div>
+        `;
+
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+
+        const input = modal.querySelector('#commanderNameInputModal');
+        const cancelBtn = modal.querySelector('#cancelCommanderNameBtn');
+        const saveBtn = modal.querySelector('#saveCommanderNameBtn');
+
+        input.value = currentName || '';
+        input.setAttribute('spellcheck', 'false');
+        input.setAttribute('autocorrect', 'off');
+        input.setAttribute('autocapitalize', 'none');
+        input.setAttribute('autocomplete', 'off');
+        input.focus();
+        input.select();
+
+        const close = (value) => {
+            overlay.remove();
+            resolve(value);
+        };
+
+        cancelBtn.addEventListener('click', () => close(null));
+        saveBtn.addEventListener('click', () => close(input.value.trim()));
+        overlay.addEventListener('click', (ev) => {
+            if (ev.target === overlay) close(null);
+        });
+
+        input.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Escape') close(null);
+            if (ev.key === 'Enter') close(input.value.trim());
+        });
+    });
+}
+
 async function editName() {
-    const newName = prompt("Introduce tu nuevo nombre de Comandante:");
+    const currentName = PlayerDataManager.currentPlayer?.username || '';
+    const newName = await askCommanderName(currentName);
     if (newName && newName.length >= 3) {
         PlayerDataManager.currentPlayer.username = newName;
         document.getElementById('profileUsername').textContent = newName;

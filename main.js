@@ -444,7 +444,7 @@ function initApp() {
                 console.log("🎮 Partida activa detectada. Mostrando interfaz de juego después de inactividad...");
                 // Restaurar clase in-game para que los botones flotantes vuelvan a ser visibles
                 document.body.classList.add('in-game');
-                
+
                 // Forzar ocultación BRUTAL del mainMenuScreen primero
                 const mainMenu = document.getElementById('mainMenuScreen');
                 if (mainMenu) {
@@ -454,7 +454,7 @@ function initApp() {
                     mainMenu.style.setProperty('z-index', '0', 'important');
                     console.log("🚀 [Visibilidad] mainMenuScreen ocultado forzadamente después de regreso.");
                 }
-                
+
                 // Mostrar gameContainer con z-index alto
                 const gameContainer = document.querySelector('.game-container') || domElements.gameContainer;
                 if (gameContainer) {
@@ -463,19 +463,26 @@ function initApp() {
                     gameContainer.style.setProperty('visibility', 'visible', 'important');
                     console.log("🎮 [Visibilidad] gameContainer mostrado con z-index elevado.");
                 }
-                
+
                 // Mostrar UI táctica
                 const tacticalUI = document.getElementById('tactical-ui-container') || domElements.tacticalUiContainer;
                 if (tacticalUI) {
                     tacticalUI.style.setProperty('display', 'block', 'important');
                     console.log("📊 [Visibilidad] UI táctica mostrada.");
                 }
-                
+
                 // Usar showScreen() como backup para asegurar que se manejen correctamente todos los z-index
                 if (typeof showScreen === 'function' && domElements.gameContainer) {
                     setTimeout(() => {
                         showScreen(domElements.gameContainer);
                         console.log("✅ [Visibilidad] showScreen ejecutado después de inactividad.");
+                        // FORZAR actualización de botones flotantes tras restaurar la UI
+                        if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
+                            setTimeout(() => {
+                                UIManager.updateAllUIDisplays();
+                                console.log("✅ [UI] updateAllUIDisplays forzado tras regreso de pestaña");
+                            }, 50);
+                        }
                     }, 100); // Pequeño delay para asegurar que DOM está listo
                 }
             }
