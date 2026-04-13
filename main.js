@@ -442,6 +442,8 @@ function initApp() {
             // y que el menú principal no bloquee la interfaz
             if (gameState && gameState.currentPhase && gameState.currentPhase !== 'gameOver') {
                 console.log("🎮 Partida activa detectada. Mostrando interfaz de juego después de inactividad...");
+                // Restaurar clase in-game para que los botones flotantes vuelvan a ser visibles
+                document.body.classList.add('in-game');
                 
                 // Forzar ocultación BRUTAL del mainMenuScreen primero
                 const mainMenu = document.getElementById('mainMenuScreen');
