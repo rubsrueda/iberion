@@ -82,6 +82,10 @@ body.in-game .floating-action-group.right {
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
+.right-menu-group {
+    position: relative;
+}
+
 .right-menu-group .submenu {
     display: none !important;
     opacity: 0 !important;
