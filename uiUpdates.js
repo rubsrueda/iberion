@@ -988,7 +988,7 @@ const UIManager = {
 
             // --- REFUERZO ABSOLUTO: NUNCA mostrar barra derecha fuera de partida activa ---
             const rightGroup = document.querySelector('.floating-action-group.right');
-            if (!gameState || !gameState.currentPlayer || !["deployment","play"].includes(gameState.currentPhase)) {
+            if (!document.body.classList.contains('in-game') && (!gameState || !gameState.currentPlayer || !["deployment","play"].includes(gameState.currentPhase))) {
                 if (rightGroup) {
                     // Oculta toda la barra y todos sus botones
                     rightGroup.style.display = 'none';
