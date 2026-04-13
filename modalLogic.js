@@ -3632,8 +3632,13 @@ async function openProfileModal() {
 
     // 2. IDENTIDAD (Prioridad máxima: nombre, civ, alianza y nivel)
     // Usamos el operador || para que si el dato no existe, no rompa el código
-    if (document.getElementById('profileUsername')) 
-        document.getElementById('profileUsername').textContent = player.username || "Comandante";
+    const profileUsernameEl = document.getElementById('profileUsername');
+    const profileUsernameText = document.getElementById('profileUsernameText');
+    if (profileUsernameText) {
+        profileUsernameText.textContent = player.username || "Comandante";
+    } else if (profileUsernameEl) {
+        profileUsernameEl.textContent = player.username || "Comandante";
+    }
     
     if (document.getElementById('statTopCiv')) 
         document.getElementById('statTopCiv').textContent = player.favorite_civ || "Iberia";
@@ -3824,7 +3829,13 @@ async function editName() {
     const newName = await askCommanderName(currentName);
     if (newName && newName.length >= 3) {
         PlayerDataManager.currentPlayer.username = newName;
-        document.getElementById('profileUsername').textContent = newName;
+        const profileUsernameEl = document.getElementById('profileUsername');
+        const profileUsernameText = document.getElementById('profileUsernameText');
+        if (profileUsernameText) {
+            profileUsernameText.textContent = newName;
+        } else if (profileUsernameEl) {
+            profileUsernameEl.textContent = newName;
+        }
         await PlayerDataManager.saveCurrentPlayer(); // Sincroniza con Supabase
         logMessage("Nombre de Comandante actualizado.");
     }
