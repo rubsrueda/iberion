@@ -4,6 +4,11 @@
 /* 1. ESTILOS GENERALES Y GLOBALES (Migrados de style.css)                   */
 /* ========================================================================== */
 
+
+/* ========================================================================== */
+/* 1. ESTILOS GENERALES Y GLOBALES (Migrados de style.css)                   */
+/* ========================================================================== */
+
 body {
     margin: 0;
     overflow: hidden;
@@ -47,5 +52,7 @@ button, button:focus, button:active, button:hover {
     background-color: #6c757d;
     color: white;
 }
+
+/* Otros estilos generales migrados de style.css pueden agregarse aquí si no tienen destino específico. */
 
 /* Otros estilos generales migrados de style.css pueden agregarse aquí si no tienen destino específico. */

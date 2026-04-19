@@ -5,6 +5,11 @@
 /* 4. COMPONENTES DE UNIDADES (Migrados de style.css)                        */
 /* ========================================================================== */
 
+
+/* ========================================================================== */
+/* 4. COMPONENTES DE UNIDADES (Migrados de style.css)                        */
+/* ========================================================================== */
+
 .unit {
     position: absolute;
     width: 36px;
@@ -33,7 +38,46 @@
     transform: scale(1.1);
 }
 
+.unit-damaged { animation: shake 0.5s; }
+.unit-destroyed { animation: explode 0.5s forwards; }
+.unit-retreat { opacity: 0.7; }
+.unit.hit { animation: unitHit 0.3s ease-out; }
+.unit.attacking { animation: unitAttacking 0.2s ease-out; }
+.unit-no-supply { animation: supplyPulse 1.2s ease-in-out infinite; filter: saturate(0.6); }
 .unit-smooth-move { transition: left 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.unit.unit-destroyed {
+    opacity: 0;
+    transition: opacity 0.5s ease-out;
+    pointer-events: none;
+}
+
+.damage-dealt-text {
+    position: absolute;
+    font-size: 20px;
+    font-weight: bold;
+    color: #e74c3c;
+    text-shadow: 1px 1px 2px black;
+    z-index: 110;
+    pointer-events: none;
+    animation: floatAndFade 1.2s ease-out forwards;
+}
+
+.commander-banner {
+    position: absolute;
+    bottom: -5px;
+    right: -8px;
+    font-size: 14px;
+    background-color: rgba(0, 0, 0, 0.7);
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    border: 1px solid gold;
+    text-shadow: none;
+}
 
 /* Unidades Bárbaras (Jugador 9) */
 .unit.player9 {
