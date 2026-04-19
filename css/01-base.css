@@ -1,0 +1,169 @@
+/*01-base.css*/
+
+button, button:focus, button:active, button:hover {
+    background: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+.right-menu-group .submenu button {
+    display: none !important;
+}
+.right-menu-group.is-open .submenu button {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+/* --- FIX: Visibilidad forzada de botones contextuales y submenu --- */
+/* Por defecto, oculto y desactivado */
+#tactical-ui-container {
+    display: none !important;
+    pointer-events: none !important;
+    z-index: 9999;
+}
+
+/* Mostrar siempre ambos grupos de botones cuando el juego está activo */
+
+/* Solo mostrar los grupos de botones cuando el body tiene la clase in-game */
+
+/* Por defecto, ocultos */
+/* Por defecto, ocultos */
+.floating-action-group.left,
+.floating-action-group.right {
+    display: none !important;
+    pointer-events: none !important;
+}
+/* En partida activa, visibles y funcionales */
+body.in-game #tactical-ui-container {
+    display: block !important;
+    pointer-events: auto !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    z-index: 9998 !important;
+}
+body.in-game .floating-action-group.left,
+body.in-game .floating-action-group.right {
+    display: flex !important;
+    pointer-events: auto !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    z-index: 9999 !important;
+    position: fixed !important;
+}
+
+/* Asegurar que los botones del grupo izquierdo sean visibles y clicables */
+.floating-action-group.left {
+    display: flex !important;
+    pointer-events: auto;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 16px 16px 16px 8px;
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    z-index: 2003;
+}
+
+.floating-action-group.left button {
+    background: none;
+    border: none;
+    border-radius: 0;
+    width: 44px;
+    height: 44px;
+    margin-bottom: 6px;
+    font-size: 1.5em;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: background 0.2s, box-shadow 0.2s;
+    pointer-events: all;
+    z-index: 2003;
+    opacity: 1;
+}
+.floating-action-group.left button:hover {
+    background: #f0f0f0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.right-menu-group {
+    position: relative;
+}
+
+.right-menu-group .submenu {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    max-height: 50vh !important;
+    overflow-y: auto !important;
+    z-index: 2004 !important;
+    visibility: hidden !important;
+    position: absolute;
+    right: 60px;
+    top: 0;
+    background: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+}
+
+.right-menu-group .submenu button {
+    display: none !important;
+}
+.right-menu-group.is-open .submenu {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 8px !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    visibility: visible !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+}
+.right-menu-group.is-open .submenu button {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+/* ========================================================================== */
+/* 1. ESTILOS GENERALES Y GLOBALES
+/* ========================================================================== */
+
+body {
+    margin: 0;
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-image: url('images/Ingreso.png');
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    min-height: 100vh;
+}
+
+.button-danger {
+    background-color: #dc3545;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.9em;
+    transition: background-color 0.2s ease-in-out;
+}
+.button-danger:hover {
+    background-color: #c82333;
+}
+.button-danger:disabled {
+    background-color: #fadadd;
+    color: #a3a3a3;
+    cursor: not-allowed;
+}
+
+.button-secondary {
+    background-color: #6c757d;
+    color: white;
+}
