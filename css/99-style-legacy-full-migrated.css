@@ -1,0 +1,19 @@
+/* 99-style-legacy-full-migrated.css */
+/* Archivo generado automáticamente: migración completa de style.css a formato modular. */
+
+/* === INICIO DE style.css MIGRADO === */
+
+/* --- Bloques migrados literalmente desde style.css --- */
+
+button, button:focus, button:active, button:hover {
+		background: none !important;
+		border: none !important;
+		border-radius: 0 !important;
+		box-shadow: none !important;
+}
+...existing code...
+/* Rounded sliders */
+.slider.round {
+	border-radius: 34px;
+}
+/* === FIN DE style.css MIGRADO === */

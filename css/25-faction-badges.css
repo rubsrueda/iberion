@@ -1,0 +1,18 @@
+/*25-faction-badges.css*/
+/* Estilos migrados desde style.css para badges de acceso de facción */
+
+.faction-access-badge.premium {
+    background: rgba(212, 165, 116, 0.22);
+    color: #ffd9a6;
+}
+
+.faction-access-badge.owned {
+    background: rgba(0, 243, 255, 0.18);
+    color: #b7fbff;
+}
+
+.faction-unlock-btn {
+    display: none;
+    padding: 5px 9px;
+    border-radius: 6px;
+}
