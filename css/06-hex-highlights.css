@@ -1,11 +1,6 @@
 /*06-hex-highlights.css*/
 
-/* --- Resaltados de Acción (Highlights) --- */
-.hex.highlight-move { background-color: rgba(0, 255, 0, 0.4); }
-.hex.highlight-attack { background-color: rgba(255, 0, 0, 0.4); }
-.hex.highlight-build { background-color: rgba(255, 165, 0, 0.4); }
-
-/** DUPLICADO: Estas reglas de highlight son más específicas y probablemente las que se usan. */
+/* --- Resaltados de Acción (Highlights) - Migrados de style.css --- */
 .hex.highlight-move { background-color: rgba(0, 255, 0, 0.4) !important; border: 2px solid #00FF00; }
 .hex.highlight-attack { background-color: rgba(255, 0, 0, 0.4) !important; border: 2px solid #FF0000; }
 .hex.highlight-build { background-color: rgba(255, 165, 0, 0.4) !important; border: 2px solid #FFA500; }

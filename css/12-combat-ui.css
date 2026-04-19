@@ -1,5 +1,5 @@
 /*12-combat-ui.css*/
-/* --- Panel de Predicción de Combate --- */
+/* --- Panel de Predicción de Combate y Paneles de UI (Migrados de style.css) --- */
 #combat-prediction-panel {
     background-color: rgba(0, 0, 0, 0.85);
     color: white;
@@ -16,7 +16,6 @@
 #combat-prediction-panel p { margin: 3px 0; }
 #combat-prediction-panel p span { font-weight: bold; }
 
-/** DUPLICADO: Regla con ID diferente y más detallada */
 #combatPredictionPanel {
     position: fixed;
     background-color: rgba(20, 20, 20, 0.9);

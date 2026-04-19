@@ -9,11 +9,17 @@
     text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
 }
 
-/* --- Sprites de Recursos --- */
-.hex.resource-hierro::after { content: 'Fe'; font-size: 10px; color: #663300; position: absolute; top: 2px; right: 2px;}
-.hex.resource-madera::after { content: 'Wd'; font-size: 10px; color: #228B22; position: absolute; top: 2px; right: 2px;}
+/* --- Sprites de Recursos y Estructuras (Migrados de style.css) --- */
+.hex .bonus-sprite {
+    position: absolute;
+    font-size: 16px;
+    top: 2px;
+    left: 2px;
+    opacity: 0.8;
+    z-index: 6;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+}
 
-/** DUPLICADO: Reglas más completas y con emojis para recursos */
 .hex.resource-hierro::after,
 .hex.resource-oro::after,
 .hex.resource-piedra::after,
@@ -35,16 +41,10 @@
 .hex .structure-sprite {
     position: absolute;
     font-size: 18px;
-    bottom: 1px;
-    right: 1px;
-    opacity: 0.9;
-    z-index: 5;
-}
-/** DUPLICADO: Ajuste para que los sprites de estructura no se solapen con los de recursos */
-.hex .structure-sprite {
     bottom: 3px;
     left: 3px;
-    right: auto;
+    opacity: 0.9;
+    z-index: 5;
 }
 
 /* === ESTILO PARA LAS RUINAS === */

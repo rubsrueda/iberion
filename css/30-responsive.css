@@ -1,6 +1,19 @@
 /*30-responsive.css*/
+
+    min-height: 44px !important;
+    min-width: 44px !important;
+    touch-action: manipulation;
+}
+
+
+
+
+
+
+
+
 /* ========================================================================== */
-/* 32. PERFIL RESPONSIVE POR DISPOSITIVO (PHONE / TABLET / DESKTOP)         */
+/* 32. PERFIL RESPONSIVE POR DISPOSITIVO (Migrados de style.css)             */
 /* ========================================================================== */
 
 body.graphics-touch .button-primary,
@@ -18,7 +31,6 @@ body.graphics-touch .close-button {
         height: 34px !important;
         font-size: 0.9rem !important;
     }
-
     #contextualInfoPanel,
     .tutorial-panel {
         width: calc(100vw - 10px);
@@ -27,7 +39,6 @@ body.graphics-touch .close-button {
     }
 }
 
-/* --- MODALES COMPACTOS EN MOVIL VERTICAL — OVERRIDE DEFINITIVO --- */
 @media (max-width: 620px) and (orientation: portrait) {
     .modal .modal-content,
     .modal-themed .modal-content,
@@ -38,7 +49,6 @@ body.graphics-touch .close-button {
         flex-direction: column !important;
         overflow: hidden !important;
     }
-
     .modal-body,
     .unit-management-body,
     .hero-collection-grid {
@@ -48,7 +58,6 @@ body.graphics-touch .close-button {
     }
 }
 
-/* === TARJETA DE DESCUBRIMIENTO DE RUINAS === */
 .ruin-discovery-card {
     position: fixed;
     top: 50%; left: 50%;
@@ -62,20 +71,17 @@ body.graphics-touch .close-button {
     text-align: center;
     color: #e8d5a0;
 }
-
 .rdc-btn-ad {
     background: linear-gradient(135deg, #1565c0, #0d47a1);
     color: #e3f2fd;
     border: 1px solid rgba(66, 165, 245, 0.5);
     font-weight: bold;
 }
-
 .rdc-btn-accept {
     background: rgba(255, 255, 255, 0.06);
     color: #888;
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
-
 .rdc-btn-accept:hover { 
     background: rgba(255,255,255,0.1); 
     color: #bbb; 

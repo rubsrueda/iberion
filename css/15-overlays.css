@@ -1,0 +1,15 @@
+/*15-overlays.css*/
+/* Overlays y fondos oscuros (Migrado de style.css) */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 10000;
+    pointer-events: auto;
+    transition: opacity 0.2s;
+    opacity: 1;
+}
+.modal-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}

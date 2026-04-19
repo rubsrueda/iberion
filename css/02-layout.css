@@ -1,5 +1,3 @@
-/* 02-layout.css*/ 
-/* --- RESTAURADO: Botones flotantes derechos, diseño original --- */
 .floating-action-group.right {
     z-index: 2002;
     pointer-events: all;
@@ -81,4 +79,47 @@
 }
 #gameBoard.grabbing {
     cursor: grabbing;
+}
+/* 02-layout.css */
+
+/* ========================================================================== */
+/* 2. CONTENEDORES PRINCIPALES Y LAYOUT (Migrados de style.css)               */
+/* ========================================================================== */
+
+#game-wrapper {
+     /* Centra el juego en la pantalla */
+     width: 100vw;
+     height: 100vh;
+     display: flex;
+     justify-content: center;
+     align-items: flex-start;
+     padding: 10px;
+     box-sizing: border-box;
+}
+
+.game-container {
+     display: flex;
+     width: 100vw;
+     height: 100vh;
+     overflow: hidden;
+     position: relative;
+     justify-content: flex-start;
+     align-items: flex-start;
+     box-sizing: border-box;
+     z-index: 1200;
+}
+
+#gameBoard {
+     display: grid;
+     border: 2px solid #6c757d;
+     background-color: rgba(194, 178, 128, 0.2);
+     position: relative;
+     align-self: flex-start;
+     cursor: grab;
+     transform-origin: 0 0;
+     touch-action: none;
+     flex-shrink: 0;
+}
+#gameBoard.grabbing {
+     cursor: grabbing;
 }

@@ -1,0 +1,30 @@
+/*13-contextual-panel.css*/
+/* Panel contextual de información (Migrado de style.css) */
+#contextualInfoPanel {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    min-width: 220px;
+    max-width: 90vw;
+    background: rgba(30, 30, 30, 0.98);
+    color: #f0e6d2;
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+    padding: 12px 18px 10px 18px;
+    font-size: 1em;
+    z-index: 10010;
+    border: 1px solid #a67c52;
+    pointer-events: auto;
+    opacity: 0.98;
+    transition: opacity 0.2s;
+    display: none;
+}
+#contextualInfoPanel.visible { display: block; opacity: 1; }
+#contextualInfoPanel h3 {
+    margin: 0 0 6px 0;
+    font-size: 1.1em;
+    color: #f7c873;
+    text-align: center;
+}
+#contextualInfoPanel p { margin: 4px 0; line-height: 1.4; }
