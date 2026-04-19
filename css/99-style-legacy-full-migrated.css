@@ -3,6 +3,18 @@
 
 /* === INICIO DE style.css: BLOQUES NO MIGRADOS === */
 
+body {
+	margin: 0;
+	overflow: hidden;
+	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+	background-image: url('images/Ingreso.png');
+	background-size: cover;
+	background-position: center center;
+	background-repeat: no-repeat;
+	background-attachment: fixed;
+	min-height: 100vh;
+}
+
 .right-menu-group {
 	position: relative;
 }
