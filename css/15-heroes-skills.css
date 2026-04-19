@@ -1,0 +1,121 @@
+/*15-heroes-skills.css*/
+
+/* --- Barras de Progresión y Experiencia --- */
+.progress-item {
+    margin-bottom: 15px;
+    font-size: 0.9em;
+}
+.progress-item > span {
+    display: block;
+    margin-bottom: 5px;
+}
+.xp-bar-container {
+    width: 100%;
+    background-color: #ced4da;
+    border-radius: 8px;
+    height: 16px;
+    overflow: hidden;
+}
+.xp-bar {
+    height: 100%;
+    width: 0%; /* Se actualizará con JS */
+    background-color: #28a745;
+    border-radius: 8px;
+    transition: width 0.3s ease;
+}
+.xp-bar.fragments {
+    background-color: #007bff;
+}
+
+/* --- Pop-up de Detalles de Habilidad --- */
+.skill-detail-content {
+    max-width: 450px;
+    background-color: #fff;
+    border: 2px solid #343a40;
+    border-radius: 10px;
+}
+
+.skill-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #dee2e6;
+}
+.skill-detail-header .skill-icon {
+    width: 60px;
+    height: 60px;
+    font-size: 32px;
+}
+.skill-detail-header h3, .skill-detail-header p {
+    margin: 0;
+}
+
+.skill-detail-body {
+    padding: 15px 0;
+}
+.skill-detail-body h4 {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+#skillLevelPreview .level-row {
+    font-size: 0.9em;
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin-bottom: 3px;
+}
+#skillLevelPreview .level-row.current {
+    background-color: #d4edda; /* Verde claro para el nivel actual */
+    font-weight: bold;
+}
+
+.skill-detail-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 15px;
+    padding-top: 10px;
+    border-top: 1px solid #dee2e6;
+}
+#skillUpgradeCost {
+    font-size: 0.9em;
+    color: #6c757d;
+}
+#upgradeSkillBtn {
+    background-color: #28a745;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+#upgradeSkillBtn:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+}
+
+/* ========================================== */
+/* ==       BOTONES DE HABILIDAD     == */
+/* ========================================== */
+.skill-upgrade-btn {
+    margin-left: 10px;
+    padding: 0px 8px;
+    font-size: 1.2em;
+    line-height: 1.2;
+    font-weight: bold;
+    color: white;
+    background-color: #28a745;
+    border: 1px solid #1e7e34;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+.skill-upgrade-btn:hover {
+    transform: scale(1.1);
+    background-color: #218838;
+}
+.skill-unlock-req {
+    font-size: 0.8em;
+    font-style: italic;
+    color: #6c757d;
+}

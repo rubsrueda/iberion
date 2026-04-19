@@ -1,0 +1,105 @@
+/*12-combat-ui.css*/
+/* --- Panel de Predicción de Combate --- */
+#combat-prediction-panel {
+    background-color: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 5px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 0.9em;
+    z-index: 10001;
+    pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    display: none;
+}
+#combat-prediction-panel p { margin: 3px 0; }
+#combat-prediction-panel p span { font-weight: bold; }
+
+/** DUPLICADO: Regla con ID diferente y más detallada */
+#combatPredictionPanel {
+    position: fixed;
+    background-color: rgba(20, 20, 20, 0.9);
+    color: #f0f0f0;
+    padding: 10px 15px;
+    border: 1px solid #555;
+    border-radius: 8px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 0.9em;
+    z-index: 10001;
+    pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+    transition: opacity 0.1s linear;
+    opacity: 0;
+}
+#combatPredictionPanel.visible { opacity: 1; }
+#combatPredictionPanel h4 {
+    margin: 0 0 8px 0;
+    color: #f39c12;
+    font-size: 1.1em;
+    text-align: center;
+    border-bottom: 1px solid #444;
+    padding-bottom: 5px;
+}
+#combatPredictionPanel p { margin: 5px 0; line-height: 1.4; }
+#combatPredictionPanel span.attacker-damage { color: #e74c3c; font-weight: bold; }
+#combatPredictionPanel span.defender-damage { color: #3498db; font-weight: bold; }
+#combatPredictionPanel span.critical-info { color: #f1c40f; font-weight: bold; display: block; text-align: center; margin-top: 8px; }
+
+/* --- MENÚ RADIAL TÁCTICO (DEFINITIVO) --- */
+#radialMenuContainer {
+    position: fixed; /* Fijo a la pantalla, no al mapa */
+    z-index: 20000; /* Por encima de unidades (z=10) y UI estándar */
+    display: none;   /* Oculto por defecto, JavaScript lo mostrará */
+    pointer-events: none; /* Bloqueado por defecto, los botones usan auto !important */
+}
+
+.radial-btn {
+    position: absolute;
+    border-radius: 50%;
+    
+    /* Diseño visual */
+    background: #ff4444;
+    border: 3px solid #ffff00;
+    color: white;
+    
+    /* Centrado de contenido */
+    display: flex; 
+    justify-content: center; 
+    align-items: center;
+    
+    cursor: pointer;
+    pointer-events: auto !important; /* IMPORTANTE: Habilita clic en el botón */
+    box-shadow: 0 0 15px rgba(255, 0, 0, 0.9);
+    transition: all 0.2s ease;
+    font-family: Georgia, "Times New Roman", serif;
+    letter-spacing: 0.03em;
+}
+
+#gameBoard.board-impact,
+#replayBoard.board-impact {
+    animation: boardImpact 0.32s ease-out;
+}
+
+#gameBoard.board-conquest,
+#replayBoard.board-conquest {
+    animation: boardConquestPulse 0.52s ease-out;
+}
+
+/* Fantasma del turno anterior: flechas tenues del avance IA */
+.ghost-turn-arrows-overlay {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 12000;
+}
+
+.ghost-turn-arrow-line {
+    stroke: rgba(210, 230, 255, 0.74);
+    stroke-width: 3;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 5px rgba(180, 220, 255, 0.5));
+}

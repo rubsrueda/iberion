@@ -1,0 +1,65 @@
+/* 10-units-stats.css*/
+/* Esta regla se mantiene igual, es para la barra de vida */
+.unit-strength {
+    position: absolute;
+    bottom: -16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 0.7em;
+    white-space: nowrap;
+    border: 1px solid #aaa;
+}
+
+.damage-dealt-text {
+    position: absolute;
+    font-size: 20px;
+    font-weight: bold;
+    color: #e74c3c;
+    text-shadow: 1px 1px 2px black;
+    z-index: 110;
+    pointer-events: none;
+    animation: floatAndFade 1.2s ease-out forwards;
+}
+
+/* Capa de Inmersión: Estilos detallados de daño */
+.damage-dealt-text {
+    padding: 4px 9px;
+    border-radius: 999px;
+    backdrop-filter: blur(3px);
+    background: rgba(13, 8, 6, 0.4);
+    border: 1px solid rgba(255,255,255,0.08);
+    letter-spacing: 0.04em;
+}
+
+.damage-dealt-text.tone-damage { color: #ff8d78; }
+.damage-dealt-text.tone-critical {
+    color: #ffd7a6;
+    font-size: 24px;
+    text-shadow: 0 0 12px rgba(255, 160, 98, 0.42), 1px 1px 2px rgba(0,0,0,0.75);
+}
+.damage-dealt-text.tone-reward,
+.damage-dealt-text.tone-heal,
+.damage-dealt-text.tone-conquest {
+    color: #bff7d5;
+    text-shadow: 0 0 10px rgba(91, 202, 132, 0.28), 1px 1px 2px rgba(0,0,0,0.72);
+}
+
+.commander-banner {
+    position: absolute;
+    bottom: -5px;
+    right: -8px;
+    font-size: 14px;
+    background-color: rgba(0, 0, 0, 0.7);
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    border: 1px solid gold;
+    text-shadow: none;
+}

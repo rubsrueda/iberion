@@ -1,0 +1,65 @@
+/*05-hex-terrain.css*/
+/* --- Tipos de Terreno --- */
+.hex.plains { background-color:#cbefcb; }
+.hex.forest { background-color: #556b2f; } /* Verde Oliva Oscuro */
+.hex.hills { background-color: #A9A9A9; } /* Tono Roca/Tierra */
+.hex.water { background-color: #4682b4; } /* Azul Acero (SteelBlue) */
+
+/* Paleta estacional por terreno (suave pero clara) */
+.hex.season-spring.plains { background-color: #c9efbe; }
+.hex.season-spring.forest { background-color: #5f8f3f; }
+.hex.season-spring.hills  { background-color: #9eaa89; }
+
+.hex.season-summer.plains { background-color: #b7e17b; }
+.hex.season-summer.forest { background-color: #4f7c2e; }
+.hex.season-summer.hills  { background-color: #9e9a73; }
+
+.hex.season-autumn.plains { background-color: #b7ca83; }
+.hex.season-autumn.forest { background-color: #6a6b3c; }
+.hex.season-autumn.hills  { background-color: #92856d; }
+
+.hex.season-winter.plains { background-color: #cdd6c3; }
+.hex.season-winter.forest { background-color: #5c675c; }
+.hex.season-winter.hills  { background-color: #b6bcc4; }
+
+/* ========================================================================== */
+/* ==  ANIMACIONES AMBIENTALES (agua, bosque)                              == */
+/* ========================================================================== */
+
+/* Agua animada: ondas sutiles con pseudo-elemento */
+.hex.water::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: repeating-linear-gradient(
+        135deg,
+        rgba(100, 180, 255, 0.12) 0px,
+        rgba(100, 180, 255, 0.06) 4px,
+        transparent 4px,
+        transparent 10px
+    );
+    animation: water-ripple 3s ease-in-out infinite alternate;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Bosque animado: balanceo suave */
+.hex.forest::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(ellipse at 50% 30%, rgba(60, 180, 60, 0.15) 0%, transparent 65%);
+    animation: forest-sway 4s ease-in-out infinite alternate;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Offset de fase aleatoria: cada n-ésimo hex empieza en momento diferente */
+.hex.water:nth-child(3n)::after   { animation-delay: -1s; }
+.hex.water:nth-child(5n)::after   { animation-delay: -2.2s; }
+.hex.water:nth-child(7n)::after   { animation-delay: -0.7s; }
+.hex.forest:nth-child(3n)::after  { animation-delay: -1.5s; }
+.hex.forest:nth-child(5n)::after  { animation-delay: -3s; }
+.hex.forest:nth-child(7n)::after  { animation-delay: -0.5s; }

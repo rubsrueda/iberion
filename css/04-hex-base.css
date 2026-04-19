@@ -1,0 +1,95 @@
+/*04-hex-base.css*/
+/* ========================================================================== */
+/* 3. COMPONENTES DEL TABLERO (hex, niebla, sprites)
+/* ========================================================================== */
+
+.hex {
+    /*position: relative;*/
+    width: 50px;
+    height: 57.73px;
+    background-color: #90ee90;
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    position: absolute;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 9px;
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    transition: background-color 0.2s;
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+}
+.hex:hover {
+    border-color: #ffc107;
+}
+
+/* Plantilla base para la capa de color de territorio (EXCLUYENDO CAPITALES) */
+.hex.player1-owner:not(.capital-city)::before,
+.hex.player2-owner:not(.capital-city)::before,
+.hex.player3-owner:not(.capital-city)::before,
+.hex.player4-owner:not(.capital-city)::before,
+.hex.player5-owner:not(.capital-city)::before,
+.hex.player6-owner:not(.capital-city)::before,
+.hex.player7-owner:not(.capital-city)::before,
+.hex.player8-owner:not(.capital-city)::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    z-index: -1;
+    opacity: 0.35;
+}
+
+/* Asignación de colores por jugador */
+.hex.player1-owner::before { background-color: #007bff; } /* Azul */
+.hex.player2-owner::before { background-color: #dc3545; } /* Rojo */
+.hex.player3-owner::before { background-color: #28a745; } /* Verde */
+.hex.player4-owner::before { background-color: #ffc107; } /* Amarillo */
+.hex.player5-owner::before { background-color: #6f42c1; } /* Púrpura */
+.hex.player6-owner::before { background-color: #fd7e14; } /* Naranja */
+.hex.player7-owner::before { background-color: #20c997; } /* Cian */
+.hex.player8-owner::before { background-color: #e83e8c; } /* Rosa */
+
+/* --- Propiedad y Estructuras --- */
+.hex.player1-owner {
+    box-shadow: inset 0 0 0 3px rgba(0, 0, 255, 0.6);
+    --owner-color: rgba(0, 0, 255, 0.6);
+}
+.hex.player2-owner {
+    box-shadow: inset 0 0 0 3px rgba(255, 0, 0, 0.6);
+    --owner-color: rgba(255, 0, 0, 0.6);
+}
+.hex.player3-owner { box-shadow: inset 0 0 0 3px rgba(0, 128, 0, 0.6); --owner-color: rgba(0, 128, 0, 0.6); } /* Verde */
+.hex.player4-owner { box-shadow: inset 0 0 0 3px rgba(255, 255, 0, 0.6); --owner-color: rgba(255, 255, 0, 0.6); } /* Amarillo */
+.hex.player5-owner { box-shadow: inset 0 0 0 3px rgba(128, 0, 0, 0.6); --owner-color: rgba(128, 0, 128, 0.6); } /* Púrpura */
+.hex.player6-owner { box-shadow: inset 0 0 0 3px rgba(255, 165, 0, 0.6); --owner-color: rgba(255, 165, 0, 0.6); } /* Naranja */
+.hex.player7-owner { box-shadow: inset 0 0 0 3px rgba(0, 255, 255, 0.6); --owner-color: rgba(0, 255, 255, 0.6); } /* Cian */
+.hex.player8-owner { box-shadow: inset 0 0 0 3px rgba(255, 192, 203, 0.6); --owner-color: rgba(255, 192, 203, 0.6); } /* Rosa */
+
+.hex.city::before { content: '🏠'; font-size: 18px; opacity: 0.7; }
+.hex.capital-city::before { content: '👑'; font-size: 20px; opacity: 0.7; }
+
+/** DUPLICADO: Regla más detallada para capital-city */
+.hex.capital-city::before {
+    content: '👑';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%; 
+    height: 100%; 
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 16px; 
+    transform: none; 
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+    opacity: 0.5; 
+    pointer-events: none;
+    z-index: 10;
+}
+.hex.capital-city .structure-sprite { z-index: 5; }

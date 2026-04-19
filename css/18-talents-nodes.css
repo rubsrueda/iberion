@@ -1,0 +1,84 @@
+/*18-talents-nodes.css*/
+/* --- Las Líneas de Conexión SVG --- */
+.talent-svg-lines {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1; /* Por debajo de los nodos */
+}
+
+/* --- Nodos de Talento Individuales --- */
+.talent-node {
+    position: absolute;
+    color: white;
+    background-color: #4a5568; /* Gris oscuro */
+    border: 3px solid #718096; /* Borde gris más claro */
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: not-allowed;
+    transition: transform 0.2s, box-shadow 0.2s;
+    font-size: 1.2em; /* Icono más grande */
+    padding: 5px;
+    box-sizing: border-box;
+}
+
+/* Formas de los nodos */
+.talent-node.square { width: 50px; height: 50px; border-radius: 8px; }
+.talent-node.circle { width: 45px; height: 45px; border-radius: 50%; }
+
+/* Estados de los nodos */
+.talent-node.available {
+    background-color: #2980b9; /* Azul */
+    border-color: #3498db;
+    cursor: pointer;
+    box-shadow: 0 0 15px rgba(52, 152, 219, 0.5);
+}
+.talent-node.maxed {
+    background-color: #d69e2e; /* Dorado */
+    border-color: #f1c40f;
+    cursor: help;
+}
+.talent-node.available:hover {
+    transform: translate(-50%, -50%) scale(1.1); /* Importante para no perder el centrado */
+    box-shadow: 0 0 20px rgba(52, 152, 219, 0.9);
+}
+
+/* Nivel del talento */
+.talent-node-level {
+    position: absolute;
+    bottom: -10px;
+    right: -10px;
+    font-weight: bold;
+    font-size: 0.7em;
+    background-color: rgba(0,0,0,0.8);
+    color: #f1c40f; /* Dorado */
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    text-align: center;
+    border: 1px solid #f1c40f;
+}
+
+/* --- Estilos para el Modal de Árbol de Talentos (Pestañas Opcionales) --- */
+#talentTreeTabs {
+    border-bottom: 2px solid #95a5a6;
+}
+#talentTreeTabs .tab-button.active {
+    color: #f1c40f;
+    border-bottom-color: #f1c40f;
+}
+
+#talentTreeContainer {
+    flex-grow: 1; 
+    position: relative; 
+    overflow: auto;
+    background-color: #2c3e50;
+    border-radius: 5px;
+    margin-top: 10px;
+}

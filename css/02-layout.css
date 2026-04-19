@@ -1,0 +1,84 @@
+/* 02-layout.css*/ 
+/* --- RESTAURADO: Botones flotantes derechos, diseño original --- */
+.floating-action-group.right {
+    z-index: 2002;
+    pointer-events: all;
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: auto;
+    min-width: 48px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 12px 10px 18px 0;
+    background: none;
+    border: none;
+    box-sizing: border-box;
+}
+
+.floating-action-group.right button {
+    z-index: 2003;
+    pointer-events: all;
+    background: none;
+    border: none;
+    border-radius: 0;
+    width: 44px;
+    height: 44px;
+    margin-bottom: 6px;
+    font-size: 1.5em;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: background 0.2s, box-shadow 0.2s;
+    opacity: 1;
+}
+.floating-action-group.right button:hover {
+    background: #f0f0f0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+#game-wrapper {
+    /* ESTA REGLA SOLO SE ENCARGA DE CENTRAR EL JUEGO Y NADA MÁS */
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+/* ========================================================================== */
+/* 2. CONTENEDORES PRINCIPALES
+/* ========================================================================== */
+
+.game-container {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    position: relative;
+    justify-content: flex-start;
+    align-items: flex-start;
+   /* padding-bottom: 80px;*/
+    box-sizing: border-box;
+    z-index: 1200;
+}
+
+#gameBoard {
+    display: grid;
+    border: 2px solid #6c757d;
+    /* background-color: #c2b280; */ /* <-- Comentamos o eliminamos el color sólido */
+    background-color: rgba(194, 178, 128, 0.2); /* <-- Mismo color pero con 40% de opacidad */
+    position: relative;
+    align-self: flex-start;
+    cursor: grab;
+    transform-origin: 0 0;
+    touch-action: none;
+    flex-shrink: 0;
+}
+#gameBoard.grabbing {
+    cursor: grabbing;
+}

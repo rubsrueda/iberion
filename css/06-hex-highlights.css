@@ -1,0 +1,35 @@
+/*06-hex-highlights.css*/
+
+/* --- Resaltados de Acción (Highlights) --- */
+.hex.highlight-move { background-color: rgba(0, 255, 0, 0.4); }
+.hex.highlight-attack { background-color: rgba(255, 0, 0, 0.4); }
+.hex.highlight-build { background-color: rgba(255, 165, 0, 0.4); }
+
+/** DUPLICADO: Estas reglas de highlight son más específicas y probablemente las que se usan. */
+.hex.highlight-move { background-color: rgba(0, 255, 0, 0.4) !important; border: 2px solid #00FF00; }
+.hex.highlight-attack { background-color: rgba(255, 0, 0, 0.4) !important; border: 2px solid #FF0000; }
+.hex.highlight-build { background-color: rgba(255, 165, 0, 0.4) !important; border: 2px solid #FFA500; }
+.hex.highlight-place { background-color: rgba(0, 162, 255, 0.4) !important; border: 2px solid #00A2FF; }
+
+.hex.highlight-move:hover,
+.hex.highlight-attack:hover,
+.hex.highlight-build:hover,
+.hex.highlight-place:hover {
+    border-color: yellow;
+}
+
+/* Casilla peligrosa (Sin suministro) durante el movimiento */
+.hex.highlight-danger {
+    background-color: rgba(255, 0, 0, 0.3) !important;
+    box-shadow: inset 0 0 10px #ff0000;
+    border: 1px solid red;
+}
+
+/* Efectos de Brillo de Disputa */
+.hex.hex-dispute-glow {
+    animation: hexDisputePulse 1.4s ease-in-out infinite;
+}
+
+.hex.hex-arrival {
+    animation: hexArrivalBloom 0.62s ease-out;
+}

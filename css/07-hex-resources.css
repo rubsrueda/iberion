@@ -1,0 +1,74 @@
+/*07-hex-resources.css*/
+.hex .bonus-sprite {
+    position: absolute;
+    font-size: 16px;
+    top: 2px;
+    left: 2px;
+    opacity: 0.8;
+    z-index: 6; /* Un poco por encima del sprite de estructura */
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+}
+
+/* --- Sprites de Recursos --- */
+.hex.resource-hierro::after { content: 'Fe'; font-size: 10px; color: #663300; position: absolute; top: 2px; right: 2px;}
+.hex.resource-madera::after { content: 'Wd'; font-size: 10px; color: #228B22; position: absolute; top: 2px; right: 2px;}
+
+/** DUPLICADO: Reglas más completas y con emojis para recursos */
+.hex.resource-hierro::after,
+.hex.resource-oro::after,
+.hex.resource-piedra::after,
+.hex.resource-madera::after,
+.hex.resource-comida::after {
+    content: "";
+    position: absolute;
+    top: 3px; right: 3px;
+    font-size: 14px;
+    opacity: 0.7;
+    pointer-events: none;
+}
+.hex.resource-hierro::after { content: "⛏️"; color: #8B4513; }
+.hex.resource-oro::after { content: "💰"; }
+.hex.resource-piedra::after { content: "⛰️"; color: #708090; }
+.hex.resource-madera::after { content: "🌲"; color: #228B22; }
+.hex.resource-comida::after { content: "🌾"; color: #DAA520; }
+
+.hex .structure-sprite {
+    position: absolute;
+    font-size: 18px;
+    bottom: 1px;
+    right: 1px;
+    opacity: 0.9;
+    z-index: 5;
+}
+/** DUPLICADO: Ajuste para que los sprites de estructura no se solapen con los de recursos */
+.hex .structure-sprite {
+    bottom: 3px;
+    left: 3px;
+    right: auto;
+}
+
+/* === ESTILO PARA LAS RUINAS === */
+.hex.feature-ruins::after {
+    content: '🏛️';
+    position: absolute;
+    
+    /* Lo posicionamos ligeramente distinto a los recursos para que se diferencien */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+
+    font-size: 24px;
+    opacity: 0.65;
+    z-index: 2; /* Importante: por debajo de estructuras (z-index: 5) y unidades (z-index: 10) */
+    
+    /* Sombra para que destaque sobre el terreno */
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.7);
+    
+    pointer-events: none; /* Para que no interfiera con el clic en el hexágono */
+}
+
+/* Estilo para las ruinas ya saqueadas, se ven más tenues */
+.hex.feature-ruins-looted::after {
+    opacity: 0.3;
+    filter: grayscale(100%);
+}

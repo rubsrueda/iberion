@@ -1,0 +1,147 @@
+/*08-hex-comic.css*/
+.hex .hex-comic-indicator {
+    position: absolute;
+    top: 4px;
+    right: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid rgba(230, 230, 230, 0.86);
+    background: rgba(14, 22, 32, 0.86);
+    color: #f5f6f7;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    margin: 0;
+    z-index: 25;
+    cursor: pointer;
+    transition: transform 0.16s ease, box-shadow 0.2s ease;
+    pointer-events: auto;
+}
+
+.hex .hex-comic-indicator .dots {
+    font-size: 10px;
+    line-height: 1;
+    letter-spacing: -0.5px;
+    transform: translateY(-1px);
+}
+
+.hex .hex-comic-indicator:hover {
+    transform: scale(1.08);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.56);
+}
+
+.hex .hex-comic-indicator.critical {
+    background: rgba(110, 20, 20, 0.95);
+    border-color: rgba(255, 208, 182, 0.95);
+    animation: hexComicPulse 2.4s ease-in-out infinite;
+}
+
+.hex .hex-comic-indicator.warning {
+    background: rgba(132, 89, 18, 0.95);
+    border-color: rgba(255, 228, 173, 0.95);
+}
+
+.hex .hex-comic-indicator.opportunity {
+    background: rgba(20, 66, 110, 0.95);
+    border-color: rgba(178, 213, 241, 0.95);
+}
+
+.hex .hex-comic-indicator.narrative {
+    background: rgba(128, 98, 36, 0.95);
+    border-color: rgba(255, 233, 173, 0.95);
+}
+
+.hex-comic-panel {
+    position: fixed;
+    left: 50%;
+    bottom: 0;
+    transform: translateX(-50%) translateY(0);
+    min-width: 260px;
+    max-width: 95vw;
+    max-height: 60vh;
+    padding: 10px 12px 18px 12px;
+    border-radius: 10px 10px 0 0;
+    border: 1px solid rgba(126, 145, 167, 0.45);
+    background: linear-gradient(150deg, rgba(13, 21, 30, 0.97), rgba(20, 30, 40, 0.95));
+    color: #e8edf2;
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.48);
+    z-index: 10030;
+    opacity: 0;
+    pointer-events: none;
+    overflow-y: auto;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.hex-comic-panel.visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+.hex-comic-panel .hex-comic-close {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid rgba(192, 202, 214, 0.5);
+    background: rgba(20, 30, 41, 0.88);
+    color: #dbe5ee;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.hex-comic-panel .hex-comic-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.94;
+}
+
+.hex-comic-panel .hex-comic-emitter {
+    font-weight: 700;
+}
+
+.hex-comic-panel .hex-comic-severity {
+    border: 1px solid rgba(172, 190, 210, 0.4);
+    border-radius: 999px;
+    padding: 1px 7px;
+    font-weight: 700;
+    font-size: 10px;
+}
+
+.hex-comic-panel .hex-comic-title {
+    margin-top: 7px;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: #f3f7fc;
+}
+
+.hex-comic-panel .hex-comic-detail {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.35;
+    color: rgba(226, 236, 245, 0.94);
+}
+
+.hex-comic-panel .hex-comic-suggestion {
+    margin-top: 8px;
+    font-size: 11px;
+    line-height: 1.32;
+    color: #c3d8ea;
+    border-top: 1px solid rgba(161, 184, 205, 0.3);
+    padding-top: 7px;
+}
+
+.hex-comic-panel.critical { border-color: rgba(233, 96, 88, 0.5); }
+.hex-comic-panel.warning { border-color: rgba(223, 174, 66, 0.54); }
+.hex-comic-panel.opportunity { border-color: rgba(87, 161, 224, 0.52); }
+.hex-comic-panel.narrative { border-color: rgba(211, 177, 102, 0.5); }

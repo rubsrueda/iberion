@@ -1,0 +1,139 @@
+/*16-heroes-equipment.css*/
+/*===============================================================*/
+/* --- Estilos para la Columna de Equipo (Diseño de Cuerpo) --- */
+/*=============================================================*/
+.equipment-layout {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px; /* Espacio entre filas */
+    padding-top: 15px;
+}
+
+.equipment-slot {
+    height: 75px;
+    background-color: #e9ecef;
+    border: 2px dashed #adb5bd;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+    position: relative; /* Para futuros iconos de objetos */
+}
+
+.equipment-slot:hover {
+    background-color: #dde2e6;
+    border-color: #007bff;
+}
+
+.equipment-slot span {
+    color: #6c757d;
+    font-size: 0.8em;
+    font-weight: 500;
+}
+
+/* --- Posicionamiento EXACTO para formar el rombo --- */
+.equip-row-middle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 10px;
+    width: 100%;
+    align-items: center;
+}
+
+#equip-chest { 
+    grid-column: 1 / span 2; 
+    grid-row: 1;
+    justify-self: center;
+    width: 50%;
+}
+
+#equip-gloves {
+    grid-column: 1;
+    grid-row: 2;
+}
+
+#equip-weapon {
+    grid-column: 2;
+    grid-row: 2;
+}
+
+#equip-legs {
+    grid-column: 1 / span 2;
+    grid-row: 3;
+    justify-self: center;
+    width: 50%;
+}
+
+/* --- ESTILOS PARA SELECCIÓN DE EQUIPO --- */
+.equipment-slot.available-upgrade {
+    border-style: solid;
+    border-color: #28a745; /* Verde brillante */
+    background-color: #e9f7ef;
+    animation: pulse-green 1.5s infinite;
+}
+
+@keyframes pulse-green {
+    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+}
+
+.equipment-list {
+    max-height: 50vh;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    margin-top: 15px;
+    background-color: #f8f9fa;
+}
+
+.equipment-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+    transition: background-color 0.2s;
+}
+
+.equipment-item:hover {
+    background-color: #e9ecef;
+}
+
+.equipment-item.selected {
+    background-color: #d4edda;
+    border-left: 4px solid #28a745;
+}
+
+.equipment-item .item-icon {
+    font-size: 2.5em;
+    margin-right: 15px;
+    width: 40px;
+    text-align: center;
+}
+
+.equipment-item .item-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.equipment-item .item-name {
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 4px;
+}
+
+/* Colores para el nombre del item según su rareza */
+.rarity-Común { color: #6c757d; }
+.rarity-Raro { color: #007bff; }
+.rarity-Épico { color: #8a2be2; }
+.rarity-Legendario { color: #fd7e14; }
+
+.equipment-item .item-stats {
+    font-size: 0.9em;
+    color: #495057;
+}
