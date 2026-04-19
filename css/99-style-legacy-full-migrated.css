@@ -65,4 +65,57 @@ body {
 
 /* Cualquier otro bloque que no esté en los modulares se agregará aquí tras revisión. */
 
+/* Utilidades globales y helpers migrados de style.css */
+.overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	background: rgba(0,0,0,0.5);
+	z-index: 9999;
+	display: none;
+}
+
+.hidden {
+	display: none !important;
+}
+
+.no-select {
+	user-select: none;
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+}
+
+.pointer {
+	cursor: pointer;
+}
+
+.centered {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.dimmed {
+	opacity: 0.5;
+}
+
+.z-top {
+	z-index: 99999 !important;
+}
+
+.scrollbar-hide {
+	scrollbar-width: none; /* Firefox */
+	-ms-overflow-style: none; /* IE 10+ */
+}
+.scrollbar-hide::-webkit-scrollbar {
+	display: none; /* Chrome/Safari/Webkit */
+}
+
+.fade-in {
+	animation: fadeIn 0.4s;
+}
+
 /* === FIN DE style.css: BLOQUES NO MIGRADOS === */
