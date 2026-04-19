@@ -1,0 +1,82 @@
+/*30-responsive.css*/
+/* ========================================================================== */
+/* 32. PERFIL RESPONSIVE POR DISPOSITIVO (PHONE / TABLET / DESKTOP)         */
+/* ========================================================================== */
+
+body.graphics-touch .button-primary,
+body.graphics-touch .button-secondary,
+body.graphics-touch .close-button {
+    min-height: 44px !important;
+    min-width: 44px !important;
+    touch-action: manipulation;
+}
+
+@media (max-width: 620px), (max-height: 360px) {
+    #tactical-ui-container button,
+    .floating-action-group button {
+        width: 34px !important;
+        height: 34px !important;
+        font-size: 0.9rem !important;
+    }
+
+    #contextualInfoPanel,
+    .tutorial-panel {
+        width: calc(100vw - 10px);
+        bottom: 44px;
+        font-size: 0.72rem;
+    }
+}
+
+/* --- MODALES COMPACTOS EN MOVIL VERTICAL — OVERRIDE DEFINITIVO --- */
+@media (max-width: 620px) and (orientation: portrait) {
+    .modal .modal-content,
+    .modal-themed .modal-content,
+    .modal-container {
+        width: min(96vw, 380px) !important;
+        max-height: 62svh !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+    }
+
+    .modal-body,
+    .unit-management-body,
+    .hero-collection-grid {
+        flex: 1 1 auto !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+/* === TARJETA DE DESCUBRIMIENTO DE RUINAS === */
+.ruin-discovery-card {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(400px, 92vw);
+    background: linear-gradient(160deg, #1a1006 0%, #2b1e08 60%, #1c1508 100%);
+    border: 1px solid rgba(210, 165, 80, 0.45);
+    border-radius: 16px;
+    padding: 26px 22px 20px;
+    z-index: 9999;
+    text-align: center;
+    color: #e8d5a0;
+}
+
+.rdc-btn-ad {
+    background: linear-gradient(135deg, #1565c0, #0d47a1);
+    color: #e3f2fd;
+    border: 1px solid rgba(66, 165, 245, 0.5);
+    font-weight: bold;
+}
+
+.rdc-btn-accept {
+    background: rgba(255, 255, 255, 0.06);
+    color: #888;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.rdc-btn-accept:hover { 
+    background: rgba(255,255,255,0.1); 
+    color: #bbb; 
+}

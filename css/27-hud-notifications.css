@@ -1,0 +1,72 @@
+/*27-hud-notifications.css*/
+/* --- Tipos de notificación (Toasts) --- */
+.toast-notification.info {
+    border-color: #3498db; /* Azul */
+}
+.toast-notification.success {
+    border-color: #2ecc71; /* Verde */
+}
+.toast-notification.warning {
+    border-color: #f1c40f; /* Amarillo */
+}
+.toast-notification.error {
+    border-color: #e74c3c; /* Rojo */
+}
+
+/* --- Nivel DESTACADO --- */
+.toast-notification.destacado {
+    font-size: 1.25em;
+    padding: 14px 30px;
+    border-color: #f39c12;
+    color: #fff;
+    box-shadow: 0 0 18px rgba(243, 156, 18, 0.6);
+    animation-name: toast-destacado;
+}
+
+/* --- ALERTAS VISUALES Y ESTADOS CRÍTICOS --- */
+
+/* Ruta cortada: enemigo interpuesto — rojo + parpadeo de alerta */
+.hex.supply-line-hex.danger {
+    background-color: rgba(220, 50, 50, 0.22) !important;
+    box-shadow: inset 0 0 0 1px rgba(255, 60, 60, 0.7);
+    animation: supplyLineDanger 0.9s ease-in-out infinite;
+}
+
+/* Estabilidad 2: advertencia amarilla sutil */
+.hex.low-stability-warning {
+    box-shadow: inset 0 0 0 2px rgba(255, 200, 0, 0.55);
+    animation: stabilityWarnPulse 2s ease-in-out infinite;
+}
+
+/* Estabilidad 0-1: peligro rojo + vibración */
+.hex.low-stability-danger {
+    box-shadow: inset 0 0 0 2px rgba(255, 60, 40, 0.75);
+    animation: stabilityVibrate 0.25s linear infinite, stabilityDangerPulse 1s ease-in-out infinite;
+}
+
+/* --- CLIMA DINÁMICO --- */
+/* Inundación costera: overlay azul-marino semitransparente */
+.hex.hex-flooded {
+    background-color: rgba(30, 100, 210, 0.38) !important;
+    box-shadow: inset 0 0 0 2px rgba(50, 130, 255, 0.65);
+    animation: floodPulse 2s ease-in-out infinite;
+}
+
+/* Tormenta de invierno: overlay blanco-gris níveo */
+.hex.hex-winter-storm {
+    box-shadow: inset 0 0 0 2px rgba(200, 220, 255, 0.55);
+    filter: saturate(0.6) brightness(1.08);
+    animation: winterStormPulse 3s ease-in-out infinite;
+}
+
+/* Polvo al mover tropas (clase aplicada via JS) */
+.hex-dust::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(ellipse at 50% 80%, rgba(210, 180, 120, 0.7) 0%, transparent 70%);
+    animation: dust-puff 0.8s ease-out forwards;
+    pointer-events: none;
+    z-index: 5;
+}

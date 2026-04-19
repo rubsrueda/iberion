@@ -1,0 +1,106 @@
+/*19-mgmt-units.css*/
+/* ========================================================================== */
+/* ==   SOLUCIÓN FINAL, CUIDADOSA Y CORRECTA PARA EL MODAL DE UNIDADES      == */
+/* ========================================================================== */
+
+/* --- 1. CONTENEDOR PRINCIPAL: El marco del modal. --- */
+#unitManagementModal .modal-content {
+    width: 95vw;
+    max-width: 600px;
+    max-height: 90vh; /* Límite MÁXIMO de altura. No crecerá más que esto. */
+    display: flex;
+    flex-direction: column; /* Apila Título, Cuerpo y Pie de página. */
+    overflow: hidden; /* IMPIDE que el propio modal tenga un scroll general. */
+    background-color: #2c3e50;
+    font-size: 0.9em;
+    position: relative;
+    padding: 0;
+    border-radius: 8px;
+}
+
+/* --- 2. TÍTULO Y PIE DE PÁGINA: Secciones fijas. --- */
+#unitManagementModal h3,
+#unitManagementModal .modal-footer-actions {
+    flex-shrink: 0;
+}
+/* Estilo del botón de cerrar (corregido) */
+#unitManagementModal .close-button {
+    position: absolute;
+    top: 10px; right: 15px; z-index: 10;
+}
+
+/* --- 3. CUERPO: La única sección que puede hacer scroll. --- */
+#unitManagementModal .unit-management-body {
+    flex-grow: 1; /* Le dice al cuerpo que ocupe todo el espacio vertical disponible. */
+    overflow-y: auto; /* ¡AQUÍ ESTÁ LA ÚNICA BARRA DE SCROLL! */
+    display: flex; /* Mantiene el layout de 2 columnas para los paneles. */
+    min-height: 0; 
+}
+
+/* --- 4. PANELES: Ya no necesitan scroll ni alturas máximas. --- */
+#unitManagementModal .unit-selection-panel,
+#unitManagementModal .division-summary-panel {
+    flex: 1; /* Ocupan 50% del ancho. */
+    height: auto;
+    overflow: visible;
+    padding: 10px;
+    background-color: transparent; 
+}
+#unitManagementModal .division-summary-panel {
+    background-color: #212f3d; /* El derecho tiene su propio fondo oscuro. */
+    display: flex;
+    flex-direction: column;
+}
+
+/* --- 5. Las listas internas. --- */
+#unitManagementModal .available-units-list,
+#unitManagementModal #divisionCompositionList {
+    height: auto;
+    max-height: none;
+    flex-grow: 1;       /* Ocupa el espacio vertical sobrante. */
+    overflow-y: auto;   /* Muestra un scroll si la lista es muy larga. */
+    min-height: 50px;      
+    border: 1px solid #7f8c8d;
+    background-color: #34495e;
+    border-radius: 4px;
+    margin-top: 10px;
+    padding: 5px;
+}
+
+/* Esta regla es para el panel izquierdo (reduce el espacio de cada línea) */
+#unitManagementModal .unit-entry {
+    padding: 2px 2px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #eee;
+}
+#unitManagementModal .unit-entry:last-child { border-bottom: none; }
+#unitManagementModal .unit-entry span { font-weight: 500; }
+
+.category-tabs { display: flex; border-bottom: 1px solid #ccc; padding: 5px; background-color: #e9ecef; }
+.category-tabs .tab-btn { flex-grow: 1; padding: 10px 5px; background-color: transparent; border: none; border-radius: 3px; cursor: pointer; font-weight: 500; color: #495057; transition: background-color 0.2s; }
+.category-tabs .tab-btn:hover { background-color: #dee2e6; }
+.category-tabs .tab-btn.active { background-color: #007bff; color: white; }
+
+.quantity-controls { display: flex; align-items: center; }
+.quantity-controls .quantity-btn { width: 28px; height: 28px; border: 1px solid #ccc; background-color: #f8f9fa; font-size: 1.2em; cursor: pointer; line-height: 1; }
+.quantity-controls .quantity-input { width: 40px; text-align: center; border: 1px solid #ccc; border-left: none; border-right: none; height: 26px; }
+
+/* panel Derecho, Cada item de la lista (icono y cantidad) */
+#unitManagementModal .compact-composition-list li {
+    display: flex;
+    align-items: center;
+    font-size: 1em;
+    padding: 1px 1px;
+    background-color: rgba(44, 62, 80, 0.7);
+    border-radius: 2px;
+    margin-bottom: 2px;
+}
+#unitManagementModal .compact-composition-list .regiment-icon-emoji { font-size: 1.4em; line-height: 1; }
+#unitManagementModal .compact-composition-list .regiment-icon-image { width: 24px; height: 24px; }
+
+.summary-details { border-top: 1px solid #eee; padding-top: 10px; margin-top: auto; font-size: 0.9em; }
+.modal-footer-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+#finalizeUnitManagementBtn { background-color: #28a745; color: white; }
+#finalizeUnitManagementBtn:disabled { background-color: #94dcb0; cursor: not-allowed; }

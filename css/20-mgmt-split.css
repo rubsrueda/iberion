@@ -1,0 +1,91 @@
+/*20-mgmt-split.css*/
+/* ========================================================================== */
+/* --- 2. MODAL DIVIDIR UNIDAD (✂️) --- */
+/* ========================================================================== */
+
+/* Modal de División Avanzada */
+#advancedSplitUnitModal .modal-content { 
+    max-width: 450px; 
+    padding: 15px; 
+    background-color: #2c3e50;
+    border: 2px solid #95a5a6;
+    color: #ecf0f1;
+}
+
+#advancedSplitUnitModal h3,
+#advancedSplitUnitModal h4 {
+    color: #f1c40f; /* Títulos dorados */
+}
+
+#advancedSplitUnitModal p {
+    color: #bdc3c7; /* Texto descriptivo más tenue */
+}
+
+.split-regiment-container { 
+    display: flex; 
+    gap: 10px; 
+    margin-top: 10px; 
+    flex-wrap: nowrap; 
+}
+
+.regiment-column { 
+    flex: 1; 
+    min-width: 0; 
+    padding: 8px; 
+    border: 1px solid #7f8c8d; 
+    border-radius: 5px; 
+    background-color: #34495e; 
+    display: flex; 
+    flex-direction: column; 
+}
+
+.regiment-column h4 { font-size: 1em; margin-top: 0; margin-bottom: 5px; padding-bottom: 4px; border-bottom: 1px solid #eee; text-align: center; }
+.regiment-column p { font-size: 0.8em; margin: 2px 0; text-align: center; color: #ecf0f1; }
+
+#newSplitUnitNameInput { 
+    padding: 4px; 
+    font-size: 0.9em; 
+    width: 100%; 
+    box-sizing: border-box; 
+    background-color: #2c3e50;
+    border: 1px solid #7f8c8d;
+    color: #f1c40f;
+    text-align: center;
+}
+
+.regiments-list { 
+    list-style: none; 
+    padding: 0; 
+    margin: 5px 0 0 0; 
+    max-height: 200px; 
+    overflow-y: auto; 
+    border: 1px solid #7f8c8d; 
+    border-radius: 3px; 
+    flex-grow: 1; 
+}
+
+.regiments-list li { 
+    padding: 6px 8px; 
+    font-size: 1.1em; 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    cursor: pointer; 
+    border-bottom: 1px solid #eee; 
+}
+
+.regiments-list li:hover { background-color: #4a5568; }
+.regiments-list li span.regiment-type { font-weight: bold; color: #ecf0f1; margin-left: 5px; }
+
+#advancedSplitUnitModal .modal-footer-actions { margin-top: 15px; }
+#advancedSplitUnitModal button { 
+    padding: 8px 16px; 
+    font-size: 0.9em; 
+    border-radius: 5px;
+    border: none;
+    color: white;
+    font-weight: bold;
+}
+
+#advancedSplitUnitModal #finalizeAdvancedSplitBtn { background-color: #27ae60; }
+#advancedSplitUnitModal #cancelAdvancedSplitBtn { background-color: #7f8c8d; }

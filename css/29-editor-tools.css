@@ -1,0 +1,88 @@
+/*29-editor-tools.css*/
+/* ========================================================================== */
+/* ESTILOS DEL EDITOR DE ESCENARIOS Y CAMPAÑAS (MOBILE-FIRST)
+/* ========================================================================== */
+
+#scenarioEditorContainer,
+#campaignEditorContainer {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: flex;
+    flex-direction: column;
+    pointer-events: none;
+    z-index: 10502;
+}
+
+.editor-top-bar-mobile {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 10px;
+    background: rgba(10, 25, 41, 0.95);
+    border-bottom: 2px solid #00f3ff;
+    z-index: 10503;
+    height: 44px;
+    pointer-events: auto;
+}
+
+.editor-tools-panel {
+    position: fixed;
+    bottom: 60px;
+    left: 0; right: 0;
+    background: rgba(10, 25, 41, 0.98);
+    border-top: 2px solid #00f3ff;
+    z-index: 10503;
+    padding: 15px 10px 20px 10px;
+    max-height: 50vh;
+    overflow-y: auto;
+    pointer-events: auto;
+}
+
+/* ===== GRAPHICS MODE SELECTOR ===== */
+body.graphics-mode-complete {
+    --animation-duration: 0.6s;
+    --animation-intensity: 1;
+    --dust-opacity: 1;
+    --transition-duration: 0.4s;
+}
+
+body.graphics-mode-performance {
+    --animation-duration: 0.12s;
+    --animation-intensity: 0.2;
+    --dust-opacity: 0.2;
+    --transition-duration: 0.08s;
+}
+
+/* ========================================================================== */
+/* 31. CAPA DE INMERSIÓN VISUAL Y GAME FEEL                                  */
+/* ========================================================================== */
+
+.modal-themed .modal-content,
+#gameModesModal .modal-content,
+#mainMenuScreen button,
+.radial-btn {
+    font-family: Georgia, "Times New Roman", serif;
+    letter-spacing: 0.03em;
+}
+
+.modal-themed .modal-content {
+    background:
+        radial-gradient(circle at top, rgba(244, 217, 149, 0.12), transparent 34%),
+        linear-gradient(180deg, rgba(77, 46, 23, 0.97), rgba(23, 13, 8, 0.97)) !important;
+    border: 1px solid rgba(215, 180, 106, 0.65) !important;
+    backdrop-filter: blur(7px);
+}
+
+.button-primary,
+.button-danger,
+#mainMenuScreen button {
+    border-radius: 12px !important;
+    border: 1px solid rgba(233, 205, 139, 0.55) !important;
+    color: var(--ui-ink) !important;
+    background: linear-gradient(180deg, rgba(102, 64, 34, 0.94), rgba(43, 25, 15, 0.96)) !important;
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.26);
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+}

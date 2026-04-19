@@ -1,0 +1,78 @@
+/*28-menus-screens.css*/
+/* ========================================================================== */
+/* 13. ESTILOS DEL NUEVO MENÚ PRINCIPAL INTERACTIVO (COMPLETO)
+/* ========================================================================== */
+
+#interactiveBoardContainer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: auto;
+    z-index: 10;
+}
+
+.main-menu-hotspot {
+    position: absolute;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: transform 0.1s ease-out, background-color 0.1s;
+    animation: pulse-glow 3s infinite ease-in-out;
+}
+
+/* --- Posicionamiento de cada Hotspot --- */
+#hotspotMap { top: 73%; left: 38%; width: 24%; height: 22%; border-radius: 50%; }
+#hotspotBarracks { top: 43%; left: 4%; width: 28%; height: 24%; }
+#hotspotForge { top: 72%; left: 6%; width: 24%; height: 22%; }
+#hotspotAltar { top: 55%; left: 24%; width: 10%; height: 12%; }
+#hotspotCampaignProfile { top: 14%; left: 38%; width: 24%; height: 22%; }
+#hotspotCampaignHub { top: 21%; left: 17%; width: 20%; height: 22%; }
+#hotspotThrones { top: 44%; left: 69%; width: 24%; height: 23%; }
+#hotspotStore { top: 72%; left: 69%; width: 25%; height: 24%; }
+#hotspotLibrary { top: 17%; left: 63%; width: 24%; height: 22%; }
+
+/* --- UI del Menú --- */
+#generalInfoPanel {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: #f0e6d2;
+    padding: 8px 15px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 215, 0, 0.5);
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+/* --- ESTILOS DE LA LANDING PAGE (WEB DEL JUEGO) --- */
+#landingPageModal .landing-content {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    background: radial-gradient(circle at top, #1a253a 0%, #05080c 100%);
+    color: #ecf0f1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+}
+
+.landing-title {
+    font-size: 4rem;
+    margin: 0;
+    letter-spacing: 5px;
+    color: #f1c40f;
+    text-shadow: 0 0 20px rgba(241, 196, 15, 0.5);
+}
+
+.feature-card {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 20px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: center;
+}

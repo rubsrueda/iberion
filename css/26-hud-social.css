@@ -1,0 +1,112 @@
+/*26-hud-social.css*/
+/* ================================================================= */
+/* === CHAT LIMPIO Y MINIMALISTA (Widget Holográfico) === */
+/* ================================================================= */
+
+.chat-widget-container {
+    position: fixed;
+    top: 55px !important;
+    left: 5px !important;
+    z-index: 20000 !important;
+    pointer-events: auto !important;
+}
+
+.chat-widget-container.minimized #chatBubbleIcon {
+    display: flex !important;
+    width: 32px !important;
+    height: 32px !important;
+    background-color: rgba(20, 20, 30, 0.9) !important;
+    border: 1px solid #444 !important;
+    border-radius: 50% !important;
+    color: #f1c40f !important;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.chat-widget-container:not(.minimized) #chatWindowContent {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 200px !important;
+    height: 180px !important;
+    background-color: rgba(15, 20, 25, 0.98) !important;
+    border: 1px solid #f1c40f !important;
+    border-radius: 6px !important;
+    overflow: hidden !important;
+}
+
+.chat-msg {
+    margin-bottom: 4px !important;
+    padding: 3px 6px !important;
+    font-size: 10px !important;
+    border-radius: 3px !important;
+}
+
+.chat-msg.mine {
+    background-color: #3e4a59 !important;
+    color: white !important;
+    margin-left: auto !important;
+    text-align: right !important;
+}
+
+/* ========================================================================== */
+/* ==  EVENT FEED (panel lateral de eventos de partida)                    == */
+/* ========================================================================== */
+#event-feed {
+    position: fixed;
+    right: 8px;
+    top: 64px;
+    width: 220px;
+    max-height: 340px;
+    background: rgba(8, 12, 20, 0.82);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    border-radius: 8px;
+    overflow: hidden;
+    z-index: 1500;
+    display: flex;
+    flex-direction: column;
+}
+
+.event-feed-item {
+    padding: 4px 9px;
+    font-size: 0.72em;
+    line-height: 1.35;
+    color: rgba(220, 220, 220, 0.85);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.event-feed-item.feed-battle { color: #f08080; }
+.event-feed-item.feed-conquest { color: #ffd700; }
+.event-feed-item.feed-build { color: #7ec8e3; }
+.event-feed-item.feed-milestone { color: #b8ff8a; font-weight: 600; }
+
+/* ========================================================================== */
+/* 14. SISTEMA DE NOTIFICACIONES (TOASTS)
+/* ========================================================================== */
+.toast-notification {
+    position: fixed;
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    transform: translate(-50%, 0);
+    padding: 12px 25px;
+    background-color: rgba(20, 20, 20, 0.9);
+    color: #f0f0f0;
+    border-radius: 20px;
+    border: 1px solid #555;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    z-index: 99999;
+    font-size: 1.1em;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    animation: toast-fade-in-out 3s ease-in-out forwards;
+}
+
+.toast-notification.epico {
+    font-size: 1.5em;
+    font-weight: 700;
+    padding: 18px 40px;
+    background-color: rgba(10, 5, 0, 0.95);
+    border: 2px solid #ffd700;
+    color: #ffd700;
+    text-shadow: 0 0 12px rgba(255, 215, 0, 0.9);
+}

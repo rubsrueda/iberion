@@ -1,0 +1,101 @@
+/*24-system-bank.css*/
+/* ========================================================== */
+/* === ESTILOS MODAL BANCA (V3 - ULTRA COMPACTO Y CORREGIDO) === */
+/* ========================================================== */
+
+/* Estilo base para modales compactos */
+.modal-content.compact-modal {
+    padding: 4px;
+    max-height: 80vh;
+}
+
+.compact-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+.compact-header h2 {
+    margin: 0;
+    font-size: 1.2em; /* Título más pequeño */
+}
+.compact-header .close-button {
+    position: static; /* Quita el posicionamiento absoluto */
+    font-size: 1.2em;
+}
+
+/* Pestañas */
+.bank-tab-btn {
+    padding: 4px 6px;
+    font-size: 1.0em;
+    cursor: pointer;
+    border: none;
+    background-color: transparent;
+    color: #888;
+    border-bottom: 2px solid transparent;
+}
+.bank-tab-btn.active {
+    color: #f1c40f;
+    border-bottom: 2px solid #f1c40f;
+}
+
+.bank-trade-interface {
+    display: flex;
+    flex-direction: column; /* Apilado vertical siempre */
+    gap: 5px;
+    padding: 5px;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    margin-top: 4px;
+}
+
+.trade-column {
+    display: flex;
+    flex-direction: row; /* Elementos en fila */
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+.trade-column h4 {
+    margin: 0;
+    font-size: 1em; /* Títulos de sección más pequeños */
+    color: #f1c40f;
+    flex-basis: 25%; /* Ancho fijo para el título */
+}
+.trade-column select,
+.trade-column input {
+    flex-grow: 1; /* Ocupa el espacio restante */
+    padding: 5px;
+    font-size: 0.9em;
+    background-color: #333;
+    color: #eee;
+    border: 1px solid #777;
+    border-radius: 4px;
+    text-align: center;
+    margin: 0 5px;
+}
+.trade-column p {
+    margin: 0;
+    font-size: 0.8em;
+    color: #ccc;
+    flex-basis: 30%;
+    text-align: right;
+}
+.trade-column .ratio-text {
+    text-align: center;
+}
+
+.trade-arrow {
+    font-size: 1.0em;
+    color: #f1c40f;
+    transform: rotate(90deg);
+    margin: 0;
+    padding: 0;
+}
+
+#bankConfirmTradeBtn {
+    width: 100%;
+    padding: 5px;
+    margin-top: 5px;
+    font-size: 1em;
+}

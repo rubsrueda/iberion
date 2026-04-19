@@ -1,0 +1,95 @@
+/*21-mgmt-structures.css*/
+/* --- Listas de Estructuras en Modales --- */
+#availableStructuresList li {
+    cursor: pointer;
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+    transition: background-color 0.2s;
+}
+
+#availableStructuresList li:hover {
+    background-color: #f0f0f0;
+}
+
+#availableStructuresList li.selected-structure {
+    background-color: #d0e0ff;
+    font-weight: bold;
+}
+
+/* Ajuste de legibilidad para la lista de construcción en tema oscuro */
+#availableStructuresList li {
+    color: #ecf0f1; /* Texto blanco grisáceo */
+    border-bottom: 1px solid #7f8c8d; /* Separador sutil */
+    padding: 12px;
+}
+
+#availableStructuresList li:hover {
+    background-color: #34495e; /* Azul un poco más claro al pasar el ratón */
+}
+
+#availableStructuresList li.selected-structure {
+    background-color: #2980b9; /* Azul vibrante para la selección */
+    color: #ffffff;
+    font-weight: bold;
+}
+
+/* Impacto visual de tecnología: caminos mejorados por Albañilería */
+.hex.road-stone-tech {
+    outline: 1px dashed rgba(200, 200, 215, 0.85);
+    outline-offset: -3px;
+    background-image: repeating-linear-gradient(135deg, rgba(205, 205, 215, 0.22) 0 3px, rgba(150, 150, 165, 0.12) 3px 6px);
+    filter: saturate(0.92) contrast(1.05);
+}
+
+.hex.road-stone-tech .structure-sprite {
+    text-shadow: 0 0 6px rgba(214, 214, 230, 0.7);
+    transform: scale(1.05);
+}
+
+/* --- SOLUCIÓN PARA PANTALLA DE CONSTRUCCIÓN (Móvil) --- */
+@media (max-width: 620px) {
+    #buildStructureModal .modal-content {
+        width: 100%;
+        max-width: 320px !important;
+        max-height: 320px !important;
+        padding: 12px !important;
+        margin: auto;
+    }
+
+    #buildStructureModal .modal-header {
+        padding: 8px 12px !important;
+    }
+
+    #buildStructureModal .modal-header h3 {
+        font-size: 1em !important;
+        margin: 0 !important;
+    }
+
+    #buildStructureModal .modal-body {
+        padding: 8px 0 !important;
+        max-height: 200px !important;
+        overflow-y: auto !important;
+        flex-grow: 1;
+    }
+
+    #buildStructureModal #availableStructuresList {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    #buildStructureModal #availableStructuresList li {
+        padding: 6px 8px !important;
+        font-size: 0.85em !important;
+        margin: 2px 0 !important;
+    }
+
+    #buildStructureModal .modal-footer {
+        padding: 8px 12px !important;
+    }
+
+    #buildStructureModal #confirmBuildBtn {
+        padding: 8px 12px !important;
+        font-size: 0.9em !important;
+        width: 100%;
+    }
+}
