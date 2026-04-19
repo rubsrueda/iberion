@@ -1,0 +1,22 @@
+/*18-helpers-advanced.css*/
+/* Helpers avanzados, detalles de tutorial, login y otros migrados de style.css */
+
+.floating-btn {
+    pointer-events: auto !important;
+    touch-action: manipulation;
+}
+
+@media (max-height: 400px) { 
+    .tutorial-panel {
+        bottom: auto !important;
+        top: 10px !important;
+        transform: translateX(-50%);
+    }
+}
+
+#loginScreen button {
+    pointer-events: all !important;
+    cursor: pointer !important;
+}
+
+/* Otros helpers avanzados pueden agregarse aquí. */

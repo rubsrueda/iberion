@@ -1,0 +1,111 @@
+/*08-helpers.css*/
+/* Helpers, utilidades y reglas globales migradas de style.css */
+
+/* --- FIX: Visibilidad forzada de botones contextuales y submenu --- */
+.right-menu-group .submenu button {
+    display: none !important;
+}
+.right-menu-group.is-open .submenu button {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+#tactical-ui-container {
+    display: none !important;
+    pointer-events: none !important;
+    z-index: 9999;
+}
+body.in-game #tactical-ui-container {
+    display: block !important;
+    pointer-events: auto !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    z-index: 9998 !important;
+}
+
+.floating-action-group.left,
+.floating-action-group.right {
+    display: none !important;
+    pointer-events: none !important;
+}
+body.in-game .floating-action-group.left,
+body.in-game .floating-action-group.right {
+    display: flex !important;
+    pointer-events: auto !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    z-index: 9999 !important;
+    position: fixed !important;
+}
+
+.floating-action-group.left {
+    display: flex !important;
+    pointer-events: auto;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 16px 16px 16px 8px;
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    z-index: 2003;
+}
+.floating-action-group.left button {
+    background: none;
+    border: none;
+    border-radius: 0;
+    width: 44px;
+    height: 44px;
+    margin-bottom: 6px;
+    font-size: 1.5em;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: background 0.2s, box-shadow 0.2s;
+    pointer-events: all;
+    z-index: 2003;
+    opacity: 1;
+}
+.floating-action-group.left button:hover {
+    background: #f0f0f0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.floating-action-group.right {
+    z-index: 2002;
+    pointer-events: all;
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: auto;
+    min-width: 48px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 12px 10px 18px 0;
+    background: none;
+    border: none;
+    box-sizing: border-box;
+}
+.floating-action-group.right button {
+    z-index: 2003;
+    pointer-events: all;
+    background: none;
+    border: none;
+    border-radius: 0;
+    width: 44px;
+    height: 44px;
+    margin-bottom: 6px;
+    font-size: 1.5em;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: background 0.2s, box-shadow 0.2s;
+    opacity: 1;
+}
+.floating-action-group.right button:hover {
+    background: #f0f0f0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* Otros helpers y utilidades pueden agregarse aquí. */
