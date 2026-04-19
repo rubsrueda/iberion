@@ -1,3 +1,44 @@
+/* ========================================================== */
+/* --- Modal: Wiki y Ayuda --- */
+/* ========================================================== */
+
+.help-modal-content {
+    max-width: 700px; max-height: 90vh; overflow-y: auto;
+    background-color: #f0f2f5; border: 1px solid #ccc;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.15); padding: 30px; position: relative;
+}
+.help-modal-content h2 { font-size: 2.2em; color: #0056b3; }
+.help-modal-content h3 { font-size: 1.4em; color: #4a5568; margin-top: 25px; margin-bottom: 10px; border-bottom: 1px solid #e0e0e0; padding-bottom: 5px; }
+.help-modal-content p { font-size: 1em; line-height: 1.5; color: #333; margin-bottom: 15px; }
+.help-modal-content b { font-weight: bold; color: #007bff; }
+.help-modal-content ul { list-style: disc; margin-left: 20px; margin-bottom: 15px; }
+.help-modal-content li { margin-bottom: 5px; }
+.help-modal-content button { background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; transition: background-color 0.2s ease-in-out; font-weight: bold; }
+.help-modal-content button:hover { background-color: #218838; }
+#doNotShowAgainCheckbox { transform: scale(1.2); margin-right: 8px !important; }
+
+.wiki-content {
+    width: 95%; max-width: 900px; height: 85vh; display: flex; flex-direction: column; padding: 20px;
+}
+.wiki-content h2 { text-align: center; margin-top: 0; margin-bottom: 15px; color: #333; }
+.wiki-tabs { display: flex; border-bottom: 2px solid #007bff; margin-bottom: 15px; }
+.wiki-tab-btn { padding: 10px 15px; cursor: pointer; border: none; background-color: transparent; font-size: 1em; font-weight: 500; color: #0056b3; border-radius: 5px 5px 0 0; transition: background-color 0.2s, color 0.2s; }
+.wiki-tab-btn.active { background-color: #007bff; color: white; }
+.wiki-tab-btn:hover:not(.active) { background-color: #e9ecef; }
+.wiki-tab-content { flex-grow: 1; overflow-y: auto; padding-right: 10px; }
+.wiki-page { display: none; }
+.wiki-page.active { display: block; }
+.wiki-page h3 { margin-top: 10px; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+.wiki-page p { font-size: 0.9em; color: #555; margin-bottom: 15px; }
+.table-container { overflow-x: auto; }
+.wiki-content table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+.wiki-content th, .wiki-content td { padding: 8px 10px; border: 1px solid #ddd; text-align: left; vertical-align: middle; }
+.wiki-content thead th { background-color: #f2f2f2; font-weight: bold; }
+.wiki-content tbody tr:nth-child(even) { background-color: #f9f9f9; }
+.wiki-regiment-icon { font-size: 1.5em; width: 30px; text-align: center; }
+.wiki-stars { color: #f39c12; white-space: nowrap; }
+#wikiConceptsContent div { margin-bottom: 20px; }
+#wikiConceptsContent h4 { font-size: 1.1em; color: #0056b3; margin-bottom: 5px; }
 /*24-wiki.css*/
 /* Estilos migrados desde style.css para la Wiki y tablas */
 
